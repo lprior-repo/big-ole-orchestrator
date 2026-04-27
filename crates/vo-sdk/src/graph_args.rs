@@ -244,13 +244,33 @@ pub type GraphWorkflowSpec = WorkflowSpec;
 ///
 /// # Example
 ///
-/// ```ignore
-/// fn main() {
-///     let args: Vec<String> = std::env::args().collect();
-///     if let Err(()) = vo_sdk::emit_graph_if_requested(&args, workflow_spec) {
-///         std::process::exit(1);
-///     }
-/// }
+/// ```
+/// use vo_sdk::graph_args::{emit_graph_if_requested, WorkflowSpec, NodeSpec, EdgeSpec};
+/// use vo_types::{NodeKind, WorkflowName, NodeName};
+///
+/// // Build a spec manually (typically via Workflow builder)
+/// let spec = WorkflowSpec {
+///     workflow_name: WorkflowName::parse("checkout").unwrap(),
+///     nodes: vec![
+///         NodeSpec {
+///             name: NodeName::parse("validate").unwrap(),
+///             kind: NodeKind::Pure,
+///         },
+///         NodeSpec {
+///             name: NodeName::parse("charge").unwrap(),
+///             kind: NodeKind::ManagedEffect,
+///         },
+///     ],
+///     edges: vec![EdgeSpec {
+///         from: NodeName::parse("validate").unwrap(),
+///         to: NodeName::parse("charge").unwrap(),
+///     }],
+/// };
+///
+/// // Check args for --graph and emit if present
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// let result = emit_graph_if_requested(&args, &spec);
+/// assert!(result.is_ok());
 /// ```
 ///
 /// # Errors

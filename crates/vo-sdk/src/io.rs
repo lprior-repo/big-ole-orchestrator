@@ -30,6 +30,20 @@ const MAX_OUTPUT_SIZE: usize = 10 * 1024 * 1024;
 const MAX_MESSAGE_BYTES: usize = 1024;
 
 /// Check if output has already been written.
+///
+/// Use this to query the single-write guard state before calling [`write_success`]
+/// or [`write_failure`].
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::{is_written, write_success};
+/// use serde_json::json;
+///
+/// assert!(!is_written()); // Initially false
+/// let _ = write_success(&json!({ "ok": true }));
+/// assert!(is_written());  // True after writing
+/// ```
 #[must_use]
 pub fn is_written() -> bool {
     IS_WRITTEN.load(std::sync::atomic::Ordering::SeqCst)
@@ -37,8 +51,25 @@ pub fn is_written() -> bool {
 
 /// Write a success result to FD4.
 ///
+/// This function may only be called once per process lifetime due to the
+/// single-write guard. Subsequent calls return [`SdkError::AlreadyWritten`].
+///
+/// # Example (in a task binary)
+///
+/// ```ignore
+/// use vo_sdk::{write_success, read_input, execute_node};
+/// use serde_json::json;
+///
+/// // After executing a node:
+/// let result = json!({ "receipt_id": "abc123", "amount": 99.99 });
+/// write_success(&result).expect("failed to write success");
+/// ```
+///
 /// # Errors
-/// Returns `SdkError` if already written or write fails.
+///
+/// Returns `SdkError::AlreadyWritten` if called a second time.
+/// Returns `SdkError::FdNotOpen` if FD4 is not open.
+/// Returns `SdkError::WriteError` if the write fails.
 pub fn write_success(output: &Value) -> Result<(), SdkError> {
     if IS_WRITTEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return Err(SdkError::AlreadyWritten);
@@ -95,8 +126,25 @@ pub fn write_success_inner_with_state<W: Write>(
 
 /// Write a failure result to FD4.
 ///
+/// This function may only be called once per process lifetime due to the
+/// single-write guard. Subsequent calls return [`SdkError::AlreadyWritten`].
+///
+/// # Example (in a task binary)
+///
+/// ```ignore
+/// use vo_sdk::{write_failure, TaskFailureKind};
+///
+/// // On error during node execution:
+/// write_failure(TaskFailureKind::User, "invalid input: missing field 'amount'")
+///     .expect("failed to write failure");
+/// ```
+///
 /// # Errors
-/// Returns `SdkError` if already written, input invalid, or write fails.
+///
+/// Returns `SdkError::AlreadyWritten` if called a second time.
+/// Returns `SdkError::InvalidInput` if the message exceeds 1024 bytes.
+/// Returns `SdkError::FdNotOpen` if FD4 is not open.
+/// Returns `SdkError::WriteError` if the write fails.
 pub fn write_failure(kind: TaskFailureKind, message: &str) -> Result<(), SdkError> {
     if IS_WRITTEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return Err(SdkError::AlreadyWritten);
@@ -166,6 +214,15 @@ static IS_READ: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::n
 const MAX_INPUT_SIZE: usize = 10 * 1024 * 1024;
 
 /// Check if input has already been read.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::is_read;
+///
+/// assert!(!is_read()); // Initially false
+/// // After read_input() is called, this returns true
+/// ```
 #[must_use]
 pub fn is_read() -> bool {
     IS_READ.load(std::sync::atomic::Ordering::SeqCst)
@@ -173,8 +230,30 @@ pub fn is_read() -> bool {
 
 /// Read task input from FD3.
 ///
+/// The input is expected to be a JSON envelope containing task data and secrets.
+/// This function may only be called once per process lifetime.
+///
+/// # Example (in a task binary)
+///
+/// ```ignore
+/// use vo_sdk::{read_input, write_success};
+/// use serde_json::json;
+///
+/// let input = read_input().expect("failed to read input");
+///
+/// // Access the input data
+/// let data = input.data();
+/// let secret = input.secret("API_KEY");
+///
+/// // Process and write result
+/// let result = json!({ "processed": true });
+/// write_success(&result).expect("failed to write success");
+/// ```
+///
 /// # Errors
-/// Returns `SdkError` if FD is not open, already read, or input is invalid.
+///
+/// Returns `SdkError::FdNotOpen` if FD3 is not open or already read.
+/// Returns `SdkError::InvalidInput` if the input is malformed or exceeds size limits.
 pub fn read_input() -> Result<TaskInput, SdkError> {
     if IS_READ.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return Err(SdkError::FdNotOpen);
@@ -289,9 +368,14 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// # Example
 ///
 /// ```ignore
+/// // When reading input that contains secrets:
 /// let input = vo_sdk::read_input()?;
-/// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
+/// if let Some(stripe_key) = vo_sdk::secret(&input, "STRIPE_KEY") {
+///     // Use the secret
+/// }
 /// ```
+///
+/// Note: [`read_input`] must be called first to populate the task input.
 pub fn secret<'a>(input: &'a vo_types::TaskInput, _key: &str) -> Option<&'a str> {
     input.secret(_key)
 }

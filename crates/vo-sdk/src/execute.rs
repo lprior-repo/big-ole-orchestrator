@@ -9,34 +9,31 @@
 //! - [`parse_execute_args`] - Parse `--execute-node <name>` from CLI args
 //! - [`execute_node`] - Read input from FD3, execute node, write result to FD4
 //!
-//! # Example
+//! # Full workflow binary example
 //!
 //! ```ignore
-//! use vo_sdk::{Workflow, emit_graph_if_requested, execute_node};
+//! use vo_sdk::{Workflow, emit_graph_if_requested, execute_node, BoxedNodeFn};
 //!
-//! let mut wf = Workflow::new("checkout");
-//! let charge = wf.effect("charge", |input: serde_json::Value| -> serde_json::Value {
-//!     serde_json::json!({ "receipt": "ok" })
-//! }).unwrap();
+//! fn main() {
+//!     let args: Vec<String> = std::env::args().collect::<Vec<_>>();
 //!
-//! let spec = wf.build().unwrap();
+//!     let mut wf = Workflow::new("checkout");
+//!     let _charge = wf.effect("charge", |_input: serde_json::Value| -> serde_json::Value {
+//!         serde_json::json!({ "receipt": "ok" })
+//!     }).unwrap();
 //!
-//! // In main():
-//! let args: Vec<String> = std::env::args().collect();
+//!     let spec = wf.build().unwrap();
 //!
-//! // Handle --graph
-//! emit_graph_if_requested(&args, &spec);
+//!     // Phase 1: emit graph specification for engine discovery
+//!     emit_graph_if_requested(&args, &spec);
 //!
-//! // Handle --execute-node
-//! execute_node(&args, &spec, |node_name| {
-//!     match node_name {
-//!         "charge" => Some(Box::new(|input| {
-//!             Ok(serde_json::json!({ "receipt": "ok" }))
-//!         })),
-//!         _ => None,
-//!     }
-//! });
+//!     // Phase 2: execute a named node
+//!     let registry: Vec<(&str, BoxedNodeFn)> = vec![];
+//!     execute_node(&args, &registry);
+//! }
 //! ```
+//!
+//! For [`parse_execute_args`] usage, see the [`ExecuteArgs`] docs.
 
 use std::any::Any;
 
@@ -66,6 +63,25 @@ pub enum ExecuteArgsError {
 }
 
 /// Parse CLI arguments for the `--execute-node <name>` flag.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::execute::parse_execute_args;
+///
+/// // Valid: --execute-node followed by a name
+/// let args = vec![
+///     "binary".to_string(),
+///     "--execute-node".to_string(),
+///     "charge".to_string(),
+/// ];
+/// let result = parse_execute_args(&args).unwrap();
+/// assert_eq!(result.node_name.as_str(), "charge");
+///
+/// // Returns NoExecuteNodeFlag when absent
+/// let args = vec!["binary".to_string()];
+/// assert!(parse_execute_args(&args).is_err());
+/// ```
 ///
 /// # Errors
 ///
@@ -130,6 +146,28 @@ pub struct BoxedNodeFn {
 }
 
 impl BoxedNodeFn {
+    /// Create a new boxed node function with the given name.
+    ///
+    /// The function must implement the [`NodeFn`] trait.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use vo_sdk::{BoxedNodeFn, NodeFn, NodeResult};
+    ///
+    /// struct ChargeNode;
+    ///
+    /// impl NodeFn for ChargeNode {
+    ///     fn execute(&self, input: serde_json::Value) -> NodeResult {
+    ///         Ok(serde_json::json!({ "receipt": "ok" }))
+    ///     }
+    ///     fn name(&self) -> &str {
+    ///         "charge"
+    ///     }
+    /// }
+    ///
+    /// let boxed: BoxedNodeFn = BoxedNodeFn::new("charge", ChargeNode);
+    /// ```
     #[must_use]
     pub fn new<F>(name: &str, f: F) -> Self
     where
@@ -217,7 +255,24 @@ pub fn execute_node(
 
 /// Check if `--execute-node` flag is present (without parsing the full args).
 ///
-/// Useful for checking which mode a binary should operate in.
+/// Useful for checking which mode a binary should operate in without
+/// the full error handling of [`parse_execute_args`].
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::execute::has_execute_flag;
+///
+/// let args = vec![
+///     "binary".to_string(),
+///     "--execute-node".to_string(),
+///     "charge".to_string(),
+/// ];
+/// assert!(has_execute_flag(&args));
+///
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// assert!(!has_execute_flag(&args));
+/// ```
 #[must_use]
 pub fn has_execute_flag(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "--execute-node")

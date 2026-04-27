@@ -22,6 +22,23 @@ pub struct SignalNodeMeta {
 }
 
 impl SignalNodeMeta {
+    /// Create signal metadata with lineage-wide scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::graph::SignalNodeMeta;
+    /// use vo_types::{SignalAddress, InstanceId, WaitKey, LineageScope};
+    ///
+    /// let addr = SignalAddress::lineage_wide(
+    ///     InstanceId::from_bytes([0u8; 16]),
+    ///     InstanceId::from_bytes([1u8; 16]),
+    ///     WaitKey::parse("my-signal").unwrap(),
+    /// );
+    /// let meta = SignalNodeMeta::lineage_wide(addr);
+    /// assert_eq!(meta.lineage_scope, LineageScope::LineageWide);
+    /// ```
+
     pub fn lineage_wide(address: SignalAddress) -> Self {
         Self {
             address,
@@ -30,6 +47,23 @@ impl SignalNodeMeta {
         }
     }
 
+    /// Create signal metadata with epoch-local scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::graph::SignalNodeMeta;
+    /// use vo_types::{SignalAddress, InstanceId, WaitKey, Epoch, LineageScope};
+    ///
+    /// let addr = SignalAddress::epoch_local(
+    ///     InstanceId::from_bytes([0u8; 16]),
+    ///     Epoch(0),
+    ///     InstanceId::from_bytes([1u8; 16]),
+    ///     WaitKey::parse("my-signal").unwrap(),
+    /// );
+    /// let meta = SignalNodeMeta::epoch_local(addr);
+    /// assert_eq!(meta.lineage_scope, LineageScope::EpochLocal);
+    /// ```
     pub fn epoch_local(address: SignalAddress) -> Self {
         Self {
             address,
@@ -53,6 +87,20 @@ pub enum GraphArgsError {
 }
 
 /// Parse CLI arguments for the `--graph` flag.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::graph::parse_graph_args;
+///
+/// // Returns Ok when --graph is present
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// assert!(parse_graph_args(&args).is_ok());
+///
+/// // Returns Err(NoGraphFlag) when --graph is absent
+/// let args = vec!["binary".to_string()];
+/// assert!(parse_graph_args(&args).is_err());
+/// ```
 ///
 /// # Errors
 ///
@@ -681,13 +729,41 @@ mod tests {
 ///
 /// # Example
 ///
-/// ```ignore
-/// fn main() {
-///     let args: Vec<String> = std::env::args().collect();
-///     if let Err(()) = vo_sdk::emit_graph_if_requested(&args, workflow_spec) {
-///         std::process::exit(1);
-///     }
-/// }
+/// ```
+/// use vo_sdk::graph::{emit_graph_if_requested, WorkflowSpec, NodeSpec, EdgeSpec, default_retry_policy};
+/// use vo_types::{NodeKind, WorkflowName, NodeName, DedupeScope, GuaranteeClass};
+///
+/// // Build a spec manually (typically via Workflow builder)
+/// let spec = WorkflowSpec {
+///     workflow_name: WorkflowName::parse("checkout").unwrap(),
+///     nodes: vec![
+///         NodeSpec {
+///             name: NodeName::parse("validate").unwrap(),
+///             kind: NodeKind::Pure,
+///             retry_policy: default_retry_policy(),
+///             signal_meta: None,
+///         },
+///         NodeSpec {
+///             name: NodeName::parse("charge").unwrap(),
+///             kind: NodeKind::ManagedEffect,
+///             retry_policy: default_retry_policy(),
+///             signal_meta: None,
+///         },
+///     ],
+///     edges: vec![EdgeSpec {
+///         from: NodeName::parse("validate").unwrap(),
+///         to: NodeName::parse("charge").unwrap(),
+///     }],
+///     dedupe_scope: DedupeScope::default(),
+///     guarantee_class: GuaranteeClass::default(),
+/// };
+///
+/// // Check args for --graph and emit if present
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// let result = emit_graph_if_requested(&args, &spec);
+/// // When --graph is present, result is Ok(()) and process exits with JSON printed
+/// // When --graph is absent, result is Ok(()) and execution continues
+/// assert!(result.is_ok());
 /// ```
 ///
 /// # Errors

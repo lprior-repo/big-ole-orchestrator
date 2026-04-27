@@ -37,6 +37,10 @@
 //! let spec = wf.build().unwrap();
 //! emit_graph_if_requested(&std::env::args().collect::<Vec<_>>(), &spec);
 //! ```
+//!
+//! For concrete examples of the Workflow builder API, see the documentation for
+//! [`Workflow`](dag::Workflow), [`Dag`](dag::Dag), [`execute_node`](execute::execute_node),
+//! and [`emit_graph_if_requested`](graph::emit_graph_if_requested).
 
 pub mod dag;
 pub mod execute;
@@ -62,6 +66,19 @@ use thiserror::Error;
 // Re-export public API
 pub use io::{is_read, is_written, read_input, secret, write_failure, write_success};
 
+/// Errors from SDK I/O operations.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::SdkError;
+///
+/// // Each error variant describes a distinct failure mode
+/// assert_eq!(SdkError::InvalidInput.to_string(), "InvalidInput");
+/// assert_eq!(SdkError::FdNotOpen.to_string(), "FdNotOpen");
+/// assert_eq!(SdkError::AlreadyWritten.to_string(), "AlreadyWritten");
+/// assert_eq!(SdkError::WriteError.to_string(), "WriteError");
+/// ```
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
     #[error("InvalidInput")]
@@ -77,6 +94,18 @@ pub enum SdkError {
 // TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
 // Kept here temporarily because this bead is scoped to vo-sdk only.
 // See: contract.md precondition "vo-types must define the shared IPC types"
+/// Kind of task failure, used to categorize errors from [`write_failure`](crate::write_failure).
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::TaskFailureKind;
+///
+/// // Each variant represents a distinct failure category
+/// assert_eq!(format!("{:?}", TaskFailureKind::User), "User");
+/// assert_eq!(format!("{:?}", TaskFailureKind::System), "System");
+/// assert_eq!(format!("{:?}", TaskFailureKind::Timeout), "Timeout");
+/// ```
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TaskFailureKind {
     User,
