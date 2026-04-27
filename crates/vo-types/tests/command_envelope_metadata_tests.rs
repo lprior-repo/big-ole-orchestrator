@@ -52,6 +52,7 @@ fn history_entry_carries_envelope_identity() {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             compensation_policy: None,
+            capability: Default::default(),
         }],
         vec![],
     );
@@ -138,6 +139,7 @@ fn command_metadata_propagates_through_command_history_entries() {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             compensation_policy: None,
+            capability: Default::default(),
         }],
         vec![],
     );
@@ -192,6 +194,7 @@ fn apply_command_preserves_metadata_through_undo_redo_cycle() {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             compensation_policy: None,
+            capability: Default::default(),
         }],
         vec![],
     );
@@ -225,6 +228,7 @@ fn multiple_history_entries_have_distinct_command_ids() {
             node_name: NodeName::parse("n1").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
             compensation_policy: None,
+            capability: Default::default(),
         }],
         vec![],
     );
