@@ -6,14 +6,18 @@ use axum::{
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
 use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
+use vo_storage::event_log::{append_event, AppendEventRequest};
+use vo_types::events::EventMetadata;
+use vo_types::InstanceId;
 
 use crate::handlers::helpers::parse_paradigm;
 use crate::handlers::ingress::{
@@ -38,6 +42,7 @@ pub async fn start_workflow(
     Extension(dedupe_store): Extension<Arc<dyn DedupeStore>>,
     Extension(writer_pressure): Extension<Arc<dyn WriterPressureGuard>>,
     Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
+    Extension(event_db): Extension<Arc<fjall::Database>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
     // Step 1: Validate dedupe key presence (ADR-028 Section 2).
@@ -55,7 +60,16 @@ pub async fn start_workflow(
         }
     };
 
-    let namespace = NamespaceId::from(req.namespace);
+    let namespace = match request_namespace(&req.namespace) {
+        Ok(namespace) => namespace,
+        Err(message) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_namespace", message)),
+            )
+                .into_response();
+        }
+    };
 
     let paradigm = match parse_paradigm(&req.paradigm) {
         Some(p) => p,
@@ -78,8 +92,16 @@ pub async fn start_workflow(
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
-    let instance_id =
-        vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
+    let instance_id = match InstanceId::parse(&instance_id_str) {
+        Ok(instance_id) => instance_id,
+        Err(error) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new("invalid_instance_id", error.to_string())),
+            )
+                .into_response();
+        }
+    };
 
     // Step 3: Check writer pressure BEFORE dedupe admission (ADR-006, ADR-015).
     // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
@@ -216,7 +238,7 @@ pub async fn start_workflow(
             |tx| OrchestratorMsg::StartWorkflow {
                 namespace,
                 instance_id,
-                workflow_type,
+                workflow_type: workflow_type.clone(),
                 paradigm,
                 input,
                 reply: tx,
@@ -290,14 +312,95 @@ pub async fn start_workflow(
             )
                 .into_response()
         }
-        Ok(CallResult::Success(Ok(_))) => (
-            StatusCode::CREATED,
-            Json(V3StartResponse {
-                instance_id: captured_id.to_string(),
-                namespace: captured_namespace.to_string(),
-                workflow_type: req.workflow_type,
-            }),
-        )
-            .into_response(),
+        Ok(CallResult::Success(Ok(_))) => match persist_workflow_started_event(
+            &event_db,
+            &captured_namespace,
+            &captured_id,
+            &workflow_type,
+            &req.input,
+            &dedupe_key,
+        ) {
+            Ok(()) => (
+                StatusCode::CREATED,
+                Json(V3StartResponse {
+                    instance_id: captured_id.to_string(),
+                    namespace: captured_namespace.to_string(),
+                    workflow_type,
+                }),
+            )
+                .into_response(),
+            Err(error) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new(
+                    "event_persist_failed",
+                    format!("workflow started but event persistence failed: {error}"),
+                )),
+            )
+                .into_response(),
+        },
+    }
+}
+
+fn request_namespace(namespace: &str) -> Result<NamespaceId, String> {
+    if namespace.is_empty() {
+        return Err("namespace must not be empty".to_string());
+    }
+    if namespace.contains('/') || namespace.as_bytes().contains(&b'\0') {
+        return Err("namespace must not contain '/' or NUL".to_string());
+    }
+    Ok(NamespaceId::from(namespace.to_string()))
+}
+
+fn persist_workflow_started_event(
+    db: &fjall::Database,
+    namespace: &str,
+    instance_id: &InstanceId,
+    workflow_type: &str,
+    input: &serde_json::Value,
+    dedupe_key: &str,
+) -> Result<(), vo_storage::codec::StorageError> {
+    let binary_hash = workflow_binary_hash(input);
+    let payload = serde_json::json!({
+        "type": "WorkflowStarted",
+        "workflow_id": instance_id.to_string(),
+        "workflow_type": workflow_type,
+        "namespace": namespace,
+        "binary_hash": binary_hash,
+        "workflow_version_hash": binary_hash,
+        "dedupe_key_hash": dedupe_key,
+    });
+    let mut annotations = HashMap::new();
+    annotations.insert("namespace".to_string(), serde_json::json!(namespace));
+
+    append_event(
+        db,
+        AppendEventRequest {
+            namespace: namespace.to_string(),
+            instance_id: instance_id.clone(),
+            timestamp_ms: now_ms(),
+            payload,
+            metadata: EventMetadata {
+                command_metadata: None,
+                annotations,
+            },
+        },
+    )
+    .map(|_| ())
+}
+
+fn workflow_binary_hash(input: &serde_json::Value) -> String {
+    match input
+        .get("workflow_binary_hash")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => "unknown".to_string(),
+    }
+}
+
+fn now_ms() -> u64 {
+    match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(duration) => u64::try_from(duration.as_millis()).map_or(u64::MAX, |value| value),
+        Err(_) => 0,
     }
 }

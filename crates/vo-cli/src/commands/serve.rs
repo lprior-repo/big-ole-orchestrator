@@ -1,4 +1,6 @@
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ServeError {
@@ -28,13 +30,7 @@ pub fn validate_serve_config(config: &ServeConfig) -> Result<(), ServeError> {
             "port must be greater than 0".to_string(),
         ));
     }
-    if !config.storage_path.exists() {
-        return Err(ServeError::InvalidStoragePath(format!(
-            "storage path does not exist: {}",
-            config.storage_path.display()
-        )));
-    }
-    if !config.storage_path.is_dir() {
+    if config.storage_path.exists() && !config.storage_path.is_dir() {
         return Err(ServeError::InvalidStoragePath(format!(
             "storage path is not a directory: {}",
             config.storage_path.display()
@@ -44,15 +40,49 @@ pub fn validate_serve_config(config: &ServeConfig) -> Result<(), ServeError> {
 }
 
 pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
+    let listen_addr = format!("{}:{}", config.host, config.port);
+    let listener = match tokio::net::TcpListener::bind(&listen_addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            return Err(ServeError::InvalidHost(format!(
+                "Failed to bind to {listen_addr}: {e}"
+            )))
+        }
+    };
+
+    run_serve_until_shutdown(config, listener, shutdown_signal()).await
+}
+
+pub async fn run_serve_until_shutdown<S>(
+    config: &ServeConfig,
+    listener: tokio::net::TcpListener,
+    shutdown: S,
+) -> Result<(), ServeError>
+where
+    S: Future<Output = ()> + Send + 'static,
+{
     validate_serve_config(config)?;
+
+    std::fs::create_dir_all(&config.storage_path).map_err(|e| {
+        ServeError::InvalidStoragePath(format!(
+            "failed to create storage directory {}: {e}",
+            config.storage_path.display()
+        ))
+    })?;
 
     let db = fjall::Database::builder(&config.storage_path)
         .open()
         .map_err(|e| ServeError::InvalidStoragePath(format!("Failed to open Fjall DB: {e}")))?;
 
-    let db_handle = std::sync::Arc::new(db);
+    let dedupe_store = Arc::new(
+        vo_storage::dedupe_partition::FjallDedupeStore::open(&db).map_err(|e| {
+            ServeError::InvalidStoragePath(format!("failed to open Fjall dedupe store: {e}"))
+        })?,
+    );
 
-    let workspace_index = std::sync::Arc::new(std::sync::RwLock::new(
+    let db_handle = Arc::new(db);
+
+    let workspace_index = Arc::new(std::sync::RwLock::new(
         vo_types::workspace::WorkspaceIndex::new(),
     ));
 
@@ -64,27 +94,16 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
     let sse = vo_api::handlers::SseState::new();
     let ws = vo_api::handlers::WsState::new();
 
-    let (master_ref, _master_handle) = ractor::Actor::spawn(
-        Some("api-orchestrator".to_string()),
-        DummyMaster,
-        (),
-    )
-    .await
-    .map_err(|e| {
-        ServeError::InvalidStoragePath(format!("Failed to spawn orchestrator: {e}"))
-    })?;
-    let master = std::sync::Arc::new(master_ref);
+    let (master_ref, _master_handle) =
+        ractor::Actor::spawn(Some("api-orchestrator".to_string()), DummyMaster, ())
+            .await
+            .map_err(|e| {
+                ServeError::InvalidStoragePath(format!("Failed to spawn orchestrator: {e}"))
+            })?;
+    let master = Arc::new(master_ref);
 
-    let circuit_breaker = std::sync::Arc::new(
-        vo_core::circuit_breaker::CircuitBreakerState::new(),
-    );
-
-    let dedupe_store = std::sync::Arc::new(
-        vo_storage::dedupe_partition::InMemoryDedupeStore::new(),
-    );
-
-    let writer_pressure: std::sync::Arc<dyn vo_core::admission::WriterPressureGuard> =
-        std::sync::Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
+    let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
+    let writer_pressure = Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
 
     let state = vo_api::router::AppState {
         query,
@@ -98,15 +117,10 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
 
     let router = vo_api::router::create_router(state);
 
-    let listen_addr = format!("{}:{}", config.host, config.port);
-    let listener = match tokio::net::TcpListener::bind(&listen_addr).await {
-        Ok(l) => l,
-        Err(e) => {
-            return Err(ServeError::InvalidHost(format!(
-                "Failed to bind to {listen_addr}: {e}"
-            )))
-        }
-    };
+    let listen_addr = listener
+        .local_addr()
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|_| format!("{}:{}", config.host, config.port));
 
     println!(
         "Starting veloxide server on {} with storage at {}",
@@ -115,19 +129,15 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
     );
 
     axum::serve(listener, router)
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(shutdown)
         .await
-        .map_err(|e| {
-            ServeError::InvalidHost(format!("Server error: {e}"))
-        })?;
+        .map_err(|e| ServeError::InvalidHost(format!("Server error: {e}")))?;
 
     Ok(())
 }
 
 async fn shutdown_signal() {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to listen for ctrl-c");
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 // Dummy actor for API orchestration.
@@ -144,6 +154,18 @@ impl ractor::Actor for DummyMaster {
         _myself: ractor::ActorRef<Self::Msg>,
         _args: Self::Arguments,
     ) -> Result<Self::State, ractor::ActorProcessingErr> {
+        Ok(())
+    }
+
+    async fn handle(
+        &self,
+        _myself: ractor::ActorRef<Self::Msg>,
+        message: Self::Msg,
+        _state: &mut Self::State,
+    ) -> Result<(), ractor::ActorProcessingErr> {
+        if let vo_actor::OrchestratorMsg::StartWorkflow { reply, .. } = message {
+            let _ = reply.send(Ok(()));
+        }
         Ok(())
     }
 }

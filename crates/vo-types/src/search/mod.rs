@@ -51,7 +51,7 @@ fn tokenize(text: &str) -> Vec<String> {
 #[derive(Debug, Clone)]
 pub struct SearchEngine {
     index: InvertedIndex,
-    documents: HashMap<String, DocumentEntry>,
+    documents: HashMap<WorkspaceId, DocumentEntry>,
 }
 
 impl Default for SearchEngine {
@@ -88,8 +88,8 @@ impl SearchEngine {
             .sum::<u32>() as f64
             / total_docs;
 
-        let mut scores: BTreeMap<String, f64> = BTreeMap::new();
-        let mut matched_terms: HashMap<String, HashSet<String>> = HashMap::new();
+        let mut scores: BTreeMap<WorkspaceId, f64> = BTreeMap::new();
+        let mut matched_terms: HashMap<WorkspaceId, HashSet<String>> = HashMap::new();
 
         for term in &query.terms {
             let postings = match self.index.get(term) {
@@ -120,7 +120,7 @@ impl SearchEngine {
                     .cloned()
                     .collect();
                 Some(SearchResult {
-                    document_id: doc_id.parse().unwrap_or_else(|_| WorkspaceId::generate()),
+                    document_id: doc_id,
                     score,
                     workspace_id: doc.workspace_id.clone(),
                     matched_terms: terms,
@@ -158,6 +158,7 @@ impl SearchEngine {
             id,
             DocumentEntry {
                 workspace_id: id.to_string(),
+                doc_type: DocumentType::Workspace,
                 text: text.to_string(),
                 tags: tags.to_vec(),
             },

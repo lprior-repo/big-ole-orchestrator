@@ -191,7 +191,7 @@ impl Iterator for EventReplayIterator {
 }
 
 impl EventReplayIterator {
-    fn error(err: StorageError) -> Self {
+    pub(crate) fn error(err: StorageError) -> Self {
         Self {
             state: IteratorState::new(),
             inner: None,

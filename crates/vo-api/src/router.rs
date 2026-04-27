@@ -6,6 +6,7 @@
 
 use axum::{
     extract::Extension,
+    response::Html,
     routing::{delete, get, post},
     Router,
 };
@@ -71,10 +72,11 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/workflows/{id}/unquarantine",
             post(crate::handlers::unquarantine_workflow),
         )
-        .layer(Extension(state.master.clone()))
+        .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.circuit_breaker.clone()))
         .layer(Extension(state.dedupe_store.clone()))
-        .layer(Extension(state.writer_pressure.clone()));
+        .layer(Extension(state.writer_pressure.clone()))
+        .layer(Extension(state.query.db.clone()));
 
     // Query endpoints -- uses State<QueryState>
     let query_routes = Router::new()
@@ -103,22 +105,29 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/workflows/{id}/signals",
             post(crate::handlers::send_signal),
         )
-        .layer(Extension(state.master.clone()))
+        .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.dedupe_store.clone()));
 
     // Events endpoint -- uses Extension<ActorRef<OrchestratorMsg>>
     let event_routes = Router::new()
         .route(
+            "/api/v1/workflows/{namespace}/{id}/events",
+            get(crate::handlers::get_events_namespaced),
+        )
+        .route(
             "/api/v1/workflows/{id}/events",
             get(crate::handlers::get_events),
         )
-        .layer(Extension(state.master.clone()));
+        .layer(Extension(state.master.as_ref().clone()))
+        .layer(Extension(state.query.db.clone()));
+
+    let ui_routes = Router::new().route("/wtf/ui", get(wtf_ui));
 
     // SSE streaming -- uses Extension + State<SseState>
     let sse_routes = Router::new()
         .route("/api/v1/watch/{id}", get(crate::handlers::watch_workflow))
         .with_state(state.sse.clone())
-        .layer(Extension(state.master.clone()));
+        .layer(Extension(state.master.as_ref().clone()));
 
     // WebSocket streaming -- uses State<WsState>
     let ws_routes = Router::new()
@@ -132,9 +141,23 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
+        .merge(ui_routes)
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
+}
+
+async fn wtf_ui() -> Html<&'static str> {
+    Html(
+        r#"<!doctype html>
+<html>
+<head><title>Veloxide WTF UI</title></head>
+<body>
+<h1>Veloxide WTF UI</h1>
+<p>Dioxus app shell route is ready.</p>
+</body>
+</html>"#,
+    )
 }
 
 #[cfg(test)]
@@ -182,19 +205,15 @@ mod tests {
         let workspace_index = Arc::new(std::sync::RwLock::new(
             vo_types::workspace::WorkspaceIndex::new(),
         ));
-
         let query_state = QueryState {
             db: db_handle.clone(),
             workspace_index,
         };
 
-        let (master_ref, _handle) = ractor::Actor::spawn(
-            Some("test-orchestrator".to_string()),
-            DummyOrchestrator,
-            (),
-        )
-        .await
-        .expect("spawn dummy orchestrator");
+        let (master_ref, _handle) =
+            ractor::Actor::spawn(Some("test-orchestrator".to_string()), DummyOrchestrator, ())
+                .await
+                .expect("spawn dummy orchestrator");
         let master = Arc::new(master_ref);
 
         let state = AppState {
@@ -204,9 +223,7 @@ mod tests {
             master: master.clone(),
             circuit_breaker: circuit_breaker.clone(),
             dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
-            writer_pressure: Arc::new(
-                vo_core::admission::WatchdogPressureGuard::permissive(),
-            ),
+            writer_pressure: Arc::new(vo_core::admission::WatchdogPressureGuard::permissive()),
         };
 
         let _router = create_router(state.clone());
@@ -232,7 +249,10 @@ mod tests {
             .send(WorkflowSseEvent::InstanceCompleted)
             .expect("sse send");
         let received = sse_rx.recv().await;
-        assert!(received.is_ok(), "SSE clone must share the same broadcaster channel");
+        assert!(
+            received.is_ok(),
+            "SSE clone must share the same broadcaster channel"
+        );
 
         let mut ws_rx = cloned.ws.broadcaster.subscribe();
         state
@@ -241,6 +261,9 @@ mod tests {
             .send(WorkflowWsEvent::InstanceCompleted)
             .expect("ws send");
         let received = ws_rx.recv().await;
-        assert!(received.is_ok(), "WS clone must share the same broadcaster channel");
+        assert!(
+            received.is_ok(),
+            "WS clone must share the same broadcaster channel"
+        );
     }
 }

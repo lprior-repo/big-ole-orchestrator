@@ -82,15 +82,25 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Purge { ref instance } = cli.command else {
+            let Command::Purge {
+                ref instance,
+                ref storage_path,
+                dry_run,
+            } = cli.command
+            else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a purge command".to_string()))
                 });
             };
             let instance = instance.clone();
+            let storage_path = storage_path.clone();
             Box::pin(async move {
-                let fjall_path = std::path::Path::new("/home/lewis/.gemini/tmp/veloxide/fjall");
-                let db = fjall::Database::builder(fjall_path)
+                if dry_run {
+                    println!("Would purge instance {instance} from {}.", storage_path.display());
+                    return Ok(());
+                }
+
+                let db = fjall::Database::builder(&storage_path)
                     .open()
                     .map_err(|e| CliError::Dispatch(format!("Failed to open database: {e}")))?;
 
@@ -450,6 +460,7 @@ mod handlers {
                 ref instance_id,
                 ref engine_url,
                 json,
+                ..
             } = cli.command
             else {
                 return Box::pin(async {

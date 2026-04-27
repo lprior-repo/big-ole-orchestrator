@@ -1,6 +1,7 @@
 //! Registration eligibility state for a workflow (ADR-021).
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// Registration eligibility state for a workflow.
 /// Persisted in Fjall `workflows` partition.
@@ -25,4 +26,16 @@ pub enum RegistrationStatus {
     /// Workflow physically purged — binary deleted, registration removed.
     /// Terminal state (no transitions out).
     Deleted,
+}
+
+impl fmt::Display for RegistrationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = match self {
+            Self::Active => "active",
+            Self::Deactivated => "deactivated",
+            Self::Quarantined => "quarantined",
+            Self::Deleted => "deleted",
+        };
+        f.write_str(status)
+    }
 }

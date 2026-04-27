@@ -61,6 +61,12 @@ impl NodeCapability {
     }
 }
 
+impl Default for NodeCapability {
+    fn default() -> Self {
+        Self::new(NodeKind::Pure)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // DagNode (expanded with capability metadata)
 // ---------------------------------------------------------------------------

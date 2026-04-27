@@ -49,7 +49,6 @@
 )]
 
 pub mod append;
-pub mod event_summary_commit;
 pub mod atomic_wait_commit;
 pub mod blob;
 pub mod blob_store;
@@ -64,6 +63,8 @@ pub mod crypto;
 mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
+pub mod event_log;
+pub mod event_summary_commit;
 pub mod fs_store;
 pub mod instance_index;
 pub mod key_encoding;
@@ -110,12 +111,9 @@ impl EventStoreBackend {
         }
     }
 
-    fn append<E: Serialize>(
-        &mut self,
-        instance_id: &str,
-        event: E,
-    ) -> Result<u64, String> {
-        let payload = serde_json::to_value(&event).map_err(|e| format!("serialization failed: {e}"))?;
+    fn append<E: Serialize>(&mut self, instance_id: &str, event: E) -> Result<u64, String> {
+        let payload =
+            serde_json::to_value(&event).map_err(|e| format!("serialization failed: {e}"))?;
         let expected_sequence = self.sequences.get(instance_id).copied().unwrap_or(0);
         let sequence = expected_sequence + 1;
 
@@ -123,8 +121,7 @@ impl EventStoreBackend {
             return Err("sequence cannot be zero".to_string());
         }
 
-        self.sequences
-            .insert(instance_id.to_string(), sequence);
+        self.sequences.insert(instance_id.to_string(), sequence);
         self.events
             .entry(instance_id.to_string())
             .or_insert_with(Vec::new)
@@ -153,7 +150,11 @@ impl EventStoreBackend {
 /// let result = append_event("ns", "my-instance", serde_json::json!({"type": "start"}));
 /// assert!(result.is_ok());
 /// ```
-pub fn append_event<E: Serialize>(namespace: &str, instance_id: &str, event: E) -> Result<(), String> {
+pub fn append_event<E: Serialize>(
+    namespace: &str,
+    instance_id: &str,
+    event: E,
+) -> Result<(), String> {
     let _namespace = namespace;
     let mut store = EVENT_STORE.lock().expect("event store lock poisoned");
     store.append(instance_id, event)?;

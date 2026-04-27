@@ -51,6 +51,7 @@ pub use commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 pub use commands::rebuild::{
     run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
 };
+pub use commands::serve::{run_serve, run_serve_until_shutdown, ServeConfig, ServeError};
 pub use commands::status::{run_status, StatusConfig, StatusError, WorkflowStatusResponse};
 pub use commands::workflow_history::{
     fetch_workflow_history, run_workflow_history, WorkflowHistoryConfig, WorkflowHistoryEntry,

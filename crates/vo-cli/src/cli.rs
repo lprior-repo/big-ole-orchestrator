@@ -361,8 +361,17 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
+            let storage_path = purge_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let dry_run = purge_matches.get_flag("dry-run");
             Ok(Cli {
-                command: Command::Purge { instance },
+                command: Command::Purge {
+                    instance,
+                    storage_path,
+                    dry_run,
+                },
             })
         }
         Some(("check", sub_matches)) => {
@@ -572,6 +581,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
             _ => 2,
         },
         CliError::Dispatch(_)
+        | CliError::Purge(_)
         | CliError::Check(_)
         | CliError::Compensate(_)
         | CliError::Gc(_)

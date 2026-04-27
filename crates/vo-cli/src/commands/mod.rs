@@ -6,6 +6,7 @@ pub mod gc;
 pub mod history;
 pub mod init;
 pub mod lock;
+pub mod purge;
 pub mod rebuild;
 pub mod serve;
 pub mod status;
