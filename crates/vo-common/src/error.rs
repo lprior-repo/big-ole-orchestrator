@@ -91,4 +91,66 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("something went wrong"));
     }
+
+    #[test]
+    fn vo_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let vo_err: VoError = io_err.into();
+        match vo_err {
+            VoError::Internal(msg) => {
+                assert!(msg.contains("file not found") || msg.contains("NotFound"));
+            }
+            _ => panic!("Expected Internal variant"),
+        }
+    }
+
+    #[test]
+    fn vo_error_from_io_error_kind() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let vo_err: VoError = io_err.into();
+        assert!(matches!(vo_err, VoError::Internal(_)));
+    }
+
+    #[test]
+    fn vo_error_from_serde_json_error() {
+        let json_err = serde_json::from_str::<String>("invalid json").unwrap_err();
+        let vo_err: VoError = json_err.into();
+        match vo_err {
+            VoError::Validation(_msg) => {}
+            _ => panic!("Expected Validation variant"),
+        }
+    }
+
+    #[test]
+    fn vo_error_debug_format() {
+        let err = VoError::Config("test".to_string());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("Config"));
+        assert!(debug.contains("test"));
+    }
+
+    #[test]
+    fn vo_error_clone_preserves_data() {
+        let err = VoError::NotFound("original".to_string());
+        let cloned = err.clone();
+        assert_eq!(err, cloned);
+    }
+
+    #[test]
+    fn vo_error_serialization_roundtrip() {
+        let err = VoError::Validation("test".to_string());
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: VoError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_partial_eq() {
+        let err1 = VoError::Config("same".to_string());
+        let err2 = VoError::Config("same".to_string());
+        let err3 = VoError::Config("different".to_string());
+        assert_eq!(err1, err2);
+        assert_ne!(err1, err3);
+        assert_ne!(err1, VoError::Internal("same".to_string()));
+    }
 }
