@@ -13,8 +13,6 @@
 
 use libc;
 use sha2::{Digest, Sha256};
-use std::fs;
-use std::io::Read;
 use std::os::fd::{FromRawFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
@@ -40,9 +38,6 @@ pub const BOUNDED_READ_BUFFER_SIZE: usize = 64 * 1024;
 
 /// Version directory root for content-hashed binary storage (ADR-012 section 4).
 pub const VERSION_BASE_PATH: &str = "/var/wtf/versions";
-
-/// Size of chunks for binary hash computation.
-const HASH_CHUNK_SIZE: usize = 65536;
 
 /// Result of pinning a binary to a versioned path.
 #[derive(Debug, Clone)]
@@ -127,16 +122,10 @@ pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> 
 pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> {
     if path.starts_with(VERSION_BASE_PATH) && std::path::Path::new(path).exists() {
         // Already pinned - reconstruct pin info from path
-        let binary_name = std::path::Path::new(path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
         // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
         let hash = path
             .strip_prefix(VERSION_BASE_PATH)
-            .ok()
-            .split('/')
-            .next()
+            .map(|p| p.split('/').next().unwrap_or(""))
             .unwrap_or("")
             .to_string();
         Ok(PinnedBinary {
@@ -421,7 +410,7 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
     let mut remaining = len as usize;
 
     while remaining > 0 {
-        let chunk_size = remaining.min(BOUNDED_BUFFER_SIZE);
+        let chunk_size = remaining.min(BOUNDED_READ_BUFFER_SIZE);
         let mut chunk = vec![0u8; chunk_size];
         let n = reader.read(&mut chunk).await.map_err(|e| {
             SubprocessError::Fd4ReadFailed(format!("failed to read payload: {}", e))
@@ -444,25 +433,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_bounded_buffer_constant() {
-        assert_eq!(BOUNDED_BUFFER_SIZE, 65536);
+        assert_eq!(BOUNDED_READ_BUFFER_SIZE, 65536);
     }
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let (r, w) = create_pipe().unwrap();
+        let pipe = create_pipe().unwrap();
         unsafe {
-            let flags = libc::fcntl(r, libc::F_GETFD);
+            let flags = libc::fcntl(pipe.read_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "read end should have FD_CLOEXEC"
             );
-            let flags = libc::fcntl(w, libc::F_GETFD);
+            let flags = libc::fcntl(pipe.write_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "write end should have FD_CLOEXEC"
             );
-            libc::close(r);
-            libc::close(w);
+            libc::close(pipe.read_fd);
+            libc::close(pipe.write_fd);
         }
     }
 
@@ -496,7 +485,7 @@ mod tests {
     #[test]
     fn test_adr_018_kernel_buffer_size() {
         assert_eq!(
-            BOUNDED_BUFFER_SIZE, 65536,
+            BOUNDED_READ_BUFFER_SIZE, 65536,
             "Bounded buffer must match kernel pipe buffer size (64KB) to prevent deadlocks"
         );
     }
@@ -512,7 +501,7 @@ mod tests {
         );
 
         assert!(
-            BOUNDED_BUFFER_SIZE <= KERNEL_PIPE_BUFFER,
+            BOUNDED_READ_BUFFER_SIZE <= KERNEL_PIPE_BUFFER,
             "Bounded read size must not exceed kernel buffer to prevent blocking"
         );
     }
