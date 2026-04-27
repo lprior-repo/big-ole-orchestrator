@@ -3,7 +3,7 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use vo_frontend::ui::graph::{Connection, Node, NodeCategory, NodeId, PortName, Workflow};
+use crate::ui::graph::{Connection, Node, NodeCategory, NodeId, PortName, Workflow};
 use vo_types::GuaranteeClass;
 
 #[test]
@@ -14,7 +14,7 @@ fn workflow_remove_node_by_string_id() {
     wf.add_node(node);
     assert_eq!(wf.nodes.len(), 1);
 
-    wf.remove_node(node_id.as_str());
+    wf.remove_node(node_id.clone());
     assert_eq!(wf.nodes.len(), 0);
 }
 
@@ -106,7 +106,7 @@ fn node_category_display_formats_correctly() {
 
 #[test]
 fn execution_state_status_badge_class_all_variants() {
-    use vo_frontend::ui::edges::graph_types::ExecutionState;
+    use crate::ui::graph::ExecutionState;
 
     assert!(!ExecutionState::Idle.status_badge_class().is_empty());
     assert!(!ExecutionState::Queued.status_badge_class().is_empty());
@@ -118,7 +118,7 @@ fn execution_state_status_badge_class_all_variants() {
 
 #[test]
 fn execution_state_label_all_variants() {
-    use vo_frontend::ui::edges::graph_types::ExecutionState;
+    use crate::ui::graph::ExecutionState;
 
     assert_eq!(ExecutionState::Idle.label(), "pending");
     assert_eq!(ExecutionState::Queued.label(), "pending");
@@ -130,7 +130,7 @@ fn execution_state_label_all_variants() {
 
 #[test]
 fn node_with_execution_state_clone_preserves_state() {
-    use vo_frontend::ui::edges::graph_types::ExecutionState;
+    use crate::ui::graph::ExecutionState;
 
     let mut node = Node::new(NodeId::new(), "test".to_string(), vo_types::NodeKind::Pure);
     node.execution_state = ExecutionState::Running;
