@@ -105,6 +105,9 @@ where
     let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
     let writer_pressure = Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
 
+    let writer_pressure: std::sync::Arc<dyn vo_core::admission::WriterPressureGuard> =
+        std::sync::Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
+
     let state = vo_api::router::AppState {
         query,
         sse,
