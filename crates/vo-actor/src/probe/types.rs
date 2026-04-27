@@ -5,7 +5,6 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-// Enums
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProbeType {
     Http,
@@ -20,18 +19,6 @@ pub enum ProbeStatus {
     Unknown,
 }
 
-// Data Structures
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProbeResult {
-    pub probe_id: ProbeId,
-    pub status: ProbeStatus,
-    pub latency_ms: u64,
-    pub consecutive_failures: u32,
-    pub last_check_ms: u64,
-    pub message: Option<String>,
-}
-
-// ProbeConfig enum
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ProbeConfig {
@@ -100,7 +87,6 @@ impl ProbeConfig {
     }
 }
 
-// ProbeId
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ProbeId(pub ulid::Ulid);
 
@@ -130,26 +116,6 @@ impl std::fmt::Display for ProbeId {
     }
 }
 
-impl serde::Serialize for ProbeId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for ProbeId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        ProbeId::from_string(&s).ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
-    }
-}
-
-// ProbeDefinition
 #[derive(Debug, Clone)]
 pub struct ProbeDefinition {
     pub id: ProbeId,
@@ -161,7 +127,6 @@ pub struct ProbeDefinition {
     pub success_threshold: u32,
 }
 
-// BackoffConfig
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct BackoffConfig {
     pub initial_interval: Duration,
@@ -191,60 +156,6 @@ impl BackoffConfig {
     }
 }
 
-// AggregatedStatus
-#[derive(Debug, Clone)]
-pub struct AggregatedStatus {
-    pub overall: ProbeStatus,
-    pub healthy_count: u32,
-    pub unhealthy_count: u32,
-    pub unknown_count: u32,
-    pub results: HashMap<ProbeId, ProbeResult>,
-}
-
-impl AggregatedStatus {
-    pub fn new() -> Self {
-        Self {
-            overall: ProbeStatus::Unknown,
-            healthy_count: 0,
-            unhealthy_count: 0,
-            unknown_count: 0,
-            results: HashMap::new(),
-        }
-    }
-    pub fn update(&mut self, result: ProbeResult) {
-        if let Some(old_result) = self.results.get(&result.probe_id) {
-            match old_result.status {
-                ProbeStatus::Healthy => self.healthy_count -= 1,
-                ProbeStatus::Unhealthy => self.unhealthy_count -= 1,
-                ProbeStatus::Unknown => self.unknown_count -= 1,
-            }
-        }
-        match result.status {
-            ProbeStatus::Healthy => self.healthy_count += 1,
-            ProbeStatus::Unhealthy => self.unhealthy_count += 1,
-            ProbeStatus::Unknown => self.unknown_count += 1,
-        }
-        self.results.insert(result.probe_id, result);
-        self.overall = if self.unhealthy_count > 0 {
-            ProbeStatus::Unhealthy
-        } else if self.healthy_count > 0 && self.unknown_count == 0 {
-            ProbeStatus::Healthy
-        } else {
-            ProbeStatus::Unknown
-        };
-    }
-    pub fn is_healthy(&self) -> bool {
-        self.overall == ProbeStatus::Healthy
-    }
-}
-
-impl Default for AggregatedStatus {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-// ProbeError
 #[derive(Debug, Clone, Error)]
 pub enum ProbeError {
     #[error("HTTP probe failed: {0}")]
@@ -257,44 +168,4 @@ pub enum ProbeError {
     Timeout(Duration),
     #[error("Probe {0} not found")]
     NotFound(ProbeId),
-}
-
-// ProbeRegistry
-#[derive(Debug, Clone)]
-pub struct ProbeRegistry {
-    probes: HashMap<ProbeId, ProbeDefinition>,
-}
-
-impl ProbeRegistry {
-    pub fn new() -> Self {
-        Self {
-            probes: HashMap::new(),
-        }
-    }
-    pub fn register(&mut self, definition: ProbeDefinition) -> ProbeId {
-        let id = definition.id;
-        self.probes.insert(id, definition);
-        id
-    }
-    pub fn unregister(&mut self, id: ProbeId) -> Option<ProbeDefinition> {
-        self.probes.remove(&id)
-    }
-    pub fn get(&self, id: &ProbeId) -> Option<&ProbeDefinition> {
-        self.probes.get(id)
-    }
-    pub fn list(&self) -> Vec<&ProbeDefinition> {
-        self.probes.values().collect()
-    }
-    pub fn len(&self) -> usize {
-        self.probes.len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.probes.is_empty()
-    }
-}
-
-impl Default for ProbeRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
 }

@@ -170,7 +170,7 @@ impl ReanimatorLoop {
                 .as_u64()
                 .saturating_sub(STALE_PENDING_THRESHOLD_MS),
         )
-        .unwrap_or_else(|| TimestampMs::new_unchecked(0u64));
+        .unwrap_or_else(|_| TimestampMs::new_unchecked(0u64));
 
         let cleaned = storage
             .cleanup_stale_pending_timers(stale_threshold)

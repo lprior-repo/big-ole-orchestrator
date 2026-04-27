@@ -5,7 +5,8 @@ use std::time::Duration;
 use async_trait::async_trait;
 use tokio::process::Command;
 
-use super::types::{ProbeError, ProbeId, ProbeResult, ProbeStatus};
+use super::metrics::ProbeResult;
+use super::types::{ProbeError, ProbeId, ProbeStatus};
 
 #[async_trait]
 pub trait Probe: Send + Sync {

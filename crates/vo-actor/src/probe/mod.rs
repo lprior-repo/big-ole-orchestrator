@@ -17,7 +17,9 @@
 //!     .with_failure_threshold(3);
 //! ```
 
+pub mod metrics;
 pub mod probes;
+pub mod serialization;
 pub mod types;
 
 #[cfg(test)]
@@ -27,5 +29,6 @@ mod proptest;
 #[cfg(test)]
 mod qa_smoke;
 
+pub use metrics::*;
 pub use probes::*;
 pub use types::*;
