@@ -75,9 +75,9 @@ fn read_special_chars_in_idempotency_key_returns_invalid_input() {
 }
 
 #[test]
-fn read_numeric_idempotency_key_returns_valid_input() {
+fn read_idempotency_key_with_invalid_chars_returns_invalid_input() {
     let payload = serde_json::to_vec(&json!({
-        "idempotency_key": "12345",
+        "idempotency_key": "key@invalid",
         "data": null
     }))
     .expect("serialize");

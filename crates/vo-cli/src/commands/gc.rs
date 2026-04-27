@@ -15,7 +15,7 @@ impl Default for GcConfig {
     fn default() -> Self {
         Self {
             engine_url: "http://localhost:3000".to_string(),
-            versions_dir: PathBuf::from("/var/wtf/versions"),
+            versions_dir: PathBuf::from(".vo/versions"),
             dry_run: false,
         }
     }

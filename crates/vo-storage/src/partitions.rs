@@ -297,9 +297,17 @@ pub struct StorageEngine {
 impl StorageEngine {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StorageEngineError> {
         let path = path.as_ref();
-        std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
-            reason: e.to_string(),
-        })?;
+        if !path.exists() {
+            std::fs::create_dir_all(path).map_err(|e| StorageError::InvalidPath {
+                reason: e.to_string(),
+            })?;
+        }
+
+        let db = fjall::Database::builder(path)
+            .open()
+            .map_err(|e| StorageError::InvalidPath {
+                reason: e.to_string(),
+            })?;
 
         let metadata = std::fs::metadata(path).map_err(|e| StorageError::InvalidPath {
             reason: e.to_string(),

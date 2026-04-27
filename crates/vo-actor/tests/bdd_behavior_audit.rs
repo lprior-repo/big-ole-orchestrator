@@ -632,7 +632,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert_eq!(buf.buffered_count(&id, &wk), 1);
@@ -646,7 +646,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert!(buf.pop_buffered(&id, &wk).is_some());
@@ -661,7 +661,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         buf.clear(&id, &wk);
@@ -707,13 +707,13 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk1,
-            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         buf.buffer_signal(
             id.clone(),
             wk2,
-            BufferedSignal::new("s2", SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s2".into(), SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert_eq!(buf.total_buffered_count(), 2);
@@ -908,7 +908,7 @@ mod bdd_spawn_supervisor {
     fn given_error_when_resumable_then_correct() {
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
         assert!(SpawnSupervisorError::SpawnFailed {
-            executable: PathBuf::from("c"),
+            command: "c".into(),
             error: "x".into()
         }
         .is_resumable());

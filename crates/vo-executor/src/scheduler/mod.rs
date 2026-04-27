@@ -15,9 +15,8 @@ mod types;
 pub use error::{ExecutionError, JobRunError, RetryExhaustedError, SchedulerError};
 pub use queue::{PriorityQueue, SchedulerQueue};
 pub use types::{
-    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy,
-    ScheduledJob, ScheduledJobValidationError, SchedulerConfig, SchedulerRetryPolicy,
-    SerializedPayload,
+    Job, JobId, JobKind, JobPriority, JobResult, JobState, Schedule, SchedulePolicy, ScheduledJob,
+    SchedulerConfig, SchedulerRetryPolicy, SerializedPayload,
 };
 
 use std::sync::Arc;
@@ -71,12 +70,13 @@ impl Scheduler {
         self.semaphore.clone().try_acquire_owned().ok()
     }
 
-    pub async fn acquire(&self) -> Result<tokio::sync::OwnedSemaphorePermit, SchedulerError> {
+    #[allow(dead_code)]
+    pub async fn acquire(&self) -> tokio::sync::OwnedSemaphorePermit {
         self.semaphore
             .clone()
             .acquire_owned()
             .await
-            .map_err(|_| SchedulerError::ConcurrencyLimitReached)
+            .expect("scheduler semaphore closed")
     }
 
     pub fn is_running(&self) -> bool {

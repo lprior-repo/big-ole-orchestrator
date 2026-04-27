@@ -54,11 +54,12 @@ impl MerkleTree {
             .collect();
         levels.push(leaf_nodes);
 
-        while let Some(last_level) = levels.last() {
-            if last_level.len() <= 1 {
-                break;
-            }
-            let parent_level = pair_and_hash(last_level);
+        while levels.last().is_some_and(|level| level.len() > 1) {
+            let parent_level = pair_and_hash(
+                levels
+                    .last()
+                    .expect("levels.last() is Some when loop condition is true"),
+            );
             levels.push(parent_level);
         }
 

@@ -169,3 +169,65 @@ fn encode_decode_record_roundtrip_for_rolledback_status() {
     assert_eq!(recovered.intent_id(), record.intent_id());
     assert_eq!(recovered.status(), EffectIntent::RolledBack);
 }
+
+// ========================================================================
+// Schema Evolution Tests
+// ========================================================================
+
+#[test]
+fn schema_evolution_old_format_without_committed_at_through_codec() {
+    let old_json = br#"{"intent_id":"fx-codec-old","kind":"HttpCall","params_json":{},"status":"Prepared"}"#;
+    let record = decode_effect_record(old_json).unwrap();
+    assert_eq!(record.intent_id(), "fx-codec-old");
+    assert_eq!(record.kind(), EffectKind::HttpCall);
+    assert_eq!(record.status(), EffectIntent::Prepared);
+    assert_eq!(record.committed_at(), None);
+
+    // Round-trip: re-encode and decode
+    let bytes = encode_effect_record(&record).unwrap();
+    let recovered = decode_effect_record(&bytes).unwrap();
+    assert_eq!(record, recovered);
+}
+
+#[test]
+fn schema_evolution_future_fields_stripped_on_reencode() {
+    let future_json = br#"{"intent_id":"fx-codec-future","kind":"SqlQuery","params_json":{"q":"SELECT 1"},"status":"Committed","committed_at":999,"new_field":"hello","another":true}"#;
+    let record = decode_effect_record(future_json).unwrap();
+    assert_eq!(record.intent_id(), "fx-codec-future");
+    assert_eq!(record.status(), EffectIntent::Committed);
+
+    // Re-encode strips unknown fields but preserves known data
+    let bytes = encode_effect_record(&record).unwrap();
+    let json_val: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        json_val.get("new_field").is_none(),
+        "unknown fields must be stripped on re-encode"
+    );
+    assert!(
+        json_val.get("another").is_none(),
+        "unknown fields must be stripped on re-encode"
+    );
+    let recovered = decode_effect_record(&bytes).unwrap();
+    assert_eq!(record, recovered);
+}
+
+#[test]
+fn schema_evolution_null_committed_at_through_codec() {
+    let null_json = br#"{"intent_id":"fx-null-ts","kind":"BlobWrite","params_json":{},"status":"Prepared","committed_at":null}"#;
+    let record = decode_effect_record(null_json).unwrap();
+    assert_eq!(record.committed_at(), None);
+}
+
+#[test]
+fn schema_evolution_all_kinds_old_format() {
+    for kind_str in &["HttpCall", "SqlQuery", "BlobWrite"] {
+        let old_json = format!(
+            r#"{{"intent_id":"fx-kind-test","kind":"{kind_str}","params_json":{{}},"status":"Prepared"}}"#
+        );
+        let record = decode_effect_record(old_json.as_bytes()).unwrap();
+        assert_eq!(record.committed_at(), None);
+        let bytes = encode_effect_record(&record).unwrap();
+        let recovered = decode_effect_record(&bytes).unwrap();
+        assert_eq!(record, recovered);
+    }
+}

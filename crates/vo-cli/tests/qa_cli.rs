@@ -7,7 +7,7 @@ fn parse_purge_with_instance_id_flag() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: "abc-123".into(),
+            instance: "abc-123".into()
         }
     );
 }
@@ -121,7 +121,7 @@ fn parse_status_with_custom_url() {
     .unwrap();
     let Command::Status {
         engine_url,
-        workflow_id,
+        instance,
     } = cli.command
     else {
         panic!("expected Status")

@@ -12,7 +12,7 @@ use vo_core::admission::{
     WritePressureState,
 };
 use vo_core::circuit_breaker::{
-    evaluate_registration, record_failure, CircuitBreakerConfig, CircuitBreakerState,
+    evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig, CircuitBreakerState,
     RegistrationOutcome, RegistrationRequest, RegistrationStatus,
 };
 use vo_core::replay::{ReplayEngine, ReplayError};
@@ -178,7 +178,7 @@ fn circuit_breaker_force_bypasses_quarantine() {
 fn circuit_breaker_quarantine_after_threshold() {
     let state = CircuitBreakerState::new();
     let config =
-        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 4).unwrap();
+        CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let wf = vo_types::WorkflowName::parse("wf-fail").unwrap();
     let now = Instant::now();
     for i in 0..3u8 {

@@ -7,8 +7,6 @@
 //! Contract: docs/contracts/plugin-hot-load-system.md
 //! Test Plan: docs/test-plans/plugin-hot-load-system-test-plan.md
 
-#![allow(dead_code, unused_imports)]
-
 mod errors;
 mod lifecycle;
 mod types;

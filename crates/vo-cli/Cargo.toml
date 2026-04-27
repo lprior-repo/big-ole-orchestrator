@@ -29,12 +29,11 @@ default-run = "vo-cli"
  libc = "0.2.184"
 
 [dev-dependencies]
- proptest = "1.4"
- rstest = "0.18"
- tempfile = { workspace = true }
- criterion = { workspace = true }
- http-body-util = "0.1"
- tower = { workspace = true }
+proptest = "1.4"
+rstest = "0.18"
+tempfile = { workspace = true }
+sha2 = "0.10"
+criterion = { workspace = true }
 
 [[bench]]
 name = "cli_bench"

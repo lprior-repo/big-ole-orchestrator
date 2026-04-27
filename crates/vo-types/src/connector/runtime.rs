@@ -319,7 +319,7 @@ mod tests {
         }
 
         let mut connector = SuccessConnector;
-        let result = execute_with_reconciliation(&mut connector, true, 0)
+        let result = execute_with_reconciliation(&mut connector, true, 3)
             .await
             .unwrap();
         assert_eq!(result, ConnectorResult::Success);
@@ -328,7 +328,7 @@ mod tests {
     #[tokio::test]
     async fn execute_with_reconciliation_resolves_ambiguous() {
         let mut connector = MockConnector::new(ReconciliationResult::Committed);
-        let result = execute_with_reconciliation(&mut connector, false, 0)
+        let result = execute_with_reconciliation(&mut connector, false, 3)
             .await
             .unwrap();
         assert_eq!(result, ConnectorResult::Success);

@@ -12,7 +12,7 @@
 //!
 //! # Architecture
 //!
-//! The CLI uses a middleware-based dispatcher for command handling with
+//! The CLI uses a V2 middleware-based dispatcher for command handling with
 //! support for middleware chaining and error mapping.
 
 pub mod cli;
@@ -24,7 +24,6 @@ pub mod dispatch_mod;
 pub mod dispatch_v2;
 pub mod handler;
 pub mod lint_targets;
-pub mod middleware;
 pub mod parse;
 pub mod registry;
 pub mod utils;
@@ -54,18 +53,12 @@ pub use commands::lock::{run_lock, LockConfig, LockError, LOCK_FILE_NAME};
 pub use commands::rebuild::{
     run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
 };
-pub use commands::serve::{run_serve, run_serve_until_shutdown, ServeConfig, ServeError};
 pub use commands::status::{run_status, StatusConfig, StatusError, WorkflowStatusResponse};
-pub use commands::workflow_history::{
-    fetch_workflow_history, run_workflow_history, WorkflowHistoryConfig, WorkflowHistoryEntry,
-    WorkflowHistoryError, WorkflowHistoryResponse,
-};
 pub use dispatch_mod::dispatch;
 pub use dispatch_v2::{
     create_dispatcher_v2, dispatch_v2, CommandDispatcherV2, DefaultDispatchContext,
     DispatchContext, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
 pub use handler::CommandHandler;
-pub use middleware::{create_dispatcher, CommandContext, CommandDispatcher, Middleware};
 pub use parse::parse_strict_numeric;
 pub use registry::HandlerRegistry;

@@ -6,9 +6,7 @@ use axum::{
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
 use vo_common::NamespaceId;
@@ -18,7 +16,7 @@ use vo_storage::dedupe_partition::DedupeStore;
 use vo_types::CommandEnvelope;
 
 use crate::handlers::helpers::parse_paradigm;
-use crate::types::{validate_json_payload_size, ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
+use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -129,17 +127,24 @@ pub async fn start_workflow(
         }
         None => vo_types::InstanceId::from_bytes(Ulid::new().0.to_be_bytes()),
     };
-
-    if let Some(err) = validate_json_payload_size(&req.input) {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ApiError::new(
-                "payload_too_large",
-                format!("input payload {}", err),
-            )),
-        )
-            .into_response();
-    }
+<<<<<<< HEAD
+    let instance_id = match vo_types::InstanceId::parse(&instance_id_str) {
+        Ok(id) => id,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "invalid_instance_id",
+                    format!("instance_id is not a valid ULID: {instance_id_str}"),
+                )),
+            )
+                .into_response();
+        }
+    };
+=======
+    let instance_id =
+        vo_types::InstanceId::parse(&instance_id_str).expect("generated ULID should be valid");
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),
@@ -286,10 +291,8 @@ pub async fn start_workflow(
                 available,
             };
             (
-                match StatusCode::from_u16(rejection.status_code()) {
-                    Ok(status) => status,
-                    Err(_) => StatusCode::TOO_MANY_REQUESTS,
-                },
+                StatusCode::from_u16(rejection.status_code())
+                    .unwrap_or(StatusCode::TOO_MANY_REQUESTS),
                 Json(ApiError::new(rejection.error_code(), rejection.to_string())),
             )
                 .into_response()
@@ -303,241 +306,5 @@ pub async fn start_workflow(
             }),
         )
             .into_response(),
-    }
-}
-
-// ─── BDD Test: Production orchestrator receives StartWorkflow ─────────────────
-
-#[cfg(test)]
-mod production_orchestrator_bdd_tests {
-    use super::*;
-    use axum::http::Request;
-    use axum::router::Router;
-    use axum_test::TestClient;
-    use http_body_util::BodyExt;
-    use ractor::{Actor, ActorProcessingErr, ActorRef};
-    use serde_json::json;
-    use std::sync::Arc;
-    use tempfile::TempDir;
-    use vo_types::workspace::WorkspaceIndex;
-
-    /// Test actor that receives OrchestratorMsg and responds to StartWorkflow.
-    struct TestOrchestrator;
-
-    #[ractor::async_trait]
-    impl Actor for TestOrchestrator {
-        type Msg = OrchestratorMsg;
-        type State = ();
-        type Arguments = ();
-
-        async fn pre_start(
-            &self,
-            _myself: ActorRef<Self::Msg>,
-            _args: Self::Arguments,
-        ) -> Result<Self::State, ActorProcessingErr> {
-            Ok(())
-        }
-
-        async fn handle(
-            &self,
-            _myself: ActorRef<Self::Msg>,
-            message: Self::Msg,
-            _state: &mut Self::State,
-        ) -> Result<(), ActorProcessingErr> {
-            match message {
-                OrchestratorMsg::StartWorkflow { reply, .. } => {
-                    let _ = reply.send(Ok(()));
-                }
-                OrchestratorMsg::GetStatus { reply, .. } => {
-                    let _ = reply.send(None);
-                }
-                OrchestratorMsg::Terminate { reply, .. } => {
-                    let _ = reply.send(Err(TerminateError::NotFound("test".to_string())));
-                }
-                OrchestratorMsg::ListActive { reply, .. } => {
-                    let _ = reply.send(vec![]);
-                }
-                OrchestratorMsg::Compensate { reply, .. } => {
-                    let _ = reply.send(Err(CompensateError::NotFound("test".to_string())));
-                }
-                OrchestratorMsg::Signal { reply, .. } => {
-                    let _ = reply.send(Err(SignalError::Failed("test".to_string())));
-                }
-            }
-            Ok(())
-        }
-    }
-
-    fn build_test_state(actor_ref: ActorRef<OrchestratorMsg>, tmp_dir: &TempDir) -> AppState {
-        let db = fjall::Database::open(tmp_dir.path().to_owned()).unwrap();
-        let workspace_index = Arc::new(std::sync::RwLock::new(WorkspaceIndex::default()));
-        AppState {
-            query: QueryState {
-                db: Arc::new(db),
-                workspace_index,
-            },
-            sse: SseState::new(),
-            ws: WsState::new(),
-            master: Arc::new(actor_ref),
-            circuit_breaker: Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new()),
-        }
-    }
-
-    #[tokio::test]
-    async fn given_start_request_when_handler_runs_then_production_orchestrator_receives_start()
-    {
-        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
-
-        // Spawn the test orchestrator actor
-        let (actor_ref, _actor_handle) =
-            Actor::spawn_linked(None, TestOrchestrator, (), None)
-                .await
-                .expect("failed to spawn test orchestrator");
-
-        // Build the router with the test actor as the extension
-        let state = build_test_state(actor_ref, &tmp_dir);
-        let router: Router = Router::new()
-            .route("/api/v1/workflows", post(start_workflow))
-            .layer(Extension(state.master.clone()));
-
-        // Build the start request JSON (minimal valid request)
-        let request_json = json!({
-            "namespace": "payments",
-            "workflow_type": "checkout",
-            "paradigm": "fsm",
-            "input": {"order_id": "ord_123"}
-        });
-
-        // Send the request via TestClient (production path exercised)
-        let client = TestClient::new(router);
-        let response = client
-            .post("/api/v1/workflows")
-            .json(&request_json)
-            .send()
-            .await;
-
-        // Verify: handler forwarded to orchestrator and returned 201 Created
-        let status = response.status();
-        assert_eq!(
-            status,
-            StatusCode::CREATED,
-            "Expected 201 Created when orchestrator accepts StartWorkflow, got: {status}"
-        );
-
-        let body: serde_json::Value = response.json().await;
-        assert_eq!(body["namespace"], "payments");
-        assert_eq!(body["workflow_type"], "checkout");
-    }
-
-    /// Verify that missing dedupe_key produces 400 Bad Request before calling orchestrator.
-    #[tokio::test]
-    async fn given_missing_dedupe_key_when_handler_runs_then_returns_bad_request() {
-        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
-
-        let (actor_ref, _actor_handle) =
-            Actor::spawn_linked(None, TestOrchestrator, (), None)
-                .await
-                .expect("failed to spawn test orchestrator");
-
-        let state = build_test_state(actor_ref, &tmp_dir);
-        let router: Router = Router::new()
-            .route("/api/v1/workflows", post(start_workflow))
-            .layer(Extension(state.master.clone()));
-
-        let request_json = json!({
-            "namespace": "payments",
-            "workflow_type": "checkout",
-            "paradigm": "fsm",
-            "input": {"order_id": "ord_123"}
-        });
-
-        let client = TestClient::new(router);
-        let response = client
-            .post("/api/v1/workflows")
-            .json(&request_json)
-            .send()
-            .await;
-
-        assert_eq!(
-            response.status(),
-            StatusCode::BAD_REQUEST,
-            "Expected 400 Bad Request for missing dedupe_key"
-        );
-        let body: serde_json::Value = response.json().await;
-        assert_eq!(body["error_code"], "missing_dedupe_key");
-    }
-
-    /// Verify that invalid paradigm produces 400 Bad Request before calling orchestrator.
-    #[tokio::test]
-    async fn given_invalid_paradigm_when_handler_runs_then_returns_bad_request() {
-        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
-
-        let (actor_ref, _actor_handle) =
-            Actor::spawn_linked(None, TestOrchestrator, (), None)
-                .await
-                .expect("failed to spawn test orchestrator");
-
-        let state = build_test_state(actor_ref, &tmp_dir);
-        let router: Router = Router::new()
-            .route("/api/v1/workflows", post(start_workflow))
-            .layer(Extension(state.master.clone()));
-
-        let request_json = json!({
-            "namespace": "payments",
-            "workflow_type": "checkout",
-            "paradigm": "invalid_paradigm",
-            "input": {"order_id": "ord_123"}
-        });
-
-        let client = TestClient::new(router);
-        let response = client
-            .post("/api/v1/workflows")
-            .json(&request_json)
-            .send()
-            .await;
-
-        assert_eq!(
-            response.status(),
-            StatusCode::BAD_REQUEST,
-            "Expected 400 Bad Request for invalid paradigm"
-        );
-        let body: serde_json::Value = response.json().await;
-        assert_eq!(body["error_code"], "invalid_paradigm");
-    }
-
-    /// Verify that instance_id defaults to ULID when not provided.
-    #[tokio::test]
-    async fn given_no_instance_id_when_handler_runs_then_returns_ulid_in_response() {
-        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
-
-        let (actor_ref, _actor_handle) =
-            Actor::spawn_linked(None, TestOrchestrator, (), None)
-                .await
-                .expect("failed to spawn test orchestrator");
-
-        let state = build_test_state(actor_ref, &tmp_dir);
-        let router: Router = Router::new()
-            .route("/api/v1/workflows", post(start_workflow))
-            .layer(Extension(state.master.clone()));
-
-        let request_json = json!({
-            "namespace": "payments",
-            "workflow_type": "checkout",
-            "paradigm": "fsm",
-            "input": {"order_id": "ord_123"}
-        });
-
-        let client = TestClient::new(router);
-        let response = client
-            .post("/api/v1/workflows")
-            .json(&request_json)
-            .send()
-            .await;
-
-        assert_eq!(response.status(), StatusCode::CREATED);
-        let body: serde_json::Value = response.json().await;
-        let instance_id = body["instance_id"].as_str().unwrap();
-        // ULID format: 26 characters, Base32 encoded
-        assert_eq!(instance_id.len(), 26, "ULID should be 26 characters");
     }
 }

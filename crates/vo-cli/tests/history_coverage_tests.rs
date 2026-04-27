@@ -12,6 +12,7 @@ fn test_snapshot() -> WorkflowSnapshot {
             compensation_policy: None,
             node_name: NodeName::parse("node-a").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     )

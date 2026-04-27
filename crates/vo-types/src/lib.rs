@@ -1,18 +1,16 @@
 mod binomial_heap;
+mod rope;
 #[cfg(test)]
 mod blackhat_encryption_credentials_tests;
 mod blob;
 #[cfg(test)]
 mod blob_tests;
 mod btree;
-pub mod cartesian_tree;
-mod clique_tree;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
 mod compensation;
 mod connector;
-pub mod connection_pool;
 pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
@@ -81,13 +79,9 @@ mod proptest_domain_types;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
-mod rope;
-pub mod search;
 pub mod signal;
-pub mod skew_heap;
-mod spqr_tree;
 pub mod state;
-pub mod string_types;
+mod string_types;
 #[cfg(test)]
 mod binary_hash_tests;
 #[cfg(test)]
@@ -122,8 +116,6 @@ pub use blob::{
     INLINED_MAX_BYTES,
 };
 pub use btree::{BTree, BTreeError, BTreeNode};
-pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
-pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
@@ -160,7 +152,7 @@ pub use effects::{
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
-pub use events::{Error as EventError, EventEnvelope, SinkKind};
+pub use events::{Error as EventError, EventEnvelope};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
@@ -183,22 +175,10 @@ pub use recovery_contract::{
     RecoveryInvariant, RecoveryPhase, RecoveryViolation,
 };
 pub use registration_status::RegistrationStatus;
-pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
-pub use search::{
-    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
-    SearchError, SearchResult, TfIdfScorer,
-};
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
 };
-pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
-pub use spqr_tree::{
-    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
-    StaticGraph,
-};
-pub use task_failure_kind::TaskFailureKind;
-pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
@@ -213,8 +193,8 @@ pub use types::{
     MAX_SUPPORTED_SCHEMA_VERSION,
 };
 pub use workflow::{
-    next_nodes, DagNode, Edge, EdgeCondition, GuaranteeClass, RetryPolicy, RetryPolicyError,
-    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
+    next_nodes, DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, StepOutcome,
+    WorkflowDefinition, WorkflowDefinitionError,
 };
 
 #[cfg(kani)]
@@ -240,12 +220,14 @@ mod identity_tests;
 mod red_queen_tests;
 
 #[cfg(test)]
-mod schema_evolution_bdd_tests;
-#[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
 #[cfg(test)]
+mod tests_bdd_dag_connectivity;
+#[cfg(test)]
 mod tests_bdd_dag_cycle_validation;
+#[cfg(test)]
+mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

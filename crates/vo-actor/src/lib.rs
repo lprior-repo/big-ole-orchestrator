@@ -10,12 +10,17 @@ use vo_types::{SequenceNumber, TimerId, WorkflowName};
 
 // Module declarations
 pub mod heartbeat;
+
+pub mod master {
+    pub struct MasterOrchestrator;
+    pub struct OrchestratorConfig;
+}
+
 pub mod async_message_router;
 pub mod fairness;
 pub mod instance;
 pub mod instance_registry;
 pub mod lifecycle;
-pub mod master;
 pub mod message_router;
 pub mod orchestrator_msg;
 pub mod port;
@@ -61,20 +66,149 @@ pub mod instance_registry_tests;
 pub mod timer_supervisor_tests;
 pub mod timers;
 
+#[derive(Debug, thiserror::Error)]
+pub enum TerminateError {
+    #[error("not found: {0}")]
+    NotFound(String),
+    #[error("failed: {0}")]
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorkflowParadigm {
+    Fsm,
+    Dag,
+    Procedural,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstancePhaseView {
+    Replay,
+    Live,
+}
+
+/// Messages sent to the orchestrator actor.
+#[derive(Debug)]
+pub enum OrchestratorMsg {
+    /// Start a new workflow instance
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
+    },
+    /// Get status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
+    },
+    /// Trigger compensation for a workflow instance
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+    /// Send a signal to a workflow instance
+    Signal {
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
+}
+
+/// Error type for signal operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("signal failed: {0}")]
+    Failed(String),
+}
+
+/// Instance snapshot for status queries.
+#[derive(Debug, Clone)]
+pub struct InstanceSnapshot {
+    pub instance_id: InstanceId,
+    pub namespace: NamespaceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub phase: InstancePhaseView,
+    pub events_applied: u64,
+}
+
+#[cfg(test)]
+mod signal_error_tests {
+    use super::*;
+
+    #[test]
+    fn signal_error_variants_can_be_constructed() {
+        let err = SignalError::NotFound("inst-1".to_string());
+        assert!(matches!(err, SignalError::NotFound(msg) if msg == "inst-1"));
+
+        let err = SignalError::Failed("timeout".to_string());
+        assert!(matches!(err, SignalError::Failed(msg) if msg == "timeout"));
+    }
+
+    #[test]
+    fn orchestrator_msg_signal_variant_exists() {
+        fn _check(_msg: OrchestratorMsg) {
+            if let OrchestratorMsg::Signal {
+                instance_id: _,
+                signal_name: _,
+                payload: _,
+                reply: _,
+            } = _msg
+            {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod terminate_error_tests {
+    use super::*;
+
+    #[test]
+    fn terminate_error_variants_can_be_constructed() {
+        let err_not_found = TerminateError::NotFound("wf-123".to_string());
+        assert!(matches!(err_not_found, TerminateError::NotFound(msg) if msg == "wf-123"));
+
+        let err_failed = TerminateError::Failed("crashed".to_string());
+        assert!(matches!(err_failed, TerminateError::Failed(msg) if msg == "crashed"));
+    }
+}
+
+// Actor message types
+pub mod actor_messages;
 pub mod signal_messages;
+mod test_utilities;
 
-// =============================================================================
-// Re-exports from modules (preserving original public API)
-// =============================================================================
-
-pub use domain_types::{InstancePhaseView, NamespaceId, WorkflowParadigm};
-pub use error_types::{CompensateError, SignalError, StartError, TerminateError};
-pub use orchestrator_msgs::{InstanceSnapshot, OrchestratorMsg};
-pub use instance_msgs::InstanceActorMessage;
-pub use control_msgs::ControlActorMessage;
-pub use budget::{ReservedPermitBudget, WorkloadClass};
-pub use control_actor::ControlActor;
-
+<<<<<<< HEAD
+pub use signal_messages::{AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested, ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalWorkQueue, SignalWorkQueueError, StateLookup, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued};
+pub use test_utilities::TestStateLookup;
+pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signal_messages::mock_signal_storage;
+=======
 pub use signal_messages::mock_signal_storage;
 pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
 pub use signal_messages::{
@@ -84,6 +218,7 @@ pub use signal_messages::{
     SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
     WorkflowContinued,
 };
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 
 /// Messages sent to/from workflow instance actors.
 ///

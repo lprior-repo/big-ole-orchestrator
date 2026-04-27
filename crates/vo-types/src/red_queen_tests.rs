@@ -1111,7 +1111,7 @@ mod proptests {
             backoff_ms in 0u64..1_000_000u64,
             multiplier in -1e38f32..0.9999f32,
         ) {
-            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
+            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier as f64);
             prop_assert!(matches!(result, Err(RetryPolicyError::InvalidMultiplier { .. })), "multiplier {} should be rejected", multiplier);
         }
 
@@ -1122,7 +1122,7 @@ mod proptests {
             backoff_ms in 0u64..1_000_000u64,
             multiplier in 1.0f32..1e38f32,
         ) {
-            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier);
+            let result = RetryPolicy::new(max_attempts, backoff_ms, multiplier as f64);
             result.unwrap();
         }
 

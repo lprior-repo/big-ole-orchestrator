@@ -26,7 +26,7 @@ use proc_macro::TokenStream;
 mod error;
 mod task;
 
-use task::{generate_task_entrypoint, parse_task};
+use task::{generate_task_entrypoint, parse_attributes, parse_task};
 
 #[proc_macro_attribute]
 pub fn task_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -42,54 +42,29 @@ pub(crate) fn internal_task_macro(
         return quote::quote! { compile_error!("expected a function item"); };
     }
 
-    if !attr.is_empty() {
-        let attr_str = attr.to_string();
-        if attr_str.is_empty() {
-            return quote::quote! { compile_error!("macro attribute is empty"); };
-        }
-        let attr_count = attr_str.split_whitespace().count();
-        if attr_count > 255 {
-            return quote::quote! { compile_error!("too many macro attributes (max 255)"); };
-        }
-        if attr_str.starts_with("retries") {
-            return quote::quote! { compile_error!("unsupported attribute: retries"); };
-        }
-        return quote::quote! { compile_error!("unsupported attribute"); };
+    if let Err(err) = parse_attributes(&attr) {
+        return error_to_compile_error(&err);
     }
 
-    match parse_task(&item) {
-        Ok(task_def) => {
-            if let Ok(main_fn) = generate_task_entrypoint(&task_def) {
-                quote::quote! {
-                    #item
-                    #main_fn
-                }
-            } else {
-                quote::quote! { compile_error!("generation failed"); }
+    let task_def = match parse_task(&item) {
+        Ok(def) => def,
+        Err(err) => return error_to_compile_error(&err),
+    };
+
+    match generate_task_entrypoint(&task_def) {
+        Ok(main_fn) => {
+            quote::quote! {
+                #item
+                #main_fn
             }
         }
-        Err(error::Error::InvalidInputItem) => {
-            quote::quote! { compile_error!("#[task] can only be applied to functions"); }
-        }
-        Err(error::Error::UnsupportedSignature) => {
-            quote::quote! { compile_error!("task functions cannot have arguments"); }
-        }
-        Err(error::Error::ParseFailure) => {
-            quote::quote! { compile_error!("parse error"); }
-        }
-        Err(error::Error::EmptyAttribute) => {
-            quote::quote! { compile_error!("macro attribute is empty"); }
-        }
-        Err(error::Error::TooManyAttributes) => {
-            quote::quote! { compile_error!("too many macro attributes (max 255)"); }
-        }
-        Err(error::Error::IdentParsingFailed) => {
-            quote::quote! { compile_error!("failed to parse function identifier"); }
-        }
-        Err(error::Error::AsyncReturnTypeMismatch) => {
-            quote::quote! { compile_error!("async functions cannot have a return type"); }
-        }
+        Err(err) => error_to_compile_error(&err),
     }
+}
+
+fn error_to_compile_error(err: &error::Error) -> proc_macro2::TokenStream {
+    let msg = err.to_string();
+    quote::quote! { compile_error!(#msg); }
 }
 
 #[cfg(test)]
@@ -156,33 +131,27 @@ mod tests {
     fn task_macro_rejects_unsupported_macro_attributes() {
         let attr = quote! { retries = 3 };
         let item = quote! { fn my_task() {} };
-        let expected = quote! { compile_error!("unsupported attribute: retries"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("unsupported attribute") && output.contains("retries"));
     }
 
     #[test]
     fn task_macro_emits_compile_error_for_non_function_items() {
         let attr = quote! {};
         let item = quote! { struct MyTask; };
-        let expected = quote! { compile_error!("#[task] can only be applied to functions"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("invalid input item"));
     }
 
     #[test]
-    fn task_macro_accepts_single_argument_boundary() {
+    fn task_macro_rejects_exactly_1_argument_boundary() {
         let attr = quote! {};
         let item = quote! { fn task(a: i32) {} };
         let result = internal_task_macro(attr, item);
-        let result_str = result.to_string();
-        assert!(
-            result_str.contains("fn main"),
-            "missing fn main in: {}",
-            result_str
-        );
-        assert!(result_str.contains("env"), "missing env in: {}", result_str);
-        assert!(result_str.contains("\"A\""), "missing A in: {}", result_str);
+        let output = result.to_string();
+        assert!(output.contains("unsupported signature"));
     }
 
     #[test]
@@ -225,9 +194,9 @@ mod tests {
     fn task_macro_rejects_exactly_one_attribute() {
         let attr = quote! { foo };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("unsupported attribute"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("unsupported attribute") && output.contains("foo"));
     }
 
     #[test]
@@ -238,9 +207,9 @@ mod tests {
         }
         let attr = quote! { #(#attrs)* };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("too many macro attributes (max 255)"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let output = result.to_string();
+        assert!(output.contains("too many macro attributes") && output.contains("256"));
     }
 
     #[test]

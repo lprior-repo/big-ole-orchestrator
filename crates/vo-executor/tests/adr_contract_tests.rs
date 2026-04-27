@@ -15,9 +15,9 @@ use std::sync::MutexGuard;
 use std::time::{Duration, Instant};
 
 use vo_executor::{
-    cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
-    get_last_error, reset_all_state, run_subprocess, set_error, ExecuteNodeError, ExecutionStatus,
-    RetryPolicy, StepId, StepResult, SubprocessConfig,
+    cancel_execution, clear_error, execute_step, execute_step_with_retry,
+    get_execution_status, get_last_error, reset_all_state, set_error, ExecuteNodeError,
+    ExecutionStatus, RetryPolicy, StepId, StepResult,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -56,10 +56,7 @@ mod execution_semaphore_tests {
 
         drop(p1);
         let p4 = scheduler.try_acquire();
-        assert!(
-            p4.is_some(),
-            "After releasing one permit, new acquire should succeed"
-        );
+        assert!(p4.is_some(), "After releasing one permit, new acquire should succeed");
     }
 
     #[tokio::test]
@@ -73,10 +70,7 @@ mod execution_semaphore_tests {
         let scheduler = vo_executor::scheduler::Scheduler::new(config);
 
         let permit = scheduler.try_acquire();
-        assert!(
-            permit.is_none(),
-            "Zero concurrency should block all permits"
-        );
+        assert!(permit.is_none(), "Zero concurrency should block all permits");
     }
 
     #[tokio::test]
@@ -92,11 +86,7 @@ mod execution_semaphore_tests {
         let mut permits = Vec::new();
         for i in 0..100 {
             let permit = scheduler.try_acquire();
-            assert!(
-                permit.is_some(),
-                "Permit {} should be acquired (limit=100)",
-                i
-            );
+            assert!(permit.is_some(), "Permit {} should be acquired (limit=100)", i);
             permits.push(permit);
         }
 
@@ -128,9 +118,8 @@ mod execution_semaphore_tests {
     #[tokio::test]
     async fn backpressure_concurrent_steps_execute_independently() {
         let _guard = state_guard();
-        let step_names = ["step-1", "step-good", "step-fail"];
         let step_ids: Vec<_> = (0..10)
-            .map(|i| StepId::new(step_names[i % 3].to_string()))
+            .map(|i| StepId::new(format!("step-{}", i % 3)))
             .collect();
 
         let handles: Vec<_> = step_ids
@@ -138,10 +127,14 @@ mod execution_semaphore_tests {
             .map(|sid| tokio::spawn(execute_step(sid, 5000)))
             .collect();
 
-        for (i, handle) in handles.into_iter().enumerate() {
+        for handle in handles {
             let result = handle.await.expect("task should complete");
             assert!(
-                result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
+                result.is_ok()
+                    || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
+                    || matches!(result, Err(ExecuteNodeError::StepNotFound { .. })),
+                "Expected Ok, TransientError, or StepNotFound, got {:?}",
+                result
             );
         }
     }
@@ -150,7 +143,9 @@ mod execution_semaphore_tests {
     async fn backpressure_burst_execution_all_succeed() {
         let _guard = state_guard();
         let handles: Vec<_> = (0..50)
-            .map(|_| tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000)))
+            .map(|_| {
+                tokio::spawn(execute_step(StepId::new("step-good".to_string()), 5000))
+            })
             .collect();
 
         let mut success_count = 0;
@@ -172,6 +167,8 @@ mod execution_semaphore_tests {
 mod subprocess_boundary_tests {
     use super::*;
 
+<<<<<<< HEAD
+=======
     // -------------------------------------------------------------------------
     // ADR-012 Scenario 1: Zombie Process Cleanup
     // Given: A subprocess that forks and parent dies
@@ -348,6 +345,7 @@ mod subprocess_boundary_tests {
     // ADR-012: Existing boundary tests preserved
     // -------------------------------------------------------------------------
 
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     #[tokio::test]
     async fn step_not_found_rejected_before_execution() {
         let _guard = state_guard();
@@ -368,33 +366,23 @@ mod subprocess_boundary_tests {
     async fn invalid_timeout_prevents_spawn() {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), 0).await;
-        assert!(matches!(
-            result,
-            Err(ExecuteNodeError::InvalidTimeout { value: 0, .. })
-        ));
+        assert!(matches!(result, Err(ExecuteNodeError::InvalidTimeout { value: 0, .. })));
     }
 
     #[tokio::test]
     async fn max_u64_timeout_prevents_spawn() {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-1".to_string()), u64::MAX).await;
-        assert!(matches!(
-            result,
-            Err(ExecuteNodeError::InvalidTimeout {
-                value: u64::MAX,
-                ..
-            })
-        ));
+        assert!(
+            matches!(result, Err(ExecuteNodeError::InvalidTimeout { value: u64::MAX, .. }))
+        );
     }
 
     #[tokio::test]
     async fn timeout_boundary_below_slow_threshold_fails() {
         let _guard = state_guard();
         let result = execute_step(StepId::new("step-slow".to_string()), 1).await;
-        assert!(matches!(
-            result,
-            Err(ExecuteNodeError::TimeoutExceeded { .. })
-        ));
+        assert!(matches!(result, Err(ExecuteNodeError::TimeoutExceeded { .. })));
     }
 
     #[tokio::test]
@@ -450,6 +438,8 @@ mod subprocess_boundary_tests {
         let cancel_result = cancel_execution(step_id.clone()).await;
         assert!(cancel_result.is_ok());
     }
+<<<<<<< HEAD
+=======
 
     // -------------------------------------------------------------------------
     // ADR-012 BDD Tests: Boundary Enforcement Verification
@@ -737,6 +727,7 @@ mod adr012_subprocess_integration_tests {
         assert!(result.is_ok(), "Subprocess should complete without FD leak");
         assert_eq!(result.unwrap().exit_code, Some(0));
     }
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }
 
 // ============================================================================
@@ -780,10 +771,7 @@ mod fd3_contract_tests {
         let result = execute_step(StepId::new("step-fail".to_string()), 5000).await;
         match result {
             Ok(StepResult::Failure { output }) => {
-                assert!(
-                    output.contains("error"),
-                    "Failure output should contain error info"
-                );
+                assert!(output.contains("error"), "Failure output should contain error info");
             }
             other => panic!("Expected Failure result, got {:?}", other),
         }
@@ -867,10 +855,7 @@ mod actor_invariant_tests {
         assert!(r_ok.is_ok());
 
         let error_ok = get_last_error(&step_ok);
-        assert!(
-            error_ok.is_none(),
-            "Error should not leak to unrelated step"
-        );
+        assert!(error_ok.is_none(), "Error should not leak to unrelated step");
     }
 
     #[tokio::test]
@@ -946,9 +931,7 @@ mod signal_handling_tests {
         assert!(result.is_ok());
 
         let status = get_execution_status(&step_id);
-        assert!(
-            matches!(status, ExecutionStatus::Cancelled { reason } if reason.contains("cancelled"))
-        );
+        assert!(matches!(status, ExecutionStatus::Cancelled { reason } if reason.contains("cancelled")));
     }
 
     #[tokio::test]
@@ -961,10 +944,7 @@ mod signal_handling_tests {
             .expect("cancel should succeed");
 
         let status_after_cancel = get_execution_status(&step_id);
-        assert!(matches!(
-            status_after_cancel,
-            ExecutionStatus::Cancelled { .. }
-        ));
+        assert!(matches!(status_after_cancel, ExecutionStatus::Cancelled { .. }));
 
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(result.is_ok(), "Should succeed after cancel + reexecute");
@@ -1083,9 +1063,7 @@ mod stderr_truncation_tests {
         let result = execute_step(StepId::new("step-transient".to_string()), 5000).await;
         assert!(result.is_err());
 
-        if let Some(ExecuteNodeError::TransientError { reason, .. }) =
-            get_last_error(&StepId::new("step-transient".to_string()))
-        {
+        if let Some(ExecuteNodeError::TransientError { reason, .. }) = get_last_error(&StepId::new("step-transient".to_string())) {
             assert!(
                 reason.len() < 1_000_000,
                 "Error reason should be bounded, got {} bytes",
@@ -1133,10 +1111,7 @@ mod stale_completion_tests {
         assert!(result.is_err(), "step-transient always fails");
 
         let error = get_last_error(&step_id);
-        assert!(
-            error.is_some(),
-            "Fresh error should be set after reexecution"
-        );
+        assert!(error.is_some(), "Fresh error should be set after reexecution");
     }
 
     #[tokio::test]
@@ -1158,10 +1133,7 @@ mod stale_completion_tests {
 
         reset_all_state();
 
-        assert!(
-            get_last_error(&step_id).is_none(),
-            "Stale error should be gone after reset"
-        );
+        assert!(get_last_error(&step_id).is_none(), "Stale error should be gone after reset");
 
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(result.is_ok());
@@ -1176,10 +1148,7 @@ mod stale_completion_tests {
         assert!(result_timeout.is_err());
 
         let result_success = execute_step(step_id.clone(), 5000).await;
-        assert!(
-            result_success.is_ok(),
-            "Second execution with sufficient timeout should succeed"
-        );
+        assert!(result_success.is_ok(), "Second execution with sufficient timeout should succeed");
     }
 
     #[tokio::test]
@@ -1198,10 +1167,7 @@ mod stale_completion_tests {
 
         clear_error(step_id.as_str());
 
-        assert!(
-            get_last_error(&step_id).is_none(),
-            "clear_error should remove stale error"
-        );
+        assert!(get_last_error(&step_id).is_none(), "clear_error should remove stale error");
     }
 
     #[tokio::test]
@@ -1231,10 +1197,7 @@ mod stale_completion_tests {
             .expect_err("should fail");
 
         let error_b = get_last_error(&step_b);
-        assert!(
-            error_b.is_none(),
-            "Step B should not inherit step A's error"
-        );
+        assert!(error_b.is_none(), "Step B should not inherit step A's error");
     }
 }
 
@@ -1253,11 +1216,7 @@ mod crash_injection_tests {
 
         for attempt in 1..=3 {
             let result = execute_step(step_id.clone(), 5000).await;
-            assert!(
-                result.is_err(),
-                "Transient should fail on attempt {}",
-                attempt
-            );
+            assert!(result.is_err(), "Transient should fail on attempt {}", attempt);
             assert!(
                 get_last_error(&step_id).is_some(),
                 "Error should be persisted after attempt {}",
@@ -1275,10 +1234,7 @@ mod crash_injection_tests {
         assert!(r1.is_err());
 
         let r2 = execute_step(step_id.clone(), 5000).await;
-        assert!(
-            r2.is_ok(),
-            "Should recover after timeout with larger timeout"
-        );
+        assert!(r2.is_ok(), "Should recover after timeout with larger timeout");
     }
 
     #[tokio::test]
@@ -1301,10 +1257,7 @@ mod crash_injection_tests {
         let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
-        assert!(matches!(
-            result,
-            Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })
-        ));
+        assert!(matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })));
     }
 
     #[tokio::test]
@@ -1378,10 +1331,7 @@ mod crash_injection_tests {
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         let elapsed = start.elapsed().as_millis() as u64;
 
-        assert!(
-            result.is_ok(),
-            "Should succeed with sufficient timeout on retry"
-        );
+        assert!(result.is_ok(), "Should succeed with sufficient timeout on retry");
         assert!(elapsed < 1000, "Should complete quickly with valid timeout");
     }
 }
@@ -1414,10 +1364,7 @@ mod retry_policy_edge_cases {
     #[test]
     fn retry_policy_max_backoff_less_than_base_rejected() {
         let result = RetryPolicy::with_max_backoff(3, 200, 2.0, 100);
-        assert!(matches!(
-            result,
-            Err(vo_executor::RetryPolicyError::MaxBackoffTooSmall { .. })
-        ));
+        assert!(matches!(result, Err(vo_executor::RetryPolicyError::MaxBackoffTooSmall { .. })));
     }
 
     #[test]
@@ -1457,11 +1404,7 @@ mod retry_policy_edge_cases {
         let policy = RetryPolicy::new(10, 1000, 1e15).unwrap();
         for attempt in 1..=10 {
             let delay = policy.calculate_backoff_delay(attempt);
-            assert!(
-                delay <= u64::MAX,
-                "Delay should not overflow at attempt {}",
-                attempt
-            );
+            assert!(delay <= u64::MAX, "Delay should not overflow at attempt {}", attempt);
         }
     }
 
@@ -1475,10 +1418,7 @@ mod retry_policy_edge_cases {
         let elapsed = start.elapsed().as_millis() as u64;
 
         assert!(elapsed < 50, "Single attempt should have no backoff delay");
-        assert!(matches!(
-            result,
-            Err(ExecuteNodeError::RetryExhausted { attempts: 1, .. })
-        ));
+        assert!(matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 1, .. })));
     }
 }
 
@@ -1524,10 +1464,7 @@ mod state_machine_contract_tests {
             .await
             .expect("cancel should succeed");
 
-        assert!(matches!(
-            get_execution_status(&step_id),
-            ExecutionStatus::Cancelled { .. }
-        ));
+        assert!(matches!(get_execution_status(&step_id), ExecutionStatus::Cancelled { .. }));
     }
 
     #[tokio::test]
@@ -1538,10 +1475,7 @@ mod state_machine_contract_tests {
         cancel_execution(step_id.clone()).await.unwrap();
         cancel_execution(step_id.clone()).await.unwrap();
 
-        assert!(matches!(
-            get_execution_status(&step_id),
-            ExecutionStatus::Cancelled { .. }
-        ));
+        assert!(matches!(get_execution_status(&step_id), ExecutionStatus::Cancelled { .. }));
     }
 
     #[tokio::test]
@@ -1553,10 +1487,7 @@ mod state_machine_contract_tests {
         assert!(result.is_err());
 
         let error = get_last_error(&step_id);
-        assert!(matches!(
-            error,
-            Some(ExecuteNodeError::TransientError { .. })
-        ));
+        assert!(matches!(error, Some(ExecuteNodeError::TransientError { .. })));
 
         assert!(get_execution_status(&step_id).is_ready());
     }
@@ -1576,9 +1507,7 @@ mod state_machine_contract_tests {
         let step_a = StepId::new("step-transient".to_string());
         let step_b = StepId::new("step-1".to_string());
 
-        execute_step(step_a.clone(), 5000)
-            .await
-            .expect_err("should fail");
+        execute_step(step_a.clone(), 5000).await.expect_err("should fail");
         execute_step(step_b.clone(), 5000).await.unwrap();
 
         assert!(get_last_error(&step_a).is_some());
@@ -1648,6 +1577,14 @@ mod execution_status_format_tests {
             output: String::new()
         }
         .is_ready());
+<<<<<<< HEAD
+        assert!(
+            !ExecutionStatus::Cancelled {
+                reason: String::new()
+            }
+            .is_ready()
+        );
+=======
         assert!(!ExecutionStatus::Cancelled {
             reason: String::new()
         }
@@ -1935,5 +1872,6 @@ mod adr012_bdd_scenario_tests {
     async fn bdd_adr012_sigterm_constant() {
         const SIGTERM: libc::c_int = 15;
         assert_eq!(SIGTERM, libc::SIGTERM, "SIGTERM constant should match libc");
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }

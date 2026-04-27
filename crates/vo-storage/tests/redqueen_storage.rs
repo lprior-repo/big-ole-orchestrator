@@ -139,7 +139,7 @@ fn red_queen_snapshot_conflict_last_writer_wins() {
     let key = encode_snapshot_key(&iid(0xCC), 10).unwrap();
     let val = ks.get(key).unwrap().unwrap();
     assert!(
-        val.contains(&b'|'),
+        val.iter().any(|&b| b == b'|'),
         "must have header|payload format"
     );
 }

@@ -60,7 +60,7 @@ fn dur_006_50_concurrent_writers_kill_restart_verify_zero_loss() {
                         "sequence": local_count,
                         "type": "ConcurrentDurability"
                     });
-                    ks.insert(key, serde_json::to_vec(&value).unwrap())
+                    ks.insert(key, &serde_json::to_vec(&value).unwrap())
                         .unwrap();
 
                     // Periodic persist to ensure some data hits disk

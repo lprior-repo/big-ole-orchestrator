@@ -1,14 +1,47 @@
-//! BLACK-HAT adversarial tests for Dolt corruption, write conflicts, and query injection.
-//!
-//! ve-j2sk1 — BLACK-HAT: Dolt adversarial corruption testing
+//! BLACK-HAT Dolt adversarial tests: corruption + SQL injection via beads.
+//! ve-j2sk1 — Tests Dolt corruption and SQL injection via issue fields.
 
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::expect_used)]
-#![allow(clippy::pedantic)]
+use std::process::Command;
 
-use std::sync::Arc;
-use std::thread;
+const SQL_PAYLOADS: &[&str] = &[
+    "fix: SQL injection test 1",
+    "fix: OR condition",
+    "admin--style",
+    "fix: quotes'test\"double",
+    "fix: semicolon;delimiter",
+    "fix: backslash\\x",
+    "fix: percent%like",
+    "fix: underscore_exploit",
+    "fix: asterisk*wild",
+    "fix: question?mark",
+    "fix: bracket[0]",
+    "fix: parens(func)",
+    "'; DROP TABLE issues; --",
+    "1; DELETE FROM issues WHERE 1=1;--",
+    "1' UNION SELECT * FROM users--",
+    "'; INSERT INTO issues VALUES('pwned'); --",
+];
 
+<<<<<<< HEAD
+fn bd() -> Command {
+    Command::new("bd")
+}
+
+fn mk_issue(title: &str, desc: &str) -> Option<String> {
+    let out = bd()
+        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+        .args(["create", title, "-d", desc, "--silent", "--json"])
+        .output()
+        .ok()?;
+    if out.status.success() {
+        serde_json::from_slice::<serde_json::Value>(&out.stdout)
+            .ok()?
+            .get("id")?
+            .as_str()
+            .map(String::from)
+    } else {
+        None
+=======
 use tempfile::TempDir;
 use vo_storage::codec::{decode_event_key, encode_event_key};
 use vo_storage::key_encoding::{decode_effect_key, decode_lease_key};
@@ -121,33 +154,46 @@ fn bead_payload_with_sql_injection_does_not_corrupt_decode() {
             Ok(_) | Err(StatusStoreError::CorruptValue { .. }) => {}
             other => panic!("unexpected error variant for injection payload: {other:?}"),
         }
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
-// ── 4. Malformed Dolt value: null bytes in JSON ────────────────────────────────
+fn dolt_dir() -> Option<std::path::PathBuf> {
+    let p = std::path::Path::new(".beads/dolt");
+    if p.exists() {
+        Some(p.to_path_buf())
+    } else {
+        None
+    }
+}
 
 #[test]
-fn null_bytes_in_stored_json_rejected_cleanly() {
-    let payloads: Vec<Vec<u8>> = vec![
-        b"{\"counter\": \x00 42}".to_vec(),
-        b"\x00\x00\x00\x00".to_vec(),
-        b"{}\x00trailing garbage".to_vec(),
-        vec![0xFF; 128],
-    ];
-
-    for payload in &payloads {
-        let result = decode_status(payload);
+fn sql_injection_payloads_handled_without_corruption() {
+    for p in SQL_PAYLOADS {
+        let t = format!("fix: {p}");
         assert!(
-            result.is_err(),
-            "null-byte payload len={} should fail decode",
-            payload.len()
+            mk_issue(&t, "Testing SQL injection").is_some(),
+            "payload handled: {p}"
         );
     }
 }
 
-// ── 5. Concurrent snapshot compaction with corrupt keys ─────────────────────────
-
 #[test]
+<<<<<<< HEAD
+fn sql_injection_query_handles_special_chars() {
+    for q in [
+        "p0", "p1 or", "admin--", "union", "drop", "'; DROP", "1 OR 1",
+    ] {
+        let out = bd()
+            .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+            .args(["q", q, "--json"])
+            .output()
+            .expect("q should not panic");
+        assert!(
+            out.status.success() || !out.stderr.is_empty(),
+            "query safe: {q}"
+        );
+=======
 fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("compact_race");
@@ -188,12 +234,79 @@ fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
 
     for h in handles {
         h.join().unwrap();
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
-// ── 6. Key encoding injection: crafted bytes must not decode as wrong key type ──
+#[test]
+fn meta_chars_in_labels_handled() {
+    let out = bd()
+        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+        .args([
+            "create",
+            "fix: meta chars",
+            "--labels",
+            "p0;drop,p1'or',p2--x",
+            "--json",
+        ])
+        .output()
+        .expect("bd should handle meta chars");
+    assert!(out.status.success() || !out.stderr.is_empty());
+}
 
 #[test]
+<<<<<<< HEAD
+fn corrupt_sst_file_detected() {
+    if let Some(dd) = dolt_dir() {
+        let sd = dd.join("data");
+        if sd.exists() {
+            if let Some(sst) = std::fs::read_dir(&sd)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .find(|e| e.path().extension().is_some_and(|ex| ex == "sst"))
+            {
+                let p = sst.path();
+                let orig = std::fs::read(&p).unwrap();
+                if orig.len() > 64 {
+                    std::fs::write(&p, &orig[..orig.len() / 2]).unwrap();
+                    let _ = bd()
+                        .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+                        .args(["list", "--json"])
+                        .output();
+                    std::fs::write(&p, &orig).unwrap();
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn dolt_data_dir_missing_graceful() {
+    if let Some(dd) = dolt_dir() {
+        let sql_dir = dd.join("data");
+        if sql_dir.exists() {
+            let files: Vec<_> = std::fs::read_dir(&sql_dir)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .collect();
+            for f in &files {
+                std::fs::rename(f, format!("{}.bak", f.display())).ok();
+            }
+            let out = bd()
+                .current_dir("/home/lewis/gt/veloxide/polecats/raider/veloxide")
+                .args(["list", "--json"])
+                .output();
+            for f in &files {
+                std::fs::rename(format!("{}.bak", f.display()), f).ok();
+            }
+            assert!(
+                out.is_ok(),
+                "bd should not panic when data dir is inaccessible"
+            );
+        }
+    }
+=======
 fn crafted_key_bytes_never_decode_to_wrong_key_type() {
     let event_key = encode_event_key(
         &test_instance_id(),
@@ -221,4 +334,5 @@ fn crafted_key_bytes_never_decode_to_wrong_key_type() {
         decode_effect_key(&timer_key).is_err(),
         "timer key must not decode as effect key"
     );
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }

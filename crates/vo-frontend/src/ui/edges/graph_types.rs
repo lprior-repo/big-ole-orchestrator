@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+
+// Re-export canonical types from crate::ui::graph (ADR-031).
+pub use crate::ui::graph::{ExecutionState, PortName};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct NodeId(pub Uuid);
 
@@ -23,21 +26,6 @@ impl std::fmt::Display for NodeId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PortName(pub String);
-
-impl PortName {
-    #[must_use]
-    pub fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
-impl std::fmt::Display for PortName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Connection {
@@ -46,17 +34,6 @@ pub struct Connection {
     pub target: NodeId,
     pub source_port: PortName,
     pub target_port: PortName,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum ExecutionState {
-    #[default]
-    Idle,
-    Running,
-    Queued,
-    Completed,
-    Failed,
-    Skipped,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

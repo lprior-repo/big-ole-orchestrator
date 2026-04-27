@@ -953,6 +953,53 @@ mod proptest_invariants {
     }
 
     // =========================================================================
+    // INV-2: Bijection — no two InstanceIds map to the same handle
+    // =========================================================================
+
+    proptest! {
+        #[test]
+        fn bijection_no_two_instance_ids_share_a_handle(
+            ops in prop::collection::vec(
+                (1u128..20u128, any::<u64>()),
+                1..100
+            )
+        ) {
+            let config = RegistryConfig { stop_timeout: Duration::from_secs(5) };
+            let mut registry = InstanceRegistry::new(config);
+
+            for (seed, handle_id) in &ops {
+                let ulid = ulid::Ulid::from(*seed);
+                let id = InstanceId::parse(&ulid.to_string()).unwrap();
+                let _ = registry.register(
+                    id,
+                    InstanceActorHandle::test(*handle_id),
+                    |_| Ok(()),
+                );
+            }
+
+            let mut seen_handles: std::collections::HashMap<u64, InstanceId> = std::collections::HashMap::new();
+            let unique_seeds: std::collections::HashSet<u128> = ops.iter().map(|(s, _)| *s).collect();
+            for &seed in &unique_seeds {
+                let ulid = ulid::Ulid::from(seed);
+                let id = InstanceId::parse(&ulid.to_string()).unwrap();
+
+                if let Some(handle) = registry.lookup(&id) {
+                    let hid = handle.handle_id();
+                    if let Some(prev_id) = seen_handles.insert(hid, id.clone()) {
+                        prop_assert!(
+                            prev_id == id,
+                            "INV-2 violated: handle {} claimed by both {:?} and {:?}",
+                            hid,
+                            prev_id,
+                            id,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
     // Registration and deregistration cycle consistency
     // =========================================================================
 

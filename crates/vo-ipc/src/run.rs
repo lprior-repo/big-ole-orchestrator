@@ -3,7 +3,7 @@ use crate::envelope;
 use crate::error::IpcError;
 use crate::pipe::create_pipe;
 use crate::stderr::{read_bounded_stderr, StderrCapture};
-use std::os::fd::FromRawFd;
+use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -25,8 +25,8 @@ pub struct SubprocessOutput {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, IpcError> {
-    let pipe3 = create_pipe()?;
-    let pipe4 = create_pipe()?;
+    let (fd3_read, fd3_write) = create_pipe()?;
+    let (fd4_read, fd4_write) = create_pipe()?;
 
     let mut command = tokio::process::Command::new(config.executable_path());
     command.args(config.argv());
@@ -236,7 +236,16 @@ async fn perform_ipc(
     }
 }
 
-
+fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
+    let mut fds = [0; 2];
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    if res != 0 {
+        return Err(IpcError::PipeSetupFailed {
+            detail: std::io::Error::last_os_error().to_string(),
+        });
+    }
+    Ok(fds.into())
+}
 
 #[tracing::instrument]
 async fn terminate_child(child: &mut tokio::process::Child) {

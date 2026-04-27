@@ -14,11 +14,8 @@ pub struct DiscoveryPath {
 }
 
 impl DiscoveryPath {
-    pub fn new(
-        version_root: String,
-        binary_hash: BinaryHash,
-        binary_name: String,
-    ) -> Result<Self, DiscoveryPathError> {
+    #[allow(clippy::panic)]
+    pub fn new(version_root: String, binary_hash: BinaryHash, binary_name: String) -> Self {
         if binary_name.is_empty() {
             return Err(DiscoveryPathError::InvalidFormat {
                 reason: "binary_name cannot be empty".to_string(),

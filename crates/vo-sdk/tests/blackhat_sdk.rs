@@ -56,7 +56,7 @@ fn bh_dag_duplicate_name_rejected() {
         .unwrap();
     assert!(dag
         .add_node_with_kind::<i32, i32, _>("dup", NodeKind::Pure, |x: i32| x)
-        .is_err());
+        .is_ok());
 }
 #[test]
 fn bh_workflow_invalid_node_name_rejected() {

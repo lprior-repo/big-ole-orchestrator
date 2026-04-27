@@ -1,9 +1,10 @@
-//! Per-class execution permit budget per ADR-033.
+//! Budget layer — per-class execution permit tracking per ADR-033.
+//!
+//! Stateful permit tracking with acquire/release semantics.
 
 use std::cell::RefCell;
 
-use super::class::WorkloadClass;
-use super::error::WorkloadClassError;
+use super::classification::{WorkloadClass, WorkloadClassError};
 
 /// Per-class execution permit budget per ADR-033.
 ///
@@ -88,63 +89,5 @@ impl WorkloadBudget {
     #[must_use]
     pub fn reserved_for(&self, class: WorkloadClass) -> u32 {
         self.reserved[Self::class_index(class)]
-    }
-}
-
-/// The specific reason for a budget rejection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum RejectionReason {
-    BudgetExhausted,
-    WorkflowCapExceeded,
-    GlobalConcurrencyLimit,
-}
-
-/// Detail about a rejected workload request.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RejectionDetail {
-    /// The workload class of the rejected request.
-    pub class: WorkloadClass,
-    /// Human-readable reason for rejection.
-    pub reason: RejectionReason,
-}
-
-impl RejectionDetail {
-    #[must_use]
-    pub fn budget_exhausted(class: WorkloadClass) -> Self {
-        Self {
-            class,
-            reason: RejectionReason::BudgetExhausted,
-        }
-    }
-
-    #[must_use]
-    pub fn workflow_cap_exceeded(class: WorkloadClass) -> Self {
-        Self {
-            class,
-            reason: RejectionReason::WorkflowCapExceeded,
-        }
-    }
-
-    #[must_use]
-    pub fn global_limit(class: WorkloadClass) -> Self {
-        Self {
-            class,
-            reason: RejectionReason::GlobalConcurrencyLimit,
-        }
-    }
-}
-
-impl std::fmt::Display for RejectionDetail {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "rejected {:?}: {}",
-            self.class,
-            match &self.reason {
-                RejectionReason::BudgetExhausted => "class budget exhausted",
-                RejectionReason::WorkflowCapExceeded => "per-workflow cap exceeded",
-                RejectionReason::GlobalConcurrencyLimit => "global concurrency limit reached",
-            }
-        )
     }
 }

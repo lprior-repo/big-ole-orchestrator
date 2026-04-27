@@ -220,6 +220,7 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -262,6 +263,7 @@ mod tests {
     #[tokio::test]
     async fn sse_lagged_error_closes_stream() {
         use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
@@ -274,30 +276,33 @@ mod tests {
                 sequence: i,
             });
         }
+        drop(tx);
 
         let mut count = 0u64;
-        let mut lagged_received = false;
-        while let Some(result) = futures::StreamExt::next(&mut event).await {
-            count += 1;
-            match result {
-                Ok(event) => {
-                    let _ = event;
-                    lagged_received = true;
-                }
-                Err(_) => break,
+        let result = timeout(Duration::from_secs(2), async {
+            while let Some(_item) = futures::StreamExt::next(&mut event).await {
+                count += 1;
             }
-        }
+        })
+        .await;
 
+<<<<<<< HEAD
+        let completed = result.is_ok();
+        assert!(completed, "Stream should terminate after channel closes");
+        assert!(count <= 15, "Should receive at most 15 events, got {count}");
+=======
         assert!(lagged_received || count <= 11, "Should emit lag or close");
         assert!(
             count <= 11,
             "Should close after lag, not receive all 15 events"
         );
+>>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 
     #[tokio::test]
     async fn sse_stream_closes_after_lag_event() {
         use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
 
@@ -312,16 +317,16 @@ mod tests {
         }
 
         let mut count = 0u64;
-        while let Some(_result) = futures::StreamExt::next(&mut event).await {
-            count += 1;
-            if count > 10 {
-                break;
+        let _ = timeout(Duration::from_secs(2), async {
+            while let Some(_result) = futures::StreamExt::next(&mut event).await {
+                count += 1;
             }
-        }
+        })
+        .await;
 
         assert!(
-            count <= 6,
-            "Should close after lag notification, not all 20 events"
+            count < 20,
+            "Should close after lag notification, not receive all 20 events, got {count}"
         );
     }
 

@@ -259,6 +259,10 @@ impl SpawnSupervisorError {
                 | Self::InstanceNotFound(_)
                 | Self::MailboxFull(_)
                 | Self::DispatchError(_)
+                | Self::AtomicityViolation(_)
+                | Self::SpawnFailed { .. }
+                | Self::HealthCheckFailed { .. }
+                | Self::ProcessExited { .. }
         )
     }
 
@@ -274,7 +278,13 @@ impl SpawnSupervisorError {
     pub fn is_fatal(&self) -> bool {
         matches!(
             self,
-            Self::CorruptSpawn(_) | Self::InvalidConfig(_) | Self::ZombieDetected { .. }
+            Self::CorruptSpawn(_)
+                | Self::InvalidConfig(_)
+                | Self::ZombieDetected { .. }
+                | Self::AlreadyRunning
+                | Self::ShutdownTimeout(_)
+                | Self::NotRunning
+                | Self::AlreadyShutdown
         )
     }
 
@@ -1231,5 +1241,126 @@ mod tests {
         assert!(SpawnSupervisorError::ShutdownTimeout(Duration::from_secs(30)).is_operational());
         assert!(SpawnSupervisorError::AtomicityViolation("test".to_string()).is_operational());
         assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_operational());
+    }
+
+    #[cfg(feature = "proptest")]
+    mod proptest_invariants {
+        use super::*;
+        use proptest::prelude::*;
+
+        fn any_spawn_phase() -> impl Strategy<Value = SpawnPhase> {
+            prop_oneof![
+                Just(SpawnPhase::Spawn),
+                Just(SpawnPhase::HealthCheck),
+                Just(SpawnPhase::Running),
+                Just(SpawnPhase::Shutdown),
+                Just(SpawnPhase::Terminated),
+                Just(SpawnPhase::Failed),
+            ]
+        }
+
+        fn any_spawn_record() -> impl Strategy<Value = SpawnRecord> {
+            (any_spawn_phase(), 0u32..1000u32, 0u32..100u32).prop_map(
+                |(phase, health_checks, spawn_attempts)| SpawnRecord {
+                    spawn_id: None,
+                    instance_id: test_instance_id(),
+                    command: "test".to_string(),
+                    spawn_phase: phase,
+                    health_checks,
+                    spawn_attempts,
+                    last_error: None,
+                },
+            )
+        }
+
+        proptest! {
+            #[test]
+            fn backoff_monotonic_for_multiplier_gt_1(
+                initial_ms in 1u64..10_000u64,
+                multiplier in 1.0001f64..10.0f64,
+                a in 1u32..20u32,
+                b in 1u32..20u32,
+            ) {
+                let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+                let delay_lo = calculate_backoff_delay(initial_ms, multiplier, lo);
+                let delay_hi = calculate_backoff_delay(initial_ms, multiplier, hi);
+                prop_assert!(
+                    delay_hi >= delay_lo,
+                    "delay_hi={} should be >= delay_lo={} for attempts {} vs {}",
+                    delay_hi, delay_lo, hi, lo,
+                );
+            }
+
+            #[test]
+            fn backoff_constant_for_multiplier_1(
+                initial_ms in 1u64..10_000u64,
+                attempt in 1u32..100u32,
+            ) {
+                let delay = calculate_backoff_delay(initial_ms, 1.0, attempt);
+                prop_assert_eq!(delay, initial_ms);
+            }
+
+            #[test]
+            fn backoff_first_attempt_equals_initial(initial_ms in 1u64..10_000u64, multiplier in 1.0f64..5.0f64) {
+                let delay = calculate_backoff_delay(initial_ms, multiplier, 1);
+                prop_assert_eq!(delay, initial_ms);
+            }
+
+            #[test]
+            fn is_zombie_true_iff_failed_and_attempts_gt_3(record in any_spawn_record()) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts > 3;
+                prop_assert_eq!(is_zombie_state(&record), expected);
+            }
+
+            #[test]
+            fn is_zombie_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!is_zombie_state(&record));
+                }
+            }
+
+            #[test]
+            fn should_respawn_true_iff_failed_and_attempts_lt_max(
+                record in any_spawn_record(),
+                max_attempts in 1u32..100u32,
+            ) {
+                let expected = matches!(record.spawn_phase, SpawnPhase::Failed)
+                    && record.spawn_attempts < max_attempts;
+                prop_assert_eq!(should_respawn(&record, max_attempts), expected);
+            }
+
+            #[test]
+            fn should_respawn_non_failed_always_false(
+                phase in any_spawn_phase(),
+                attempts in 0u32..100u32,
+                max_attempts in 1u32..100u32,
+            ) {
+                if !matches!(phase, SpawnPhase::Failed) {
+                    let record = SpawnRecord {
+                        spawn_id: None,
+                        instance_id: test_instance_id(),
+                        command: "test".to_string(),
+                        spawn_phase: phase,
+                        health_checks: 0,
+                        spawn_attempts: attempts,
+                        last_error: None,
+                    };
+                    prop_assert!(!should_respawn(&record, max_attempts));
+                }
+            }
+        }
     }
 }

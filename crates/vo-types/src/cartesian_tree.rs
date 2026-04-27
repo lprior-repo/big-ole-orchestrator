@@ -41,12 +41,12 @@ pub enum CartesianTreeError {
     KeyNotFound,
 }
 
-type CartesianNodeBox<K, T> = Box<CartesianNode<K, T>>;
 type InsertNodeResult<K, T> =
-    Result<(CartesianNodeBox<K, T>, Option<CartesianTreeError>), CartesianTreeError>;
+    Result<(Box<CartesianNode<K, T>>, Option<CartesianTreeError>), CartesianTreeError>;
+
 type SplitNodeResult<K, T> = (
-    Option<CartesianNodeBox<K, T>>,
-    Option<CartesianNodeBox<K, T>>,
+    Option<Box<CartesianNode<K, T>>>,
+    Option<Box<CartesianNode<K, T>>>,
 );
 
 impl<K, T: Clone> CartesianNode<K, T> {
@@ -142,9 +142,10 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn insert_node(
-        mut root: CartesianNodeBox<K, T>,
-        mut new_node: CartesianNodeBox<K, T>,
+        mut root: Box<CartesianNode<K, T>>,
+        mut new_node: Box<CartesianNode<K, T>>,
     ) -> InsertNodeResult<K, T> {
         if new_node.key == root.key {
             root.value = new_node.value;
@@ -256,6 +257,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         )
     }
 
+    #[allow(clippy::type_complexity)]
     fn split_node(node: Option<Box<CartesianNode<K, T>>>, key: &K) -> SplitNodeResult<K, T> {
         match node {
             None => (None, None),
@@ -298,6 +300,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         }
     }
 
+    #[allow(clippy::expect_used)]
     fn rotate_left(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
         match node.right.take() {
             Some(mut new_root) => {
@@ -309,6 +312,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         }
     }
 
+    #[allow(clippy::expect_used)]
     fn rotate_right(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
         match node.left.take() {
             Some(mut new_root) => {

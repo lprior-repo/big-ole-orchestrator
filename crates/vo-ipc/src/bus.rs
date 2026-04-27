@@ -1,9 +1,8 @@
 use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
-use crate::run::SubprocessOutput;
-use std::os::fd::{FromRawFd, RawFd};
-use std::os::unix::process::ExitStatusExt;
+use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
+use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{self, OwnedPermit};
 use tokio::time::{timeout, Duration};
@@ -257,6 +256,17 @@ impl MessageBus {
         Ok(())
     }
 
+}
+
+fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
+    let mut fds = [0; 2];
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    if res != 0 {
+        return Err(IpcError::PipeSetupFailed {
+            detail: std::io::Error::last_os_error().to_string(),
+        });
+    }
+    Ok(fds.into())
 }
 
 fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {

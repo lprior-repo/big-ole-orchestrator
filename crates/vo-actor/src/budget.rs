@@ -1,7 +1,25 @@
 //! Reserved permit budget tracking per workload class (ADR-033).
 
-use crate::error_types::StartError;
 pub use crate::fairness::WorkloadClass;
+
+/// Errors from actor start operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum StartError {
+    #[error("Budget exhausted for {class:?}: requested {requested}, available {available}")]
+    BudgetExhaustion {
+        class: WorkloadClass,
+        requested: u32,
+        available: u32,
+    },
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
+    #[error("At capacity: {running}/{max} instances running")]
+    AtCapacity { running: u32, max: u32 },
+    #[error("Instance {0} already exists")]
+    AlreadyExists(String),
+    #[error("Spawn failed: {0}")]
+    SpawnFailed(String),
+}
 
 /// Reserved permit budget tracking per workload class.
 /// Ensures each class maintains its reserved capacity per ADR-033.
@@ -72,7 +90,7 @@ impl ReservedPermitBudget {
 }
 
 #[cfg(test)]
-mod reserved_permit_budget_tests {
+mod tests {
     use super::*;
 
     mod workload_class_tests {
@@ -183,7 +201,7 @@ mod reserved_permit_budget_tests {
         }
     }
 
-    mod reserved_permit_budget_tests_inner {
+    mod reserved_permit_budget_tests {
         use super::*;
 
         #[test]

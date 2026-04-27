@@ -28,22 +28,22 @@ mod type_alias_boundary {
     /// Kills: type alias changed from String to something non-string-like.
     #[test]
     fn rq_instance_id_is_string() {
-        let id: InstanceId = String::from("test");
-        let _: String = id;
+        let id: InstanceId = String::from("test").into();
+        let _: String = id.into();
     }
 
     /// Kills: NamespaceId alias changed from String.
     #[test]
     fn rq_namespace_id_is_string() {
-        let ns: NamespaceId = String::from("ns");
-        let _: String = ns;
+        let ns: NamespaceId = String::from("ns").into();
+        let _: String = ns.into();
     }
 
     /// Kills: TimerId alias changed from String.
     #[test]
     fn rq_timer_id_is_string() {
-        let t: TimerId = String::from("t");
-        let _: String = t;
+        let t: TimerId = String::from("t").into();
+        let _: String = t.into();
     }
 
     /// Kills: type alias has Drop side effects or nonzero-size wrapper.
@@ -102,8 +102,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_json_roundtrip() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-001".to_string(),
-            timer_id: "t-001".to_string(),
+            timer_id: TimerId::new("t-001"),
             timestamp_ms: 1700000000000,
         };
         let json = serde_json::to_string(&event).expect("serialize");
@@ -115,8 +114,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_max_u64_timestamp() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-max".to_string(),
-            timer_id: "edge".to_string(),
+            timer_id: TimerId::new("edge"),
             timestamp_ms: u64::MAX,
         };
         let json = serde_json::to_string(&event).expect("serialize max u64");
@@ -128,8 +126,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_zero_timestamp() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-zero".to_string(),
-            timer_id: "epoch".to_string(),
+            timer_id: TimerId::new("epoch"),
             timestamp_ms: 0,
         };
         let json = serde_json::to_string(&event).expect("serialize");
@@ -141,8 +138,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_json_field_names() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-field".to_string(),
-            timer_id: "field-test".to_string(),
+            timer_id: TimerId::new("field-test"),
             timestamp_ms: 42,
         };
         let json = serde_json::to_value(&event).expect("to_value");
@@ -165,16 +161,14 @@ mod serialization_roundtrip {
     /// Kills: extra fields silently ignored (strict deserialization broken).
     #[test]
     fn rq_timer_fired_extra_json_fields_ignored() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
+        let json = r#"{"TimerFired":{"timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
         let event: WorkflowEvent =
             serde_json::from_str(json).expect("extra fields must be ignored");
         match event {
             WorkflowEvent::TimerFired {
-                event_id,
                 timer_id,
                 timestamp_ms,
             } => {
-                assert_eq!(event_id, "e1");
                 assert_eq!(timer_id, "t1");
                 assert_eq!(timestamp_ms, 99);
             }
@@ -573,8 +567,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_unicode_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-uni".to_string(),
-            timer_id: "计时器-日本語-🚀".to_string(),
+            timer_id: TimerId::new("计时器-日本語-🚀"),
             timestamp_ms: 12345,
         };
         let json = serde_json::to_string(&event).expect("serialize unicode");
@@ -586,8 +579,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_control_char_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-ctrl".to_string(),
-            timer_id: "timer\x00\x01\x1f".to_string(),
+            timer_id: TimerId::new("timer\x00\x01\x1f"),
             timestamp_ms: 99,
         };
         let json = serde_json::to_string(&event).expect("serialize control chars");
@@ -599,8 +591,7 @@ mod serialization_adversarial {
     #[test]
     fn rq_escaped_chars_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-esc".to_string(),
-            timer_id: "timer\twith\nnewlines".to_string(),
+            timer_id: TimerId::new("timer\twith\nnewlines"),
             timestamp_ms: 50,
         };
         let json = serde_json::to_string(&event).expect("serialize escapes");
@@ -613,8 +604,7 @@ mod serialization_adversarial {
     fn rq_long_timer_id_roundtrip() {
         let long_id: String = "x".repeat(10_000);
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-long".to_string(),
-            timer_id: long_id.clone(),
+            timer_id: TimerId::new(long_id.clone()),
             timestamp_ms: 1,
         };
         let json = serde_json::to_string(&event).expect("serialize long id");
@@ -639,8 +629,7 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_clone_independence() {
         let event = WorkflowEvent::TimerFired {
-            event_id: "e-clone".to_string(),
-            timer_id: "t1".to_string(),
+            timer_id: TimerId::new("t1"),
             timestamp_ms: 100,
         };
         let cloned = event.clone();
@@ -651,13 +640,11 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_equality_value_based() {
         let a = WorkflowEvent::TimerFired {
-            event_id: "e-same".to_string(),
-            timer_id: "same".to_string(),
+            timer_id: TimerId::new("same"),
             timestamp_ms: 42,
         };
         let b = WorkflowEvent::TimerFired {
-            event_id: "e-same".to_string(),
-            timer_id: "same".to_string(),
+            timer_id: TimerId::new("same"),
             timestamp_ms: 42,
         };
         assert_eq!(a, b, "equal values must be equal");
@@ -667,13 +654,11 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_inequality_on_timestamp() {
         let a = WorkflowEvent::TimerFired {
-            event_id: "e-ts".to_string(),
-            timer_id: "t".to_string(),
+            timer_id: TimerId::new("t"),
             timestamp_ms: 1,
         };
         let b = WorkflowEvent::TimerFired {
-            event_id: "e-ts".to_string(),
-            timer_id: "t".to_string(),
+            timer_id: TimerId::new("t"),
             timestamp_ms: 2,
         };
         assert_ne!(a, b, "different timestamps must not be equal");
@@ -683,13 +668,11 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_inequality_on_timer_id() {
         let a = WorkflowEvent::TimerFired {
-            event_id: "e-tid".to_string(),
-            timer_id: "a".to_string(),
+            timer_id: TimerId::new("a"),
             timestamp_ms: 1,
         };
         let b = WorkflowEvent::TimerFired {
-            event_id: "e-tid".to_string(),
-            timer_id: "b".to_string(),
+            timer_id: TimerId::new("b"),
             timestamp_ms: 1,
         };
         assert_ne!(a, b, "different timer_ids must not be equal");
@@ -734,8 +717,7 @@ mod clone_partial_eq_semantics {
     #[test]
     fn rq_workflow_event_clone_deep_string() {
         let e = WorkflowEvent::TimerFired {
-            event_id: "e-ptr".to_string(),
-            timer_id: "ptr-test".to_string(),
+            timer_id: TimerId::new("ptr-test"),
             timestamp_ms: 1,
         };
         let c = e.clone();
@@ -753,16 +735,10 @@ mod clone_partial_eq_semantics {
                 },
             ) => {
                 assert_eq!(a, b);
-                assert_eq!(ea, eb);
                 assert_ne!(
                     a.as_ptr(),
                     b.as_ptr(),
                     "cloned timer_id must be independent"
-                );
-                assert_ne!(
-                    ea.as_ptr(),
-                    eb.as_ptr(),
-                    "cloned event_id must be independent"
                 );
             }
         }

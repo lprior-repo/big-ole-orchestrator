@@ -10,27 +10,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
-
-/// Emit a rejection metric for monitoring.
-fn emit_rejection(class: WriteClass, reason: &str) {
-    let label = match class {
-        WriteClass::CriticalControlPlane => "critical_control_plane",
-        WriteClass::OperatorProjection => "operator_projection",
-        WriteClass::BulkBlob => "bulk_blob",
-    };
-    metrics::counter!("vo_storage.write_rejected_total", "class" => label, "reason" => reason.to_string())
-        .increment(1);
-}
-
-/// Emit a queue depth metric for monitoring.
-fn emit_queue_depth(class: WriteClass, depth: usize) {
-    let label = match class {
-        WriteClass::CriticalControlPlane => "critical_control_plane",
-        WriteClass::OperatorProjection => "projection",
-        WriteClass::BulkBlob => "bulk_blob",
-    };
-    metrics::gauge!("vo_storage.queue_depth", "class" => label).set(depth as f64);
-}
+#[cfg(test)]
+use vo_types::events::EventMetadata;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WriteClass
@@ -151,33 +132,27 @@ impl WriteBudget {
         }
         Ok(())
     }
-
-    pub fn release(&self, class: WriteClass, size_bytes: u64) {
-        match class {
-            WriteClass::CriticalControlPlane => {
-                self.critical_used
-                    .set(self.critical_used.get().saturating_sub(size_bytes));
-            }
-            WriteClass::OperatorProjection => {
-                self.projection_used
-                    .set(self.projection_used.get().saturating_sub(size_bytes));
-            }
-            WriteClass::BulkBlob => {
-                self.blob_used
-                    .set(self.blob_used.get().saturating_sub(size_bytes));
-            }
-        }
-    }
 }
 
 /// Budget exceeded error.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[error("budget exceeded for {class:?}: requested {requested}, available {available}")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BudgetError {
     pub class: WriteClass,
     pub requested: u64,
     pub available: u64,
 }
+
+impl std::fmt::Display for BudgetError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "budget exceeded for {:?}: requested {}, available {}",
+            self.class, self.requested, self.available
+        )
+    }
+}
+
+impl std::error::Error for BudgetError {}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // QueueConfig
@@ -309,7 +284,7 @@ pub struct BackpressureSignal {
 impl BackpressureSignal {
     /// Creates a new backpressure signal with all queues initially not full.
     #[must_use]
-    pub const fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             critical_full: AtomicBool::new(false),
             projection_full: AtomicBool::new(false),
@@ -337,10 +312,6 @@ impl BackpressureSignal {
     }
 
     /// Returns the most recent backpressure event, if any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn last_event(&self) -> Option<BackpressureEvent> {
         #[expect(clippy::unwrap_used)]
@@ -348,7 +319,6 @@ impl BackpressureSignal {
     }
 
     /// Called when a queue becomes full.
-    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_full(&self, class: WriteClass, depth: usize, capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(true, Ordering::SeqCst),
@@ -363,14 +333,12 @@ impl BackpressureSignal {
                 capacity,
             };
             #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
+            let mut last_event = self.last_event.lock().unwrap();
+            *last_event = Some(event);
         }
     }
 
     /// Called when a queue becomes writable (was full, now has capacity).
-    #[allow(clippy::unwrap_used)]
     pub(crate) fn set_writable(&self, class: WriteClass, remaining_capacity: usize) {
         let was_full = match class {
             WriteClass::CriticalControlPlane => self.critical_full.swap(false, Ordering::SeqCst),
@@ -384,9 +352,8 @@ impl BackpressureSignal {
                 remaining_capacity,
             };
             #[expect(clippy::unwrap_used)]
-            {
-                *self.last_event.lock().unwrap() = Some(event);
-            }
+            let mut last_event = self.last_event.lock().unwrap();
+            *last_event = Some(event);
         }
     }
 
@@ -416,71 +383,52 @@ impl Default for BackpressureSignal {
 /// Tracks commit latency for monitoring and backpressure decisions.
 #[derive(Debug, Default)]
 pub struct CommitLatencyTracker {
-    state: Mutex<CommitLatencyState>,
-}
-
-#[derive(Debug, Default)]
-struct CommitLatencyState {
-    last_commit_at: Option<Instant>,
-    sample_count: u64,
-    total_latency_ms: u128,
+    last_commit_at: Mutex<Option<Instant>>,
+    sample_count: Mutex<u64>,
+    total_latency_ms: Mutex<u128>,
 }
 
 impl CommitLatencyTracker {
     /// Records a commit completion with the given latency in milliseconds.
-    ///
-    /// # Panics
-    ///
-    /// Panics if any internal mutex is poisoned.
     pub fn record_commit(&self, latency_ms: u64) {
         #[expect(clippy::unwrap_used)]
-        let mut state = self.state.lock().unwrap();
-        state.last_commit_at = Some(Instant::now());
-        state.sample_count += 1;
-        state.total_latency_ms += u128::from(latency_ms);
+        let mut last_commit = self.last_commit_at.lock().unwrap();
+        *last_commit = Some(Instant::now());
+
+        #[expect(clippy::unwrap_used)]
+        let mut count = self.sample_count.lock().unwrap();
+        *count += 1;
+
+        #[expect(clippy::unwrap_used)]
+        let mut total = self.total_latency_ms.lock().unwrap();
+        *total += latency_ms as u128;
     }
 
     /// Returns the time since the last commit, if any.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn time_since_last_commit(&self) -> Option<std::time::Duration> {
         #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        state.last_commit_at.map(|instant| instant.elapsed())
+        let last_commit = self.last_commit_at.lock().unwrap();
+        last_commit.map(|instant| instant.elapsed())
     }
 
     /// Returns the average commit latency in milliseconds, if samples exist.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)]
     pub fn average_latency_ms(&self) -> Option<u64> {
         #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        if state.sample_count == 0 {
+        let count = *self.sample_count.lock().unwrap();
+        if count == 0 {
             return None;
         }
-        Some(
-            u64::try_from(state.total_latency_ms / u128::from(state.sample_count))
-                .unwrap_or(u64::MAX),
-        )
+        #[expect(clippy::unwrap_used)]
+        let total = *self.total_latency_ms.lock().unwrap();
+        Some((total / count as u128) as u64)
     }
 
-    /// Returns the number of commit samples recorded.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the internal mutex is poisoned.
     #[must_use]
     pub fn sample_count(&self) -> u64 {
         #[expect(clippy::unwrap_used)]
-        let state = self.state.lock().unwrap();
-        state.sample_count
+        *self.sample_count.lock().unwrap()
     }
 }
 
@@ -489,21 +437,41 @@ impl CommitLatencyTracker {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Errors returned by `BudgetQueues` operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BudgetQueuesError {
-    #[error("queue full for {class:?}: {depth}/{capacity}")]
     QueueFull {
         class: WriteClass,
         depth: usize,
         capacity: usize,
     },
-    #[error("budget exceeded for {class:?}: item size {item_size}, remaining {remaining}")]
     BudgetExceeded {
         class: WriteClass,
         item_size: u64,
         remaining: u64,
     },
 }
+
+impl std::fmt::Display for BudgetQueuesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::QueueFull {
+                class,
+                depth,
+                capacity,
+            } => write!(f, "queue full for {class:?}: {depth}/{capacity}"),
+            Self::BudgetExceeded {
+                class,
+                item_size,
+                remaining,
+            } => write!(
+                f,
+                "budget exceeded for {class:?}: item size {item_size}, remaining {remaining}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BudgetQueuesError {}
 
 /// Trait for items that can be queued with `WriteClass` awareness.
 pub trait ClassifiedWrite {
@@ -563,7 +531,7 @@ pub struct BudgetQueues<T> {
 
 impl<T> BudgetQueues<T> {
     /// Creates new budget queues with the given configuration and budget.
-    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
         let critical_cap = config.critical_capacity;
         let projection_cap = config.projection_capacity;
         let blob_cap = config.blob_capacity;
@@ -588,7 +556,7 @@ impl<T> BudgetQueues<T> {
     /// This constructor allows multiple `BudgetQueues` instances to share the same
     /// backpressure signal, useful when coordinating multiple queue subsystems.
     pub fn new_with_backpressure(
-        config: &QueueConfig,
+        config: QueueConfig,
         budget: WriteBudget,
         backpressure: Arc<BackpressureSignal>,
     ) -> Self {
@@ -625,7 +593,7 @@ impl<T> BudgetQueues<T> {
 
     /// Returns a reference to the backpressure signal.
     #[must_use]
-    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
         &self.backpressure
     }
 
@@ -644,7 +612,6 @@ impl<T> BudgetQueues<T> {
 
         // Check budget first
         if !self.budget.can_write(class, size) {
-            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -668,7 +635,6 @@ impl<T> BudgetQueues<T> {
             if q.is_full() {
                 let depth = q.len();
                 let capacity = q.capacity();
-                emit_rejection(class, "queue_full");
                 self.backpressure.set_full(class, depth, capacity);
                 return Err(BudgetQueuesError::QueueFull {
                     class,
@@ -681,7 +647,6 @@ impl<T> BudgetQueues<T> {
 
         // If overflow, return error
         if overflow.is_some() {
-            emit_rejection(class, "queue_full");
             let depth = match self.stats.lock() {
                 Ok(guard) => guard.depth(class),
                 Err(poisoned) => poisoned.into_inner().depth(class),
@@ -705,7 +670,6 @@ impl<T> BudgetQueues<T> {
                 Ok(mut guard) => guard.pop(),
                 Err(poisoned) => poisoned.into_inner().pop(),
             };
-            emit_rejection(class, "budget_exceeded");
             return Err(BudgetQueuesError::BudgetExceeded {
                 class,
                 item_size: size,
@@ -714,16 +678,13 @@ impl<T> BudgetQueues<T> {
         }
 
         // Update stats
-        let new_depth = {
+        {
             let mut guard = match self.stats.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
             guard.increment(class);
-            guard.depth(class)
-        };
-
-        emit_queue_depth(class, new_depth);
+        }
 
         Ok(())
     }
@@ -731,10 +692,7 @@ impl<T> BudgetQueues<T> {
     /// Dequeues an item from the front of the specified queue.
     ///
     /// Emits backpressure signals when queues transition from full to having capacity.
-    pub fn dequeue(&self, class: WriteClass) -> Option<T>
-    where
-        T: ClassifiedWrite,
-    {
+    pub fn dequeue(&self, class: WriteClass) -> Option<T> {
         let queue: &Mutex<InnerQueue<T>> = match class {
             WriteClass::CriticalControlPlane => &self.critical_queue,
             WriteClass::OperatorProjection => &self.projection_queue,
@@ -754,16 +712,10 @@ impl<T> BudgetQueues<T> {
                 Err(poisoned) => poisoned.into_inner().is_full(class),
             };
 
-            let new_depth = {
-                let mut guard = match self.stats.lock() {
-                    Ok(guard) => guard,
-                    Err(poisoned) => poisoned.into_inner(),
-                };
-                guard.decrement(class);
-                guard.depth(class)
-            };
-
-            emit_queue_depth(class, new_depth);
+            match self.stats.lock() {
+                Ok(mut guard) => guard.decrement(class),
+                Err(poisoned) => poisoned.into_inner().decrement(class),
+            }
 
             if was_full {
                 let remaining = match self.stats.lock() {
@@ -776,16 +728,13 @@ impl<T> BudgetQueues<T> {
         item
     }
 
-    /// Dequeues items in priority order: `CriticalControlPlane` → `OperatorProjection` → `BulkBlob`.
+    /// Dequeues items in priority order: CriticalControlPlane → OperatorProjection → BulkBlob.
     ///
     /// Returns the next item available in priority order, or `None` if all queues are empty.
     ///
     /// This method implements ADR-032 priority-based write ordering, ensuring that
     /// critical control-plane writes are always serviced before lower-priority writes.
-    pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)>
-    where
-        T: ClassifiedWrite,
-    {
+    pub fn dequeue_prioritized(&self) -> Option<(WriteClass, T)> {
         // Try critical first (highest priority)
         if let Some(item) = self.dequeue(WriteClass::CriticalControlPlane) {
             return Some((WriteClass::CriticalControlPlane, item));
@@ -876,16 +825,6 @@ pub struct ProjectionWrite {
     size_bytes: u64,
 }
 
-impl ProjectionWrite {
-    #[must_use]
-    pub const fn new(projection_id: String, size_bytes: u64) -> Self {
-        Self {
-            projection_id,
-            size_bytes,
-        }
-    }
-}
-
 impl ClassifiedWrite for ProjectionWrite {
     fn write_class(&self) -> WriteClass {
         WriteClass::OperatorProjection
@@ -936,9 +875,9 @@ pub struct Appender {
 
 impl Appender {
     /// Creates a new `Appender` with the given queue configuration and budget.
-    pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
+    pub fn new(config: QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: BudgetQueues::new(&config, budget),
+            queues: BudgetQueues::new(config, budget),
         }
     }
 
@@ -953,7 +892,7 @@ impl Appender {
     }
 
     #[must_use]
-    pub const fn backpressure(&self) -> &Arc<BackpressureSignal> {
+    pub fn backpressure(&self) -> &Arc<BackpressureSignal> {
         self.queues.backpressure()
     }
 
@@ -1002,12 +941,498 @@ impl Appender {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    use super::*;
 
-pub use appender::Appender;
-pub use backpressure::{BackpressureEvent, BackpressureSignal};
-pub use budget::{BudgetError, WriteBudget};
-pub use entries::{AppendEntry, BlobWrite, ControlPlaneWrite, ProjectionWrite};
-pub use latency::CommitLatencyTracker;
-pub use queue::{BudgetQueues, BudgetQueuesError, ClassifiedWrite, QueueConfig, QueueStats};
-pub use write_class::WriteClass;
+    #[test]
+    fn write_class_tier() {
+        assert_eq!(WriteClass::CriticalControlPlane.tier(), 1);
+        assert_eq!(WriteClass::OperatorProjection.tier(), 2);
+        assert_eq!(WriteClass::BulkBlob.tier(), 3);
+    }
+
+    #[test]
+    fn write_class_never_drops() {
+        assert!(WriteClass::CriticalControlPlane.never_drops());
+        assert!(!WriteClass::OperatorProjection.never_drops());
+        assert!(!WriteClass::BulkBlob.never_drops());
+    }
+
+    #[test]
+    fn write_class_from_str() {
+        assert_eq!(
+            "critical_control_plane".parse::<WriteClass>().unwrap(),
+            WriteClass::CriticalControlPlane
+        );
+        assert_eq!(
+            "operator_projection".parse::<WriteClass>().unwrap(),
+            WriteClass::OperatorProjection
+        );
+        assert_eq!(
+            "bulk_blob".parse::<WriteClass>().unwrap(),
+            WriteClass::BulkBlob
+        );
+        assert!("invalid".parse::<WriteClass>().is_err());
+    }
+
+    #[test]
+    fn write_budget_remaining() {
+        let budget = WriteBudget::new(100, 200, 300);
+        assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 100);
+        assert_eq!(budget.remaining(WriteClass::OperatorProjection), 200);
+        assert_eq!(budget.remaining(WriteClass::BulkBlob), 300);
+    }
+
+    #[test]
+    fn write_budget_reserve() {
+        let budget = WriteBudget::new(100, 200, 300);
+        assert!(budget.reserve(WriteClass::CriticalControlPlane, 50).is_ok());
+        assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 50);
+    }
+
+    #[test]
+    fn write_budget_exceeded() {
+        let budget = WriteBudget::new(100, 200, 300);
+        let result = budget.reserve(WriteClass::CriticalControlPlane, 150);
+        assert!(result.is_err());
+        assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 100);
+    }
+
+    #[test]
+    fn queue_config_default() {
+        let config = QueueConfig::default();
+        assert_eq!(config.critical_capacity, 1024);
+        assert_eq!(config.projection_capacity, 512);
+        assert_eq!(config.blob_capacity, 256);
+    }
+
+    #[test]
+    fn append_entry_classification() {
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        let cp_write = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+        assert_eq!(cp_write.write_class(), WriteClass::CriticalControlPlane);
+
+        let proj_write = AppendEntry::Projection(ProjectionWrite {
+            projection_id: "proj-1".to_string(),
+            size_bytes: 200,
+        });
+        assert_eq!(proj_write.write_class(), WriteClass::OperatorProjection);
+
+        let blob_write = AppendEntry::Blob(BlobWrite::bulk("blob-1".to_string(), 300));
+        assert_eq!(blob_write.write_class(), WriteClass::BulkBlob);
+    }
+
+    #[test]
+    fn appender_queues_control_plane_write() {
+        let config = QueueConfig::default();
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let appender = Appender::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+        let write = ControlPlaneWrite::new(event, 100);
+
+        let result = appender.append_control_plane(write);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn appender_rejects_when_budget_exhausted() {
+        let config = QueueConfig::default();
+        let budget = WriteBudget::new(50, 50, 50);
+        let appender = Appender::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({"data": "this is larger than 50 bytes to force budget exceeded"}),
+            metadata: EventMetadata::default(),
+        };
+        let write = ControlPlaneWrite::new(event, 100);
+
+        let result = appender.append_control_plane(write);
+        assert!(matches!(
+            result,
+            Err(BudgetQueuesError::BudgetExceeded { .. })
+        ));
+    }
+
+    #[test]
+    fn appender_rejects_when_queue_full() {
+        let config = QueueConfig {
+            critical_capacity: 1,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let appender = Appender::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        let write1 = ControlPlaneWrite::new(event.clone(), 100);
+        assert!(appender.append_control_plane(write1).is_ok());
+
+        let write2 = ControlPlaneWrite::new(event, 100);
+        let result = appender.append_control_plane(write2);
+        assert!(matches!(result, Err(BudgetQueuesError::QueueFull { .. })));
+    }
+
+    #[test]
+    fn appender_dequeue_returns_queued_items() {
+        let config = QueueConfig::default();
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let appender = Appender::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+        let write = ControlPlaneWrite::new(event, 100);
+        assert!(appender.append_control_plane(write).is_ok());
+
+        let dequeued = appender.dequeue_critical();
+        assert!(dequeued.is_some());
+
+        let dequeued2 = appender.dequeue_critical();
+        assert!(dequeued2.is_none());
+    }
+
+    // ── BackpressureSignal Tests ────────────────────────────────────────────────
+
+    #[test]
+    fn backpressure_signal_initial_not_backpressured() {
+        let signal = BackpressureSignal::new();
+        assert!(!signal.is_backpressured(WriteClass::CriticalControlPlane));
+        assert!(!signal.is_backpressured(WriteClass::OperatorProjection));
+        assert!(!signal.is_backpressured(WriteClass::BulkBlob));
+        assert!(!signal.any_backpressured());
+    }
+
+    #[test]
+    fn backpressure_signal_set_full_emits_event() {
+        let signal = BackpressureSignal::new();
+        signal.set_full(WriteClass::OperatorProjection, 50, 100);
+
+        assert!(signal.is_backpressured(WriteClass::OperatorProjection));
+        assert!(!signal.is_backpressured(WriteClass::CriticalControlPlane));
+        assert!(!signal.is_backpressured(WriteClass::BulkBlob));
+        assert!(signal.any_backpressured()); // Projection IS backpressured
+
+        let event = signal.last_event();
+        assert!(matches!(
+            event,
+            Some(BackpressureEvent::QueueFull {
+                class: WriteClass::OperatorProjection,
+                depth: 50,
+                capacity: 100,
+            })
+        ));
+    }
+
+    #[test]
+    fn backpressure_signal_set_writable_clears_backpressure() {
+        let signal = BackpressureSignal::new();
+        signal.set_full(WriteClass::OperatorProjection, 50, 50);
+        assert!(signal.is_backpressured(WriteClass::OperatorProjection));
+
+        signal.set_writable(WriteClass::OperatorProjection, 10);
+        assert!(!signal.is_backpressured(WriteClass::OperatorProjection));
+
+        let event = signal.last_event();
+        assert!(matches!(
+            event,
+            Some(BackpressureEvent::QueueWritable {
+                class: WriteClass::OperatorProjection,
+                remaining_capacity: 10,
+            })
+        ));
+    }
+
+    #[test]
+    fn backpressure_signal_critical_never_rejects() {
+        let signal = BackpressureSignal::new();
+        // Set critical and projection (but not blob) to full
+        signal.set_full(WriteClass::CriticalControlPlane, 1024, 1024);
+        signal.set_full(WriteClass::OperatorProjection, 100, 100);
+
+        // Critical writes should never be rejected even when full
+        assert!(!signal.should_reject(WriteClass::CriticalControlPlane));
+        // But projection should be rejected when full
+        assert!(signal.should_reject(WriteClass::OperatorProjection));
+        // Blob is NOT full, so should not be rejected
+        assert!(!signal.should_reject(WriteClass::BulkBlob));
+    }
+
+    #[test]
+    fn backpressure_signal_any_backpressured() {
+        let signal = BackpressureSignal::new();
+        assert!(!signal.any_backpressured());
+
+        signal.set_full(WriteClass::BulkBlob, 256, 256);
+        assert!(signal.any_backpressured());
+
+        signal.set_writable(WriteClass::BulkBlob, 1);
+        assert!(!signal.any_backpressured());
+    }
+
+    // ── CommitLatencyTracker Tests ─────────────────────────────────────────────
+
+    #[test]
+    fn commit_latency_tracker_initial_no_data() {
+        let tracker = CommitLatencyTracker::default();
+        assert!(tracker.average_latency_ms().is_none());
+        assert!(tracker.time_since_last_commit().is_none());
+        assert_eq!(tracker.sample_count(), 0);
+    }
+
+    #[test]
+    fn commit_latency_tracker_records_commits() {
+        let tracker = CommitLatencyTracker::default();
+        tracker.record_commit(100);
+        tracker.record_commit(200);
+
+        assert_eq!(tracker.sample_count(), 2);
+        assert_eq!(tracker.average_latency_ms(), Some(150)); // (100+200)/2
+        assert!(tracker.time_since_last_commit().is_some());
+    }
+
+    // ── BudgetQueues Backpressure Integration Tests ─────────────────────────────
+
+    #[test]
+    fn budget_queues_emits_backpressure_on_full() {
+        let config = QueueConfig {
+            critical_capacity: 1,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        // First write should succeed
+        let write1 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+        assert!(queues.try_enqueue(&write1).is_ok());
+        assert!(!queues
+            .backpressure()
+            .is_backpressured(WriteClass::CriticalControlPlane));
+
+        // Second write should fail and emit backpressure
+        let write2 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));
+        let result = queues.try_enqueue(&write2);
+        assert!(matches!(result, Err(BudgetQueuesError::QueueFull { .. })));
+        assert!(queues
+            .backpressure()
+            .is_backpressured(WriteClass::CriticalControlPlane));
+    }
+
+    #[test]
+    fn budget_queues_clears_backpressure_on_dequeue() {
+        let config = QueueConfig {
+            critical_capacity: 1,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        // Fill the queue
+        let write1 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+        assert!(queues.try_enqueue(&write1).is_ok());
+
+        let write2 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+        assert!(matches!(
+            queues.try_enqueue(&write2),
+            Err(BudgetQueuesError::QueueFull { .. })
+        ));
+
+        // Backpressure should be set
+        assert!(queues
+            .backpressure()
+            .is_backpressured(WriteClass::CriticalControlPlane));
+
+        // Dequeue should clear backpressure
+        let dequeued = queues.dequeue(WriteClass::CriticalControlPlane);
+        assert!(dequeued.is_some());
+        assert!(!queues
+            .backpressure()
+            .is_backpressured(WriteClass::CriticalControlPlane));
+    }
+
+    // ── Priority Dequeue Tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn dequeue_prioritized_returns_critical_first() {
+        let config = QueueConfig::default();
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        // Enqueue in reverse priority order
+        queues
+            .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk(
+                "blob-1".to_string(),
+                100,
+            )))
+            .unwrap();
+        queues
+            .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+                projection_id: "proj-1".to_string(),
+                size_bytes: 100,
+            }))
+            .unwrap();
+        queues
+            .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
+                event.clone(),
+                100,
+            )))
+            .unwrap();
+
+        // Should get critical first
+        let (class, _) = queues.dequeue_prioritized().unwrap();
+        assert_eq!(class, WriteClass::CriticalControlPlane);
+
+        // Then projection
+        let (class, _) = queues.dequeue_prioritized().unwrap();
+        assert_eq!(class, WriteClass::OperatorProjection);
+
+        // Then blob
+        let (class, _) = queues.dequeue_prioritized().unwrap();
+        assert_eq!(class, WriteClass::BulkBlob);
+
+        // Then none
+        assert!(queues.dequeue_prioritized().is_none());
+    }
+
+    #[test]
+    fn dequeue_prioritized_skips_empty_queues() {
+        let config = QueueConfig::default();
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::new(config, budget);
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        // Only enqueue projection and blob (no critical)
+        queues
+            .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk(
+                "blob-1".to_string(),
+                100,
+            )))
+            .unwrap();
+        queues
+            .try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+                projection_id: "proj-1".to_string(),
+                size_bytes: 100,
+            }))
+            .unwrap();
+
+        // Should get projection first (critical is empty)
+        let (class, _) = queues.dequeue_prioritized().unwrap();
+        assert_eq!(class, WriteClass::OperatorProjection);
+
+        // Then blob
+        let (class, _) = queues.dequeue_prioritized().unwrap();
+        assert_eq!(class, WriteClass::BulkBlob);
+    }
+
+    // ── Appender Backpressure Tests ───────────────────────────────────────────
+
+    #[test]
+    fn appender_backpressure_signal_integrated() {
+        let config = QueueConfig {
+            critical_capacity: 2,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let appender = Appender::new(config, budget);
+
+        let signal = appender.backpressure().clone();
+
+        let event = EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        };
+
+        // Fill projection queue
+        let write1 = ProjectionWrite {
+            projection_id: "proj-1".to_string(),
+            size_bytes: 100,
+        };
+        assert!(appender.append_projection(write1).is_ok());
+
+        let write2 = ProjectionWrite {
+            projection_id: "proj-2".to_string(),
+            size_bytes: 100,
+        };
+        assert!(matches!(
+            appender.append_projection(write2),
+            Err(BudgetQueuesError::QueueFull { .. })
+        ));
+
+        // Backpressure should be set on projection
+        assert!(signal.is_backpressured(WriteClass::OperatorProjection));
+    }
+}

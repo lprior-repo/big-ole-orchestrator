@@ -19,8 +19,8 @@ use crate::{
 /// Helper to construct a WorkflowDefinition for testing.
 fn make_workflow(
     name: &str,
-    nodes: Vec<(&str, u8, u64, f64)>,
-    edges: Vec<(&str, &str, EdgeCondition)>,
+    nodes: Vec<(String, u8, u64, f64)>,
+    edges: Vec<(String, String, EdgeCondition)>,
 ) -> WorkflowDefinition {
     WorkflowDefinition {
         workflow_name: WorkflowName(name.into()),
@@ -59,8 +59,12 @@ fn make_workflow(
 fn dependencies_returns_empty_for_node_with_no_incoming_edges() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("c".into()));
@@ -75,8 +79,8 @@ fn dependencies_returns_empty_for_node_with_no_incoming_edges() {
 fn dependencies_returns_single_predecessor() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("b".into()));
@@ -89,10 +93,14 @@ fn dependencies_returns_single_predecessor() {
 fn dependencies_returns_all_predecessors() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "c", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -112,10 +120,14 @@ fn dependencies_returns_only_direct_predecessors() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -128,7 +140,7 @@ fn dependencies_returns_only_direct_predecessors() {
 // DGR-05: Returns empty for non-existent node
 #[test]
 fn dependencies_returns_empty_for_nonexistent_node() {
-    let workflow = make_workflow("test", vec![("a", 1, 0, 1.0)], vec![]);
+    let workflow = make_workflow("test", vec![("a".to_string(), 1, 0, 1.0)], vec![]);
 
     let deps = DependencyGraphResolver::dependencies(&workflow, &NodeName("nonexistent".into()));
     assert!(deps.is_empty(), "Non-existent node has no dependencies");
@@ -143,8 +155,8 @@ fn dependencies_returns_empty_for_nonexistent_node() {
 fn dependents_returns_empty_for_node_with_no_outgoing_edges() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let succs = DependencyGraphResolver::dependents(&workflow, &NodeName("b".into()));
@@ -159,8 +171,8 @@ fn dependents_returns_empty_for_node_with_no_outgoing_edges() {
 fn dependents_returns_single_successor() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     let succs = DependencyGraphResolver::dependents(&workflow, &NodeName("a".into()));
@@ -179,16 +191,16 @@ fn dependents_returns_all_direct_successors() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "d".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -207,7 +219,11 @@ fn dependents_returns_all_direct_successors() {
 fn ready_nodes_returns_source_nodes_when_nothing_completed() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
         vec![],
     );
 
@@ -225,10 +241,14 @@ fn ready_nodes_returns_node_when_all_dependencies_completed() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -249,10 +269,14 @@ fn ready_nodes_requires_all_dependencies() {
     // b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "c", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -278,10 +302,14 @@ fn ready_nodes_excludes_already_completed_nodes() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -304,10 +332,14 @@ fn execution_layers_linear_chain() {
     // a -> b -> c
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -332,16 +364,16 @@ fn execution_layers_parallel_branches_same_layer() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "d".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -370,14 +402,14 @@ fn execution_layers_disconnected_components() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -393,7 +425,7 @@ fn execution_layers_disconnected_components() {
 // DGR-16: Single node workflow produces single layer
 #[test]
 fn execution_layers_single_node() {
-    let workflow = make_workflow("test", vec![("a", 1, 0, 1.0)], vec![]);
+    let workflow = make_workflow("test", vec![("a".to_string(), 1, 0, 1.0)], vec![]);
     let layers = DependencyGraphResolver::execution_layers(&workflow);
     assert_eq!(layers.len(), 1, "Single node has 1 layer");
     assert_eq!(layers[0].len(), 1);
@@ -412,10 +444,14 @@ fn resolver_operates_on_acyclic_graph() {
     // a -> b -> c (linear chain, clearly acyclic)
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -432,15 +468,15 @@ fn transitive_dependents() {
     let workflow = make_workflow(
         "test",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+            ("d".to_string(), 1, 0, 1.0),
         ],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "d".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -469,11 +505,15 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
     // a -> b -> c -> a (cycle)
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("b", "c", EdgeCondition::Always),
-            ("c", "a", EdgeCondition::Always),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "a".to_string(), EdgeCondition::Always),
         ],
     );
 
@@ -494,10 +534,14 @@ fn transitive_dependencies_handles_unvalidated_cyclic_input() {
 fn dependencies_filters_by_relevant_conditions() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::OnSuccess), // Only taken on success
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("a".to_string(), "c".to_string(), EdgeCondition::OnSuccess), // Only taken on success
         ],
     );
 
@@ -518,10 +562,14 @@ fn dependencies_filters_by_relevant_conditions() {
 fn ready_nodes_considers_success_failure_conditions() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0), ("c", 1, 0, 1.0)],
         vec![
-            ("a", "b", EdgeCondition::OnSuccess), // Only if 'a' succeeds
-            ("a", "c", EdgeCondition::OnFailure), // Only if 'a' fails
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::OnSuccess), // Only if 'a' succeeds
+            ("a".to_string(), "c".to_string(), EdgeCondition::OnFailure), // Only if 'a' fails
         ],
     );
 
@@ -549,8 +597,8 @@ fn ready_nodes_considers_success_failure_conditions() {
 fn ready_nodes_always_edges_ready_after_any_outcome() {
     let workflow = make_workflow(
         "test",
-        vec![("a", 1, 0, 1.0), ("b", 1, 0, 1.0)],
-        vec![("a", "b", EdgeCondition::Always)],
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "b".to_string(), EdgeCondition::Always)],
     );
 
     // After 'a' completes (success or failure), 'b' should be ready
@@ -570,273 +618,215 @@ fn ready_nodes_always_edges_ready_after_any_outcome() {
 }
 
 // ============================================================================
-// DependencyGraphResolver: parallel execution invariants (DAG-engine throughput)
+// DependencyGraphResolver: edge cases
 // ============================================================================
 
-// DGR-23: Parallel execution invariant - nodes in same layer have no path between them
-// This ensures independent nodes (same layer) can run concurrently without blocking each other
+// DGR-25: Self-dependency is treated as cycle (returns empty)
 #[test]
-fn execution_layers_nodes_in_same_layer_are_independent() {
-    // Diamond DAG:    a
-    //               / \
-    //              b   c
-    //               \ /
-    //                d
+fn transitive_dependencies_self_reference_returns_empty() {
+    // a -> a (self-dependency)
     let workflow = make_workflow(
-        "test",
-        vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
-        ],
-        vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
-        ],
+        "self-dep",
+        vec![("a".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "a".to_string(), EdgeCondition::Always)],
     );
 
-    let layers = DependencyGraphResolver::execution_layers(&workflow);
-    assert_eq!(layers.len(), 3);
-
-    // Layer 1: b and c should be in the same layer (parallel)
-    let layer1_nodes: Vec<&NodeName> = layers[1].iter().collect();
-    assert_eq!(layer1_nodes.len(), 2);
-    assert!(layer1_nodes.iter().any(|n| n.as_str() == "b"));
-    assert!(layer1_nodes.iter().any(|n| n.as_str() == "c"));
-
-    // Verify b and c have no path between them (they are independent)
-    let b_deps = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("b".into()));
-    let c_deps = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("c".into()));
-
-    // b should not depend on c, and c should not depend on b
+    let result = DependencyGraphResolver::transitive_dependencies(&workflow, &NodeName("a".into()));
     assert!(
-        !b_deps.contains(&NodeName("c".into())),
-        "b should not depend on c (they are parallel)"
-    );
-    assert!(
-        !c_deps.contains(&NodeName("b".into())),
-        "c should not depend on b (they are parallel)"
+        result.is_empty(),
+        "Self-dependency should return empty (cycle signal)"
     );
 }
 
-// DGR-24: Edges always go from earlier layers to later layers (forward direction)
-// This ensures dependent nodes always wait for their dependencies
+// DGR-26: Node with no edges is its own layer
 #[test]
-fn execution_layers_all_edges_go_forward() {
-    // Complex DAG with multiple layers
-    //       a
-    //      / \
-    //     b   c
-    //     |   |
-    //     d   e
-    //      \ /
-    //       f
+fn execution_layers_no_dependencies() {
+    // a, b, c with no edges between them
     let workflow = make_workflow(
-        "test",
+        "no-deps",
         vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
-            ("e", 1, 0, 1.0),
-            ("f", 1, 0, 1.0),
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
         ],
-        vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "e", EdgeCondition::Always),
-            ("d", "f", EdgeCondition::Always),
-            ("e", "f", EdgeCondition::Always),
-        ],
+        vec![],
     );
 
     let layers = DependencyGraphResolver::execution_layers(&workflow);
+    assert_eq!(layers.len(), 1, "All nodes should be in single layer");
+    assert_eq!(layers[0].len(), 3, "All 3 nodes in layer 0");
+}
 
-    // Build a map from node name to layer index
-    let mut node_layer: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for (i, layer) in layers.iter().enumerate() {
-        for node in layer {
-            node_layer.insert(node.as_str(), i);
+// DGR-27: Ready nodes with no dependencies and no completed nodes
+#[test]
+fn ready_nodes_all_ready_when_no_dependencies() {
+    let workflow = make_workflow(
+        "no-deps",
+        vec![("a".to_string(), 1, 0, 1.0), ("b".to_string(), 1, 0, 1.0)],
+        vec![],
+    );
+
+    let ready = DependencyGraphResolver::ready_nodes(&workflow, &[]);
+    assert_eq!(ready.len(), 2, "Both nodes should be ready");
+}
+
+// DGR-28: transitive_dependents returns empty for leaf node
+#[test]
+fn transitive_dependents_leaf_node() {
+    // a -> b -> c (c is leaf)
+    let workflow = make_workflow(
+        "leaf-test",
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+        ],
+    );
+
+    let dependents =
+        DependencyGraphResolver::transitive_dependents(&workflow, &NodeName("c".into()));
+    assert!(dependents.is_empty(), "Leaf node 'c' has no dependents");
+}
+
+// ============================================================================
+// DependencyGraphResolver: proptest for random DAGs
+// ============================================================================
+
+#[cfg(feature = "proptest")]
+mod proptest_tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn is_valid_topological_order(workflow: &WorkflowDefinition, order: &[NodeName]) -> bool {
+        let order_pos: std::collections::HashMap<&NodeName, usize> =
+            order.iter().enumerate().map(|(i, n)| (n, i)).collect();
+
+        for edge in &workflow.edges {
+            let src_pos = *order_pos.get(&edge.source_node).unwrap();
+            let dst_pos = *order_pos.get(&edge.target_node).unwrap();
+            if src_pos >= dst_pos {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn dag_strat() -> impl Strategy<Value = (Vec<(String, u8, u64, f64)>, Vec<(String, String)>)> {
+        let node_count = 1..=6u8;
+        node_count.prop_flat_map(|n| {
+            let nodes: Vec<(String, u8, u64, f64)> = (0..n)
+                .map(|i| {
+                    let name = match i {
+                        0 => "a".to_string(),
+                        1 => "b".to_string(),
+                        2 => "c".to_string(),
+                        3 => "d".to_string(),
+                        4 => "e".to_string(),
+                        5 => "f".to_string(),
+                        _ => "x".to_string(),
+                    };
+                    (name, 1, 0, 1.0)
+                })
+                .collect();
+
+            let max_edges = (n as usize * (n as usize - 1)) / 4;
+            let edge_count = 0..=max_edges.max(1);
+
+            edge_count.prop_flat_map(move |ec| {
+                let available: Vec<(String, String)> = nodes
+                    .iter()
+                    .enumerate()
+                    .flat_map(|(i, (src, _, _, _))| {
+                        nodes
+                            .iter()
+                            .skip(i + 1)
+                            .map(move |(dst, _, _, _)| (src.clone(), dst.clone()))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect();
+
+                prop::sample::subsequence(available, ec.min(available.len()))
+                    .prop_map(move |edges| (nodes.clone(), edges))
+            })
+        })
+    }
+
+    proptest! {
+        #[test]
+        fn prop_topological_sort_produces_valid_order((nodes, edges) in dag_strat()) {
+            // Build workflow - skip if edges create obvious cycles
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            // Get execution layers and flatten to total order
+            let layers = DependencyGraphResolver::execution_layers(&workflow);
+            if layers.is_empty() {
+                return Ok(());
+            }
+
+            let order: Vec<NodeName> = layers.iter().flatten().cloned().collect();
+
+            // Every node should appear exactly once
+            prop_assert_eq!(order.len(), nodes.len(), "Each node appears once");
+
+            // Check all nodes are present
+            for (name, _, _, _) in &nodes {
+                prop_assert!(
+                    order.contains(&NodeName((*name).into())),
+                    "Node {} should be in order",
+                    name
+                );
+            }
+
+            // Verify topological order is valid
+            prop_assert!(
+                is_valid_topological_order(&workflow, &order),
+                "Order {:?} should be topologically valid",
+                order
+            );
+        }
+
+        #[test]
+        fn prop_execution_layers_cover_all_nodes((nodes, edges) in dag_strat()) {
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            let layers = DependencyGraphResolver::execution_layers(&workflow);
+            let all_nodes: Vec<NodeName> = layers.iter().flatten().cloned().collect();
+
+            prop_assert_eq!(
+                all_nodes.len(),
+                nodes.len(),
+                "All {} nodes should appear in layers",
+                nodes.len()
+            );
+        }
+
+        #[test]
+        fn prop_ready_nodes_all_dependencies_must_be_completed((nodes, edges) in dag_strat()) {
+            let workflow = make_workflow(
+                "prop-test",
+                nodes.clone(),
+                edges.into_iter().map(|(s, t)| (s, t, EdgeCondition::Always)).collect(),
+            );
+
+            // If we complete all nodes, ready should be empty
+            let all_node_names: Vec<NodeName> = nodes.iter().map(|(n, _, _, _)| NodeName((*n).into())).collect();
+            let ready = DependencyGraphResolver::ready_nodes(&workflow, &all_node_names);
+            prop_assert!(
+                ready.is_empty(),
+                "When all nodes completed, ready should be empty"
+            );
         }
     }
-
-    // Verify all edges go from earlier to later layers
-    for edge in &workflow.edges {
-        let from_layer = node_layer
-            .get(edge.source_node.as_str())
-            .expect("source should be in layers");
-        let to_layer = node_layer
-            .get(edge.target_node.as_str())
-            .expect("target should be in layers");
-        assert!(
-            from_layer < to_layer,
-            "Edge {} -> {} should go forward: layer {} -> layer {}",
-            edge.source_node.as_str(),
-            edge.target_node.as_str(),
-            from_layer,
-            to_layer
-        );
-    }
-}
-
-// DGR-25: Layer iteration produces correct ready nodes at each step
-// This verifies that completing each layer's nodes makes exactly the next layer's nodes ready
-#[test]
-fn execution_layers_iteration_matches_ready_nodes() {
-    // Diamond DAG:    a
-    //               / \
-    //              b   c
-    //               \ /
-    //                d
-    let workflow = make_workflow(
-        "test",
-        vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
-        ],
-        vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
-        ],
-    );
-
-    let layers = DependencyGraphResolver::execution_layers(&workflow);
-    assert_eq!(layers.len(), 3);
-
-    // Layer 0: only 'a' should be ready initially
-    let mut completed: Vec<NodeName> = vec![];
-    let ready_layer0 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
-    assert_eq!(ready_layer0.len(), layers[0].len());
-    for node in &layers[0] {
-        assert!(
-            ready_layer0.contains(node),
-            "Layer 0 node {:?} should be ready initially",
-            node
-        );
-    }
-
-    // After completing layer 0, layer 1 should be ready
-    completed.extend(layers[0].clone());
-    let ready_layer1 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
-    assert_eq!(ready_layer1.len(), layers[1].len());
-    for node in &layers[1] {
-        assert!(
-            ready_layer1.contains(node),
-            "Layer 1 node {:?} should be ready after layer 0 completes",
-            node
-        );
-    }
-
-    // After completing layer 1, layer 2 should be ready
-    completed.extend(layers[1].clone());
-    let ready_layer2 = DependencyGraphResolver::ready_nodes(&workflow, &completed);
-    assert_eq!(ready_layer2.len(), layers[2].len());
-    for node in &layers[2] {
-        assert!(
-            ready_layer2.contains(node),
-            "Layer 2 node {:?} should be ready after layer 1 completes",
-            node
-        );
-    }
-}
-
-// DGR-26: Parallel execution maximizes throughput - timing verification
-// Independent nodes (same layer) should all be ready at the same time
-#[test]
-fn execution_layers_parallel_nodes_all_ready_together() {
-    // Fan-out pattern: a -> {b, c, d} (b, c, d are independent and can run in parallel)
-    let workflow = make_workflow(
-        "test",
-        vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
-        ],
-        vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("a", "d", EdgeCondition::Always),
-        ],
-    );
-
-    let layers = DependencyGraphResolver::execution_layers(&workflow);
-    assert_eq!(layers.len(), 2);
-
-    // After 'a' completes, all of {b, c, d} should be ready simultaneously
-    let completed = vec![NodeName("a".into())];
-    let ready = DependencyGraphResolver::ready_nodes(&workflow, &completed);
-
-    // All three parallel nodes should be ready at the same time
-    assert_eq!(
-        ready.len(),
-        3,
-        "All 3 parallel nodes should be ready together"
-    );
-    assert!(ready.contains(&NodeName("b".into())));
-    assert!(ready.contains(&NodeName("c".into())));
-    assert!(ready.contains(&NodeName("d".into())));
-}
-
-// DGR-27: Dependent nodes wait - nodes in later layers cannot start until earlier layers complete
-#[test]
-fn execution_layers_dependent_nodes_wait() {
-    // Chain with parallel segment: a -> {b, c} -> d
-    // b and c are parallel, but d must wait for both
-    let workflow = make_workflow(
-        "test",
-        vec![
-            ("a", 1, 0, 1.0),
-            ("b", 1, 0, 1.0),
-            ("c", 1, 0, 1.0),
-            ("d", 1, 0, 1.0),
-        ],
-        vec![
-            ("a", "b", EdgeCondition::Always),
-            ("a", "c", EdgeCondition::Always),
-            ("b", "d", EdgeCondition::Always),
-            ("c", "d", EdgeCondition::Always),
-        ],
-    );
-
-    let layers = DependencyGraphResolver::execution_layers(&workflow);
-    assert_eq!(layers.len(), 3);
-
-    // Layer 0: {a}, Layer 1: {b, c}, Layer 2: {d}
-
-    // After completing only 'a', 'd' should NOT be ready yet (depends on b and c)
-    let completed_after_a = vec![NodeName("a".into())];
-    let ready_after_a = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_a);
-    assert!(
-        !ready_after_a.contains(&NodeName("d".into())),
-        "d should NOT be ready after only 'a' completes (still waiting for b and c)"
-    );
-
-    // After completing 'a' and 'b' only, 'd' should NOT be ready yet (still waiting for 'c')
-    let completed_after_ab = vec![NodeName("a".into()), NodeName("b".into())];
-    let ready_after_ab = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_ab);
-    assert!(
-        !ready_after_ab.contains(&NodeName("d".into())),
-        "d should NOT be ready after 'a' and 'b' complete (still waiting for c)"
-    );
-
-    // After completing 'a', 'b', AND 'c', 'd' should finally be ready
-    let completed_after_abc = vec![
-        NodeName("a".into()),
-        NodeName("b".into()),
-        NodeName("c".into()),
-    ];
-    let ready_after_abc = DependencyGraphResolver::ready_nodes(&workflow, &completed_after_abc);
-    assert!(
-        ready_after_abc.contains(&NodeName("d".into())),
-        "d SHOULD be ready after 'a', 'b', and 'c' all complete"
-    );
 }

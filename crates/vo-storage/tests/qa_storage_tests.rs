@@ -177,7 +177,7 @@ fn events_persist_on_fjall_keyspace() {
 
     ks.insert(key, &event_bytes).expect("insert");
 
-    let stored = ks.get(key).expect("get").expect("event should exist");
+    let stored = ks.get(&key).expect("get").expect("event should exist");
     let restored: EventEnvelope = serde_json::from_slice(&stored).expect("deserialize");
     assert_eq!(restored.sequence, 1);
     assert_eq!(restored.instance_id, id.to_string());
@@ -216,12 +216,12 @@ fn events_from_different_instances_dont_interfere() {
 
     let event1 = make_envelope(&id1, 1);
     let key1 = encode_event_seq(&id1, 1);
-    ks.insert(key1, serde_json::to_vec(&event1).unwrap())
+    ks.insert(key1, &serde_json::to_vec(&event1).unwrap())
         .unwrap();
 
     let event2 = make_envelope(&id2, 1);
     let key2 = encode_event_seq(&id2, 1);
-    ks.insert(key2, serde_json::to_vec(&event2).unwrap())
+    ks.insert(key2, &serde_json::to_vec(&event2).unwrap())
         .unwrap();
 
     let stored1 = ks.get(encode_event_seq(&id1, 1)).unwrap().unwrap();

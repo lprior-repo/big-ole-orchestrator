@@ -6,7 +6,6 @@ use axum::{
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::{OrchestratorMsg, TerminateError};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerError, CircuitBreakerState};
@@ -390,90 +389,5 @@ pub async fn compensate_workflow(
             })),
         )
             .into_response(),
-    }
-}
-
-fn compensate_rejection(
-    call_result: Result<
-        CallResult<Result<(), vo_actor::CompensateError>>,
-        ractor::MessagingErr<OrchestratorMsg>,
-    >,
-) -> Option<axum::response::Response> {
-    match call_result {
-        Err(e) => Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiError::new("actor_unavailable", e.to_string())),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Timeout) => Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiError::new(
-                    "actor_timeout",
-                    "orchestrator did not respond",
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::SenderError) => Some(
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new(
-                    "actor_error",
-                    "orchestrator dropped the reply",
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(vo_actor::CompensateError::NotFound(id)))) => Some(
-            (
-                StatusCode::NOT_FOUND,
-                Json(ApiError::new(
-                    "not_found",
-                    format!("instance {id} not found"),
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(vo_actor::CompensateError::Failed(msg)))) => Some(
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new("compensation_failed", msg)),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Ok(()))) => None,
-    }
-}
-
-fn persist_lifecycle_event(
-    db: &fjall::Database,
-    namespace: &str,
-    instance_id: &vo_types::InstanceId,
-    payload: serde_json::Value,
-) -> Result<(), vo_storage::codec::StorageError> {
-    let annotations = HashMap::from([("namespace".to_string(), serde_json::json!(namespace))]);
-    append_event(
-        db,
-        AppendEventRequest {
-            namespace: namespace.to_string(),
-            instance_id: instance_id.clone(),
-            timestamp_ms: now_ms(),
-            payload,
-            metadata: EventMetadata {
-                command_metadata: None,
-                annotations,
-            },
-        },
-    )
-    .map(|_| ())
-}
-
-fn now_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => u64::try_from(duration.as_millis()).map_or(u64::MAX, |value| value),
-        Err(_) => 0,
     }
 }

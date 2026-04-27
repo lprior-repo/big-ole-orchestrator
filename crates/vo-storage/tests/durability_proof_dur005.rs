@@ -33,7 +33,7 @@ fn dur_005_corrupt_sst_file_clean_error_or_recovery() {
             let seq_num = SequenceNumber::try_from(seq).unwrap();
             let key = encode_event_key(&id, &seq_num).unwrap();
             let value = serde_json::json!({"sequence": seq, "type": "DurabilityTest"});
-            ks.insert(key, serde_json::to_vec(&value).unwrap())
+            ks.insert(key, &serde_json::to_vec(&value).unwrap())
                 .unwrap();
         }
 

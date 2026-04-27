@@ -6,6 +6,7 @@ license.workspace = true
 
 [features]
 proptest = ["dep:proptest"]
+kani = []
 
 [dependencies]
 thiserror.workspace = true

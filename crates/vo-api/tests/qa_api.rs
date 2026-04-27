@@ -44,7 +44,7 @@ async fn stub_start(req: Request<Body>) -> (StatusCode, Json<Value>) {
     if body
         .get("paradigm")
         .and_then(|v| v.as_str())
-        .is_none_or(|p| !["fsm", "dag", "procedural"].contains(&p))
+        .map_or(true, |p| !["fsm", "dag", "procedural"].contains(&p))
     {
         return err(
             StatusCode::BAD_REQUEST,

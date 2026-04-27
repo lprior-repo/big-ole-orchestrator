@@ -6,11 +6,8 @@ use axum::{
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::Serialize;
-use std::sync::Arc;
 use std::time::Duration;
-use vo_actor::{InstancePhaseView, InstanceSnapshot, OrchestratorMsg};
-use vo_storage::event_log::replay_events_in_namespace;
-use vo_types::InstanceId;
+use vo_actor::OrchestratorMsg;
 
 use crate::handlers::helpers::{paradigm_to_str, phase_to_str, split_path_id};
 use crate::types::{ApiError, V3StatusResponse};
@@ -259,113 +256,5 @@ pub async fn get_workflow_status(
         Ok(CallResult::Success(Some(snapshot))) => {
             (StatusCode::OK, Json(workflow_status_response(snapshot))).into_response()
         }
-    }
-}
-
-fn status_response(snapshot: InstanceSnapshot) -> V3StatusResponse {
-    V3StatusResponse {
-        instance_id: snapshot.instance_id.to_string(),
-        namespace: snapshot.namespace.to_string(),
-        workflow_type: snapshot.workflow_type,
-        paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-        phase: phase_to_str(snapshot.phase).to_owned(),
-        events_applied: snapshot.events_applied,
-    }
-}
-
-fn workflow_status_response(snapshot: InstanceSnapshot) -> WorkflowStatusResponse {
-    WorkflowStatusResponse {
-        instance_id: snapshot.instance_id.to_string(),
-        namespace: snapshot.namespace.to_string(),
-        workflow_type: snapshot.workflow_type,
-        paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-        phase: phase_to_str(snapshot.phase).to_owned(),
-        events_applied: snapshot.events_applied,
-        registration_status: None,
-        is_quarantined: false,
-    }
-}
-
-fn terminal_status_response(
-    db: &fjall::Database,
-    namespace: &str,
-    instance_id: &InstanceId,
-) -> Option<InstanceSnapshot> {
-    replay_events_in_namespace(db, namespace, instance_id)
-        .filter_map(Result::ok)
-        .fold(None, terminal_snapshot_step)
-        .filter(|snapshot| snapshot.phase == InstancePhaseView::Terminated)
-}
-
-fn terminal_snapshot_step(
-    current: Option<InstanceSnapshot>,
-    envelope: vo_types::EventEnvelope,
-) -> Option<InstanceSnapshot> {
-    match envelope
-        .payload
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-    {
-        Some("WorkflowStarted") => started_snapshot(envelope),
-        Some("WorkflowTerminated") => current.map(|snapshot| InstanceSnapshot {
-            phase: InstancePhaseView::Terminated,
-            events_applied: envelope.sequence,
-            ..snapshot
-        }),
-        Some("SignalAccepted") | Some("WorkflowCompensationInitiated") => {
-            current.map(|snapshot| InstanceSnapshot {
-                events_applied: envelope.sequence,
-                ..snapshot
-            })
-        }
-        _ => current,
-    }
-}
-
-fn started_snapshot(envelope: vo_types::EventEnvelope) -> Option<InstanceSnapshot> {
-    let instance_id = InstanceId::parse(&envelope.instance_id).ok()?;
-    let workflow_type = envelope
-        .payload
-        .get("workflow_type")
-        .and_then(serde_json::Value::as_str)
-        .map_or_else(|| "unknown".to_string(), ToString::to_string);
-    let paradigm = envelope
-        .payload
-        .get("paradigm")
-        .and_then(serde_json::Value::as_str)
-        .and_then(parse_paradigm_from_event)
-        .map_or(vo_actor::WorkflowParadigm::Procedural, |value| value);
-    payload_namespace(&envelope).map(|namespace| InstanceSnapshot {
-        instance_id,
-        namespace,
-        workflow_type,
-        paradigm,
-        phase: InstancePhaseView::Live,
-        events_applied: envelope.sequence,
-    })
-}
-
-fn payload_namespace(envelope: &vo_types::EventEnvelope) -> Option<String> {
-    envelope
-        .payload
-        .get("namespace")
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            envelope
-                .metadata
-                .annotations
-                .get("namespace")
-                .and_then(serde_json::Value::as_str)
-                .map(ToString::to_string)
-        })
-}
-
-fn parse_paradigm_from_event(value: &str) -> Option<vo_actor::WorkflowParadigm> {
-    match value {
-        "fsm" => Some(vo_actor::WorkflowParadigm::Fsm),
-        "dag" => Some(vo_actor::WorkflowParadigm::Dag),
-        "procedural" => Some(vo_actor::WorkflowParadigm::Procedural),
-        _ => None,
     }
 }

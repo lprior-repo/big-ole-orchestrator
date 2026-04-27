@@ -1,8 +1,4 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
-
-use crate::commands::purge::PurgeError;
-use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
@@ -31,15 +27,14 @@ pub enum CliError {
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
-    Serve(#[from] crate::commands::serve::ServeError),
-    #[error(transparent)]
-    WorkflowHistory(#[from] crate::commands::workflow_history::WorkflowHistoryError),
+    Workspace(#[from] crate::commands::workspace::WorkspaceError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Command {
     Purge {
         instance: String,
+        storage_path: PathBuf,
     },
     Check {
         workflow: bool,
@@ -52,6 +47,7 @@ pub enum Command {
     },
     Gc {
         engine_url: String,
+        versions_dir: PathBuf,
         dry_run: bool,
     },
     Init {
@@ -93,6 +89,17 @@ pub enum Command {
         json: bool,
         canonical: bool,
     },
+    Workspace {
+        action: WorkspaceAction,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum WorkspaceAction {
+    List,
+    Create { name: String },
+    Delete { id: String },
+    Show { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -112,11 +119,8 @@ where
     let cmd = clap::Command::new("vo")
         .version("0.1.0")
         .subcommand_required(true)
-        .arg_required_else_help(true)
-        .args_override_self(true)
         .subcommand(
             clap::Command::new("purge")
-                .about("Purge all data for a terminated workflow instance (ADR-025)")
                 .arg(
                     clap::Arg::new("instance")
                         .long("instance")
@@ -127,14 +131,8 @@ where
                 .arg(
                     clap::Arg::new("storage-path")
                         .long("storage-path")
-                        .env("VO_STORAGE_PATH")
-                        .default_value(".vo/storage"),
-                )
-                .arg(
-                    clap::Arg::new("dry-run")
-                        .long("dry-run")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Show what would be purged without deleting"),
+                        .default_value(".vo/storage")
+                        .help("Storage path for fjall database"),
                 ),
         )
         .subcommand(
@@ -154,8 +152,13 @@ where
                     clap::Arg::new("workflow-id")
                         .required(true)
                         .index(1)
-                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
-                        .help("The workflow instance ID to compensate"),
+                        .help("The workflow instance ID to compensate")
+                        .value_parser(|s: &str| {
+                            if s.is_empty() {
+                                return Err(clap::Error::new(clap::error::ErrorKind::InvalidValue));
+                            }
+                            Ok(s.to_string())
+                        }),
                 )
                 .arg(
                     clap::Arg::new("engine-url")
@@ -177,6 +180,12 @@ where
                         .long("engine-url")
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("versions-dir")
+                        .long("versions-dir")
+                        .default_value(".vo/versions")
+                        .help("Versions directory to garbage collect"),
                 )
                 .arg(
                     clap::Arg::new("dry-run")
@@ -266,90 +275,38 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("hardline")
-                .about("Execute hardline command")
-                .arg(
-                    clap::Arg::new("target")
-                        .required(true)
-                        .index(1)
-                        .help("Target identifier"),
+            clap::Command::new("workspace")
+                .about("Manage workspaces")
+                .subcommand(clap::Command::new("list").about("List all workspaces"))
+                .subcommand(
+                    clap::Command::new("create")
+                        .about("Create a new workspace")
+                        .arg(
+                            clap::Arg::new("name")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace name"),
+                        ),
                 )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
+                .subcommand(
+                    clap::Command::new("delete")
+                        .about("Delete a workspace")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
                 )
-                .arg(
-                    clap::Arg::new("timeout")
-                        .long("timeout")
-                        .value_name("SECONDS")
-                        .default_value("60")
-                        .help("Timeout in seconds"),
-                )
-                .arg(
-                    clap::Arg::new("force")
-                        .long("force")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Skip confirmation"),
-                )
-                .arg(
-                    clap::Arg::new("dry-run")
-                        .long("dry-run")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Dry run mode"),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("history")
-                .about("Show workflow instance history (ADR-008, ADR-025)")
-                .arg(
-                    clap::Arg::new("instance")
-                        .required(true)
-                        .index(1)
-                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
-                )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
-                )
-                .arg(
-                    clap::Arg::new("json")
-                        .long("json")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Output redacted workflow history as stable JSON (operator projection)"),
-                )
-                .arg(
-                    clap::Arg::new("canonical")
-                        .long("canonical")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Output canonical encrypted state for deep forensic inspection (privileged)"),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("serve")
-                .about("Start the veloxide HTTP server")
-                .arg(
-                    clap::Arg::new("host")
-                        .long("host")
-                        .default_value("127.0.0.1")
-                        .help("Bind host address"),
-                )
-                .arg(
-                    clap::Arg::new("port")
-                        .long("port")
-                        .default_value("3000")
-                        .help("Bind port"),
-                )
-                .arg(
-                    clap::Arg::new("storage-path")
-                        .long("storage-path")
-                        .default_value(".vo/storage")
-                        .help("Path to Fjall storage directory"),
+                .subcommand(
+                    clap::Command::new("show")
+                        .about("Show workspace details")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
                 ),
         );
 
@@ -361,8 +318,15 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
+            let storage_path = purge_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
             Ok(Cli {
-                command: Command::Purge { instance },
+                command: Command::Purge {
+                    instance,
+                    storage_path,
+                },
             })
         }
         Some(("check", sub_matches)) => {
@@ -406,10 +370,15 @@ where
                 Some(u) => u.clone(),
                 None => "http://localhost:3000".to_string(),
             };
+            let versions_dir = sub_matches
+                .get_one::<String>("versions-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/versions"));
             let dry_run = sub_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Gc {
                     engine_url,
+                    versions_dir,
                     dry_run,
                 },
             })
@@ -558,6 +527,47 @@ where
                 },
             })
         }
+        Some(("workspace", sub_matches)) => match sub_matches.subcommand() {
+            Some(("list", _)) => Ok(Cli {
+                command: Command::Workspace {
+                    action: WorkspaceAction::List,
+                },
+            }),
+            Some(("create", create_matches)) => {
+                let name = create_matches
+                    .get_one::<String>("name")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Create { name },
+                    },
+                })
+            }
+            Some(("delete", delete_matches)) => {
+                let id = delete_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Delete { id },
+                    },
+                })
+            }
+            Some(("show", show_matches)) => {
+                let id = show_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Show { id },
+                    },
+                })
+            }
+            _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+        },
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -580,8 +590,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
         | CliError::Status(_)
-        | CliError::Serve(_)
-        | CliError::WorkflowHistory(_) => 1,
+        | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
@@ -604,6 +613,7 @@ mod tests {
             cli.command,
             Command::Purge {
                 instance: "123".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
             }
         );
     }

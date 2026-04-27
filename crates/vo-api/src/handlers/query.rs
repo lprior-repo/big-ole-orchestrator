@@ -377,14 +377,17 @@ pub async fn search(
         }
     };
 
-    let results: Result<Vec<SearchResult>, (StatusCode, Json<ApiError>)> =
-        engine.search(&parsed_query).map_err(|e| {
-            tracing::error!(error = %e, "search failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("search_error", e.to_string())),
-            )
-        });
+    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
+        match engine {
+            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
+                tracing::error!(error = %e, "search failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiError::new("search_error", &e.to_string())),
+                )
+            }),
+            Err(e) => Err(e),
+        };
 
     let results = match results {
         Ok(r) => r,

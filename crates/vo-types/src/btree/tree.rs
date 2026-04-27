@@ -128,10 +128,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             InsertResult::Split(node, median_key, median_val, right)
         } else {
             let idx = node.search_index(&key);
-            if idx < node.keys.len() && node.keys[idx] == key {
-                node.values[idx] = value;
-                return InsertResult::Updated(node);
-            }
             let child = node.children.remove(idx);
             let result = self.insert_recursive(child, key, value);
 
@@ -142,7 +138,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 }
                 InsertResult::Updated(updated_child) => {
                     node.children.insert(idx, updated_child);
-                    InsertResult::Updated(node)
+                    InsertResult::Done(node)
                 }
                 InsertResult::Split(left, median_key, median_val, right) => {
                     node.keys.insert(idx, median_key);
@@ -173,21 +169,12 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             return Err(BTreeError::KeyNotFound);
         }
 
-        // Search first to avoid losing root on KeyNotFound error.
-        // delete_recursive takes ownership of the node, so a failed
-        // call would leave self.root as None (taken but never restored).
-        if self.search(key).is_none() {
-            return Err(BTreeError::KeyNotFound);
-        }
-
         let root = self
             .root
             .take()
-            .expect("btree root missing after search check");
-        let (updated_root, removed) = self
-            .delete_recursive(root, key)
-            .expect("search confirmed key exists");
-        self.len = self.len.saturating_sub(1);
+            .expect("btree root missing after is_none check");
+        let (updated_root, removed) = self.delete_recursive(root, key)?;
+        self.len -= 1;
 
         if updated_root.keys.is_empty() {
             if updated_root.is_leaf() {
@@ -213,7 +200,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         mut node: BTreeNode<K, V>,
         key: &K,
     ) -> Result<(BTreeNode<K, V>, V), BTreeError> {
-        let idx = node.search_index(key);
+        let mut idx = node.search_index(key);
         let found_key = idx < node.keys.len() && &node.keys[idx] == key;
 
         if node.is_leaf() {
@@ -233,7 +220,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_predecessor(node.children.remove(idx))?;
                 node.keys[idx] = pred_key;
                 node.values[idx] = pred_val;
-                self.maybe_split_child(&mut node, idx, updated_child);
+                node.children.insert(idx, updated_child);
                 return Ok((node, removed_val));
             }
 
@@ -242,7 +229,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                     self.remove_successor(node.children.remove(idx + 1))?;
                 node.keys[idx] = succ_key;
                 node.values[idx] = succ_val;
-                self.maybe_split_child(&mut node, idx + 1, updated_child);
+                node.children.insert(idx + 1, updated_child);
                 return Ok((node, removed_val));
             }
 
@@ -252,19 +239,19 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
             let right = node.children.remove(idx);
             let merged = Self::merge_nodes(left, parent_key, parent_val, right);
             let (updated, _) = self.delete_recursive(merged, key)?;
-            self.maybe_split_child(&mut node, idx, updated);
+            node.children.insert(idx, updated);
             return Ok((node, removed_val));
         }
 
-        let mut child_idx = idx;
-        if node.children[child_idx].keys.len() <= self.min_keys() {
-            self.ensure_child_has_minimum(&mut node, child_idx);
-            child_idx = node.search_index(key);
+        if node.children[idx].keys.len() <= self.min_keys() {
+            self.ensure_child_has_minimum(&mut node, idx);
+            // After merge/borrow, the child index may have changed — re-search.
+            idx = node.search_index(key);
         }
 
-        let child = node.children.remove(child_idx);
+        let child = node.children.remove(idx);
         let (updated_child, removed) = self.delete_recursive(child, key)?;
-        self.maybe_split_child(&mut node, child_idx, updated_child);
+        node.children.insert(idx, updated_child);
         Ok((node, removed))
     }
 
@@ -414,6 +401,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         parent.children.insert(idx + 1, right);
     }
 
+
     fn merge_nodes(
         left: BTreeNode<K, V>,
         parent_key: K,
@@ -512,15 +500,27 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
 
     #[must_use]
     pub fn verify(&self) -> bool {
-        self.verify_reason().is_ok()
-    }
-
-    fn verify_reason(&self) -> Result<(), String> {
         match self.root.as_ref() {
-            None => Ok(()),
+            None => true,
             Some(root) => {
                 let h = Self::node_height(root);
-                Self::verify_node(root, self.min_keys(), self.max_keys(), h, true)
+                // Root may have fewer than min_keys entries
+                if root.keys.len() > self.max_keys() {
+                    return false;
+                }
+                if !root.is_leaf() && root.children.len() != root.keys.len() + 1 {
+                    return false;
+                }
+                if !root.is_leaf() {
+                    for child in &root.children {
+                        if !Self::verify_node(child, self.min_keys(), self.max_keys(), h - 1) {
+                            return false;
+                        }
+                    }
+                } else if h != 1 {
+                    return false;
+                }
+                true
             }
         }
     }
@@ -530,42 +530,30 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         min_keys: usize,
         max_keys: usize,
         expected_height: usize,
-        is_root: bool,
-    ) -> Result<(), String> {
+    ) -> bool {
         if node.keys.len() > max_keys {
-            return Err(format!(
-                "keys.len {} > max_keys {}",
-                node.keys.len(),
-                max_keys
-            ));
+            return false;
         }
-        // Root is exempt from minimum keys constraint (B-tree invariant)
-        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!(
-                "non-root keys.len {} < min_keys {}",
-                node.keys.len(),
-                min_keys
-            ));
+        if node.keys.len() < min_keys {
+            return false;
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return Err(format!(
-                "children {} != keys+1 {}",
-                node.children.len(),
-                node.keys.len() + 1
-            ));
+            return false;
         }
         if node.is_leaf() && expected_height != 1 {
-            return Err(format!("leaf height {} != 1", expected_height));
+            return false;
         }
         if !node.is_leaf() && expected_height <= 1 {
-            return Err(format!("internal height {} <= 1", expected_height));
+            return false;
         }
         if !node.is_leaf() {
             for child in &node.children {
-                Self::verify_node(child, min_keys, max_keys, expected_height - 1, false)?;
+                if !Self::verify_node(child, min_keys, max_keys, expected_height - 1) {
+                    return false;
+                }
             }
         }
-        Ok(())
+        true
     }
 }
 
@@ -582,5 +570,488 @@ impl<K: Ord + Clone, V: Clone> From<Vec<(K, V)>> for BTree<K, V> {
             tree.insert(k, v);
         }
         tree
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_tree_is_empty() {
+        let tree: BTree<i32, String> = BTree::new();
+        assert!(tree.is_empty());
+        assert_eq!(tree.len(), 0);
+    }
+
+    #[test]
+    fn default_is_empty() {
+        let tree: BTree<i32, i32> = BTree::default();
+        assert!(tree.is_empty());
+    }
+
+    #[test]
+    fn insert_single_element() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a".to_string());
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree.search(&1), Some(&"a".to_string()));
+    }
+
+    #[test]
+    fn search_missing_key_returns_none() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a".to_string());
+        assert_eq!(tree.search(&99), None);
+    }
+
+    #[test]
+    fn search_empty_tree_returns_none() {
+        let tree: BTree<i32, String> = BTree::new();
+        assert_eq!(tree.search(&1), None);
+    }
+
+    #[test]
+    fn insert_updates_existing_key() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a".to_string());
+        tree.insert(1, "b".to_string());
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree.search(&1), Some(&"b".to_string()));
+    }
+
+    #[test]
+    fn insert_many_maintains_order() {
+        let mut tree = BTree::new();
+        for i in (0..50).rev() {
+            tree.insert(i, format!("val_{i}"));
+        }
+        assert_eq!(tree.len(), 50);
+        assert!(tree.verify());
+
+        for i in 0..50 {
+            assert_eq!(tree.search(&i), Some(&format!("val_{i}")));
+        }
+    }
+
+    #[test]
+    fn delete_existing_key() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a".to_string());
+        tree.insert(2, "b".to_string());
+        tree.insert(3, "c".to_string());
+
+        let removed = tree.delete(&2).unwrap();
+        assert_eq!(removed, "b".to_string());
+        assert_eq!(tree.len(), 2);
+        assert_eq!(tree.search(&2), None);
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn delete_missing_key_returns_error() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a".to_string());
+        assert!(matches!(tree.delete(&99), Err(BTreeError::KeyNotFound)));
+        assert_eq!(tree.len(), 1);
+    }
+
+    #[test]
+    fn delete_from_empty_tree_returns_error() {
+        let mut tree: BTree<i32, String> = BTree::new();
+        assert!(matches!(tree.delete(&1), Err(BTreeError::KeyNotFound)));
+    }
+
+    #[test]
+    fn delete_all_elements() {
+        let mut tree = BTree::new();
+        for i in 0..20 {
+            tree.insert(i, i);
+        }
+        for i in 0..20 {
+            tree.delete(&i).unwrap();
+        }
+        assert!(tree.is_empty());
+        assert_eq!(tree.len(), 0);
+    }
+
+    #[test]
+    fn contains_key() {
+        let mut tree = BTree::new();
+        tree.insert(42, "answer");
+        assert!(tree.contains(&42));
+        assert!(!tree.contains(&1));
+    }
+
+    #[test]
+    fn min_returns_smallest() {
+        let mut tree = BTree::new();
+        tree.insert(5, "e");
+        tree.insert(3, "c");
+        tree.insert(1, "a");
+        tree.insert(4, "d");
+        tree.insert(2, "b");
+
+        let (k, v) = tree.min().unwrap();
+        assert_eq!(k, &1);
+        assert_eq!(v, &"a");
+    }
+
+    #[test]
+    fn max_returns_largest() {
+        let mut tree = BTree::new();
+        tree.insert(5, "e");
+        tree.insert(3, "c");
+        tree.insert(1, "a");
+        tree.insert(4, "d");
+        tree.insert(2, "b");
+
+        let (k, v) = tree.max().unwrap();
+        assert_eq!(k, &5);
+        assert_eq!(v, &"e");
+    }
+
+    #[test]
+    fn min_max_on_empty_returns_none() {
+        let tree: BTree<i32, String> = BTree::new();
+        assert!(tree.min().is_none());
+        assert!(tree.max().is_none());
+    }
+
+    #[test]
+    fn range_query() {
+        let mut tree = BTree::new();
+        for i in 0..20 {
+            tree.insert(i, i * 10);
+        }
+
+        let results = tree.range(5..15);
+        assert_eq!(results.len(), 10);
+        for (k, v) in &results {
+            assert!(**k >= 5 && **k < 15);
+            assert_eq!(**v, **k * 10);
+        }
+    }
+
+    #[test]
+    fn range_query_empty_result() {
+        let mut tree = BTree::new();
+        tree.insert(1, 10);
+        tree.insert(5, 50);
+
+        let results = tree.range(2..4);
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn range_query_inclusive() {
+        let mut tree = BTree::new();
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+
+        let results = tree.range(3..=7);
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn range_query_unbounded_start() {
+        let mut tree = BTree::new();
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+
+        let results = tree.range(..5);
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn range_query_unbounded_end() {
+        let mut tree = BTree::new();
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+
+        let results = tree.range(5..);
+        assert_eq!(results.len(), 5);
+    }
+
+    #[test]
+    fn height_increases_with_size() {
+        let mut tree = BTree::with_order(4);
+        assert_eq!(tree.height(), 0);
+
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+        assert!(tree.height() >= 2);
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn height_of_single_element() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a");
+        assert_eq!(tree.height(), 1);
+    }
+
+    #[test]
+    fn verify_empty_tree() {
+        let tree: BTree<i32, String> = BTree::new();
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn verify_after_inserts() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..100 {
+            tree.insert(i, i);
+            assert!(tree.verify(), "tree invalid after inserting {i}");
+        }
+    }
+
+    #[test]
+    fn verify_after_deletes() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..100 {
+            tree.insert(i, i);
+        }
+        for i in (0..100).rev() {
+            tree.delete(&i).unwrap();
+            assert!(tree.verify(), "tree invalid after deleting {i}");
+        }
+    }
+
+    #[test]
+    fn delete_triggers_node_merge() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..20 {
+            tree.insert(i, i);
+        }
+        for i in 0..15 {
+            tree.delete(&i).unwrap();
+        }
+        assert_eq!(tree.len(), 5);
+        assert!(tree.verify());
+        for i in 15..20 {
+            assert_eq!(tree.search(&i), Some(&i));
+        }
+    }
+
+    #[test]
+    fn delete_triggers_borrow_from_left() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+        tree.delete(&9).unwrap();
+        tree.delete(&8).unwrap();
+        tree.delete(&7).unwrap();
+        assert!(tree.verify());
+        assert_eq!(tree.len(), 7);
+    }
+
+    #[test]
+    fn delete_triggers_borrow_from_right() {
+        let mut tree = BTree::with_order(4);
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+        tree.delete(&0).unwrap();
+        tree.delete(&1).unwrap();
+        tree.delete(&2).unwrap();
+        assert!(tree.verify());
+        assert_eq!(tree.len(), 7);
+    }
+
+    #[test]
+    fn from_vec_builds_correct_tree() {
+        let pairs = vec![(3, "c"), (1, "a"), (2, "b")];
+        let tree: BTree<i32, &str> = BTree::from(pairs);
+        assert_eq!(tree.len(), 3);
+        assert_eq!(tree.search(&1), Some(&"a"));
+        assert_eq!(tree.search(&2), Some(&"b"));
+        assert_eq!(tree.search(&3), Some(&"c"));
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn root_split_creates_new_root() {
+        let mut tree = BTree::with_order(3);
+        tree.insert(1, "a");
+        tree.insert(2, "b");
+        assert_eq!(tree.height(), 1);
+
+        tree.insert(3, "c");
+        assert_eq!(tree.height(), 2);
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn sequential_insert_delete_cycle() {
+        let mut tree = BTree::with_order(4);
+        for round in 0..5 {
+            for i in 0..50 {
+                tree.insert(i, format!("r{round}_v{i}"));
+            }
+            assert!(tree.verify());
+            for i in 0..50 {
+                tree.delete(&i).unwrap();
+            }
+            assert!(tree.is_empty());
+        }
+    }
+
+    #[test]
+    fn string_keys() {
+        let mut tree = BTree::new();
+        tree.insert("banana".to_string(), 2);
+        tree.insert("apple".to_string(), 1);
+        tree.insert("cherry".to_string(), 3);
+
+        assert_eq!(tree.min().unwrap().0, &"apple".to_string());
+        assert_eq!(tree.max().unwrap().0, &"cherry".to_string());
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn serde_roundtrip() {
+        let mut tree = BTree::new();
+        for i in 0..20 {
+            tree.insert(i, i * 10);
+        }
+        let json = serde_json::to_string(&tree).unwrap();
+        let back: BTree<i32, i32> = serde_json::from_str(&json).unwrap();
+        assert_eq!(tree.len(), back.len());
+        for i in 0..20 {
+            assert_eq!(back.search(&i), Some(&(i * 10)));
+        }
+        assert!(back.verify());
+    }
+
+    #[test]
+    fn btree_node_leaf_is_leaf() {
+        let node = BTreeNode::leaf(vec![1, 2], vec!["a", "b"]);
+        assert!(node.is_leaf());
+    }
+
+    #[test]
+    fn btree_node_search_index() {
+        let node = BTreeNode::leaf(vec![1, 3, 5], vec!["a", "b", "c"]);
+        assert_eq!(node.search_index(&0), 0);
+        assert_eq!(node.search_index(&1), 0);
+        assert_eq!(node.search_index(&2), 1);
+        assert_eq!(node.search_index(&3), 1);
+        assert_eq!(node.search_index(&4), 2);
+        assert_eq!(node.search_index(&5), 2);
+        assert_eq!(node.search_index(&6), 3);
+    }
+
+    #[test]
+    fn with_order_custom() {
+        let tree = BTree::<i32, i32>::with_order(5);
+        assert_eq!(tree.max_keys(), 4);
+        assert_eq!(tree.min_keys(), 2);
+    }
+
+    #[test]
+    fn large_scale_insert_and_search() {
+        let mut tree = BTree::with_order(32);
+        let n = 1000;
+        for i in 0..n {
+            tree.insert(i, i * 2);
+        }
+        assert_eq!(tree.len(), n);
+        assert!(tree.verify());
+        for i in 0..n {
+            assert_eq!(tree.search(&i), Some(&(i * 2)));
+        }
+    }
+
+    #[test]
+    fn large_scale_delete_and_verify() {
+        let mut tree = BTree::with_order(32);
+        let n = 500;
+        for i in 0..n {
+            tree.insert(i, i);
+        }
+        for i in (0..n).step_by(2) {
+            tree.delete(&i).unwrap();
+        }
+        assert_eq!(tree.len(), n / 2);
+        assert!(tree.verify());
+        for i in (0..n).step_by(2) {
+            assert!(tree.search(&i).is_none());
+        }
+        for i in (1..n).step_by(2) {
+            assert_eq!(tree.search(&i), Some(&i));
+        }
+    }
+
+    #[test]
+    fn delete_root_key_when_root_is_leaf() {
+        let mut tree = BTree::new();
+        tree.insert(1, "a");
+        tree.delete(&1).unwrap();
+        assert!(tree.is_empty());
+        assert_eq!(tree.height(), 0);
+    }
+
+    #[test]
+    fn interleaved_insert_delete() {
+        let mut tree = BTree::with_order(4);
+        tree.insert(10, 10);
+        tree.insert(20, 20);
+        tree.insert(5, 5);
+        tree.delete(&10).unwrap();
+        tree.insert(15, 15);
+        tree.delete(&5).unwrap();
+        tree.insert(25, 25);
+        tree.delete(&20).unwrap();
+
+        assert!(tree.verify());
+        assert_eq!(tree.len(), 2);
+        assert!(tree.contains(&15));
+        assert!(tree.contains(&25));
+    }
+
+    #[test]
+    fn range_after_deletes() {
+        let mut tree = BTree::new();
+        for i in 0..10 {
+            tree.insert(i, i);
+        }
+        tree.delete(&3).unwrap();
+        tree.delete(&7).unwrap();
+
+        let results = tree.range(2..=8);
+        let keys: Vec<&i32> = results.iter().map(|(k, _)| k).copied().collect();
+        assert_eq!(keys, vec![&2, &4, &5, &6, &8]);
+    }
+
+    #[test]
+    fn insert_delete_interleaved_stress() {
+        let mut tree = BTree::with_order(4);
+        let mut values: Vec<i32> = Vec::new();
+
+        for i in 0..200 {
+            tree.insert(i, i);
+            values.push(i);
+            assert!(tree.verify());
+        }
+
+        let mut rng_seed = 42u64;
+        for _ in 0..100 {
+            rng_seed = rng_seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            let idx = (rng_seed >> 33) as usize % values.len();
+            let val = values.remove(idx);
+            tree.delete(&val).unwrap();
+            assert!(tree.verify());
+        }
+
+        assert_eq!(tree.len(), 100);
+        for &v in &values {
+            assert_eq!(tree.search(&v), Some(&v));
+        }
     }
 }
