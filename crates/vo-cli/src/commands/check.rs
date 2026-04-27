@@ -16,6 +16,11 @@ pub const KNOWN_MAGICS: &[[u8; 4]] = &[
     MACHO_MAGIC_64_LE,
 ];
 
+pub const ELF_MACHINE_X86_64: u16 = 0x3E;
+pub const ELF_MACHINE_AARCH64: u16 = 0xB7;
+pub const ELF_MACHINE_ARM: u16 = 0x28;
+pub const ELF_MACHINE_X86: u16 = 0x03;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BinaryFormat {
     Elf,
@@ -94,7 +99,7 @@ pub enum CheckError {
         source: std::io::Error,
     },
 
-    #[error("workflow spec validation failed: {message}")]
+    #[error("workflow spec validation failed at {path}: {message}")]
     WorkflowSpec { path: PathBuf, message: String },
 }
 
