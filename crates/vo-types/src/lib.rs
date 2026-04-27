@@ -52,8 +52,8 @@ mod payload_parser;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
-#[cfg(feature = "proptest")]
-mod proptest_domain_roundtrips;
+#[cfg(all(test, feature = "proptest"))]
+mod proptest_domain_types;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;

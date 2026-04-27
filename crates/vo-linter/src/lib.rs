@@ -48,7 +48,7 @@ mod tests {
     #[test]
     fn test_reexport_rule_trait() {
         fn assert_rule<T: Rule>() {}
-        assert_rule::<crate::rules::random::RandomRule>();
+        assert_rule::<crate::rules::RandomRule>();
     }
 
     #[test]

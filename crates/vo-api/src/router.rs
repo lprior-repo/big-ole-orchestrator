@@ -210,10 +210,15 @@ mod tests {
         let workspace_index = Arc::new(std::sync::RwLock::new(
             vo_types::workspace::WorkspaceIndex::new(),
         ));
-        let query_state = QueryState {
-            db: db_handle.clone(),
+        let search_engine = Arc::new(std::sync::RwLock::new(
+            vo_types::search::SearchEngine::new(),
+        ));
+
+        let query_state = QueryState::new(
+            db_handle.clone(),
             workspace_index,
-        };
+            search_engine,
+        );
 
         let (master_ref, _handle) =
             ractor::Actor::spawn(Some("test-orchestrator".to_string()), DummyOrchestrator, ())

@@ -7,7 +7,7 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, RetryPolicy, WorkflowName};
 
 use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
@@ -44,6 +44,22 @@ struct DagNodeRecord {
 /// Nodes are registered via `add_node` and connected via `connect`.
 /// The `connect` method enforces at compile time that the output type
 /// of the source node matches the input type of the target node.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::dag::Dag;
+/// use vo_sdk::node_handle::NodeHandle;
+/// use vo_sdk::graph::NodeKind;
+///
+/// let mut dag = Dag::new();
+/// let a: NodeHandle<(), i32> = dag.add_node_with_kind("a", NodeKind::Pure, |_input: ()| -> i32 { 42 }).unwrap();
+/// let b: NodeHandle<i32, i32> = dag.add_node_with_kind("b", NodeKind::ManagedEffect, |x: i32| -> i32 { x + 1 }).unwrap();
+/// dag.connect(&a, &b).unwrap();
+/// assert_eq!(dag.node_count(), 2);
+/// assert_eq!(dag.edge_count(), 1);
+/// assert_eq!(dag.edges(), vec![("a", "b")]);
+/// ```
 #[derive(Debug)]
 pub struct Dag {
     nodes: Vec<DagNodeRecord>,
@@ -290,7 +306,6 @@ impl Dag {
                     backoff_multiplier: 1.0,
                     max_backoff_ms: u64::MAX,
                 },
-                signal_meta: n.signal_meta.clone(),
             })
             .collect();
 
@@ -370,17 +385,87 @@ impl Default for Dag {
 
 /// Fluent builder for constructing workflows (ADR-004).
 ///
-/// # Example
+/// # Compile-tested Examples
 ///
-/// ```ignore
-/// let mut wf = Workflow::new("checkout_flow");
+/// ## Basic Workflow with Pure and Effect Nodes
 ///
-/// let validate = wf.pure("validate", |input: Cart| -> ValidatedCart { ... });
-/// let charge = wf.effect("charge", |input: ValidatedCart| -> Receipt { ... });
+/// ```
+/// use vo_sdk::Workflow;
 ///
-/// wf.connect(&validate, &charge);
+/// let mut wf = Workflow::new("checkout");
+/// let validate = wf.pure("validate", |input: String| -> bool {
+///     !input.is_empty()
+/// }).unwrap();
+/// let charge = wf.effect("charge", |input: bool| -> Result<String, String> {
+///     if input {
+///         Ok("charged".to_string())
+///     } else {
+///         Err("invalid".to_string())
+///     }
+/// }).unwrap();
+/// wf.connect(&validate, &charge).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.workflow_name.as_str(), "checkout");
+/// assert_eq!(spec.nodes.len(), 2);
+/// assert_eq!(spec.edges.len(), 1);
+/// ```
 ///
-/// let spec = wf.build().expect("valid workflow");
+/// ## Workflow with Wait Node
+///
+/// ```
+/// use vo_sdk::Workflow;
+///
+/// let mut wf = Workflow::new("async-workflow");
+/// let fetch = wf.pure("fetch", |_input: ()| -> Vec<u8> {
+///     vec![1, 2, 3]
+/// }).unwrap();
+/// let process = wf.wait("process", |input: Vec<u8>| -> String {
+///     format!("processed {} bytes", input.len())
+/// }).unwrap();
+/// wf.connect(&fetch, &process).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.nodes.len(), 2);
+/// ```
+///
+/// ## Workflow with Signal Node
+///
+/// ```
+/// use vo_sdk::Workflow;
+/// use vo_sdk::graph::SignalNodeMeta;
+///
+/// let mut wf = Workflow::new("signal-flow");
+/// let trigger = wf.signal("trigger", |_input: ()| -> bool {
+///     true
+/// }).unwrap();
+/// let wait = wf.wait_with_meta(
+///     "wait",
+///     |_input: bool| -> String {
+///         "done".to_string()
+///     },
+///     SignalNodeMeta { signal_name: Some("external-event".to_string()), timeout_ms: Some(5000) },
+/// ).unwrap();
+/// wf.connect(&trigger, &wait).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.nodes.len(), 2);
+/// ```
+///
+/// ## Type-Safe Node Connections
+///
+/// The type parameters enforce that only compatible nodes can be connected:
+/// ```
+/// use vo_sdk::Workflow;
+///
+/// let mut wf = Workflow::new("typed-flow");
+/// let string_node = wf.pure("string_node", |_input: ()| -> String {
+///     "hello".to_string()
+/// }).unwrap();
+/// let len_node = wf.pure("len_node", |s: String| -> usize {
+///     s.len()
+/// }).unwrap();
+/// wf.connect(&string_node, &len_node).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.edges[0].from.as_str(), "string_node");
+/// assert_eq!(spec.edges[0].to.as_str(), "len_node");
 /// ```
 #[derive(Debug)]
 pub struct Workflow {

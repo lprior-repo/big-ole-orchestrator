@@ -412,10 +412,10 @@ pub async fn list_workflows(
 #[tracing::instrument(skip_all)]
 pub async fn unquarantine_workflow(
     Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Path(id): Path<String>,
     Json(req): Json<UnquarantineRequest>,
 ) -> impl IntoResponse {
-    // Parse workflow name from path
     let (_, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
@@ -430,7 +430,6 @@ pub async fn unquarantine_workflow(
         }
     };
 
-    // Parse workflow name
     let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
         Ok(name) => name,
         Err(_) => {
@@ -445,16 +444,42 @@ pub async fn unquarantine_workflow(
         }
     };
 
-    // Get circuit breaker state from extension (would be injected in production)
-    // For now, return not implemented - this requires circuit breaker state injection
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(ApiError::new(
-            "not_implemented",
-            "circuit breaker state injection required (see bead ve-jfj5)",
-        )),
-    )
-        .into_response()
+    match unquarantine(&workflow_name, &req.operator, &circuit_breaker) {
+        Ok(result) => (
+            StatusCode::OK,
+            Json(UnquarantineResponse {
+                workflow_name: result.workflow_name.to_string(),
+                previous_status: result.previous_status.to_string(),
+                new_status: result.new_status.to_string(),
+                failures_cleared: result.failures_cleared,
+            }),
+        )
+            .into_response(),
+        Err(CircuitBreakerError::WorkflowNotFound { workflow_name }) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(
+                "workflow_not_found",
+                format!("workflow '{}' not found in circuit breaker state", workflow_name),
+            )),
+        )
+            .into_response(),
+        Err(CircuitBreakerError::NotQuarantined { workflow_name, current_status }) => (
+            StatusCode::CONFLICT,
+            Json(ApiError::new(
+                "not_quarantined",
+                format!(
+                    "workflow '{}' is not quarantined (current status: {:?})",
+                    workflow_name, current_status
+                ),
+            )),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("circuit_breaker_error", e.to_string())),
+        )
+            .into_response(),
+    }
 }
 
 /// GET /api/v1/workflows/:id/status — get workflow status including quarantine info (ADR-026).

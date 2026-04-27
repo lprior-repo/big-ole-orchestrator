@@ -88,10 +88,15 @@ where
         vo_types::workspace::WorkspaceIndex::new(),
     ));
 
-    let query = vo_api::handlers::QueryState {
-        db: db_handle.clone(),
+    let search_engine = std::sync::Arc::new(std::sync::RwLock::new(
+        vo_types::search::SearchEngine::new(),
+    ));
+
+    let query = vo_api::handlers::QueryState::new(
+        db_handle.clone(),
         workspace_index,
-    };
+        search_engine,
+    );
 
     let sse = vo_api::handlers::SseState::new();
     let ws = vo_api::handlers::WsState::new();

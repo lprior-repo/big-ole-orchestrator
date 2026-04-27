@@ -574,4 +574,254 @@ mod tests {
         let wf = Workflow::new("test".to_string(), GuaranteeClass::ExactOnce);
         assert_eq!(wf.guarantee_class, GuaranteeClass::ExactOnce);
     }
+
+    #[test]
+    fn node_id_parse_accepts_valid_26_char_string() {
+        let id = NodeId::parse("01ARYZ6S41TSV4RRFFQ69G5FAV");
+        assert!(id.is_some());
+        assert_eq!(id.unwrap().0, "01ARYZ6S41TSV4RRFFQ69G5FAV");
+    }
+
+    #[test]
+    fn node_id_parse_rejects_empty_string() {
+        assert_eq!(NodeId::parse(""), None);
+    }
+
+    #[test]
+    fn node_id_parse_rejects_short_string() {
+        assert_eq!(NodeId::parse("01ARYZ6S41TSV4RRFFQ69G5FA"), None);
+    }
+
+    #[test]
+    fn node_id_parse_rejects_long_string() {
+        assert_eq!(NodeId::parse("01ARYZ6S41TSV4RRFFQ69G5FAVG"), None);
+    }
+
+    #[test]
+    fn node_id_display_shows_inner_value() {
+        let id = NodeId::parse("01ARYZ6S41TSV4RRFFQ69G5FAV").unwrap();
+        assert_eq!(format!("{}", id), "01ARYZ6S41TSV4RRFFQ69G5FAV");
+    }
+
+    #[test]
+    fn port_name_from_str() {
+        let port: PortName = "input".into();
+        assert_eq!(port.0, "input");
+    }
+
+    #[test]
+    fn port_name_display() {
+        let port = PortName::from("output");
+        assert_eq!(format!("{}", port), "output");
+    }
+
+    #[test]
+    fn connection_clone_is_independent() {
+        let conn = Connection {
+            id: Uuid::new_v4(),
+            source: NodeId::new(),
+            target: NodeId::new(),
+            source_port: PortName::from("out"),
+            target_port: PortName::from("in"),
+        };
+        let cloned = conn.clone();
+        assert_eq!(conn.id, cloned.id);
+        assert_eq!(conn.source, cloned.source);
+        assert_eq!(conn.target, cloned.target);
+    }
+
+    #[test]
+    fn run_record_creation() {
+        let record = RunRecord {
+            id: Uuid::new_v4(),
+            timestamp: chrono::Utc::now(),
+            results: HashMap::new(),
+            success: true,
+        };
+        assert!(record.success);
+        assert!(record.results.is_empty());
+    }
+
+    #[test]
+    fn validation_result_with_no_issues_is_valid() {
+        let result = ValidationResult::new(vec![]);
+        assert!(result.is_valid());
+        assert_eq!(result.error_count(), 0);
+        assert_eq!(result.warning_count(), 0);
+    }
+
+    #[test]
+    fn validation_result_error_count() {
+        let issues = vec![
+            ValidationIssue {
+                node_id: None,
+                severity: ValidationSeverity::Error,
+                message: "error 1".to_string(),
+            },
+            ValidationIssue {
+                node_id: None,
+                severity: ValidationSeverity::Warning,
+                message: "warning 1".to_string(),
+            },
+            ValidationIssue {
+                node_id: None,
+                severity: ValidationSeverity::Error,
+                message: "error 2".to_string(),
+            },
+        ];
+        let result = ValidationResult::new(issues);
+        assert!(!result.is_valid());
+        assert_eq!(result.error_count(), 2);
+        assert_eq!(result.warning_count(), 1);
+    }
+
+    #[test]
+    fn validation_result_warning_count() {
+        let issues = vec![
+            ValidationIssue {
+                node_id: None,
+                severity: ValidationSeverity::Warning,
+                message: "warning 1".to_string(),
+            },
+            ValidationIssue {
+                node_id: None,
+                severity: ValidationSeverity::Warning,
+                message: "warning 2".to_string(),
+            },
+        ];
+        let result = ValidationResult::new(issues);
+        assert!(!result.is_valid());
+        assert_eq!(result.warning_count(), 2);
+    }
+
+    #[test]
+    fn execution_state_status_badge_class() {
+        use super::ExecutionState;
+        assert_eq!(
+            ExecutionState::Idle.status_badge_class(),
+            "bg-slate-100 text-slate-700 border-slate-200"
+        );
+        assert_eq!(
+            ExecutionState::Running.status_badge_class(),
+            "bg-blue-100 text-blue-700 border-blue-200"
+        );
+        assert_eq!(
+            ExecutionState::Completed.status_badge_class(),
+            "bg-green-100 text-green-700 border-green-200"
+        );
+        assert_eq!(
+            ExecutionState::Failed.status_badge_class(),
+            "bg-red-100 text-red-700 border-red-200"
+        );
+        assert_eq!(
+            ExecutionState::Skipped.status_badge_class(),
+            "bg-slate-100 text-slate-500 border-slate-200"
+        );
+    }
+
+    #[test]
+    fn execution_state_label() {
+        use super::ExecutionState;
+        assert_eq!(ExecutionState::Idle.label(), "pending");
+        assert_eq!(ExecutionState::Queued.label(), "pending");
+        assert_eq!(ExecutionState::Running.label(), "running");
+        assert_eq!(ExecutionState::Completed.label(), "completed");
+        assert_eq!(ExecutionState::Failed.label(), "failed");
+        assert_eq!(ExecutionState::Skipped.label(), "skipped");
+    }
+
+    #[test]
+    fn workflow_node_from_str() {
+        use workflow_node::WorkflowNode;
+        assert!(matches!(
+            WorkflowNode::from_str("run"),
+            Ok(WorkflowNode::Run(_))
+        ));
+        assert!(matches!(
+            WorkflowNode::from_str("parallel"),
+            Ok(WorkflowNode::Parallel(_))
+        ));
+        assert!(WorkflowNode::from_str("unknown").is_err());
+    }
+
+    #[test]
+    fn workflow_node_default() {
+        use workflow_node::WorkflowNode;
+        assert!(matches!(WorkflowNode::default(), WorkflowNode::Run(_)));
+    }
+
+    #[test]
+    fn node_apply_config_update_merges_values() {
+        let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        node.apply_config_update(&serde_json::json!({"key1": "value1"}));
+        assert_eq!(node.config["key1"], "value1");
+
+        node.apply_config_update(&serde_json::json!({"key2": "value2"}));
+        assert_eq!(node.config["key1"], "value1");
+        assert_eq!(node.config["key2"], "value2");
+
+        node.apply_config_update(&serde_json::json!({"key1": "updated"}));
+        assert_eq!(node.config["key1"], "updated");
+    }
+
+    #[test]
+    fn node_apply_config_update_with_empty_object_is_noop() {
+        let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        node.apply_config_update(&serde_json::json!({"key": "value"}));
+        let before = node.config.clone();
+        node.apply_config_update(&serde_json::json!({}));
+        assert_eq!(node.config, before);
+    }
+
+    #[test]
+    fn node_apply_config_update_with_non_object_ignores() {
+        let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        let before = node.config.clone();
+        node.apply_config_update(&serde_json::json!("not an object"));
+        assert_eq!(node.config, before);
+    }
+
+    #[test]
+    fn node_category_display() {
+        assert_eq!(format!("{}", NodeCategory::Entry), "entry");
+        assert_eq!(format!("{}", NodeCategory::Durable), "durable");
+        assert_eq!(format!("{}", NodeCategory::State), "state");
+        assert_eq!(format!("{}", NodeCategory::Flow), "flow");
+        assert_eq!(format!("{}", NodeCategory::Timing), "timing");
+        assert_eq!(format!("{}", NodeCategory::Signal), "signal");
+    }
+
+    #[test]
+    fn workflow_remove_node_returns_true_when_existed() {
+        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
+        let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        let node_id = node.id.clone();
+        workflow.add_node(node);
+        assert_eq!(workflow.nodes.len(), 1);
+        workflow.remove_node(node_id);
+        assert_eq!(workflow.nodes.len(), 0);
+    }
+
+    #[test]
+    fn workflow_get_node_mut() {
+        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
+        let node = Node::new(NodeId::new(), "original".to_string(), NodeKind::Pure);
+        let node_id = node.id.clone();
+        workflow.add_node(node);
+
+        if let Some(n) = workflow.get_node_mut(node_id.clone()) {
+            n.name = "modified".to_string();
+        }
+        assert_eq!(workflow.get_node(node_id).unwrap().name, "modified");
+    }
+
+    #[test]
+    fn workflow_multiple_nodes_with_same_kind() {
+        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
+        for i in 0..5 {
+            let node = Node::new(NodeId::new(), format!("node_{}", i), NodeKind::Pure);
+            workflow.add_node(node);
+        }
+        assert_eq!(workflow.nodes.len(), 5);
+    }
 }

@@ -83,6 +83,15 @@ impl SpawnRecord {
         }
     }
 
+    /// Transition to failed phase.
+    #[must_use]
+    pub fn transition_to_failed(&self) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            ..self.clone()
+        }
+    }
+
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {

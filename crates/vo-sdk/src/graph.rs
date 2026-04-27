@@ -30,6 +30,20 @@ pub enum GraphArgsError {
 ///
 /// Returns `GraphArgsError::NoGraphFlag` when `--graph` is absent.
 /// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph` or when `--graph` appears twice.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::parse_graph_args;
+///
+/// let args = vec!["my-binary".to_string(), "--graph".to_string()];
+/// let result = parse_graph_args(&args);
+/// assert!(result.is_ok());
+///
+/// let args_no_flag = vec!["my-binary".to_string()];
+/// let result = parse_graph_args(&args_no_flag);
+/// assert!(result.is_err());
+/// ```
 pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     let mut found_graph = false;
     for arg in args.iter().skip(1) {
@@ -78,6 +92,13 @@ fn default_retry_policy() -> RetryPolicy {
 pub struct EdgeSpec {
     pub from: NodeName,
     pub to: NodeName,
+}
+
+/// Metadata for signal/wait nodes (ADR-019).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub signal_name: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 /// Validation errors for [`WorkflowSpec::validate`].

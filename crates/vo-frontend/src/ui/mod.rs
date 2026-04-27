@@ -3,6 +3,7 @@ pub mod app_io;
 #[cfg(test)]
 pub mod badge_accuracy_tests;
 pub mod command_palette;
+pub mod comprehensive_tests;
 pub mod domain_types;
 pub mod edges;
 pub mod graph;

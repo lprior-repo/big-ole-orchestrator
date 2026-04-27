@@ -8,8 +8,13 @@ vo-types.workspace = true
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror.workspace = true
-tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "signal", "parking_lot", "sync", "time"] }
-ctrlc = { version = "3.4", features = ["termination"] }
+ctrlc = { version = "3", features = ["termination"] }
+
+[dependencies.vo-sdk-macros]
+path = "../vo-sdk-macros"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 rstest = { workspace = true }

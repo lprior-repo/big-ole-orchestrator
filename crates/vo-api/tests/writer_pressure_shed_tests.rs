@@ -278,19 +278,20 @@ async fn app_state_includes_writer_pressure_field() {
         .expect("spawn");
 
     let state = AppState {
-        query: vo_api::handlers::query::QueryState {
-            db: Arc::new(
-                vo_storage::partitions::StorageEngine::open(
-                    tempfile::tempdir().expect("tempdir").path(),
-                )
-                .expect("open")
-                .db()
-                .clone(),
-            ),
-            workspace_index: Arc::new(std::sync::RwLock::new(
+        query: vo_api::handlers::query::QueryState::new(
+            Arc::new(vo_storage::partitions::StorageEngine::open(
+                tempfile::tempdir().expect("tempdir").path(),
+            )
+            .expect("open")
+            .db()
+            .clone()),
+            Arc::new(std::sync::RwLock::new(
                 vo_types::workspace::WorkspaceIndex::new(),
             )),
-        },
+            Arc::new(std::sync::RwLock::new(
+                vo_types::search::SearchEngine::new(),
+            )),
+        ),
         sse: vo_api::handlers::sse::SseState::new(),
         ws: vo_api::handlers::ws::WsState::new(),
         master: Arc::new(master_ref),

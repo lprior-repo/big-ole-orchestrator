@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+use super::Actor;
+use super::types::SpawnSupervisorError;
 use super::traits::ProcessHandle;
 use super::types::SpawnSupervisorError;
 use super::Actor;
@@ -12,6 +14,13 @@ use vo_types::InstanceId;
 
 impl Actor {
     /// Performs health checks on a process.
+    ///
+    /// Per ADR-046:
+    /// - Performs up to `max_health_checks` checks spaced by health_check_interval
+    /// - If health check fails, also checks if process is zombie via `is_zombie`
+    /// - If zombie detected, increments `zombies_detected` metric and returns `ZombieDetected` error
+    /// - If all checks pass, transitions to Running
+    /// - If checks exhausted without zombie, returns `HealthCheckFailed` error
     pub(super) async fn perform_health_checks(
         &self,
         instance_id: &InstanceId,
@@ -25,11 +34,25 @@ impl Actor {
             match self.process_manager.check_health(process.pid).await {
                 Ok(true) => return Ok(()),
                 Ok(false) => {
+                    if let Ok(true) = self.process_manager.is_zombie(process.pid).await {
+                        self.metrics.zombies_detected.incr();
+                        return Err(SpawnSupervisorError::ZombieDetected {
+                            instance_id: instance_id.clone(),
+                            pid: process.pid,
+                        });
+                    }
                     if i < self.max_health_checks {
                         continue;
                     }
                 }
                 Err(e) => {
+                    if let Ok(true) = self.process_manager.is_zombie(process.pid).await {
+                        self.metrics.zombies_detected.incr();
+                        return Err(SpawnSupervisorError::ZombieDetected {
+                            instance_id: instance_id.clone(),
+                            pid: process.pid,
+                        });
+                    }
                     return Err(SpawnSupervisorError::HealthCheckFailed {
                         instance_id: instance_id.clone(),
                         check_number: i,

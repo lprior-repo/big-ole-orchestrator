@@ -89,7 +89,7 @@ impl fmt::Display for JobKind {
 pub enum SchedulePolicy {
     At(DateTime<Utc>),
     After(#[serde(with = "humantime_serde")] Duration),
-    Cron(String),
+    Cron { expression: String },
     Immediate,
 }
 
@@ -152,7 +152,7 @@ impl fmt::Display for SchedulePolicy {
         match self {
             Self::At(t) => write!(f, "at({})", t),
             Self::After(d) => write!(f, "after({:?})", d),
-            Self::Cron(expr) => write!(f, "cron({})", expr),
+            Self::Cron { expression } => write!(f, "cron({})", expression),
             Self::Immediate => write!(f, "immediate"),
         }
     }
@@ -262,5 +262,28 @@ impl RetryPolicy {
 
     pub fn can_retry(&self, attempt_count: u32) -> bool {
         attempt_count < self.max_attempts
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
+#[repr(u8)]
+#[serde(rename_all = "lowercase")]
+pub enum JobPriority {
+    Critical = 0,
+    High = 1,
+    Normal = 2,
+    Low = 3,
+    Background = 4,
+}
+
+impl fmt::Display for JobPriority {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Critical => write!(f, "critical"),
+            Self::High => write!(f, "high"),
+            Self::Normal => write!(f, "normal"),
+            Self::Low => write!(f, "low"),
+            Self::Background => write!(f, "background"),
+        }
     }
 }
