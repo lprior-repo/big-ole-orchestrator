@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 /// Per ADR-042 Section 2:
 /// - `EpochLocal`: Signal targets a specific, immutable epoch
 /// - `LineageWide`: Signal routes to the currently active epoch within the lineage
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum LineageScope {
     /// Signal targets a specific epoch (immutable once set).
     EpochLocal,
     /// Signal routes to the currently active epoch within the lineage.
+    #[default]
     LineageWide,
 }
 

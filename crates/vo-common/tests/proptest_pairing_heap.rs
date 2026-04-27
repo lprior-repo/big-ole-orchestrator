@@ -1,6 +1,7 @@
 //! Proptest suite for a min-pairing-heap. Self-contained inline implementation.
 
 use proptest::prelude::*;
+use proptest::proptest;
 
 #[derive(Debug, Clone)]
 struct PairingHeap<T: Ord + Clone> {

@@ -4,8 +4,8 @@
 //! variants to NodeCategory categories, and that badges update correctly
 //! when node types change during workflow modification.
 
-use super::graph::{node_kind_to_category, GuaranteeClass, Node, NodeCategory, NodeId, Workflow};
-use vo_types::NodeKind;
+use super::graph::{node_kind_to_category, Node, NodeCategory, NodeId, Workflow};
+use vo_types::{GuaranteeClass, NodeKind};
 
 // ============================================================================
 // Adversarial Tests: Badge Shows Wrong Guarantee Level

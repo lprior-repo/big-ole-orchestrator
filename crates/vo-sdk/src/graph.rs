@@ -9,7 +9,35 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeName, RetryPolicy, SignalAddress, WorkflowName};
+
+/// Metadata for Signal and Wait nodes (ADR-009, ADR-042).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub address: SignalAddress,
+    #[serde(default)]
+    pub buffer_policy: BufferPolicy,
+    #[serde(default)]
+    pub lineage_scope: LineageScope,
+}
+
+impl SignalNodeMeta {
+    pub fn lineage_wide(address: SignalAddress) -> Self {
+        Self {
+            address,
+            buffer_policy: BufferPolicy::default(),
+            lineage_scope: LineageScope::LineageWide,
+        }
+    }
+
+    pub fn epoch_local(address: SignalAddress) -> Self {
+        Self {
+            address,
+            buffer_policy: BufferPolicy::default(),
+            lineage_scope: LineageScope::EpochLocal,
+        }
+    }
+}
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -56,9 +84,11 @@ pub struct NodeSpec {
     pub kind: NodeKind,
     #[serde(default = "default_retry_policy")]
     pub retry_policy: RetryPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signal_meta: Option<SignalNodeMeta>,
 }
 
-fn default_retry_policy() -> RetryPolicy {
+pub fn default_retry_policy() -> RetryPolicy {
     RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,

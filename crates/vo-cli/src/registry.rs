@@ -22,7 +22,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
         registry.register(Box::new(handlers::ServeHandler));
-        registry
+        registry.register(Box::new(handlers::HistoryHandler));
     }
 }
 
@@ -58,6 +58,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Status { .. } => Some("status"),
         Command::Hardline { .. } => Some("hardline"),
         Command::Serve { .. } => Some("serve"),
+        Command::History { .. } => Some("history"),
     }
 }
 
@@ -428,6 +429,129 @@ mod handlers {
                     println!("| Quarantined               | yes                          |");
                 }
                 println!("+---------------------------+-------------------------------+");
+                Ok(())
+            })
+        }
+    }
+
+    pub struct HistoryHandler;
+
+    impl CommandHandler for HistoryHandler {
+        fn name(&self) -> &'static str {
+            "history"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::History {
+                ref instance_id,
+                ref storage_path,
+                canonical,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a history command".to_string()))
+                });
+            };
+            let instance_id = instance_id.clone();
+            let storage_path = storage_path.clone();
+            let canonical = canonical;
+            Box::pin(async move {
+                let db = fjall::Database::builder(&storage_path)
+                    .open()
+                    .map_err(|e| CliError::Dispatch(format!("Failed to open storage: {e}")))?;
+
+                let instance: vo_types::InstanceId = vo_types::InstanceId::parse(&instance_id)
+                    .map_err(|e| CliError::Dispatch(format!("Invalid instance ID: {e}")))?;
+
+                let events: Vec<vo_types::EventEnvelope> =
+                    vo_storage::query::replay_events(&db, &instance)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| CliError::Dispatch(format!("Failed to replay events: {e}")))?;
+
+                #[derive(serde::Serialize)]
+                struct OperatorProjectionEntry {
+                    sequence: u64,
+                    timestamp_ms: u64,
+                    event_type: String,
+                    causation_id: Option<String>,
+                }
+
+                #[derive(serde::Serialize)]
+                struct OperatorProjection {
+                    instance_id: String,
+                    event_count: usize,
+                    events: Vec<OperatorProjectionEntry>,
+                }
+
+                #[derive(serde::Serialize)]
+                struct CanonicalViewEntry {
+                    sequence: u64,
+                    timestamp_ms: u64,
+                    schema_version: u8,
+                    payload: serde_json::Value,
+                    metadata: vo_types::EventMetadata,
+                }
+
+                #[derive(serde::Serialize)]
+                struct CanonicalView {
+                    instance_id: String,
+                    event_count: usize,
+                    events: Vec<CanonicalViewEntry>,
+                }
+
+                if canonical {
+                    let canonical_events: Vec<CanonicalViewEntry> = events
+                        .into_iter()
+                        .map(|e| CanonicalViewEntry {
+                            sequence: e.sequence,
+                            timestamp_ms: e.timestamp_ms,
+                            schema_version: e.schema_version,
+                            payload: e.payload,
+                            metadata: e.metadata,
+                        })
+                        .collect();
+
+                    let view = CanonicalView {
+                        instance_id: instance_id.clone(),
+                        event_count: canonical_events.len(),
+                        events: canonical_events,
+                    };
+                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
+                } else {
+                    let operator_events: Vec<OperatorProjectionEntry> = events
+                        .into_iter()
+                        .map(|e| {
+                            let event_type = e
+                                .payload
+                                .get("type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown")
+                                .to_string();
+                            let causation_id = e
+                                .metadata
+                                .command_metadata
+                                .as_ref()
+                                .map(|m| m.causation_id.to_string());
+                            OperatorProjectionEntry {
+                                sequence: e.sequence,
+                                timestamp_ms: e.timestamp_ms,
+                                event_type,
+                                causation_id,
+                            }
+                        })
+                        .collect();
+
+                    let view = OperatorProjection {
+                        instance_id: instance_id.clone(),
+                        event_count: operator_events.len(),
+                        events: operator_events,
+                    };
+                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
+                }
+
                 Ok(())
             })
         }

@@ -1,8 +1,141 @@
 use std::collections::HashMap;
 
 use super::graph_types::{Connection, Node, NodeId, WorkflowNode};
-use super::types::{EdgeAnchor, Position, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH};
+use super::types::{sanitize_bend_input_edge, EdgeAnchor, Position, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH};
 use crate::ui::parallel_group_overlay::{AggregateStatus, BoundingBox, ParallelGroup};
+
+#[cfg(test)]
+mod layout_tests {
+    use super::*;
+
+    #[test]
+    fn create_smooth_step_path_horizontal_line() {
+        let from = Position { x: 0.0, y: 50.0 };
+        let to = Position { x: 100.0, y: 50.0 };
+        let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
+        assert!(path.starts_with("M 0 50"));
+        assert_eq!(midpoint.x, 50.0);
+        assert_eq!(midpoint.y, 50.0);
+    }
+
+    #[test]
+    fn create_smooth_step_path_vertical_line() {
+        let from = Position { x: 50.0, y: 0.0 };
+        let to = Position { x: 50.0, y: 100.0 };
+        let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
+        assert!(path.starts_with("M 50 0"));
+        assert_eq!(midpoint.x, 50.0);
+        assert_eq!(midpoint.y, 50.0);
+    }
+
+    #[test]
+    fn create_smooth_step_path_with_bend_offset() {
+        let from = Position { x: 0.0, y: 0.0 };
+        let to = Position { x: 100.0, y: 100.0 };
+        let (path, midpoint) = create_smooth_step_path(from, to, 10.0);
+        assert!(!path.is_empty());
+        assert!(midpoint.y > 50.0);
+    }
+
+    #[test]
+    fn create_smooth_step_path_with_negative_bend() {
+        let from = Position { x: 0.0, y: 0.0 };
+        let to = Position { x: 100.0, y: 100.0 };
+        let (path, midpoint) = create_smooth_step_path(from, to, -10.0);
+        assert!(!path.is_empty());
+        assert!(midpoint.y < 50.0);
+    }
+
+    #[test]
+    fn create_smooth_step_path_bend_clamped_to_max() {
+        let from = Position { x: 0.0, y: 0.0 };
+        let to = Position { x: 100.0, y: 100.0 };
+        let (_, midpoint) = create_smooth_step_path(from, to, 500.0);
+        assert!(midpoint.y <= 100.0 + BEND_CLAMP);
+    }
+
+    #[test]
+    fn create_smooth_step_path_ignores_nan_coordinates() {
+        let from = Position { x: f32::NAN, y: 50.0 };
+        let to = Position { x: 100.0, y: 50.0 };
+        let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
+        assert!(path.contains("L"));
+        assert_eq!(midpoint.x, f32::midpoint(f32::NAN, 100.0));
+    }
+
+    #[test]
+    fn create_smooth_step_path_ignores_infinite_coordinates() {
+        let from = Position { x: f32::INFINITY, y: 50.0 };
+        let to = Position { x: 100.0, y: 50.0 };
+        let (path, _) = create_smooth_step_path(from, to, 0.0);
+        assert!(path.contains("L"));
+    }
+
+    #[test]
+    fn create_smooth_step_path_vertical_very_close_points() {
+        let from = Position { x: 50.0, y: 0.0 };
+        let to = Position { x: 51.0, y: 0.5 };
+        let (path, _) = create_smooth_step_path(from, to, 0.0);
+        assert!(path.starts_with("M 50 0 L"));
+    }
+
+    #[test]
+    fn sanitize_bend_input_edge_clamps_positive() {
+        let result = sanitize_bend_input_edge(300.0, 0.0);
+        assert_eq!(result, BEND_CLAMP);
+    }
+
+    #[test]
+    fn sanitize_bend_input_edge_clamps_negative() {
+        let result = sanitize_bend_input_edge(-300.0, 0.0);
+        assert_eq!(result, -BEND_CLAMP);
+    }
+
+    #[test]
+    fn sanitize_bend_input_edge_accepts_valid() {
+        let result = sanitize_bend_input_edge(50.0, 0.0);
+        assert_eq!(result, 50.0);
+    }
+
+    #[test]
+    fn sanitize_bend_input_edge_returns_start_on_nan() {
+        let result = sanitize_bend_input_edge(f32::NAN, 100.0);
+        assert_eq!(result, 100.0);
+    }
+
+    #[test]
+    fn sanitize_bend_input_edge_returns_start_on_infinity() {
+        let result = sanitize_bend_input_edge(f32::INFINITY, 100.0);
+        assert_eq!(result, 100.0);
+    }
+
+    #[test]
+    fn find_parallel_branches_returns_empty_for_single_target() {
+        let source_id = NodeId::new();
+        let target_id = NodeId::new();
+        let source = Node::from_workflow_node(
+            "Parallel".to_string(),
+            WorkflowNode::Parallel(crate::ui::edges::graph_types::ParallelConfig::default()),
+            100.0, 100.0,
+        );
+        let target = Node::from_workflow_node(
+            "Target".to_string(),
+            WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default()),
+            300.0, 100.0,
+        );
+        let nodes = vec![source, target];
+        let conn = Connection {
+            id: uuid::Uuid::new_v4(),
+            source: source_id.clone(),
+            target: target_id.clone(),
+            source_port: crate::ui::graph::PortName::from("out"),
+            target_port: crate::ui::graph::PortName::from("in"),
+        };
+        let connections = vec![conn];
+        let groups = find_parallel_branches(&nodes, &connections);
+        assert!(groups.is_empty());
+    }
+}
 
 pub(crate) fn create_smooth_step_path(
     from: Position,

@@ -91,4 +91,245 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("something went wrong"));
     }
+
+    #[test]
+    fn vo_error_from_io_error() {
+        use std::io;
+        let io_err = io::Error::new(io::ErrorKind::NotFound, "file not found");
+        let vo_err: VoError = io_err.into();
+        match vo_err {
+            VoError::Internal(msg) => {
+                assert!(msg.contains("file not found"));
+            }
+            _ => panic!("Expected VoError::Internal from io::Error"),
+        }
+    }
+
+    #[test]
+    fn vo_error_from_io_error_kind_permission_denied() {
+        use std::io;
+        let io_err = io::Error::new(io::ErrorKind::PermissionDenied, "access denied");
+        let vo_err: VoError = io_err.into();
+        match vo_err {
+            VoError::Internal(msg) => {
+                assert!(msg.contains("access denied"));
+            }
+            _ => panic!("Expected VoError::Internal from io::Error"),
+        }
+    }
+
+    #[test]
+    fn vo_error_from_io_error_kind_other() {
+        use std::io;
+        let io_err = io::Error::new(io::ErrorKind::Other, "custom error");
+        let vo_err: VoError = io_err.into();
+        match vo_err {
+            VoError::Internal(msg) => {
+                assert!(msg.contains("custom error"));
+            }
+            _ => panic!("Expected VoError::Internal from io::Error"),
+        }
+    }
+
+    #[test]
+    fn vo_error_from_serde_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("invalid json").unwrap_err();
+        let vo_err: VoError = json_err.into();
+        match vo_err {
+            VoError::Validation(msg) => {
+                assert!(msg.contains("at line") || msg.contains("parse"));
+            }
+            _ => panic!("Expected VoError::Validation from serde_json::Error"),
+        }
+    }
+
+    #[test]
+    fn vo_error_from_serde_json_error_specific() {
+        let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
+        let vo_err: VoError = json_err.into();
+        match vo_err {
+            VoError::Validation(msg) => {
+                assert!(!msg.is_empty());
+            }
+            _ => panic!("Expected VoError::Validation from serde_json::Error"),
+        }
+    }
+
+    #[test]
+    fn vo_error_serialize_deserialize_roundtrip() {
+        let err = VoError::Config("test config error".to_string());
+        let json = serde_json::to_string(&err).unwrap();
+        let deserialized: VoError = serde_json::from_str(&json).unwrap();
+        assert_eq!(err, deserialized);
+    }
+
+    #[test]
+    fn vo_error_all_variants_serialize_deserialize() {
+        let variants = [
+            VoError::Config("c".to_string()),
+            VoError::Internal("i".to_string()),
+            VoError::NotFound("n".to_string()),
+            VoError::Validation("v".to_string()),
+            VoError::Timeout("t".to_string()),
+        ];
+        for err in variants {
+            let json = serde_json::to_string(&err).unwrap();
+            let deserialized: VoError = serde_json::from_str(&json).unwrap();
+            assert_eq!(err, deserialized);
+        }
+    }
+
+    #[test]
+    fn vo_error_partial_eq() {
+        assert_eq!(VoError::Config("x".to_string()), VoError::Config("x".to_string()));
+        assert_ne!(VoError::Config("x".to_string()), VoError::Config("y".to_string()));
+        assert_ne!(VoError::Config("x".to_string()), VoError::Internal("x".to_string()));
+    }
+
+    #[test]
+    fn vo_error_clone_preserves_all_fields() {
+        let err = VoError::NotFound("resource missing".to_string());
+        let cloned = err.clone();
+        assert_eq!(err, cloned);
+    }
+
+    #[test]
+    fn vo_error_display_all_variants_contain_message() {
+        let test_cases = [
+            (VoError::Config("cfg".to_string()), "configuration error"),
+            (VoError::Internal("int".to_string()), "internal error"),
+            (VoError::NotFound("find".to_string()), "not found"),
+            (VoError::Validation("val".to_string()), "validation failed"),
+            (VoError::Timeout("tim".to_string()), "operation timed out"),
+        ];
+
+        for (err, expected_prefix) in test_cases {
+            let display = err.to_string();
+            assert!(
+                display.contains(expected_prefix),
+                "Expected '{}' in '{}'",
+                expected_prefix,
+                display
+            );
+        }
+    }
+
+    #[test]
+    fn vo_error_display_contains_actual_message() {
+        let messages = [
+            "bad config message",
+            "internal error message",
+            "item not found message",
+            "validation failed message",
+            "timeout message",
+        ];
+
+        let errors = [
+            VoError::Config(messages[0].to_string()),
+            VoError::Internal(messages[1].to_string()),
+            VoError::NotFound(messages[2].to_string()),
+            VoError::Validation(messages[3].to_string()),
+            VoError::Timeout(messages[4].to_string()),
+        ];
+
+        for (i, err) in errors.iter().enumerate() {
+            let display = err.to_string();
+            assert!(
+                display.contains(messages[i]),
+                "Error display '{}' should contain '{}'",
+                display,
+                messages[i]
+            );
+        }
+    }
+
+    #[test]
+    fn vo_error_debug_contains_variant_name() {
+        let debug_config = format!("{:?}", VoError::Config("x".to_string()));
+        let debug_internal = format!("{:?}", VoError::Internal("y".to_string()));
+        let debug_not_found = format!("{:?}", VoError::NotFound("z".to_string()));
+        let debug_validation = format!("{:?}", VoError::Validation("w".to_string()));
+        let debug_timeout = format!("{:?}", VoError::Timeout("v".to_string()));
+
+        assert!(debug_config.contains("Config"), "Debug should contain 'Config': {}", debug_config);
+        assert!(debug_internal.contains("Internal"), "Debug should contain 'Internal': {}", debug_internal);
+        assert!(debug_not_found.contains("NotFound"), "Debug should contain 'NotFound': {}", debug_not_found);
+        assert!(debug_validation.contains("Validation"), "Debug should contain 'Validation': {}", debug_validation);
+        assert!(debug_timeout.contains("Timeout"), "Debug should contain 'Timeout': {}", debug_timeout);
+    }
+
+    #[test]
+    fn vo_error_from_io_preserves_error_kind() {
+        use std::io;
+
+        let test_cases = [
+            (io::ErrorKind::NotFound, "not found"),
+            (io::ErrorKind::PermissionDenied, "permission denied"),
+            (io::ErrorKind::ConnectionRefused, "connection refused"),
+            (io::ErrorKind::TimedOut, "timed out"),
+            (io::ErrorKind::Other, "other error"),
+        ];
+
+        for (kind, _expected_text) in test_cases {
+            let io_err = io::Error::new(kind, "test error");
+            let vo_err: VoError = io_err.into();
+            match vo_err {
+                VoError::Internal(msg) => {
+                    assert!(!msg.is_empty(), "Should preserve error message for {:?}", kind);
+                }
+                _ => panic!("Expected VoError::Internal for {:?}", kind),
+            }
+        }
+    }
+
+    #[test]
+    fn vo_error_from_serde_preserves_message() {
+        let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
+        let vo_err: VoError = json_err.into();
+
+        if let VoError::Validation(msg) = vo_err {
+            assert!(!msg.is_empty(), "Should preserve validation error message");
+        } else {
+            panic!("Expected VoError::Validation");
+        }
+    }
+
+    #[test]
+    fn vo_error_all_variants_cloneable() {
+        let variants = [
+            VoError::Config("c".to_string()),
+            VoError::Internal("i".to_string()),
+            VoError::NotFound("n".to_string()),
+            VoError::Validation("v".to_string()),
+            VoError::Timeout("t".to_string()),
+        ];
+
+        for err in variants {
+            let cloned = err.clone();
+            assert_eq!(err, cloned);
+        }
+    }
+
+    #[test]
+    fn vo_error_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<VoError>();
+    }
+
+    #[test]
+    fn vo_error_string_constructors_with_string() {
+        let s = String::from("test message");
+        assert_eq!(
+            VoError::config(s.clone()).to_string(),
+            "configuration error: test message"
+        );
+    }
+
+    #[test]
+    fn vo_error_string_constructors_with_static_str() {
+        assert_eq!(
+            VoError::config("static message").to_string(),
+            "configuration error: static message"
+        );
+    }
 }

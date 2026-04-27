@@ -39,10 +39,15 @@
 //! ```
 
 pub mod dag;
+pub mod execute;
 pub mod graph;
 pub mod node_handle;
 
 pub use dag::Workflow;
+pub use execute::{
+    execute_node, has_execute_flag, parse_execute_args, BoxedNodeFn, ExecuteArgs, ExecuteArgsError,
+    NodeFn, NodeResult,
+};
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     SignalNodeMeta, ValidationError, WorkflowSpec,

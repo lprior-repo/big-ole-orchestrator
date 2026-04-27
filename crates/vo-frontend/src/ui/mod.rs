@@ -7,12 +7,15 @@ pub mod domain_types;
 pub mod edges;
 pub mod graph;
 pub mod guarantee_badge;
+pub mod icons;
 pub mod operator_action_panel;
 pub mod parallel_group_overlay;
 pub mod prototype_palette;
 pub mod simulate_mode;
 #[cfg(test)]
 pub mod template_rendering_tests;
+#[cfg(test)]
+pub mod state_management_tests;
 
 pub use command_palette::NodeCommandPalette;
 pub use domain_types::{HandleKind, HttpMethod, NodeTemplateId};

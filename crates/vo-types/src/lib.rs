@@ -49,6 +49,8 @@ mod pairing_heap;
 mod payload_parser;
 mod plugin;
 #[cfg(feature = "proptest")]
+mod proptest_generators;
+#[cfg(feature = "proptest")]
 mod proptest_targets;
 pub mod proptest_verifier;
 mod recovery_contract;

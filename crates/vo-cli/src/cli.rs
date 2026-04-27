@@ -29,6 +29,8 @@ pub enum CliError {
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
     Serve(#[from] crate::commands::serve::ServeError),
+    #[error(transparent)]
+    History(#[from] crate::commands::history::HistoryError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -81,6 +83,11 @@ pub enum Command {
         host: String,
         port: u16,
         storage_path: PathBuf,
+    },
+    History {
+        instance_id: String,
+        storage_path: PathBuf,
+        canonical: bool,
     },
 }
 
@@ -295,6 +302,28 @@ where
                         .default_value(".vo/storage")
                         .help("Path to Fjall storage directory"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("history")
+                .about("Query workflow instance history (AI-native JSON output)")
+                .arg(
+                    clap::Arg::new("instance")
+                        .required(true)
+                        .index(1)
+                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Path to Fjall storage directory"),
+                )
+                .arg(
+                    clap::Arg::new("canonical")
+                        .long("canonical")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Show canonical (unredacted) payloads for forensic inspection"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -482,6 +511,24 @@ where
                 },
             })
         }
+        Some(("history", sub_matches)) => {
+            let instance_id = sub_matches
+                .get_one::<String>("instance")
+                .cloned()
+                .unwrap_or_default();
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let canonical = sub_matches.get_flag("canonical");
+            Ok(Cli {
+                command: Command::History {
+                    instance_id,
+                    storage_path,
+                    canonical,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -504,7 +551,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
         | CliError::Status(_)
-        | CliError::Serve(_) => 1,
+        | CliError::Serve(_)
+        | CliError::History(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
