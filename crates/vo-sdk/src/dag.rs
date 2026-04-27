@@ -7,7 +7,7 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, LineageScope, NodeKind, NodeName, WorkflowName};
+use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, WorkflowName};
 
 use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
@@ -36,7 +36,6 @@ pub enum DagError {
 struct DagNodeRecord {
     name: NodeName,
     kind: NodeKind,
-    signal_meta: Option<SignalNodeMeta>,
 }
 
 /// A directed acyclic graph of typed workflow nodes.
@@ -82,7 +81,6 @@ impl Dag {
         self.nodes.push(DagNodeRecord {
             name: node_name.clone(),
             kind,
-            signal_meta: None,
         });
         Ok(NodeHandle::new(node_name))
     }
@@ -284,7 +282,6 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                signal_meta: n.signal_meta.clone(),
             })
             .collect();
 
@@ -301,6 +298,8 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            dedupe_scope: DedupeScope::default(),
+            guarantee_class: GuaranteeClass::default(),
         })
     }
 

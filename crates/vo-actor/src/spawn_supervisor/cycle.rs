@@ -42,8 +42,6 @@ impl Actor {
                 continue;
             }
 
-            let backoff_delay = Self::calc_backoff_delay(self, record.spawn_attempts);
-
             match self.spawn_process(&record).await {
                 Ok(process_handle) => {
                     let mut new_record = record.transition_to_health_check();
@@ -91,17 +89,17 @@ impl Actor {
                                 "Health check failed"
                             );
 
-                            if record.spawn_attempts < self.max_spawn_attempts {
-                                respawns += 1;
-                                self.metrics.respawns.incr();
+                            let mut failed_record = new_record.transition_to_failed();
+                            failed_record.last_error = Some(e.clone());
 
-                                tracing::info!(
+                            if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
+                                self.metrics.dispatch_errors.incr();
+                                errors += 1;
+                                tracing::error!(
                                     instance_id = %record.instance_id,
-                                    backoff_ms = backoff_delay.as_millis(),
-                                    "Scheduling respawn with backoff"
+                                    error = %save_err,
+                                    "Failed to save failed spawn record"
                                 );
-
-                                tokio::time::sleep(backoff_delay).await;
                             }
                         }
                     }

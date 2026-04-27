@@ -42,6 +42,8 @@ pub mod dag;
 pub mod graph;
 pub mod node_handle;
 
+mod signal;
+
 pub use dag::Workflow;
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
@@ -56,6 +58,7 @@ use thiserror::Error;
 
 // Re-export public API
 pub use io::{is_read, is_written, read_input, secret, write_failure, write_success};
+pub use signal::start;
 
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {

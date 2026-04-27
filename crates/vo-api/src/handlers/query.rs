@@ -9,20 +9,64 @@ use axum::{
     Json,
 };
 use vo_storage::query::replay_events;
-use vo_types::search::{QueryParser, SearchEngine};
+use vo_types::search::{QueryParser, SearchEngine, SearchResult};
 
 use crate::types::v3::*;
 use crate::types::ApiError;
-use vo_types::workspace::WorkspaceIndex;
+use vo_types::workspace::{WorkspaceId, WorkspaceIndex};
 
 use super::split_path_id;
-use super::search::build_search_engine_from_workspace;
 
 /// Shared state for query handlers.
 #[derive(Clone)]
 pub struct QueryState {
     pub db: Arc<fjall::Database>,
     pub workspace_index: Arc<std::sync::RwLock<WorkspaceIndex>>,
+    pub search_engine: Arc<std::sync::RwLock<SearchEngine>>,
+}
+
+impl QueryState {
+    pub fn new(
+        db: Arc<fjall::Database>,
+        workspace_index: Arc<std::sync::RwLock<WorkspaceIndex>>,
+        search_engine: Arc<std::sync::RwLock<SearchEngine>>,
+    ) -> Self {
+        Self {
+            db,
+            workspace_index,
+            search_engine,
+        }
+    }
+
+    pub fn index_workspace(&self, id: WorkspaceId, text: &str, tags: &[String]) {
+        if let Ok(mut engine) = self.search_engine.write() {
+            engine.index_workspace(id, text, tags);
+        }
+    }
+
+    pub fn remove_from_index(&self, id: WorkspaceId) {
+        if let Ok(mut engine) = self.search_engine.write() {
+            engine.remove_workspace(id);
+        }
+    }
+
+    pub fn build_engine_from_workspace_index(&self) {
+        if let Ok(workspace) = self.workspace_index.read() {
+            if let Ok(mut engine) = self.search_engine.write() {
+                *engine = SearchEngine::new();
+                for (id, node) in &workspace.nodes {
+                    let text = node.name.to_string();
+                    let tags: Vec<String> = node
+                        .metadata
+                        .entries
+                        .iter()
+                        .flat_map(|(k, v)| [k.clone(), v.clone()])
+                        .collect();
+                    engine.index_workspace(*id, &text, &tags);
+                }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -321,21 +365,19 @@ pub async fn search(
         }
     };
 
-    let workspace = match state.workspace_index.read() {
+    let engine = match state.search_engine.read() {
         Ok(guard) => guard,
         Err(e) => {
-            tracing::error!(error = %e, "workspace index lock poisoned");
+            tracing::error!(error = %e, "search engine lock poisoned");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("search_error", "workspace index unavailable")),
+                Json(ApiError::new("search_error", "search engine unavailable")),
             )
                 .into_response();
         }
     };
 
-    let engine = build_search_engine_from_workspace(&workspace);
-
-    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
+    let results: Result<Vec<SearchResult>, (StatusCode, Json<ApiError>)> =
         engine.search(&parsed_query).map_err(|e| {
             tracing::error!(error = %e, "search failed");
             (
