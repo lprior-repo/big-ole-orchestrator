@@ -193,6 +193,22 @@ where
     tokio::task::block_in_place(|| handle.block_on(f))
 }
 
+use event_store::{EventStore, InMemoryEventStore};
+
+static APPEND_EVENT_STORE: LazyLock<InMemoryEventStore> = LazyLock::new(InMemoryEventStore::new);
+
+pub(crate) fn _internal_append_store() -> &'static InMemoryEventStore {
+    &APPEND_EVENT_STORE
+}
+
+fn block_on_sync<F, T>(f: F) -> T
+where
+    F: std::future::Future<Output = T>,
+{
+    let handle = tokio::runtime::Handle::current();
+    tokio::task::block_in_place(|| handle.block_on(f))
+}
+
 /// Queries all stored events for a given `instance_id`.
 ///
 /// Returns a vector of `(sequence, payload)` tuples in ascending sequence order.

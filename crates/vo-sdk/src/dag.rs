@@ -278,7 +278,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                retry_policy: None,
+                retry_policy: default_retry_policy(),
             })
             .collect();
 
@@ -295,7 +295,8 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
-            guarantee_class: GuaranteeClass::default(),
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         })
     }
 

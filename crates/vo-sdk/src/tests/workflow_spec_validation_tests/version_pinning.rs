@@ -1,7 +1,8 @@
 //! Section 3: Version pinning enforced
 
-use crate::{DedupeScope, EdgeSpec, NodeSpec, WorkflowSpec};
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use crate::graph::default_retry_policy;
+use crate::WorkflowSpec;
+use vo_types::{NodeKind, NodeName};
 
 #[test]
 fn vo_types_workflow_spec_accepts_current_version() {
@@ -56,7 +57,8 @@ fn sdk_workflow_spec_has_no_version_field() {
         workflow_name: WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: DedupeScope::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
@@ -73,16 +75,20 @@ fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
             NodeSpec {
                 name: NodeName::parse("a").expect("valid"),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("a").expect("valid"),
             to: NodeName::parse("b").expect("valid"),
         }],
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let json1 = serde_json::to_string(&spec).expect("serialize");

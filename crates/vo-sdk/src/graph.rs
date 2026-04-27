@@ -110,8 +110,23 @@ use vo_types::signal::SignalScope;
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
-    #[serde(default)]
-    pub retry_policy: Option<RetryPolicy>,
+    #[serde(default = "default_retry_policy")]
+    pub retry_policy: RetryPolicy,
+}
+
+/// Signal node metadata for wait/signal deduplication (ADR-028, ADR-031).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub dedupe_key_prefix: String,
+}
+
+pub(crate) fn default_retry_policy() -> RetryPolicy {
+    RetryPolicy {
+        max_attempts: 1,
+        backoff_ms: 0,
+        backoff_multiplier: 1.0,
+        max_backoff_ms: u64::MAX,
+    }
 }
 
 /// Specification of an edge between two workflow nodes.

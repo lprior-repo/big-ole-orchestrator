@@ -164,39 +164,3 @@ pub fn scan_all_timers_for_instance(
 
     Ok(result)
 }
-
-/// Decode a raw key-value pair into a `TimerRecord`, if possible.
-/// Returns `Ok(None)` if the key/value cannot be decoded (e.g., wrong length).
-fn decode_timer_record(key: &[u8], value: &[u8]) -> Result<Option<TimerRecord>, StorageError> {
-    if key.len() != 40 || value.len() != 8 {
-        return Ok(None);
-    }
-
-    let fire_at_ms = u64::from_be_bytes([
-        key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7],
-    ]);
-
-    let instance_id = InstanceId::from_bytes([
-        key[8], key[9], key[10], key[11], key[12], key[13], key[14], key[15], key[16], key[17],
-        key[18], key[19], key[20], key[21], key[22], key[23],
-    ]);
-
-    let timer_id = TimerId::from_bytes([
-        key[24], key[25], key[26], key[27], key[28], key[29], key[30], key[31], key[32], key[33],
-        key[34], key[35], key[36], key[37], key[38], key[39],
-    ]);
-
-    let duration_ms = u64::from_be_bytes([
-        value[0], value[1], value[2], value[3], value[4], value[5], value[6], value[7],
-    ]);
-
-    let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
-
-    Ok(Some(TimerRecord {
-        fire_at_ms,
-        trigger_time_ms,
-        duration_ms,
-        timer_id,
-        instance_id,
-    }))
-}
