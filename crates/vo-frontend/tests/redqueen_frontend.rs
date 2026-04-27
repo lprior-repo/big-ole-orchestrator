@@ -31,7 +31,7 @@ fn config_update_with_empty_object_is_noop() {
 
 #[test]
 fn workflow_name_with_null_bytes_roundtrips() {
-    let wf = Workflow::new("before\0after".into());
+    let wf = Workflow::new("before\0after".into(), vo_types::GuaranteeClass::BestEffort);
     let json = serde_json::to_string(&wf).unwrap();
     let recovered: Workflow = serde_json::from_str(&json).unwrap();
     assert!(
@@ -42,7 +42,7 @@ fn workflow_name_with_null_bytes_roundtrips() {
 
 #[test]
 fn workflow_name_with_emoji_does_not_panic() {
-    let mut wf = Workflow::new("🦀🔥💣".into());
+    let mut wf = Workflow::new("🦀🔥💣".into(), vo_types::GuaranteeClass::BestEffort);
     wf.add_node(Node::new(
         NodeId::new(),
         "node".into(),

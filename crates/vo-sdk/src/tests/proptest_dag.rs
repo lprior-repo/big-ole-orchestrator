@@ -155,4 +155,228 @@ proptest! {
         prop_assert!(spec.is_ok());
         prop_assert_eq!(spec.unwrap().nodes.len(), 5);
     }
+
+    #[test]
+    fn dag_build_result_is_acyclic(
+        names in prop::collection::vec(valid_node_name(), 2..=10)
+    ) {
+        let unique: Vec<String> = {
+            let mut seen = std::collections::HashSet::new();
+            names.into_iter().filter(|n| seen.insert(n.clone())).collect()
+        };
+        prop_assume!(unique.len() >= 2 && unique.iter().all(|n| !n.is_empty()));
+        let mut dag = Dag::new();
+        let mut handles: Vec<NodeHandle<String, String>> = Vec::new();
+        for name in &unique {
+            handles.push(dag.add_node_with_kind(name, vo_types::NodeKind::Pure, |s: String| s).unwrap());
+        }
+        for i in 0..handles.len() - 1 {
+            dag.connect(&handles[i], &handles[i + 1]).unwrap();
+        }
+        let spec = dag.build("test-workflow");
+        prop_assert!(spec.is_ok(), "linear chain should build without cycles");
+        let spec = spec.unwrap();
+        let cycle = spec.detect_cycle();
+        prop_assert!(cycle.is_none(), "built spec should not contain cycles: {:?}", cycle);
+    }
+
+    #[test]
+    fn dag_connectivity_all_non_root_nodes_have_incoming_edge(
+        names in prop::collection::vec(valid_node_name(), 2..=8)
+    ) {
+        let unique: Vec<String> = {
+            let mut seen = std::collections::HashSet::new();
+            names.into_iter().filter(|n| seen.insert(n.clone())).collect()
+        };
+        prop_assume!(unique.len() >= 2 && unique.iter().all(|n| !n.is_empty()));
+        let mut dag = Dag::new();
+        let mut handles: Vec<NodeHandle<String, String>> = Vec::new();
+        for name in &unique {
+            handles.push(dag.add_node_with_kind(name, vo_types::NodeKind::Pure, |s: String| s).unwrap());
+        }
+        for i in 0..handles.len() - 1 {
+            dag.connect(&handles[i], &handles[i + 1]).unwrap();
+        }
+        let spec = dag.build("test-workflow");
+        prop_assert!(spec.is_ok(), "connected DAG should build");
+        let spec = spec.unwrap();
+        let root_names: std::collections::HashSet<&str> = spec
+            .edges
+            .iter()
+            .map(|e| e.to.as_str())
+            .collect();
+        for node in &spec.nodes {
+            let has_incoming = root_names.contains(node.name.as_str());
+            if node.name.as_str() == unique[0] {
+                prop_assert!(!has_incoming, "first node should be root (no incoming edges)");
+            } else {
+                prop_assert!(has_incoming, "non-root node {} should have incoming edge", node.name.as_str());
+            }
+        }
+    }
+
+    #[test]
+    fn dag_diamond_topology_builds_successfully(
+        name in valid_node_name()
+    ) {
+        prop_assume!(!name.is_empty());
+        let mut dag = Dag::new();
+        let start: NodeHandle<(), i32> = dag
+            .add_node_with_kind(&format!("{}-start", name), vo_types::NodeKind::Pure, |_: ()| -> i32 { 0 })
+            .unwrap();
+        let left: NodeHandle<i32, String> = dag
+            .add_node_with_kind(&format!("{}-left", name), vo_types::NodeKind::Pure, |_i: i32| -> String { "l".to_string() })
+            .unwrap();
+        let right: NodeHandle<i32, String> = dag
+            .add_node_with_kind(&format!("{}-right", name), vo_types::NodeKind::Pure, |_i: i32| -> String { "r".to_string() })
+            .unwrap();
+        let end: NodeHandle<String, ()> = dag
+            .add_node_with_kind(&format!("{}-end", name), vo_types::NodeKind::Pure, |_s: String| {})
+            .unwrap();
+        dag.connect(&start, &left).unwrap();
+        dag.connect(&start, &right).unwrap();
+        dag.connect(&left, &end).unwrap();
+        dag.connect(&right, &end).unwrap();
+        let spec = dag.build(&format!("diamond-{}", name));
+        prop_assert!(spec.is_ok(), "diamond DAG should build successfully");
+        let spec = spec.unwrap();
+        prop_assert_eq!(spec.nodes.len(), 4, "diamond should have 4 nodes");
+        prop_assert_eq!(spec.edges.len(), 4, "diamond should have 4 edges");
+        prop_assert!(spec.validate().is_ok(), "diamond spec should be valid");
+    }
+
+    #[test]
+    fn dag_star_topology_builds_successfully(
+        name in valid_node_name()
+    ) {
+        prop_assume!(!name.is_empty());
+        let mut dag = Dag::new();
+        let center: NodeHandle<(), i32> = dag
+            .add_node_with_kind(&format!("{}-center", name), vo_types::NodeKind::Pure, |_: ()| -> i32 { 0 })
+            .unwrap();
+        let leaf1: NodeHandle<i32, ()> = dag
+            .add_node_with_kind(&format!("{}-leaf1", name), vo_types::NodeKind::Pure, |_: i32| {})
+            .unwrap();
+        let leaf2: NodeHandle<i32, ()> = dag
+            .add_node_with_kind(&format!("{}-leaf2", name), vo_types::NodeKind::Pure, |_: i32| {})
+            .unwrap();
+        let leaf3: NodeHandle<i32, ()> = dag
+            .add_node_with_kind(&format!("{}-leaf3", name), vo_types::NodeKind::Pure, |_: i32| {})
+            .unwrap();
+        dag.connect(&center, &leaf1).unwrap();
+        dag.connect(&center, &leaf2).unwrap();
+        dag.connect(&center, &leaf3).unwrap();
+        let spec = dag.build(&format!("star-{}", name));
+        prop_assert!(spec.is_ok(), "star topology should build: {:?}", spec);
+        let spec = spec.unwrap();
+        prop_assert_eq!(spec.nodes.len(), 4, "star should have 4 nodes");
+        prop_assert_eq!(spec.edges.len(), 3, "star should have 3 edges");
+    }
+
+    #[test]
+    fn dag_chain_topology_builds_successfully(
+        name in valid_node_name()
+    ) {
+        prop_assume!(!name.is_empty());
+        let mut dag = Dag::new();
+        let mut prev: NodeHandle<(), ()> = dag
+            .add_node_with_kind(&format!("{}-0", name), vo_types::NodeKind::Pure, |_: ()| {})
+            .unwrap();
+        for i in 1..5 {
+            let next: NodeHandle<(), ()> = dag
+                .add_node_with_kind(&format!("{}-{}", name, i), vo_types::NodeKind::Pure, |_: ()| {})
+                .unwrap();
+            dag.connect(&prev, &next).unwrap();
+            prev = next;
+        }
+        let spec = dag.build(&format!("chain-{}", name));
+        prop_assert!(spec.is_ok(), "chain topology should build: {:?}", spec);
+        let spec = spec.unwrap();
+        prop_assert_eq!(spec.nodes.len(), 6, "chain should have 6 nodes");
+        prop_assert_eq!(spec.edges.len(), 5, "chain should have 5 edges");
+    }
+
+    #[test]
+    fn dag_empty_workflow_always_errors(wf_name in valid_node_name()) {
+        prop_assume!(!wf_name.is_empty());
+        let dag = Dag::new();
+        let result = dag.build(&wf_name);
+        prop_assert!(matches!(result, Err(DagError::EmptyWorkflow)));
+    }
+
+    #[test]
+    fn dag_edge_count_equals_connect_calls(
+        names in prop::collection::vec(valid_node_name(), 2..=6)
+    ) {
+        let unique: Vec<String> = {
+            let mut seen = std::collections::HashSet::new();
+            names.into_iter().filter(|n| seen.insert(n.clone())).collect()
+        };
+        prop_assume!(unique.len() >= 2);
+        let mut dag = Dag::new();
+        let mut handles: Vec<NodeHandle<(), ()>> = Vec::new();
+        for name in &unique {
+            handles.push(dag.add_node_with_kind(name, vo_types::NodeKind::Pure, |_: ()| {}).unwrap());
+        }
+        let connect_count = unique.len() - 1;
+        for i in 0..connect_count {
+            dag.connect(&handles[i], &handles[i + 1]).unwrap();
+        }
+        prop_assert_eq!(dag.edge_count(), connect_count);
+    }
+
+    #[test]
+    fn dag_node_count_preserves_all_added_nodes(
+        names in prop::collection::vec(valid_node_name(), 1..=10)
+    ) {
+        let unique: Vec<String> = {
+            let mut seen = std::collections::HashSet::new();
+            names.into_iter().filter(|n| seen.insert(n.clone())).collect()
+        };
+        prop_assume!(!unique.is_empty());
+        let mut dag = Dag::new();
+        for name in &unique {
+            dag.add_node_with_kind(name, vo_types::NodeKind::Pure, |_: ()| {}).unwrap();
+        }
+        prop_assert_eq!(dag.node_count(), unique.len());
+    }
+
+    #[test]
+    fn dag_build_preserves_all_node_kinds(
+        name in valid_node_name()
+    ) {
+        prop_assume!(!name.is_empty());
+        let mut dag = Dag::new();
+        let kinds = [
+            vo_types::NodeKind::Pure,
+            vo_types::NodeKind::ManagedEffect,
+            vo_types::NodeKind::Wait,
+            vo_types::NodeKind::Signal,
+            vo_types::NodeKind::Unsafe,
+        ];
+        for (i, &kind) in kinds.iter().enumerate() {
+            dag.add_node_with_kind(&format!("{}-{}", name, i), kind, |_: ()| {}).unwrap();
+        }
+        let spec = dag.build(&format!("kinds-{}", name));
+        prop_assert!(spec.is_ok(), "should build with all kinds: {:?}", spec);
+        let spec = spec.unwrap();
+        prop_assert_eq!(spec.nodes.len(), kinds.len());
+        for (i, node) in spec.nodes.iter().enumerate() {
+            prop_assert_eq!(node.kind, kinds[i], "kind mismatch at index {}", i);
+        }
+    }
+
+    #[test]
+    fn dag_single_node_workflow_builds_successfully(
+        name in valid_node_name()
+    ) {
+        prop_assume!(!name.is_empty());
+        let mut dag = Dag::new();
+        dag.add_node_with_kind(&name, vo_types::NodeKind::Pure, |_: ()| {}).unwrap();
+        let spec = dag.build(&format!("single-{}", name));
+        prop_assert!(spec.is_ok(), "single node should build: {:?}", spec);
+        let spec = spec.unwrap();
+        prop_assert_eq!(spec.nodes.len(), 1);
+        prop_assert_eq!(spec.edges.len(), 0);
+    }
 }

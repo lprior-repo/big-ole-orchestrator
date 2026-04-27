@@ -280,10 +280,294 @@ mod tests {
         );
     }
 
+    #[test]
+    fn task_macro_rejects_struct_item() {
+        let attr = quote! {};
+        let item = quote! { struct MyStruct { field: i32 } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "struct should be rejected: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("can only be applied to functions"),
+            "error message should mention functions: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_enum_item() {
+        let attr = quote! {};
+        let item = quote! { enum MyEnum { A, B } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "enum should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_trait_item() {
+        let attr = quote! {};
+        let item = quote! { trait MyTrait { fn method(); } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "trait should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_impl_block() {
+        let attr = quote! {};
+        let item = quote! { impl MyStruct { fn method() {} } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "impl block should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_multiple_attributes_beyond_limit() {
+        let attr = quote! { foo bar baz };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "too many attrs should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_accepts_unknown_attribute_token() {
+        let attr = quote! { unknown };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error") && result_str.contains("unsupported attribute"),
+            "unknown attribute should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_function_with_visibility_pub() {
+        let attr = quote! {};
+        let item = quote! { pub fn public_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "pub fn should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_function_with_visibility_pub_crate() {
+        let attr = quote! {};
+        let item = quote! { pub(crate) fn crate_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "pub(crate) fn should be accepted: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_nested_path_function_definition() {
+        let attr = quote! {};
+        let item = quote! { fn outer::inner_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "nested path function definition should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_empty_function_body() {
+        let attr = quote! {};
+        let item = quote! { fn empty_task() {} };
+        let result = internal_task_macro(attr, item);
+        let expected = quote! { fn empty_task() {} fn main() { empty_task(); } };
+        assert_eq!(result.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn task_macro_handles_single_expression_body() {
+        let attr = quote! {};
+        let item = quote! { fn single_expr() -> i32 { 42 } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "single expression body should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_const_fn() {
+        let attr = quote! {};
+        let item = quote! { const fn const_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "const fn should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_static_fn() {
+        let attr = quote! {};
+        let item = quote! { static fn static_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "static fn should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_unsafe_fn() {
+        let attr = quote! {};
+        let item = quote! { unsafe fn unsafe_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "unsafe fn should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("unsafe"),
+            "unsafe fn should generate unsafe block: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_extern_fn() {
+        let attr = quote! {};
+        let item = quote! { extern "C" fn extern_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error") || result_str.contains("extern"),
+            "extern fn should be handled: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_nested_blocks() {
+        let attr = quote! {};
+        let item = quote! { fn nested() { if true { loop { break; } } } };
+        let result = internal_task_macro(attr, item);
+        let expected = quote! { fn nested() { if true { loop { break; } } } fn main() { nested(); } };
+        assert_eq!(result.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn task_macro_rejects_async_with_explicit_return_type_mismatch() {
+        let attr = quote! {};
+        let item = quote! { async fn async_with_return() -> i32 {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error") && result_str.contains("async"),
+            "async with explicit return type mismatch should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_handles_closure_not_fn() {
+        let attr = quote! {};
+        let item = quote! { let x = || {}; };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "closure should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_macro_invocation() {
+        let attr = quote! {};
+        let item = quote! { macro_rules! my_macro { () => {} } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "macro_rules should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_type_alias() {
+        let attr = quote! {};
+        let item = quote! { type MyType = i32; };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "type alias should be rejected: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_rejects_union() {
+        let attr = quote! {};
+        let item = quote! { union MyUnion { a: i32 } };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            result_str.contains("compile_error"),
+            "union should be rejected: {}",
+            result_str
+        );
+    }
+
     proptest! {
         #[test]
         fn task_macro_no_panic(attr_str in ".*", item_str in ".*") {
-            // we parse string as token streams for testing
             let attr: proc_macro2::TokenStream = attr_str.parse().unwrap_or_else(|_| quote!{});
             let item: proc_macro2::TokenStream = item_str.parse().unwrap_or_else(|_| quote!{});
             let _ = internal_task_macro(attr, item);
