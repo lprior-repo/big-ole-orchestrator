@@ -322,6 +322,30 @@ impl From<BusError> for IpcError {
     }
 }
 
+impl From<BusError> for IpcError {
+    fn from(err: BusError) -> Self {
+        match err {
+            BusError::BusClosed => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::BackpressureLimitReached => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::Timeout => IpcError::Timeout {
+                elapsed_ms: 0,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::AlreadyConsumed => IpcError::AlreadyConsumed,
+            BusError::IoError(e) => IpcError::IoError(e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

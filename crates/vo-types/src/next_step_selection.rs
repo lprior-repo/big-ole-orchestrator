@@ -316,11 +316,6 @@ pub fn select_next_step(
         .cloned()
         .expect("ready_nodes is non-empty due to is_empty check above");
 
-    // Compute attempt and fence from history if provided
-    let (attempt, fence) = history
-        .map(|h| compute_attempt_and_fence(&selected, h))
-        .unwrap_or((1, 1));
-
     Ok(Some(NextStep {
         step_id: selected,
         attempt,
