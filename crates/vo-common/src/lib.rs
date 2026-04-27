@@ -3,6 +3,7 @@
 //! Shared functionality used across multiple crates including
 //! type aliases and common event definitions.
 
+pub mod connection_pool;
 pub mod error;
 pub mod events;
 pub mod pool;

@@ -11,7 +11,6 @@ mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
 mod compensation;
-pub mod connection_pool;
 mod connector;
 pub mod connection_pool;
 pub mod credentials;

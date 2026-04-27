@@ -8,12 +8,12 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, OwnedSemaphorePermit, Semaphore};
 use tracing::{debug, error, info, warn};
 
-use vo_types::connection_pool::{
+use vo_common::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
     ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, HealthCheckResult,
     PoolConfig as VoPoolConfig, PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
-use vo_types::integer_types::TimestampMs;
+use vo_common::connection_pool::TimestampMs;
 
 use super::circuit_breaker::CircuitBreaker;
 use super::config::{PoolConfig, PoolConfigError};

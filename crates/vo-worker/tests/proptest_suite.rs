@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
-use vo_types::connection_pool::{CircuitBreakerState, PoolId};
+use vo_common::connection_pool::{CircuitBreakerState, PoolId};
 use vo_worker::pool::circuit_breaker::CircuitBreaker;
 use vo_worker::pool::config::{PoolConfig, PoolConfigError};
 use vo_worker::pool::hash_ring::{HashRing, HashRingConfig, RingNode};
@@ -739,7 +739,7 @@ proptest! {
         };
 
         // Convert to VoPoolConfig
-        let vo_config: vo_types::connection_pool::PoolConfig = pool_config.clone().into();
+        let vo_config: vo_common::connection_pool::PoolConfig = pool_config.clone().into();
 
         // Convert back to PoolConfig
         let back_to_pool: PoolConfig = vo_config.clone().into();
@@ -773,7 +773,7 @@ proptest! {
             max_pending_acquires: pending,
         };
 
-        let vo_config: vo_types::connection_pool::PoolConfig = pool_config.clone().into();
+        let vo_config: vo_common::connection_pool::PoolConfig = pool_config.clone().into();
 
         // Field preservation invariant
         prop_assert_eq!(vo_config.min_connections, pool_config.min_connections);
