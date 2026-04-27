@@ -5141,6 +5141,8 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "quote",
+ "serde",
+ "serde_json",
  "syn",
 ]
 

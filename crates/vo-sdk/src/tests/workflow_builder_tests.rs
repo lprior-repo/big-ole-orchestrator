@@ -104,6 +104,7 @@ fn emit_graph_if_requested_does_nothing_without_graph_flag() {
         workflow_name: vo_types::WorkflowName::parse("test").unwrap(),
         nodes: vec![],
         edges: vec![],
+        ..Default::default()
     };
 
     let args = vec!["binary".to_string()];

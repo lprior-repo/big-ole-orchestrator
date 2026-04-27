@@ -66,7 +66,7 @@ fn new_scheduled_job_has_scheduled_state_for_after() {
 
 #[test]
 fn new_cron_job_has_pending_state() {
-    let job = make_job(JobPriority::Normal, SchedulePolicy::Cron("0 * * * *".to_string()));
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Cron { expr: "0 * * * *".to_string() });
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -126,7 +126,7 @@ fn new_job_with_cron_invalid_returns_error() {
     let result = ScheduledJob::new(
         JobKind::OneShot,
         JobPriority::Normal,
-        SchedulePolicy::Cron("invalid cron".to_string()),
+        SchedulePolicy::Cron { expr: "invalid cron".to_string() },
         RetryPolicy::default(),
         bytes::Bytes::from_static(b"test"),
     );
@@ -392,4 +392,99 @@ fn delayed_job_cannot_reschedule_after_completed() {
     job.transition(JobState::Completed).unwrap();
     let result = job.transition(JobState::Scheduled);
     assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+}
+
+// === Scheduling Invariant Tests ===
+
+#[test]
+fn duplicate_run_prevention_cannot_start_already_running_job() {
+    let mut job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    job.transition(JobState::Running).unwrap();
+    let result = job.transition(JobState::Running);
+    assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+}
+
+#[test]
+fn duplicate_run_prevention_job_in_pending_cannot_start_twice() {
+    let mut job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    assert_eq!(job.state, JobState::Pending);
+    job.transition(JobState::Running).unwrap();
+    let result = job.transition(JobState::Running);
+    assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+}
+
+#[test]
+fn recurring_job_catch_up_after_completion() {
+    let mut job = make_job_with_kind(JobKind::Recurring, JobPriority::Normal, SchedulePolicy::Immediate);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Completed).unwrap();
+    let result = job.transition(JobState::Scheduled);
+    assert!(result.is_ok());
+    assert_eq!(job.state, JobState::Scheduled);
+}
+
+#[test]
+fn one_shot_job_cannot_catch_up_after_completion() {
+    let mut job = make_job_with_kind(JobKind::OneShot, JobPriority::Normal, SchedulePolicy::Immediate);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Completed).unwrap();
+    let result = job.transition(JobState::Scheduled);
+    assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+}
+
+#[test]
+fn scheduled_job_has_correct_due_at() {
+    let future = future_time();
+    let job = make_job(JobPriority::Normal, SchedulePolicy::At(future));
+    assert_eq!(job.due_at, future);
+    assert_eq!(job.state, JobState::Scheduled);
+}
+
+#[test]
+fn scheduled_job_past_time_becomes_pending() {
+    let past = past_time();
+    let job = make_job(JobPriority::Normal, SchedulePolicy::At(past));
+    assert_eq!(job.state, JobState::Pending);
+}
+
+#[test]
+fn retry_can_recover_from_failed_state() {
+    let mut job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Failed).unwrap();
+    assert!(job.state.is_terminal());
+    let result = job.transition(JobState::Retrying);
+    assert!(result.is_ok());
+    assert_eq!(job.state, JobState::Retrying);
+}
+
+#[test]
+fn retry_job_can_run_again_after_retry() {
+    let mut job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Failed).unwrap();
+    job.transition(JobState::Retrying).unwrap();
+    job.transition(JobState::Pending).unwrap();
+    job.transition(JobState::Running).unwrap();
+    job.transition(JobState::Completed).unwrap();
+    assert_eq!(job.state, JobState::Completed);
+}
+
+#[test]
+fn immediate_job_has_due_at_equal_to_now() {
+    let before = Utc::now();
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let after = Utc::now();
+    assert!(job.due_at >= before && job.due_at <= after);
+}
+
+#[test]
+fn after_schedule_computes_correct_due_at() {
+    let delay = Duration::from_secs(3600);
+    let before = Utc::now();
+    let job = make_job(JobPriority::Normal, SchedulePolicy::After(delay));
+    let after = Utc::now();
+    let expected_min = before + chrono::Duration::from_std(delay).unwrap();
+    let expected_max = after + chrono::Duration::from_std(delay).unwrap();
+    assert!(job.due_at >= expected_min && job.due_at <= expected_max);
 }

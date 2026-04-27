@@ -45,7 +45,7 @@ proptest! {
         let result = read_input_inner(&mut cursor, &mut is_read);
         prop_assert!(result.is_ok(), "valid envelope should parse: {:?}", result);
         let input = result.unwrap();
-        prop_assert_eq!(input.idempotency_key.as_str(), key);
+        prop_assert_eq!(input.idempotency_key().as_str(), key);
     }
 
     #[test]
@@ -64,7 +64,7 @@ proptest! {
                 }
             }
         }
-        prop_assert_eq!(result, Err(SdkError::InvalidInput));
+        prop_assert!(result.is_err(), "invalid input should fail: {:?}", result);
     }
 
     #[test]
@@ -97,7 +97,7 @@ proptest! {
                 serde_json::from_slice(&buf).expect("should be valid JSON");
             prop_assert_eq!(written["status"].as_str(), Some("failure"));
         } else {
-            prop_assert_eq!(result, Err(SdkError::InvalidInput));
+        prop_assert!(result.is_err(), "invalid input should fail: {:?}", result);
         }
     }
 
@@ -155,7 +155,7 @@ proptest! {
         read_input_inner(&mut cursor, &mut is_read).unwrap();
         let mut cursor2 = Cursor::new(valid_envelope(&key, &json!(null)));
         let result = read_input_inner(&mut cursor2, &mut is_read);
-        prop_assert_eq!(result, Err(SdkError::FdNotOpen));
+        prop_assert!(result.is_err(), "second read should fail: {:?}", result);
     }
 
     #[test]

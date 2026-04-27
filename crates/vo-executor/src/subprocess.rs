@@ -132,9 +132,8 @@ pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> 
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string());
         // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
-        let hash = path
-            .strip_prefix(VERSION_BASE_PATH)
-            .ok()
+        let stripped = path.strip_prefix(VERSION_BASE_PATH).unwrap_or(path);
+        let hash = stripped
             .split('/')
             .next()
             .unwrap_or("")

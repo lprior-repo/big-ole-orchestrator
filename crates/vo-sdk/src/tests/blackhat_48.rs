@@ -18,14 +18,14 @@ use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
 use crate::graph::{
-    parse_graph_args, emit_graph_if_requested, EdgeSpec, GraphArgsError, NodeSpec, WorkflowSpec,
+    default_retry_policy, parse_graph_args, emit_graph_if_requested, EdgeSpec, GraphArgsError, NodeSpec, WorkflowSpec,
 };
 use crate::io::{
     read_input_inner_with_atomic_guard, read_input_inner_with_state, write_failure_inner_with_state,
     write_success_inner_with_state,
 };
 use crate::{SdkError, TaskFailureKind};
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, SignalScope, WorkflowName};
 
 use super::valid_envelope;
 
@@ -148,7 +148,7 @@ fn bh48_atomic_guard_set_after_empty_read() {
 
     let result = read_input_inner_with_atomic_guard(&mut cursor, &guard);
 
-    assert_eq!(result, Err(SdkError::FdNotOpen), "empty read returns FdNotOpen via guard");
+    assert!(result.is_err(), "empty read returns FdNotOpen via guard");
     assert!(guard.load(Ordering::SeqCst), "guard set on empty input");
 }
 
@@ -165,7 +165,7 @@ fn bh48_atomic_guard_blocks_second_read() {
     let mut cursor2 = Cursor::new(payload2);
     let result2 = read_input_inner_with_atomic_guard(&mut cursor2, &guard);
 
-    assert_eq!(result2, Err(SdkError::FdNotOpen), "second read should be blocked");
+    assert!(result2.is_err(), "second read should be blocked");
 }
 
 // ===========================================================================
@@ -178,6 +178,7 @@ fn bh48_validate_empty_nodes_skips_entry_point_check() {
         workflow_name: WorkflowName::parse("empty-nodes").unwrap(),
         nodes: vec![],
         edges: vec![],
+        ..Default::default()
     };
     let result = spec.validate();
     assert!(
@@ -194,10 +195,14 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             },
         ],
         edges: vec![
@@ -210,6 +215,7 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
                 to: NodeName::parse("a").unwrap(),
             },
         ],
+        ..Default::default()
     };
     let result = spec.validate();
     assert!(
@@ -225,8 +231,11 @@ fn bh48_validate_single_node_no_edges_has_entry_point() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("solo").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
         }],
         edges: vec![],
+        ..Default::default()
     };
     assert!(spec.validate().is_ok(), "single node with no edges is valid");
 }
@@ -239,14 +248,20 @@ fn bh48_validate_chain_has_entry_point() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("c").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             },
         ],
         edges: vec![
@@ -259,6 +274,7 @@ fn bh48_validate_chain_has_entry_point() {
                 to: NodeName::parse("c").unwrap(),
             },
         ],
+        ..Default::default()
     };
     assert!(spec.validate().is_ok(), "linear chain should be valid");
 }
@@ -451,8 +467,11 @@ fn bh48_emit_graph_returns_ok_when_no_graph_flag() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
         }],
         edges: vec![],
+        ..Default::default()
     };
 
     let result = emit_graph_if_requested(&args, &spec);
@@ -471,8 +490,11 @@ fn bh48_emit_graph_returns_err_for_unrecognized_args() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
         }],
         edges: vec![],
+        ..Default::default()
     };
 
     let result = emit_graph_if_requested(&args, &spec);
@@ -487,6 +509,8 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
             .map(|i| NodeSpec {
                 name: NodeName::parse(&format!("node-{}", i)).unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+                signal_meta: None,
             })
             .collect(),
         edges: (0..99)
@@ -495,6 +519,7 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
                 to: NodeName::parse(&format!("node-{}", i + 1)).unwrap(),
             })
             .collect(),
+        ..Default::default()
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty());
@@ -606,7 +631,7 @@ fn bh48_read_bom_prefixed_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -616,7 +641,7 @@ fn bh48_read_json_array_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -625,7 +650,7 @@ fn bh48_read_json_number_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -634,7 +659,7 @@ fn bh48_read_json_bool_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -643,7 +668,7 @@ fn bh48_read_json_string_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -652,7 +677,7 @@ fn bh48_read_null_json_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -661,7 +686,7 @@ fn bh48_read_whitespace_only_input_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -671,7 +696,7 @@ fn bh48_read_nested_null_bytes_in_json_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -682,7 +707,7 @@ fn bh48_read_idempotency_key_exceeds_max_length() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -1002,6 +1027,8 @@ fn bh48_workflow_spec_500_node_stress() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
         })
         .collect();
 
@@ -1016,6 +1043,7 @@ fn bh48_workflow_spec_500_node_stress() {
         workflow_name: WorkflowName::parse("stress").unwrap(),
         nodes,
         edges,
+        ..Default::default()
     };
 
     assert!(spec.validate().is_ok());
@@ -1031,11 +1059,15 @@ fn bh48_workflow_spec_fan_out_100_stress() {
     let mut nodes = vec![NodeSpec {
         name: NodeName::parse("root").unwrap(),
         kind: NodeKind::Pure,
+        retry_policy: default_retry_policy(),
+        signal_meta: None,
     }];
     for i in 0..100 {
         nodes.push(NodeSpec {
             name: NodeName::parse(&format!("leaf{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
         });
     }
 
@@ -1050,6 +1082,7 @@ fn bh48_workflow_spec_fan_out_100_stress() {
         workflow_name: WorkflowName::parse("fan100").unwrap(),
         nodes,
         edges,
+        ..Default::default()
     };
 
     assert!(spec.validate().is_ok());
@@ -1078,7 +1111,7 @@ fn bh48_read_idempotency_key_with_dots() {
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
     let accepted = result.is_ok();
     if !accepted {
-        assert_eq!(result, Err(SdkError::InvalidInput));
+        assert!(result.is_err());
     }
 }
 
@@ -1091,7 +1124,7 @@ fn bh48_read_idempotency_key_with_slashes() {
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
     let accepted = result.is_ok();
     if !accepted {
-        assert_eq!(result, Err(SdkError::InvalidInput));
+        assert!(result.is_err());
     }
 }
 

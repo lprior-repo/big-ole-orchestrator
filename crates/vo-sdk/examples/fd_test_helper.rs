@@ -177,16 +177,16 @@ fn test_read_input_with_fd3() -> Result<(), TestError> {
     let _redirect = Fd3Redirect::new(&input_data)?;
 
     let result = vo_sdk::read_input()?;
-    if result.idempotency_key.as_str() != "test-key" {
+    if result.idempotency_key().as_str() != "test-key" {
         return Err(TestError::Assertion(format!(
             "Expected idempotency_key 'test-key', got '{}'",
-            result.idempotency_key.as_str()
+            result.idempotency_key().as_str()
         )));
     }
-    if result.data != serde_json::json!({"a": 1}) {
+    if result.data() != &serde_json::json!({"a": 1}) {
         return Err(TestError::Assertion(format!(
             "Expected data {{'a': 1}}, got {}",
-            result.data
+            result.data()
         )));
     }
     Ok(())

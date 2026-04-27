@@ -6,7 +6,7 @@ use proptest::string::string_regex;
 use crate::plugin::*;
 use crate::FenceToken;
 
-proptest::proptest! {
+proptest! {
     #[test]
     fn plugin_version_ordering_is_transitive(
         v1_major in 0u32..10u32,

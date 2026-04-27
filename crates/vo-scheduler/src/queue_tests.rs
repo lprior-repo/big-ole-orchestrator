@@ -1,3 +1,4 @@
+use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
@@ -588,4 +589,130 @@ fn list_by_states_with_empty_slice_returns_nothing() {
 
     let results = queue.list_by_states(&[]);
     assert!(results.is_empty());
+}
+
+// === Priority Queue Starvation Prevention Tests ===
+
+#[test]
+fn starvation_prevention_same_priority_fifo_order() {
+    let mut queue = SchedulerQueue::new(100);
+    let job1 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let job2 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id1 = job1.id;
+    let id2 = job2.id;
+    queue.insert(job1).unwrap();
+    std::thread::sleep(Duration::from_millis(10));
+    queue.insert(job2).unwrap();
+    let popped1 = queue.pop_due(Utc::now()).unwrap();
+    let popped2 = queue.pop_due(Utc::now()).unwrap();
+    assert_eq!(popped1.id, id1);
+    assert_eq!(popped2.id, id2);
+}
+
+#[test]
+fn starvation_prevention_low_priority_waits_for_high() {
+    let mut queue = SchedulerQueue::new(100);
+    let low_job = make_job(JobPriority::Low, SchedulePolicy::Immediate);
+    let high_job = make_job(JobPriority::High, SchedulePolicy::Immediate);
+    let low_id = low_job.id;
+    queue.insert(low_job).unwrap();
+    queue.insert(high_job).unwrap();
+    let popped = queue.pop_due(Utc::now()).unwrap();
+    assert_ne!(popped.id, low_id);
+}
+
+#[test]
+fn starvation_prevention_background_gets_scheduled_eventually() {
+    let mut queue = SchedulerQueue::new(100);
+    let bg_job = make_job(JobPriority::Background, SchedulePolicy::Immediate);
+    let crit_job = make_job(JobPriority::Critical, SchedulePolicy::Immediate);
+    let normal_job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let bg_id = bg_job.id;
+    queue.insert(bg_job).unwrap();
+    queue.insert(crit_job).unwrap();
+    queue.insert(normal_job).unwrap();
+    queue.pop_due(Utc::now()).unwrap();
+    queue.pop_due(Utc::now()).unwrap();
+    let popped = queue.pop_due(Utc::now()).unwrap();
+    assert_eq!(popped.id, bg_id);
+}
+
+#[test]
+fn starvation_prevention_different_due_times_same_priority() {
+    let mut queue = SchedulerQueue::new(100);
+    let later = make_job(JobPriority::Normal, SchedulePolicy::At(future_time()));
+    let earlier = make_job(JobPriority::Normal, SchedulePolicy::At(past_time()));
+    let earlier_id = earlier.id;
+    queue.insert(later).unwrap();
+    queue.insert(earlier).unwrap();
+    let popped = queue.pop_due(Utc::now()).unwrap();
+    assert_eq!(popped.id, earlier_id);
+}
+
+#[test]
+fn starvation_prevention_five_priority_levels_all_served() {
+    let mut queue = SchedulerQueue::new(100);
+    let crit = make_job(JobPriority::Critical, SchedulePolicy::Immediate);
+    let high = make_job(JobPriority::High, SchedulePolicy::Immediate);
+    let normal = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let low = make_job(JobPriority::Low, SchedulePolicy::Immediate);
+    let bg = make_job(JobPriority::Background, SchedulePolicy::Immediate);
+    queue.insert(bg).unwrap();
+    queue.insert(low).unwrap();
+    queue.insert(normal).unwrap();
+    queue.insert(high).unwrap();
+    queue.insert(crit).unwrap();
+    let order = [
+        queue.pop_due(Utc::now()).unwrap().priority,
+        queue.pop_due(Utc::now()).unwrap().priority,
+        queue.pop_due(Utc::now()).unwrap().priority,
+        queue.pop_due(Utc::now()).unwrap().priority,
+        queue.pop_due(Utc::now()).unwrap().priority,
+    ];
+    assert_eq!(order[0], JobPriority::Critical);
+    assert_eq!(order[1], JobPriority::High);
+    assert_eq!(order[2], JobPriority::Normal);
+    assert_eq!(order[3], JobPriority::Low);
+    assert_eq!(order[4], JobPriority::Background);
+}
+
+#[test]
+fn priority_queue_ordering_maintained_after_cancellations() {
+    let mut queue = SchedulerQueue::new(100);
+    let job1 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let job2 = make_job(JobPriority::High, SchedulePolicy::Immediate);
+    let job3 = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id1 = job1.id;
+    let id2 = job2.id;
+    let id3 = job3.id;
+    queue.insert(job1).unwrap();
+    queue.insert(job2).unwrap();
+    queue.insert(job3).unwrap();
+    queue.cancel(&id1).unwrap();
+    let first = queue.pop_due(Utc::now()).unwrap();
+    assert_eq!(first.id, id2);
+    let second = queue.pop_due(Utc::now()).unwrap();
+    assert_eq!(second.id, id3);
+}
+
+#[test]
+fn priority_queue_lookups_after_operations() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+    assert!(queue.lookup(&id).is_ok());
+    queue.pop_due(Utc::now()).unwrap();
+    assert!(queue.lookup(&id).is_err());
+}
+
+#[test]
+fn priority_queue_state_reflected_in_lookups() {
+    let mut queue = SchedulerQueue::new(100);
+    let job = make_job(JobPriority::Normal, SchedulePolicy::Immediate);
+    let id = job.id;
+    queue.insert(job).unwrap();
+    assert_eq!(queue.get_state(&id), Some(JobState::Pending));
+    queue.update_state(&id, JobState::Running).unwrap();
+    assert_eq!(queue.get_state(&id), Some(JobState::Running));
 }

@@ -123,6 +123,7 @@ fn rq_serde_nodespec_roundtrip_preserves_kind() {
         let ns = NodeSpec {
             name: NodeName::parse("n").unwrap(),
             kind,
+            ..Default::default()
         };
         let j = serde_json::to_string(&ns).unwrap();
         let back: NodeSpec = serde_json::from_str(&j).unwrap();

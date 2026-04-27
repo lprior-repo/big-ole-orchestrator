@@ -47,10 +47,7 @@ pub struct NodeCapability {
 
 impl Default for NodeCapability {
     fn default() -> Self {
-        Self {
-            kind: NodeKind::default(),
-            connector: None,
-        }
+        Self::new(NodeKind::Pure)
     }
 }
 
@@ -67,12 +64,6 @@ impl NodeCapability {
     pub fn with_connector(mut self, connector: ConnectorRequirement) -> Self {
         self.connector = Some(connector);
         self
-    }
-}
-
-impl Default for NodeCapability {
-    fn default() -> Self {
-        Self::new(NodeKind::Pure)
     }
 }
 

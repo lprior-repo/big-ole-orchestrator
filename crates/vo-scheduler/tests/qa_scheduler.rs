@@ -74,12 +74,12 @@ fn cron_schedule_accepted_and_stored() {
     let job = ScheduledJob::new(
         JobKind::Recurring,
         JobPriority::Background,
-        SchedulePolicy::Cron("*/5 * * * *".into()),
+        SchedulePolicy::Cron { expr: "*/5 * * * *".into() },
         RetryPolicy::default(),
         vec![].into(),
     )
     .unwrap();
-    assert!(matches!(job.schedule_policy, SchedulePolicy::Cron(ref s) if s == "*/5 * * * *"));
+    assert!(matches!(job.schedule_policy, SchedulePolicy::Cron { ref expr } if expr == "*/5 * * * *"));
     assert_eq!(job.kind, JobKind::Recurring);
 }
 
@@ -88,7 +88,7 @@ fn cron_invalid_expression_rejected() {
     let result = ScheduledJob::new(
         JobKind::Recurring,
         JobPriority::Normal,
-        SchedulePolicy::Cron("invalid".to_string()),
+        SchedulePolicy::Cron { expr: "invalid".to_string() },
         RetryPolicy::default(),
         bytes::Bytes::new(),
     );

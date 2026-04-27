@@ -9,7 +9,8 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, SignalScope, WorkflowName};
+pub use vo_types::{DedupeScope, GuaranteeClass, RetryPolicy, SignalScope};
+use vo_types::{NodeName, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -63,7 +64,18 @@ pub struct NodeSpec {
     pub signal_meta: Option<SignalNodeMeta>,
 }
 
-fn default_retry_policy() -> RetryPolicy {
+impl Default for NodeSpec {
+    fn default() -> Self {
+        Self {
+            name: NodeName::parse("_unnamed").expect("valid"),
+            kind: NodeKind::Pure,
+            retry_policy: default_retry_policy(),
+            signal_meta: None,
+        }
+    }
+}
+
+pub fn default_retry_policy() -> RetryPolicy {
     RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,
@@ -111,6 +123,18 @@ pub struct WorkflowSpec {
     pub dedupe_scope: DedupeScope,
     #[serde(default)]
     pub guarantee_class: GuaranteeClass,
+}
+
+impl Default for WorkflowSpec {
+    fn default() -> Self {
+        Self {
+            workflow_name: WorkflowName::parse("_unnamed").expect("valid"),
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            dedupe_scope: DedupeScope::Unbounded,
+            guarantee_class: GuaranteeClass::ExactOnce,
+        }
+    }
 }
 
 fn default_dedupe_scope() -> DedupeScope {
@@ -418,16 +442,19 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("step_b").unwrap(),
                     kind: NodeKind::ManagedEffect,
+                    ..Default::default()
                 },
             ],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("step_b").unwrap(),
             }],
+            ..Default::default()
         };
         assert!(spec.validate().is_ok());
     }
@@ -440,13 +467,16 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("step_a").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
             ],
             edges: vec![],
+            ..Default::default()
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -464,11 +494,13 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                ..Default::default()
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("ghost").unwrap(),
                 to: NodeName::parse("step_a").unwrap(),
             }],
+            ..Default::default()
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -486,11 +518,13 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                ..Default::default()
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("ghost").unwrap(),
             }],
+            ..Default::default()
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -508,11 +542,13 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("step_a").unwrap(),
                 kind: NodeKind::Pure,
+                ..Default::default()
             }],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("step_a").unwrap(),
                 to: NodeName::parse("step_a").unwrap(),
             }],
+            ..Default::default()
         };
         let err = spec.validate().unwrap_err();
         assert_eq!(
@@ -531,14 +567,17 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("a").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("b").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("c").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
             ],
             edges: vec![
@@ -555,6 +594,7 @@ mod tests {
                     to: NodeName::parse("a").unwrap(),
                 },
             ],
+            ..Default::default()
         };
         let err = spec.validate().unwrap_err();
         assert!(matches!(err, ValidationError::CycleDetected { .. }));
@@ -568,18 +608,22 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("start").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("left").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("right").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("end").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
             ],
             edges: vec![
@@ -600,6 +644,7 @@ mod tests {
                     to: NodeName::parse("end").unwrap(),
                 },
             ],
+            ..Default::default()
         };
         assert!(spec.validate().is_ok());
     }
@@ -611,8 +656,10 @@ mod tests {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("solo").unwrap(),
                 kind: NodeKind::Pure,
+                ..Default::default()
             }],
             edges: vec![],
+            ..Default::default()
         };
         assert!(spec.validate().is_ok());
     }
@@ -625,17 +672,19 @@ mod tests {
                 NodeSpec {
                     name: NodeName::parse("validate").unwrap(),
                     kind: NodeKind::Pure,
+                    ..Default::default()
                 },
                 NodeSpec {
                     name: NodeName::parse("charge").unwrap(),
                     kind: NodeKind::ManagedEffect,
+                    ..Default::default()
                 },
             ],
             edges: vec![EdgeSpec {
                 from: NodeName::parse("validate").unwrap(),
                 to: NodeName::parse("charge").unwrap(),
             }],
-            dedupe_scope: DedupeScope::WorkflowId,
+            dedupe_scope: DedupeScope::default(),
             guarantee_class: GuaranteeClass::ExactOnce,
         };
 

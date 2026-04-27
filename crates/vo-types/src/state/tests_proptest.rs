@@ -1,6 +1,7 @@
 //! Property-based tests for LeaseRecord immutability and lifecycle transitions.
 
 use super::{apply, LeaseRecord, LifecycleState, TransitionError, TransitionEvent};
+use proptest::proptest;
 
 proptest! {
     #[test]

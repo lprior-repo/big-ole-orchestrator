@@ -9,6 +9,7 @@
 //! - [`graph`] - Graph emission: `--graph` CLI argument handling and workflow specification types
 //! - [`dag`] - DAG construction with compile-time type-safe workflow graph builder
 //! - [`node_handle`] - Typed node handles for workflow connections
+//! - [`execute`] - Node execution: `--execute-node` CLI argument handling and node registry
 //!
 //! ## Write-once invariant
 //! `write_success` / `write_failure` may be called at most once per process lifetime.
@@ -58,11 +59,13 @@
 //! This provides sub-millisecond startup vs ~200ms for a full Tokio multi-threaded runtime.
 
 pub mod dag;
+pub mod execute;
 pub mod graph;
 pub mod node_handle;
 pub mod runtime;
 
 pub use dag::Workflow;
+pub use execute::{dispatch_execute, parse_execute_args, ExecuteArgs, ExecuteArgsError, NodeRegistry};
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     SignalNodeMeta, ValidationError, WorkflowSpec,

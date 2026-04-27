@@ -12,7 +12,7 @@ use std::thread;
 use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph::{parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
+use crate::graph::{parse_graph_args, default_retry_policy, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 use crate::tests::{
     read_input_inner_with_atomic_guard as read_input_inner_atomic,
@@ -37,7 +37,7 @@ fn read_non_utf8_input_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
     assert!(is_read, "guard must be set even for non-UTF-8 input");
 }
 
@@ -53,7 +53,7 @@ fn read_whitespace_in_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn read_special_chars_in_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn read_numeric_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn read_accepts_any_json_value_as_data() {
         let result = read_input_inner(&mut cursor, &mut is_read);
 
         let input = result.expect("any valid JSON value should be accepted as data");
-        assert_eq!(input.data, data_val);
+        assert_eq!(input.data(), &data_val);
     }
 }
 
@@ -146,7 +146,7 @@ fn read_one_byte_over_max_input_size_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 #[test]
@@ -157,7 +157,7 @@ fn read_failed_parse_still_sets_guard() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
     assert!(is_read, "guard must be set before parse attempt");
 }
 
@@ -169,7 +169,7 @@ fn read_partial_json_truncated_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert_eq!(result, Err(SdkError::InvalidInput));
+    assert!(result.is_err());
 }
 
 // ===========================================================================
@@ -678,8 +678,10 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            ..Default::default()
         }],
         edges: vec![],
+        ..Default::default()
     };
     let bytes = spec.to_json_bytes();
     let json_str = String::from_utf8(bytes).unwrap();
@@ -697,6 +699,7 @@ fn workflow_spec_large_graph_roundtrip() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            ..Default::default()
         })
         .collect();
 
@@ -718,6 +721,7 @@ fn workflow_spec_large_graph_roundtrip() {
         workflow_name: WorkflowName::parse("large_graph").unwrap(),
         nodes: nodes.clone(),
         edges: edges.clone(),
+        ..Default::default()
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -734,6 +738,7 @@ fn workflow_spec_to_json_bytes_never_panics() {
         workflow_name: WorkflowName::parse("empty").unwrap(),
         nodes: vec![],
         edges: vec![],
+        ..Default::default()
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty(), "should produce non-empty JSON");

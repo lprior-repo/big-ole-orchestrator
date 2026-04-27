@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::io::Write as _;
 use std::panic;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -72,8 +71,8 @@ where
 
     // Set up shared state for coordinating with the signal handler.
     let (done_tx, done_rx) = watch::channel(false);
-    let done_rx_for_signal = done_rx;
-    let done_rx_for_signal = Arc::new(done_rx_for_signal);
+    let mut done_rx_for_signal = done_rx;
+    let done_tx_for_signal = done_tx.clone();
 
     // Spawn a background thread that handles SIGTERM (ADR-019).
     // This thread creates its own tokio runtime for signal handling.
@@ -107,7 +106,7 @@ where
                 .expect("Failed to build notification runtime");
 
             notify_rt.block_on(async {
-                let _ = done_tx.send_replace(true);
+                let _ = done_tx_for_signal.send_replace(true);
                 // Give the main runtime a moment to notice and finish cleanup.
                 tokio::time::sleep(Duration::from_millis(100)).await;
             });
@@ -140,38 +139,40 @@ where
     let task_result = rt.block_on(async {
         // Spawn the actual task so we can cancel it on shutdown.
         let task_handle = tokio::spawn(task(input));
+        let mut task_handle = Some(task_handle);
 
         // Wait for either task completion or shutdown signal.
         tokio::select! {
-            result = task_handle => {
+            result = task_handle.take().unwrap() => {
                 result.unwrap_or_else(|e| {
                     Err(crate::TaskFailureKind::System)
                 })
             }
             _ = done_rx_for_signal.changed() => {
                 // Shutdown signal received. Cancel the task.
-                task_handle.abort();
-
-                // Wait for the task to finish (up to 2 second grace period).
-                let cancel_result = timeout(Duration::from_secs(2), task_handle).await;
-                match cancel_result {
-                    Ok(Ok(Ok(_))) => {} // Task completed during grace period.
-                    Ok(Ok(Err(kind))) => {
-                        let _ = crate::io::write_failure(kind, "task cancelled by shutdown signal");
-                    }
-                    Ok(Err(_)) => {
-                        // Task was aborted (join error).
-                        let _ = crate::io::write_failure(
-                            crate::TaskFailureKind::Timeout,
-                            "task aborted by shutdown signal",
-                        );
-                    }
-                    Err(_) => {
-                        // Timeout expired. Task was forcibly killed.
-                        let _ = crate::io::write_failure(
-                            crate::TaskFailureKind::Timeout,
-                            "task did not respond to shutdown signal",
-                        );
+                if let Some(handle) = task_handle.take() {
+                    handle.abort();
+                    // Wait for the task to finish (up to 2 second grace period).
+                    let cancel_result = tokio::time::timeout(Duration::from_secs(2), handle).await;
+                    match cancel_result {
+                        Ok(Ok(Ok(_))) => {} // Task completed during grace period.
+                        Ok(Ok(Err(kind))) => {
+                            let _ = crate::io::write_failure(kind, "task cancelled by shutdown signal");
+                        }
+                        Ok(Err(_)) => {
+                            // Task was aborted (join error).
+                            let _ = crate::io::write_failure(
+                                crate::TaskFailureKind::Timeout,
+                                "task aborted by shutdown signal",
+                            );
+                        }
+                        Err(_) => {
+                            // Timeout expired. Task was forcibly killed.
+                            let _ = crate::io::write_failure(
+                                crate::TaskFailureKind::Timeout,
+                                "task did not respond to shutdown signal",
+                            );
+                        }
                     }
                 }
 

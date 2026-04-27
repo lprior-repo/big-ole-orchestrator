@@ -26,8 +26,8 @@ fn read_input_inner_with_state_valid_json_succeeds() {
     let result = read_input_inner_with_state(&mut reader, &mut is_read);
     assert!(result.is_ok(), "Expected Ok, got {:?}", result);
     let input = result.unwrap();
-    assert_eq!(input.idempotency_key.as_str(), "test-key");
-    assert_eq!(input.data, json!({"a": 1}));
+    assert_eq!(input.idempotency_key().as_str(), "test-key");
+    assert_eq!(input.data(), &json!({"a": 1}));
 }
 
 #[test]

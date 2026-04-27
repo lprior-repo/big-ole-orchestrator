@@ -146,7 +146,7 @@ pub use search::{
 };
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
-    SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
+    SignalDelivery, SignalMatchResult, SignalScope, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{

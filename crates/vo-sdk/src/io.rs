@@ -292,8 +292,8 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// let input = vo_sdk::read_input()?;
 /// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
 /// ```
-pub fn secret(input: &vo_types::TaskInput, key: &str) -> Option<&str> {
-    input.secret(key)
+pub fn secret<'a>(input: &'a vo_types::TaskInput, _key: &str) -> Option<&'a str> {
+    input.secret(_key)
 }
 
 /// Parse and validate a JSON buffer into a `TaskInput`.

@@ -672,16 +672,19 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
             NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: NodeKind::Pure,
+                ..Default::default()
             },
             NodeSpec {
                 name: NodeName::parse("node-b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
+                ..Default::default()
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("node-a").expect("valid"),
             to: NodeName::parse("node-b").expect("valid"),
         }],
+        ..Default::default()
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -716,6 +719,7 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
         workflow_name: WorkflowName::parse("empty_via_serde").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        ..Default::default()
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");

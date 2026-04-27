@@ -30,7 +30,7 @@ impl ScheduledJob {
         retry_policy: RetryPolicy,
         payload: SerializedPayload,
     ) -> Result<Self, SchedulerError> {
-        if let SchedulePolicy::Cron(ref expr) = schedule_policy {
+        if let SchedulePolicy::Cron { ref expr } = schedule_policy {
             SchedulePolicy::validate_cron(expr)?;
         }
         let now = Utc::now();
@@ -38,7 +38,7 @@ impl ScheduledJob {
             SchedulePolicy::At(t) => *t,
             SchedulePolicy::After(d) => now + chrono::Duration::from_std(*d).unwrap_or_default(),
             SchedulePolicy::Immediate => now,
-            SchedulePolicy::Cron(_) => now,
+            SchedulePolicy::Cron { .. } => now,
         };
         let state = if due_at <= now {
             JobState::Pending

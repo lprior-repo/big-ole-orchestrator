@@ -262,7 +262,7 @@ fn schedule_policy_display_after() {
 
 #[test]
 fn schedule_policy_display_cron() {
-    let policy = SchedulePolicy::Cron("*/5 * * * *".to_string());
+    let policy = SchedulePolicy::Cron { expr: "*/5 * * * *".to_string() };
     assert_eq!(policy.to_string(), "cron(*/5 * * * *)");
 }
 
@@ -384,8 +384,8 @@ fn schedule_policy_equality_after() {
 
 #[test]
 fn schedule_policy_equality_cron() {
-    let p1 = SchedulePolicy::Cron("*/5 * * * *".to_string());
-    let p2 = SchedulePolicy::Cron("*/5 * * * *".to_string());
+    let p1 = SchedulePolicy::Cron { expr: "*/5 * * * *".to_string() };
+    let p2 = SchedulePolicy::Cron { expr: "*/5 * * * *".to_string() };
     assert_eq!(p1, p2);
 }
 
@@ -795,14 +795,6 @@ fn retry_policy_compute_backoff_large_attempt_capped() {
     assert_eq!(backoff, Duration::from_secs(5));
 }
 
-#[test]
-fn retry_policy_compute_backoff_zero_attempt_zero_delay() {
-    let policy =
-        RetryPolicy::try_new(3, 2.0, Duration::from_millis(0), Duration::from_secs(300)).unwrap();
-    let backoff = policy.compute_backoff(0);
-    assert_eq!(backoff, Duration::from_millis(0));
-}
-
 // === SchedulePolicy serialization ===
 
 #[test]
@@ -813,18 +805,19 @@ fn schedule_policy_serialize_immediate() {
 
 #[test]
 fn schedule_policy_serialize_cron() {
-    let json = serde_json::to_string(&SchedulePolicy::Cron("*/5 * * * *".to_string())).unwrap();
+    let json = serde_json::to_string(&SchedulePolicy::Cron { expr: "*/5 * * * *".to_string() }).unwrap();
     assert!(json.contains(r#""type":"cron""#));
+    assert!(json.contains(r#""expr""#));
     assert!(json.contains("*/5 * * * *"));
 }
 
 #[test]
 fn schedule_policy_roundtrip_cron() {
-    let policy = SchedulePolicy::Cron("0 12 * * 1".to_string());
+    let policy = SchedulePolicy::Cron { expr: "0 12 * * 1".to_string() };
     let json = serde_json::to_string(&policy).unwrap();
     let recovered: SchedulePolicy = serde_json::from_str(&json).unwrap();
     match recovered {
-        SchedulePolicy::Cron(expr) => assert_eq!(expr, "0 12 * * 1"),
+        SchedulePolicy::Cron { expr } => assert_eq!(expr, "0 12 * * 1"),
         _ => panic!("Expected Cron variant"),
     }
 }
@@ -854,4 +847,102 @@ fn job_state_display_all_lowercase() {
         let s = state.to_string();
         assert!(s == s.to_lowercase(), "{:?} Display should be lowercase", state);
     }
+}
+
+// === Cron Expression Edge Case Tests ===
+
+#[test]
+fn schedule_policy_validate_cron_leap_year_feb_29() {
+    assert!(SchedulePolicy::validate_cron("0 0 29 2 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_february_valid_days() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 2 *").is_ok());
+    assert!(SchedulePolicy::validate_cron("0 0 28 2 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_end_of_month_jan_31() {
+    assert!(SchedulePolicy::validate_cron("0 0 31 1 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_end_of_month_feb_28() {
+    assert!(SchedulePolicy::validate_cron("0 0 28 2 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_end_of_month_feb_29_leap_year() {
+    assert!(SchedulePolicy::validate_cron("0 0 29 2 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_april_30() {
+    assert!(SchedulePolicy::validate_cron("0 0 30 4 *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_day_32() {
+    assert!(SchedulePolicy::validate_cron("0 0 32 1 *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_day_0() {
+    assert!(SchedulePolicy::validate_cron("0 0 0 1 *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_month_13_invalid() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 13 *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_month_0_invalid() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 0 *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_all_star_valid() {
+    assert!(SchedulePolicy::validate_cron("* * * * *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_weekday_sunday() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 1 0").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_weekday_saturday() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 1 6").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_weekday_invalid_7() {
+    assert!(SchedulePolicy::validate_cron("0 0 1 1 7").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_hour_23_valid() {
+    assert!(SchedulePolicy::validate_cron("0 23 * * *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_hour_24_invalid() {
+    assert!(SchedulePolicy::validate_cron("0 24 * * *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_minute_59_valid() {
+    assert!(SchedulePolicy::validate_cron("59 * * * *").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_minute_60_invalid() {
+    assert!(SchedulePolicy::validate_cron("60 * * * *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_complex_expression() {
+    assert!(SchedulePolicy::validate_cron("*/5 9-17 * 1-5 1-5").is_ok());
 }

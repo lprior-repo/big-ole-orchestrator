@@ -60,6 +60,7 @@ fn sdk_workflow_spec_has_no_version_field() {
         workflow_name: vo_types::WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
         edges: vec![],
+        ..Default::default()
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
@@ -76,16 +77,21 @@ fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("a").expect("valid"),
                 kind: NodeKind::Pure,
+                retry_policy: crate::graph::default_retry_policy(),
+                signal_meta: None,
             },
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
+                retry_policy: crate::graph::default_retry_policy(),
+                signal_meta: None,
             },
         ],
         edges: vec![crate::EdgeSpec {
             from: vo_types::NodeName::parse("a").expect("valid"),
             to: vo_types::NodeName::parse("b").expect("valid"),
         }],
+        ..Default::default()
     };
 
     let json1 = serde_json::to_string(&spec).expect("serialize");
