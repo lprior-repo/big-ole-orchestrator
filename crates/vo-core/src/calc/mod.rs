@@ -8,8 +8,8 @@
 //! unexpired. Only the holding node may renew. Time-based expiration is
 //! determined through pure chronological calculation.
 
-pub mod timing;
 pub mod timeout;
+pub mod timing;
 
 use vo_types::NodeName;
 

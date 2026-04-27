@@ -12,7 +12,10 @@ use vo_types::InstanceId;
 
 use super::actor::{SpawnSupervisor, SpawnSupervisorHandle};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord};
+use super::{
+    Counter, CycleResult, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+    SpawnSupervisorMetrics, WorkQueue,
+};
 
 fn test_instance_id() -> InstanceId {
     let ulid = Ulid::new();
@@ -25,9 +28,9 @@ fn test_instance_id() -> InstanceId {
 
 #[test]
 fn spawn_supervisor_rejects_zero_health_check_interval() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::ZERO,
@@ -40,14 +43,17 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
         Arc::new(wq),
     );
 
-    assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(_))
+    ));
 }
 
 #[test]
 fn spawn_supervisor_rejects_zero_max_health_checks() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -60,14 +66,17 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
         Arc::new(wq),
     );
 
-    assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(_))
+    ));
 }
 
 #[test]
 fn spawn_supervisor_rejects_zero_initial_backoff() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -80,14 +89,17 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
         Arc::new(wq),
     );
 
-    assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(_))
+    ));
 }
 
 #[test]
 fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -100,7 +112,10 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
         Arc::new(wq),
     );
 
-    assert!(matches!(result, Err(SpawnSupervisorError::InvalidConfig(_))));
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(_))
+    ));
 }
 
 // =============================================================================
@@ -109,9 +124,9 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
 
 #[test]
 fn spawn_supervisor_constructs_with_valid_config() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let supervisor = SpawnSupervisor::new(
         Duration::from_secs(10),
@@ -139,9 +154,9 @@ fn spawn_supervisor_constructs_with_valid_config() {
 
 #[test]
 fn spawn_supervisor_debug_format() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let supervisor = SpawnSupervisor::new(
         Duration::from_secs(10),
@@ -152,7 +167,8 @@ fn spawn_supervisor_debug_format() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
-    ).unwrap();
+    )
+    .unwrap();
 
     let debug_str = format!("{:?}", supervisor);
     assert!(debug_str.contains("SpawnSupervisor"));
@@ -195,11 +211,28 @@ struct MockStorage;
 
 #[async_trait::async_trait]
 impl SpawnStorage for MockStorage {
-    async fn get_spawn_record(&self, _instance_id: &InstanceId) -> Option<SpawnRecord> { None }
-    async fn save_spawn_record(&self, _record: &SpawnRecord) -> Result<(), SpawnSupervisorError> { Ok(()) }
-    async fn delete_spawn_record(&self, _instance_id: &InstanceId) -> Result<(), SpawnSupervisorError> { Ok(()) }
-    async fn scan_spawns_by_phase(&self, _phase: SpawnPhase, _max: u32) -> Vec<SpawnRecord> { vec![] }
-    async fn transition_phase(&self, _instance_id: &InstanceId, _new_phase: SpawnPhase) -> Result<(), SpawnSupervisorError> { Ok(()) }
+    async fn get_spawn_record(&self, _instance_id: &InstanceId) -> Option<SpawnRecord> {
+        None
+    }
+    async fn save_spawn_record(&self, _record: &SpawnRecord) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
+    async fn delete_spawn_record(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
+    async fn scan_spawns_by_phase(&self, _phase: SpawnPhase, _max: u32) -> Vec<SpawnRecord> {
+        vec![]
+    }
+    async fn transition_phase(
+        &self,
+        _instance_id: &InstanceId,
+        _new_phase: SpawnPhase,
+    ) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Default)]
@@ -207,13 +240,25 @@ struct MockProcessManager;
 
 #[async_trait::async_trait]
 impl ProcessManager for MockProcessManager {
-    async fn spawn_process(&self, _executable: &std::path::Path, _args: &[String]) -> Result<ProcessHandle, SpawnSupervisorError> {
+    async fn spawn_process(
+        &self,
+        _executable: &std::path::Path,
+        _args: &[String],
+    ) -> Result<ProcessHandle, SpawnSupervisorError> {
         Ok(ProcessHandle::new(1, PathBuf::from("test"), vec![]))
     }
-    async fn check_health(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> { Ok(true) }
-    async fn is_zombie(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> { Ok(false) }
-    async fn terminate(&self, _pid: u32) -> Result<(), SpawnSupervisorError> { Ok(()) }
-    async fn wait(&self, _pid: u32) -> Result<i32, SpawnSupervisorError> { Ok(0) }
+    async fn check_health(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
+        Ok(true)
+    }
+    async fn is_zombie(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
+        Ok(false)
+    }
+    async fn terminate(&self, _pid: u32) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
+    async fn wait(&self, _pid: u32) -> Result<i32, SpawnSupervisorError> {
+        Ok(0)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -221,6 +266,15 @@ struct MockWorkQueue;
 
 #[async_trait::async_trait]
 impl WorkQueue for MockWorkQueue {
-    async fn enqueue_spawn(&self, _instance_id: InstanceId, _executable: PathBuf, _args: Vec<String>) -> Result<(), SpawnSupervisorError> { Ok(()) }
-    async fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), SpawnSupervisorError> { Ok(()) }
+    async fn enqueue_spawn(
+        &self,
+        _instance_id: InstanceId,
+        _executable: PathBuf,
+        _args: Vec<String>,
+    ) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
+    async fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
 }

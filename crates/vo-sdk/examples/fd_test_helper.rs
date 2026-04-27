@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+use std::os::unix::io::IntoRawFd;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -33,10 +33,10 @@ impl Fd3Redirect {
                 unsafe { libc::dup2(original_fd, 3) };
                 unsafe { libc::close(original_fd) };
             }
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Expected temp_fd=3, got {}", temp_fd),
-            ));
+            return Err(std::io::Error::other(format!(
+                "Expected temp_fd=3, got {}",
+                temp_fd
+            )));
         }
 
         Ok(Self {
@@ -177,16 +177,16 @@ fn test_read_input_with_fd3() -> Result<(), TestError> {
     let _redirect = Fd3Redirect::new(&input_data)?;
 
     let result = vo_sdk::read_input()?;
-    if result.idempotency_key().as_str() != "test-key" {
+    if result.idempotency_key.as_str() != "test-key" {
         return Err(TestError::Assertion(format!(
             "Expected idempotency_key 'test-key', got '{}'",
-            result.idempotency_key().as_str()
+            result.idempotency_key.as_str()
         )));
     }
-    if result.data() != &serde_json::json!({"a": 1}) {
+    if result.data != serde_json::json!({"a": 1}) {
         return Err(TestError::Assertion(format!(
             "Expected data {{'a': 1}}, got {}",
-            result.data()
+            result.data
         )));
     }
     Ok(())

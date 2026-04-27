@@ -140,28 +140,21 @@ pub fn commit_event_and_summary(
     let mut batch = db.batch();
 
     // 1. Encode and insert event into events partition
-    let event_key =
-        encode_event_key(&params.instance_id, &params.sequence_number)?;
+    let event_key = encode_event_key(&params.instance_id, &params.sequence_number)?;
     let event_value = encode_event_value(&params.event)?;
     batch.insert(&events_ks, &event_key, &event_value);
 
     // 2. Insert new instance status key into instances partition
-    let new_key = encode_instance_index_key(
-        params.new_status,
-        params.created_at,
-        &params.instance_id,
-    )?;
-    batch.insert(&instances_ks, &new_key, &[] as &[u8]);
+    let new_key =
+        encode_instance_index_key(params.new_status, params.created_at, &params.instance_id)?;
+    batch.insert(&instances_ks, new_key, &[] as &[u8]);
 
     // 3. If previous status differed, remove the old status key
     if let Some(old_status) = params.previous_status {
         if old_status != params.new_status {
-            let old_key = encode_instance_index_key(
-                old_status,
-                params.created_at,
-                &params.instance_id,
-            )?;
-            batch.remove(&instances_ks, &old_key);
+            let old_key =
+                encode_instance_index_key(old_status, params.created_at, &params.instance_id)?;
+            batch.remove(&instances_ks, old_key);
         }
     }
 
@@ -177,7 +170,9 @@ pub fn commit_event_and_summary(
 /// This is used to verify atomicity: if a commit fails, reopening the DB
 /// should show no partial state.
 pub fn open_fresh_db(path: &std::path::Path) -> Result<Database, StorageError> {
-    Database::builder(path).open().map_err(|_| StorageError::Storage)
+    Database::builder(path)
+        .open()
+        .map_err(|_| StorageError::Storage)
 }
 
 /// Verify that event and summary are both visible after a successful commit.
@@ -207,10 +202,9 @@ pub fn verify_commit_visibility(
     let instances_ks = db
         .keyspace(INSTANCES_PARTITION, fjall::KeyspaceCreateOptions::default)
         .map_err(|_| StorageError::Storage)?;
-    let status_key =
-        encode_instance_index_key(expected_status, created_at, instance_id)?;
+    let status_key = encode_instance_index_key(expected_status, created_at, instance_id)?;
     let status_exists = instances_ks
-        .get(&status_key)
+        .get(status_key)
         .map_err(|_| StorageError::Storage)?
         .is_some();
 
@@ -233,7 +227,10 @@ pub fn verify_no_event_visible(
         .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
         .map_err(|_| StorageError::Storage)?;
     let event_key = encode_event_key(instance_id, sequence)?;
-    match events_ks.get(&event_key).map_err(|_| StorageError::Storage)? {
+    match events_ks
+        .get(&event_key)
+        .map_err(|_| StorageError::Storage)?
+    {
         Some(_) => Err(StorageError::KeyNotFound),
         None => Ok(()),
     }
@@ -250,7 +247,10 @@ pub fn verify_no_status_visible(
         .keyspace(INSTANCES_PARTITION, fjall::KeyspaceCreateOptions::default)
         .map_err(|_| StorageError::Storage)?;
     let status_key = encode_instance_index_key(status, created_at, instance_id)?;
-    match instances_ks.get(&status_key).map_err(|_| StorageError::Storage)? {
+    match instances_ks
+        .get(status_key)
+        .map_err(|_| StorageError::Storage)?
+    {
         Some(_) => Err(StorageError::KeyNotFound),
         None => Ok(()),
     }
@@ -268,7 +268,7 @@ mod tests {
     use vo_types::events::EventMetadata;
 
     fn make_instance_id(n: u8) -> InstanceId {
-        InstanceId::parse(&format!("{:026}", n)).expect("valid instance id")
+        InstanceId::parse(&format!("{n:026}")).expect("valid instance id")
     }
 
     fn make_sequence(n: u64) -> SequenceNumber {
@@ -284,7 +284,7 @@ mod tests {
             schema_version: 1,
             instance_id: instance_id.to_string(),
             sequence,
-            timestamp_ms: 1712200000000 + sequence,
+            timestamp_ms: 1_712_200_000_000 + sequence,
             payload: serde_json::json!({"type": "workflow_started", "seq": sequence}),
             metadata: EventMetadata::default(),
         }
@@ -297,7 +297,7 @@ mod tests {
         previous_status: Option<InstanceStatus>,
     ) -> CommitEventAndSummaryParams {
         let event = make_event(&instance_id, sequence);
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
         CommitEventAndSummaryParams::new(
             instance_id,
             make_sequence(sequence),
@@ -332,7 +332,7 @@ mod tests {
         assert!(result.is_ok(), "batch commit should succeed");
 
         // Then: verify both event and summary visible
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         let event_value = verify_commit_visibility(
             &db,
@@ -372,7 +372,7 @@ mod tests {
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
         // Verify both events and final status are visible in the same db
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         let ev1 = verify_commit_visibility(
             &db,
@@ -394,12 +394,8 @@ mod tests {
         );
         assert!(ev2.is_ok(), "second event should be visible");
 
-        let old_status_check = verify_no_status_visible(
-            &db,
-            &instance_id,
-            InstanceStatus::Running,
-            created_at,
-        );
+        let old_status_check =
+            verify_no_status_visible(&db, &instance_id, InstanceStatus::Running, created_at);
         assert!(
             old_status_check.is_err(),
             "old Running status key should have been removed"
@@ -411,8 +407,8 @@ mod tests {
     // ========================================================================
 
     #[test]
-    fn given_event_staged_and_summary_write_fails_when_batch_commits_then_no_partial_event_visible(
-    ) {
+    fn given_event_staged_and_summary_write_fails_when_batch_commits_then_no_partial_event_visible()
+    {
         let (_dir, db, _path) = make_temp_db();
         let instance_id = make_instance_id(3);
         let iid = instance_id.clone();
@@ -424,21 +420,24 @@ mod tests {
             .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
             .expect("open events keyspace");
         let event_key = encode_event_key(&iid, &make_sequence(1)).expect("encode key");
-        let event_value = encode_event_value(
-            &make_event(&iid, 1),
-        ).expect("encode value");
-        events2_ks.insert(&event_key, &event_value).expect("insert standalone event");
+        let event_value = encode_event_value(&make_event(&iid, 1)).expect("encode value");
+        events2_ks
+            .insert(&event_key, &event_value)
+            .expect("insert standalone event");
 
         // Standalone event is visible (non-atomic write is independently observable)
         let standalone_visible = events2_ks.get(&event_key).expect("get standalone");
-        assert!(standalone_visible.is_some(), "standalone event must be visible");
+        assert!(
+            standalone_visible.is_some(),
+            "standalone event must be visible"
+        );
 
         // Step 2: The atomic batch commit on db guarantees no partial state
         // If commit() fails, Fjall discards the entire batch — no key is visible
         let commit_result = commit_event_and_summary(&db, &params);
         assert!(commit_result.is_ok(), "atomic commit should succeed");
 
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         // Both event and summary must be visible together (atomic commit — all-or-nothing)
         let event_check = verify_commit_visibility(
@@ -471,7 +470,7 @@ mod tests {
 
         // Both must coexist — you cannot have one without the other
         // because they're in the same batch.
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         // Event and status must both be present
         assert!(verify_commit_visibility(
@@ -495,7 +494,7 @@ mod tests {
     fn given_status_transition_when_batch_commits_then_old_key_removed_new_key_inserted() {
         let (_dir, db, _path) = make_temp_db();
         let instance_id = make_instance_id(5);
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         // First: create instance in Running state
         let params1 = make_params(instance_id.clone(), 1, InstanceStatus::Running, None);
@@ -523,12 +522,8 @@ mod tests {
         assert!(result.is_ok(), "new Completed status must be visible");
 
         // Old status key (Running) must be removed
-        let old_result = verify_no_status_visible(
-            &db,
-            &instance_id,
-            InstanceStatus::Running,
-            created_at,
-        );
+        let old_result =
+            verify_no_status_visible(&db, &instance_id, InstanceStatus::Running, created_at);
         assert!(
             old_result.is_err(),
             "old Running status key should be removed"
@@ -567,7 +562,7 @@ mod tests {
         assert!(commit_event_and_summary(&db, &params2).is_ok());
 
         let fresh_db = open_fresh_db(&path).unwrap();
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
 
         // Both events visible, same status key present
         assert!(verify_commit_visibility(
@@ -613,10 +608,11 @@ mod tests {
 
         // Standalone event IS visible
         let _fresh = open_fresh_db(&path).unwrap();
-        let standalone_visible = events_ks
-            .get(&event_key)
-            .unwrap();
-        assert!(standalone_visible.is_some(), "standalone event must be visible");
+        let standalone_visible = events_ks.get(&event_key).unwrap();
+        assert!(
+            standalone_visible.is_some(),
+            "standalone event must be visible"
+        );
 
         // Now: atomic batch commit on separate DB
         let (_dir2, batch_db, _path2) = make_temp_db();
@@ -625,11 +621,14 @@ mod tests {
         // The batch commit either succeeds (both visible) or fails (none visible)
         // This is the core atomicity guarantee of fjall::OwnedWriteBatch
         let result = commit_event_and_summary(&batch_db, &params);
-        assert!(result.is_ok(), "batch commit should succeed in normal operation");
+        assert!(
+            result.is_ok(),
+            "batch commit should succeed in normal operation"
+        );
 
         // Both event and summary must be visible together
         let fresh2 = open_fresh_db(&_path2).unwrap();
-        let created_at = make_timestamp(1712200000000);
+        let created_at = make_timestamp(1_712_200_000_000);
         let visibility = verify_commit_visibility(
             &fresh2,
             &instance_id,

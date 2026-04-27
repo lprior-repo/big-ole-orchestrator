@@ -115,7 +115,7 @@ fn admit_signal_returns_admitted_for_new_signal() {
     let store = test_store();
     let iid = test_instance_id(1);
 
-    let result = admit_signal(&store, &iid, "approve", "sig-001", 5000);
+    let result = admit_signal(&store, "payments", &iid, "approve", "sig-001", 5000);
 
     assert_eq!(result, Ok(IngressAdmission::Admitted));
 }
@@ -125,8 +125,8 @@ fn admit_signal_returns_duplicate_for_same_signal_key() {
     let store = test_store();
     let iid = test_instance_id(1);
 
-    admit_signal(&store, &iid, "approve", "sig-002", 60_000).unwrap();
-    let result = admit_signal(&store, &iid, "approve", "sig-002", 60_000);
+    admit_signal(&store, "payments", &iid, "approve", "sig-002", 60_000).unwrap();
+    let result = admit_signal(&store, "payments", &iid, "approve", "sig-002", 60_000);
 
     assert!(
         matches!(result, Ok(IngressAdmission::Duplicate { .. })),
@@ -140,8 +140,8 @@ fn admit_signal_different_signal_names_are_independent() {
     let store = test_store();
     let iid = test_instance_id(1);
 
-    let r1 = admit_signal(&store, &iid, "approve", "sig-003", 5000);
-    let r2 = admit_signal(&store, &iid, "reject", "sig-003", 5000);
+    let r1 = admit_signal(&store, "payments", &iid, "approve", "sig-003", 5000);
+    let r2 = admit_signal(&store, "payments", &iid, "reject", "sig-003", 5000);
 
     assert_eq!(r1, Ok(IngressAdmission::Admitted));
     assert_eq!(r2, Ok(IngressAdmission::Admitted));
@@ -153,8 +153,8 @@ fn admit_signal_different_instances_are_independent() {
     let iid1 = test_instance_id(1);
     let iid2 = test_instance_id(2);
 
-    let r1 = admit_signal(&store, &iid1, "approve", "sig-004", 5000);
-    let r2 = admit_signal(&store, &iid2, "approve", "sig-004", 5000);
+    let r1 = admit_signal(&store, "payments", &iid1, "approve", "sig-004", 5000);
+    let r2 = admit_signal(&store, "payments", &iid2, "approve", "sig-004", 5000);
 
     assert_eq!(r1, Ok(IngressAdmission::Admitted));
     assert_eq!(r2, Ok(IngressAdmission::Admitted));

@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use uuid::Uuid;
-use vo_types::GuaranteeClass;
+pub use vo_types::GuaranteeClass;
 use vo_types::NodeKind;
 
 /// Re-export ExecutionState from edges::graph_types for UI compatibility.

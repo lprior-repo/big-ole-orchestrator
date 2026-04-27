@@ -242,10 +242,8 @@ impl DurableBudgetSaga {
         self.queues.try_enqueue(&staged).map_err(|e| {
             if let Some(ref store) = self.store {
                 let _ = store.rollback_entry(write_key);
-            } else {
-                if let Ok(mut m) = self.manifest.lock() {
-                    let _ = m.rollback(write_key);
-                }
+            } else if let Ok(mut m) = self.manifest.lock() {
+                let _ = m.rollback(write_key);
             }
             SagaError::BudgetReserveFailed(e.to_string())
         })?;

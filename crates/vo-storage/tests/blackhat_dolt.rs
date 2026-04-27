@@ -96,7 +96,7 @@ fn concurrent_writes_on_same_event_key_last_writer_wins() {
     }
 
     // Exactly one value survives — must be valid UTF-8 and decodable
-    let found = events.get(&key).unwrap().unwrap();
+    let found = events.get(key).unwrap().unwrap();
     let decoded_key = decode_event_key(&key).unwrap();
     assert_eq!(decoded_key.1.as_u64(), 42);
     let _text = std::str::from_utf8(&found).unwrap();

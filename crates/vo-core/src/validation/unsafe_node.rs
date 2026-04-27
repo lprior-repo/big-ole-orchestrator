@@ -129,13 +129,15 @@ mod tests {
 
     #[test]
     fn error_code_is_correct() {
-        assert_eq!(UnsafeNodeInExactWorkflow::error_code(), "unsafe_node_in_exact_workflow");
+        assert_eq!(
+            UnsafeNodeInExactWorkflow::error_code(),
+            "unsafe_node_in_exact_workflow"
+        );
     }
 
     #[test]
     fn empty_node_list_passes_for_exact_once() {
-        let result =
-            validate_no_unsafe_in_exact_workflow(GuaranteeClass::ExactOnce, &[]);
+        let result = validate_no_unsafe_in_exact_workflow(GuaranteeClass::ExactOnce, &[]);
         assert!(result.is_ok());
     }
 

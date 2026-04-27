@@ -6,7 +6,7 @@
 //! - Data corruption: corrupted keys and records are rejected gracefully
 //! - Concurrent access: multiple threads hammer the same journal
 //! - Idempotency stress: repeated prepare with different params preserves original
-//! - Boundary conditions: unicode, very long intent_ids, special JSON shapes
+//! - Boundary conditions: unicode, very long `intent_ids`, special JSON shapes
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -608,8 +608,7 @@ fn red_queen_concurrent_commit_rollback_on_same_effect_one_wins() {
         if let Err(e) = result {
             assert!(
                 matches!(e, super::super::EffectJournalError::AlreadyTerminal { .. }),
-                "BUG: concurrent race produced unexpected error: {:?}",
-                e
+                "BUG: concurrent race produced unexpected error: {e:?}"
             );
         }
     }
@@ -662,7 +661,7 @@ fn red_queen_prepare_with_all_effect_kinds() {
 
     for kind in &kinds {
         let record = vo_types::EffectRecord::new(
-            format!("fx-kind-{:?}", kind),
+            format!("fx-kind-{kind:?}"),
             *kind,
             json!({"kind_test": true}),
             EffectIntent::Prepared,
@@ -674,11 +673,10 @@ fn red_queen_prepare_with_all_effect_kinds() {
         let pending = journal.list_pending(&id).unwrap();
         let found = pending
             .iter()
-            .find(|r| r.intent_id() == format!("fx-kind-{:?}", kind));
+            .find(|r| r.intent_id() == format!("fx-kind-{kind:?}"));
         assert!(
             found.is_some(),
-            "BUG: effect with kind {:?} not found in pending",
-            kind
+            "BUG: effect with kind {kind:?} not found in pending"
         );
         assert_eq!(
             found.unwrap().kind(),
@@ -874,7 +872,7 @@ fn red_queen_error_display_contains_actionable_info() {
     let err = journal.rollback(&eid).unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains(&eid.as_str()),
+        msg.contains(eid.as_str()),
         "BUG: AlreadyTerminal error doesn't contain effect_id"
     );
     assert!(

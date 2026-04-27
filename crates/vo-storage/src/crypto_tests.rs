@@ -76,7 +76,7 @@ fn crypto_error_rng_unavailable_display() {
 #[test]
 fn crypto_error_invalid_argument_display() {
     let err = CryptoError::InvalidArgument("test message".to_string());
-    assert_eq!(format!("{}", err), "invalid argument: test message");
+    assert_eq!(format!("{err}"), "invalid argument: test message");
 }
 
 #[test]

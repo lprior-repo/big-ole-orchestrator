@@ -40,7 +40,7 @@ fn backward_recovery_full_chain_in_reverse_order() {
     let manifest_arc = saga.manifest();
     let manifest = manifest_arc.lock().unwrap();
     for eid in &["charge", "reserve", "ship"] {
-        let entry = manifest.get(*eid).expect("entry exists");
+        let entry = manifest.get(eid).expect("entry exists");
         assert_eq!(entry.status, SagaCompensationStatus::Succeeded);
     }
 }

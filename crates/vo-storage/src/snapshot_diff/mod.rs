@@ -256,7 +256,7 @@ mod tests {
     fn test_diff_idempotence() {
         let instance_id = vo_types::InstanceId::from_bytes([0u8; 16]);
         let state = InstanceState { counter: 42 };
-        let diff_result = diff(instance_id, &(0, state.clone()), &(0, state.clone()));
+        let diff_result = diff(instance_id, &(0, state.clone()), &(0, state));
         assert!(matches!(diff_result, DiffResult::Identical));
     }
 

@@ -12,6 +12,7 @@ pub mod command_history;
 pub mod command_metadata;
 mod compensation;
 mod connector;
+pub mod connection_pool;
 pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
@@ -27,10 +28,11 @@ pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
 mod encryption;
-mod euler_tour_tree;
 #[cfg(test)]
 mod encryption_tests;
 mod errors;
+#[cfg(test)]
+mod euler_tour_tree;
 pub mod events;
 mod identity;
 mod instance_status;
@@ -50,6 +52,8 @@ mod payload_parser;
 mod plugin;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
+#[cfg(feature = "proptest")]
+mod proptest_domain_roundtrips;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
@@ -146,21 +150,21 @@ pub use search::{
 };
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
-    SignalDelivery, SignalMatchResult, SignalScope, WaitKey, WaitRecord,
+    SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
 };
 pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
 pub use spqr_tree::{
     Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
     StaticGraph,
 };
+pub use task_failure_kind::TaskFailureKind;
+pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
     TransactionRecord, TransactionState,
 };
-pub use task_failure_kind::TaskFailureKind;
-pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,

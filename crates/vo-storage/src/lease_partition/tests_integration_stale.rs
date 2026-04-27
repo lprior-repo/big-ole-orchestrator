@@ -476,7 +476,7 @@ fn stale_release_at_exact_expiry_boundary_is_rejected() {
     assert_eq!(store.release(&holder_b), Ok(()));
 }
 
-/// AQ-03: Far-future stale token (u64::MAX) is rejected against current lease.
+/// AQ-03: Far-future stale token (`u64::MAX`) is rejected against current lease.
 #[test]
 fn far_future_stale_token_is_rejected() {
     let store = DeterministicLeaseStore::new();
@@ -524,7 +524,7 @@ fn fence_tokens_are_strictly_monotonic_across_release_reacquire_cycles() {
     }
 }
 
-/// AQ-05: check_stale_fence on a pair that never existed returns false.
+/// AQ-05: `check_stale_fence` on a pair that never existed returns false.
 #[test]
 fn stale_check_on_never_acquired_pair_returns_false() {
     let store = DeterministicLeaseStore::new();
@@ -543,7 +543,7 @@ fn stale_check_on_never_acquired_pair_returns_false() {
     );
 }
 
-/// AQ-15: check_stale_fence storage error is propagated, not swallowed.
+/// AQ-15: `check_stale_fence` storage error is propagated, not swallowed.
 #[test]
 fn stale_check_storage_error_is_propagated_not_swallowed() {
     let store = DeterministicLeaseStore::new();
@@ -587,10 +587,10 @@ fn stale_check_during_exact_expiry_tick_is_correct() {
 // Acceptance Tests: Fencing Stale-Winner (ADR-029)
 // ---------------------------------------------------------------------------
 
-/// Acceptance: test_valid_token_allows_write
+/// Acceptance: `test_valid_token_allows_write`
 ///
 /// Given: A valid (current) fence token
-/// When: check_stale_fence is called
+/// When: `check_stale_fence` is called
 /// Then: THE SYSTEM SHALL return false (token is NOT stale, write allowed)
 ///
 /// Contract: THE SYSTEM SHALL reject writes from stale leases
@@ -611,9 +611,9 @@ fn test_valid_token_allows_write() {
     );
 }
 
-/// Acceptance: test_valid_token_allows_write_duplicate_for_schema
+/// Acceptance: `test_valid_token_allows_write_duplicate_for_schema`
 ///
-/// Schema compliance duplicate of test_valid_token_allows_write.
+/// Schema compliance duplicate of `test_valid_token_allows_write`.
 #[test]
 fn test_valid_token_allows_write_duplicate_for_schema() {
     let store = DeterministicLeaseStore::new();
@@ -628,10 +628,10 @@ fn test_valid_token_allows_write_duplicate_for_schema() {
     assert!(!is_stale, "Valid token must allow write");
 }
 
-/// Acceptance: test_stale_token_returns_fencederror
+/// Acceptance: `test_stale_token_returns_fencederror`
 ///
 /// Given: A stale fence token (from expired lease or race loser)
-/// When: check_stale_fence is called
+/// When: `check_stale_fence` is called
 /// Then: THE SYSTEM SHALL return true (token IS stale, write rejected)
 ///
 /// Contract: THE SYSTEM SHALL reject writes from stale leases
@@ -650,9 +650,9 @@ fn test_stale_token_returns_fencederror() {
     assert!(is_stale, "Stale token must return fenced error");
 }
 
-/// Acceptance: test_stale_token_returns_fencederror_duplicate_for_schema
+/// Acceptance: `test_stale_token_returns_fencederror_duplicate_for_schema`
 ///
-/// Schema compliance duplicate of test_stale_token_returns_fencederror.
+/// Schema compliance duplicate of `test_stale_token_returns_fencederror`.
 #[test]
 fn test_stale_token_returns_fencederror_duplicate_for_schema() {
     let store = DeterministicLeaseStore::new();

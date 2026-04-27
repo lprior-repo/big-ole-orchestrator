@@ -225,8 +225,8 @@ fn malformed_instance_id_rejected_at_parse_boundary() {
         "",
         "NOT-ULID",
         "123",
-        "01H5JYV4XHGSR2F8KZ9BWNRFMA\0x00", // Null byte injection
-        "01H5JYV4XHGSR2F8KZ9BWNRFMA\n",   // Newline injection
+        "01H5JYV4XHGSR2F8KZ9BWNRFMA\0x00",    // Null byte injection
+        "01H5JYV4XHGSR2F8KZ9BWNRFMA\n",       // Newline injection
         "01H5JYV4XHGSR2F8KZ9BWNRFMA<script>", // Script injection attempt
     ];
 
@@ -271,10 +271,10 @@ fn malformed_node_name_rejected_at_parse_boundary() {
 
     let malformed_inputs = vec![
         "",
-        "node name",                 // Spaces not allowed
-        "node\tname",                // Tab not allowed
-        "node\x00name",              // Null byte
-        "node_日本語",                // Unicode
+        "node name",    // Spaces not allowed
+        "node\tname",   // Tab not allowed
+        "node\x00name", // Null byte
+        "node_日本語",  // Unicode
     ];
 
     for input in malformed_inputs {
@@ -291,9 +291,7 @@ fn malformed_node_name_rejected_at_parse_boundary() {
 fn malformed_timer_id_rejected_at_parse_boundary() {
     use vo_types::TimerId;
 
-    let malformed_inputs = vec![
-        "",
-    ];
+    let malformed_inputs = vec![""];
 
     for input in malformed_inputs {
         let result = TimerId::parse(input);
@@ -329,10 +327,7 @@ fn waitkey_rejects_empty_input() {
     use vo_actor::WaitKey;
 
     let result = WaitKey::parse("");
-    assert!(
-        result.is_err(),
-        "Empty WaitKey should be rejected"
-    );
+    assert!(result.is_err(), "Empty WaitKey should be rejected");
 }
 
 #[test]
@@ -466,7 +461,10 @@ fn actor_state_consistency_after_error_conditions() {
     assert!(wait_key_empty.is_err(), "Empty WaitKey must be rejected");
 
     let wait_key_oversized = WaitKey::parse(&"x".repeat(300));
-    assert!(wait_key_oversized.is_err(), "Oversized WaitKey must be rejected");
+    assert!(
+        wait_key_oversized.is_err(),
+        "Oversized WaitKey must be rejected"
+    );
 
     let valid_wait_key = WaitKey::parse("approval");
     assert!(valid_wait_key.is_ok(), "Valid WaitKey must be accepted");
@@ -497,7 +495,10 @@ fn protocol_violation_lifecycle_state_transition_rejected() {
     );
 
     assert_eq!(
-        compute_next_state(ActorLifecycleState::Pending, LifecycleTransition::ChildStopped),
+        compute_next_state(
+            ActorLifecycleState::Pending,
+            LifecycleTransition::ChildStopped
+        ),
         None,
         "Pending actor has no children (protocol violation)"
     );

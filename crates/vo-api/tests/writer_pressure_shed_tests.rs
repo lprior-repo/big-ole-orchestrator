@@ -23,13 +23,9 @@ use vo_actor::OrchestratorMsg;
 use vo_api::handlers::start_workflow;
 use vo_api::router::AppState;
 use vo_api::types::V3StartRequest;
-use vo_core::admission::{
-    PressureGuardResult, WatchdogPressureGuard, WriterPressureGuard,
-};
+use vo_core::admission::{PressureGuardResult, WatchdogPressureGuard, WriterPressureGuard};
 use vo_core::circuit_breaker::CircuitBreakerState;
-use vo_core::storage_watchdog::types::{
-    StorageHealth, StorageWatchdogConfig,
-};
+use vo_core::storage_watchdog::types::{StorageHealth, StorageWatchdogConfig};
 use vo_storage::dedupe_partition::{DedupeStore, InMemoryDedupeStore};
 
 struct SheddingGuard;
@@ -71,20 +67,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static ORCH_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn next_orch_name() -> String {
-    format!(
-        "test-orch-{}",
-        ORCH_COUNTER.fetch_add(1, Ordering::Relaxed)
-    )
+    format!("test-orch-{}", ORCH_COUNTER.fetch_add(1, Ordering::Relaxed))
 }
 
 async fn spawn_dummy_master() -> ActorRef<OrchestratorMsg> {
-    let (ref_, _) = ractor::Actor::spawn(
-        Some(next_orch_name()),
-        DummyOrch,
-        (),
-    )
-    .await
-    .expect("spawn");
+    let (ref_, _) = ractor::Actor::spawn(Some(next_orch_name()), DummyOrch, ())
+        .await
+        .expect("spawn");
     ref_
 }
 
@@ -108,6 +97,7 @@ fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
         input: json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: Some(dedupe_key.to_string()),
+        workflow_binary_hash: None,
     }
 }
 
@@ -130,7 +120,9 @@ async fn given_dbwriter_at_shed_threshold_when_start_arrives_then_retry_after_is
                 .method("POST")
                 .uri("/api/v1/workflows")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&req_body).expect("serialize")))
+                .body(Body::from(
+                    serde_json::to_vec(&req_body).expect("serialize"),
+                ))
                 .expect("valid request"),
         )
         .await
@@ -163,7 +155,10 @@ async fn given_dbwriter_at_shed_threshold_when_start_arrives_then_retry_after_is
         "error code must be writer_pressure_shed"
     );
     assert!(
-        body["message"].as_str().expect("message string").contains("writer queue"),
+        body["message"]
+            .as_str()
+            .expect("message string")
+            .contains("writer queue"),
         "message must describe writer queue pressure"
     );
 }
@@ -185,7 +180,9 @@ async fn given_dbwriter_healthy_when_start_arrives_then_no_shed_occurs() {
                 .method("POST")
                 .uri("/api/v1/workflows")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&req_body).expect("serialize")))
+                .body(Body::from(
+                    serde_json::to_vec(&req_body).expect("serialize"),
+                ))
                 .expect("valid request"),
         )
         .await
@@ -217,7 +214,9 @@ fn watchdog_guard_sheds_when_degraded_with_writer_pressure() {
     );
 
     match guard.check() {
-        PressureGuardResult::Shed { retry_after_secs, .. } => {
+        PressureGuardResult::Shed {
+            retry_after_secs, ..
+        } => {
             assert_eq!(retry_after_secs, 5);
         }
         other => panic!("expected Shed, got {other:?}"),
@@ -230,10 +229,7 @@ fn watchdog_guard_admits_when_degraded_without_writer_pressure() {
         indicators: vec![vo_core::admission::PressureIndicator::CompactionStall],
     });
     let _tx = tx;
-    let guard = WatchdogPressureGuard::new(
-        rx,
-        StorageWatchdogConfig::default(),
-    );
+    let guard = WatchdogPressureGuard::new(rx, StorageWatchdogConfig::default());
 
     assert_eq!(guard.check(), PressureGuardResult::Admitted);
 }
@@ -242,10 +238,7 @@ fn watchdog_guard_admits_when_degraded_without_writer_pressure() {
 fn watchdog_guard_admits_when_healthy() {
     let (tx, rx) = tokio::sync::watch::channel(StorageHealth::Healthy);
     let _tx = tx;
-    let guard = WatchdogPressureGuard::new(
-        rx,
-        StorageWatchdogConfig::default(),
-    );
+    let guard = WatchdogPressureGuard::new(rx, StorageWatchdogConfig::default());
 
     assert_eq!(guard.check(), PressureGuardResult::Admitted);
 }
@@ -268,22 +261,20 @@ async fn app_state_includes_writer_pressure_field() {
         }
     }
 
-    let (master_ref, _) = ractor::Actor::spawn(
-        Some(next_orch_name()),
-        DummyOrch,
-        (),
-    )
-    .await
-    .expect("spawn");
+    let (master_ref, _) = ractor::Actor::spawn(Some(next_orch_name()), DummyOrch, ())
+        .await
+        .expect("spawn");
 
     let state = AppState {
         query: vo_api::handlers::query::QueryState {
-            db: Arc::new(vo_storage::partitions::StorageEngine::open(
-                tempfile::tempdir().expect("tempdir").path(),
-            )
-            .expect("open")
-            .db()
-            .clone()),
+            db: Arc::new(
+                vo_storage::partitions::StorageEngine::open(
+                    tempfile::tempdir().expect("tempdir").path(),
+                )
+                .expect("open")
+                .db()
+                .clone(),
+            ),
             workspace_index: Arc::new(std::sync::RwLock::new(
                 vo_types::workspace::WorkspaceIndex::new(),
             )),

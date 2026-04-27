@@ -30,7 +30,6 @@ use crate::types::{
 use crate::workflow::next_nodes;
 use crate::ParseError;
 use proptest::prelude::*;
-use proptest::proptest;
 use std::collections::HashMap;
 use std::num::NonZeroU64;
 use std::time::Duration;

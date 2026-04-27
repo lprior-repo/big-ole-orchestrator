@@ -422,11 +422,17 @@ pub fn create_lifecycle_table() -> TransitionTable {
         .to(LifecycleState::Failed)
         .with_description("Fail executing step")
         .build()
-        .add_transition(LifecycleState::StepExecuting, TransitionEvent::PrepareEffect)
+        .add_transition(
+            LifecycleState::StepExecuting,
+            TransitionEvent::PrepareEffect,
+        )
         .to(LifecycleState::PreparingEffect)
         .with_description("Begin preparing managed effect")
         .build()
-        .add_transition(LifecycleState::PreparingEffect, TransitionEvent::EffectPrepared)
+        .add_transition(
+            LifecycleState::PreparingEffect,
+            TransitionEvent::EffectPrepared,
+        )
         .to(LifecycleState::StepExecuting)
         .with_description("Effect prepared, resume execution")
         .build()

@@ -27,10 +27,8 @@ mod tests;
 pub(crate) use actor::SpawnSupervisor as Actor;
 
 // Re-export commonly used types
-pub use metrics::{Counter, SpawnSupervisorMetrics};
 pub use actor::{SpawnSupervisor, SpawnSupervisorHandle};
-pub use traits::{ProcessHandle, ProcessManager, SpawnStorage, WorkQueue};
-pub use types::{
-    CycleResult, SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState,
-};
+pub use metrics::{Counter, SpawnSupervisorMetrics};
 pub use pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
+pub use traits::{ProcessHandle, ProcessManager, SpawnStorage, WorkQueue};
+pub use types::{CycleResult, SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState};

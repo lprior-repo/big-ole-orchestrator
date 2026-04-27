@@ -1282,9 +1282,9 @@ fn registry_lookup_doctor_handler() {
 fn registry_names_contains_all() {
     let registry = HandlerRegistry::default();
     let names = registry.names();
-    assert_eq!(names.len(), 8);
+    assert_eq!(names.len(), 11);
     for name in &[
-        "purge", "check", "gc", "init", "lock", "doctor", "rebuild", "status",
+        "purge", "check", "compensate", "gc", "init", "lock", "doctor", "rebuild", "status", "serve", "history",
     ] {
         assert!(names.contains(name), "missing handler: {name}");
     }
@@ -1785,7 +1785,7 @@ fn init_rejects_file_as_dir() {
 fn validate_elf_binary() {
     let dir = make_temp_dir();
     let elf_path = dir.join("binary");
-    std::fs::write(&elf_path, &[0x7F, 0x45, 0x4C, 0x46, 0x00, 0x00, 0x00, 0x00]).unwrap();
+    std::fs::write(&elf_path, [0x7F, 0x45, 0x4C, 0x46, 0x00, 0x00, 0x00, 0x00]).unwrap();
     let result = vo_cli::validate_binary_header(&elf_path);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), BinaryFormat::Elf);
@@ -1795,7 +1795,7 @@ fn validate_elf_binary() {
 fn validate_macho_64_le_binary() {
     let dir = make_temp_dir();
     let path = dir.join("binary");
-    std::fs::write(&path, &[0xCF, 0xFA, 0xED, 0xFE, 0x00, 0x00, 0x00, 0x00]).unwrap();
+    std::fs::write(&path, [0xCF, 0xFA, 0xED, 0xFE, 0x00, 0x00, 0x00, 0x00]).unwrap();
     let result = vo_cli::validate_binary_header(&path);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), BinaryFormat::MachO64LittleEndian);
@@ -1805,7 +1805,7 @@ fn validate_macho_64_le_binary() {
 fn validate_too_small_file() {
     let dir = make_temp_dir();
     let path = dir.join("tiny");
-    std::fs::write(&path, &[0x7F, 0x45]).unwrap();
+    std::fs::write(&path, [0x7F, 0x45]).unwrap();
     let result = vo_cli::validate_binary_header(&path);
     assert!(matches!(result, Err(CheckError::FileTooSmall { .. })));
 }
@@ -1814,7 +1814,7 @@ fn validate_too_small_file() {
 fn validate_invalid_magic() {
     let dir = make_temp_dir();
     let path = dir.join("bad");
-    std::fs::write(&path, &[0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00]).unwrap();
+    std::fs::write(&path, [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00]).unwrap();
     let result = vo_cli::validate_binary_header(&path);
     assert!(matches!(result, Err(CheckError::InvalidMagic { .. })));
 }
@@ -1829,7 +1829,7 @@ fn validate_nonexistent_file() {
 fn validate_symlink_rejected() {
     let dir = make_temp_dir();
     let target = dir.join("real");
-    std::fs::write(&target, &[0x7F, 0x45, 0x4C, 0x46, 0x00]).unwrap();
+    std::fs::write(&target, [0x7F, 0x45, 0x4C, 0x46, 0x00]).unwrap();
     let link = dir.join("link");
     std::os::unix::fs::symlink(&target, &link).unwrap();
     let result = vo_cli::validate_binary_header(&link);

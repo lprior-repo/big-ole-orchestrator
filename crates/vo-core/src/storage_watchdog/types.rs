@@ -127,7 +127,7 @@ impl Default for FlushTimeoutConfig {
 }
 
 /// Aggregated storage health metrics from all monitoring sources.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct StorageMetrics {
     /// Disk space metrics from filesystem.
     pub disk_space: DiskSpaceMetrics,
@@ -147,21 +147,6 @@ pub struct StorageMetrics {
     pub storage_stall_active: bool,
 }
 
-impl Default for StorageMetrics {
-    fn default() -> Self {
-        Self {
-            disk_space: DiskSpaceMetrics::default(),
-            writer_queue_depth: 0,
-            commit_latency_ms: 0,
-            blob_queue_depth: 0,
-            flush_timeout_count: 0,
-            compaction_backlog: 0,
-            compaction_stall_active: false,
-            storage_stall_active: false,
-        }
-    }
-}
-
 impl StorageMetrics {
     /// Converts this into a WritePressureState for admission coupling.
     #[must_use]
@@ -176,10 +161,7 @@ impl StorageMetrics {
     }
 
     /// Returns all pressure indicators that are currently exceeded.
-    pub fn exceeded_indicators(
-        &self,
-        config: &StorageWatchdogConfig,
-    ) -> Vec<PressureIndicator> {
+    pub fn exceeded_indicators(&self, config: &StorageWatchdogConfig) -> Vec<PressureIndicator> {
         let mut indicators = Vec::new();
 
         if self.writer_queue_depth > config.writer_queue_depth_threshold {
@@ -197,7 +179,10 @@ impl StorageMetrics {
         if self.storage_stall_active {
             indicators.push(PressureIndicator::StorageStall);
         }
-        if self.disk_space.is_critical(config.disk_space_critical_percent) {
+        if self
+            .disk_space
+            .is_critical(config.disk_space_critical_percent)
+        {
             indicators.push(PressureIndicator::StorageStall);
         } else if self.disk_space.is_warn(config.disk_space_warn_percent) {
             indicators.push(PressureIndicator::WriterQueueDepth);

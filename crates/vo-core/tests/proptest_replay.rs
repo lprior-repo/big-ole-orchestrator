@@ -320,15 +320,13 @@ proptest! {
 
         let ts_base = 1000u64;
 
-        let full_events = vec![
-            make_event(&instance_id, 1, ts_base, workflow_started_payload(&wf_id), 1),
+        let full_events = [make_event(&instance_id, 1, ts_base, workflow_started_payload(&wf_id), 1),
             make_event(&instance_id, 2, ts_base + 100, step_scheduled_payload(&wf_id, "step-1"), 1),
             make_event(&instance_id, 3, ts_base + 200, step_started_payload(&wf_id, "step-1"), 1),
             make_event(&instance_id, 4, ts_base + 300, step_completed_payload(&wf_id, "step-1"), 1),
             make_event(&instance_id, 5, ts_base + 400, step_scheduled_payload(&wf_id, "step-2"), 1),
             make_event(&instance_id, 6, ts_base + 500, step_started_payload(&wf_id, "step-2"), 1),
-            make_event(&instance_id, 7, ts_base + 600, step_completed_payload(&wf_id, "step-2"), 1),
-        ];
+            make_event(&instance_id, 7, ts_base + 600, step_completed_payload(&wf_id, "step-2"), 1)];
 
         let engine = ReplayEngine::new();
 

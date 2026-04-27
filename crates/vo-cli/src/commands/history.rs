@@ -155,11 +155,7 @@ mod tests {
     fn test_snapshot() -> WorkflowSnapshot {
         WorkflowSnapshot::new(
             "test-workflow".into(),
-            vec![DagNode {
-                node_name: NodeName::parse("test-node").unwrap(),
-                retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
-                compensation_policy: None,
-            }],
+            vec![DagNode::valid_default(NodeName::parse("test-node").unwrap()).unwrap()],
             vec![],
         )
     }

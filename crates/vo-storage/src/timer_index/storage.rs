@@ -1,5 +1,7 @@
-use super::ScanResult;
 use crate::codec::StorageError;
+
+/// Raw key-value pairs from a storage scan.
+pub(crate) type RawScanResult = Vec<(Vec<u8>, Vec<u8>)>;
 
 pub trait Storage {
     /// Stores a key-value pair.
@@ -25,5 +27,5 @@ pub trait Storage {
     /// # Errors
     ///
     /// Returns `StorageError` if the underlying storage fails.
-    fn scan(&self, start: &[u8], end: &[u8]) -> Result<ScanResult, StorageError>;
+    fn scan(&self, start: &[u8], end: &[u8]) -> Result<RawScanResult, StorageError>;
 }

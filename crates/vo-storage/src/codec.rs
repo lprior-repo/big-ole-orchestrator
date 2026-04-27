@@ -50,7 +50,7 @@ impl From<fjall::Error> for StorageError {
 /// Current supported event key format version.
 pub const EVENT_KEY_VERSION: u8 = 0;
 
-/// Total length of a versioned event key: version(1) + length_prefix(2) + instance_id(16) + sequence(8) = 27 bytes.
+/// Total length of a versioned event key: version(1) + `length_prefix(2)` + `instance_id(16)` + sequence(8) = 27 bytes.
 pub const EVENT_KEY_LEN: usize = 27;
 
 /// Encodes an `(InstanceId, SequenceNumber)` pair into a 27-byte length-prefixed event key with version prefix.
@@ -127,18 +127,18 @@ mod tests {
         InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
     }
 
- // TEMPORARILY DISABLED - API changed, test needs update
-// #[test]
-// fn encode_event_key_returns_exact_bytes_when_inputs_are_minimums() {
-//     let id = min_id();
-//     let seq = SequenceNumber::try_from(1u64).unwrap();
-//     let result = encode_event_key(&id, &seq).unwrap();
-//     let expected = [
-//         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-//         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
-//     ];
-//     assert_eq!(result, expected);
-// }
+    // TEMPORARILY DISABLED - API changed, test needs update
+    // #[test]
+    // fn encode_event_key_returns_exact_bytes_when_inputs_are_minimums() {
+    //     let id = min_id();
+    //     let seq = SequenceNumber::try_from(1u64).unwrap();
+    //     let result = encode_event_key(&id, &seq).unwrap();
+    //     let expected = [
+    //         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    //         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+    //     ];
+    //     assert_eq!(result, expected);
+    // }
 
     #[test]
     fn encode_event_key_returns_exact_bytes_when_inputs_are_maximums() {
@@ -153,17 +153,17 @@ mod tests {
     }
 
     // TEMPORARILY DISABLED - API changed, test needs update
-// #[test]
-// fn encode_event_key_returns_concrete_big_endian_bytes_to_preserve_ordering() {
-//     let id = max_id();
-//     let seq = SequenceNumber::try_from(0x0102_0304_0506_0708_u64).unwrap();
-//     let result = encode_event_key(&id, &seq).unwrap();
-//    let expected = [
-//         0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-//         0xFF, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00,
-//     ];
-//     assert_eq!(result, expected);
-// }
+    // #[test]
+    // fn encode_event_key_returns_concrete_big_endian_bytes_to_preserve_ordering() {
+    //     let id = max_id();
+    //     let seq = SequenceNumber::try_from(0x0102_0304_0506_0708_u64).unwrap();
+    //     let result = encode_event_key(&id, &seq).unwrap();
+    //    let expected = [
+    //         0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+    //         0xFF, 0xFF, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x00, 0x00,
+    //     ];
+    //     assert_eq!(result, expected);
+    // }
 
     #[test]
     fn decode_event_key_returns_exact_components_when_bytes_are_maximum_valid() {

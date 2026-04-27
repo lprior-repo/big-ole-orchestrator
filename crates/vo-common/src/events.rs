@@ -148,7 +148,10 @@ mod tests {
     fn event_dedup_empty_string_event_id() {
         let mut dedup = EventDedup::new();
         dedup.check_and_track("".into());
-        assert_eq!(dedup.check_and_track("".into()), DuplicateResult::Duplicate("".into()));
+        assert_eq!(
+            dedup.check_and_track("".into()),
+            DuplicateResult::Duplicate("".into())
+        );
     }
 
     #[test]

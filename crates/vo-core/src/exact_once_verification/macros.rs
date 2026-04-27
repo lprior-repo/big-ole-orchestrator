@@ -278,14 +278,14 @@ mod tests {
 
     #[test]
     fn crash_invariant_assert_passes() {
-        let harness = VerificationHarness::new();
+        let _harness = VerificationHarness::new();
         crash_invariant_assert!(harness, CrashPoint::StepScheduled, true);
     }
 
     #[test]
     #[should_panic(expected = "Invariant violated at crash point: StepScheduled")]
     fn crash_invariant_assert_fails() {
-        let harness = VerificationHarness::new();
+        let _harness = VerificationHarness::new();
         crash_invariant_assert!(harness, CrashPoint::StepScheduled, false);
     }
 }

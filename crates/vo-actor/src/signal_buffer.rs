@@ -14,13 +14,12 @@ pub struct BufferedSignal {
 
 impl BufferedSignal {
     #[must_use]
-    pub fn new(
-        signal_id: crate::SignalName,
-        payload: crate::SignalPayload,
-        buffered_at: TimestampMs,
-    ) -> Self {
+    pub fn new<S>(signal_id: S, payload: crate::SignalPayload, buffered_at: TimestampMs) -> Self
+    where
+        S: Into<crate::SignalName>,
+    {
         Self {
-            signal_id,
+            signal_id: signal_id.into(),
             payload,
             buffered_at,
         }
@@ -128,29 +127,35 @@ impl SignalBuffer {
     }
 
     #[must_use]
-    pub fn buffered_count(&self, instance_id: &InstanceId, wait_key: &WaitKey) -> usize {
+    pub fn buffered_count<W>(&self, instance_id: &InstanceId, wait_key: W) -> usize
+    where
+        W: Into<WaitKey>,
+    {
         let key = BufferKey {
             instance_id: instance_id.clone(),
-            wait_key: wait_key.clone(),
+            wait_key: wait_key.into(),
         };
         self.entries.get(&key).map(|entry| entry.len()).unwrap_or(0)
     }
 
     #[must_use]
-    pub fn has_buffered_signals(&self, instance_id: &InstanceId, wait_key: &WaitKey) -> bool {
+    pub fn has_buffered_signals<W>(&self, instance_id: &InstanceId, wait_key: W) -> bool
+    where
+        W: Into<WaitKey>,
+    {
         self.buffered_count(instance_id, wait_key) > 0
     }
 
     pub fn buffer_signal(
         &mut self,
         instance_id: InstanceId,
-        wait_key: WaitKey,
+        wait_key: impl Into<WaitKey>,
         signal: BufferedSignal,
         policy: BufferPolicy,
     ) -> BufferResult {
         let key = BufferKey {
             instance_id: instance_id.clone(),
-            wait_key: wait_key.clone(),
+            wait_key: wait_key.into(),
         };
         match policy {
             BufferPolicy::Reject => BufferResult::Rejected,
@@ -191,14 +196,17 @@ impl SignalBuffer {
     }
 
     #[must_use]
-    pub fn pop_buffered(
+    pub fn pop_buffered<W>(
         &mut self,
         instance_id: &InstanceId,
-        wait_key: &WaitKey,
-    ) -> Option<BufferedSignal> {
+        wait_key: W,
+    ) -> Option<BufferedSignal>
+    where
+        W: Into<WaitKey>,
+    {
         let key = BufferKey {
             instance_id: instance_id.clone(),
-            wait_key: wait_key.clone(),
+            wait_key: wait_key.into(),
         };
         let entry = self.entries.get_mut(&key)?;
         match entry {
@@ -218,10 +226,13 @@ impl SignalBuffer {
     }
 
     #[must_use]
-    pub fn peek_all(&self, instance_id: &InstanceId, wait_key: &WaitKey) -> Vec<BufferedSignal> {
+    pub fn peek_all<W>(&self, instance_id: &InstanceId, wait_key: W) -> Vec<BufferedSignal>
+    where
+        W: Into<WaitKey>,
+    {
         let key = BufferKey {
             instance_id: instance_id.clone(),
-            wait_key: wait_key.clone(),
+            wait_key: wait_key.into(),
         };
         self.entries
             .get(&key)
@@ -229,10 +240,13 @@ impl SignalBuffer {
             .unwrap_or_default()
     }
 
-    pub fn clear(&mut self, instance_id: &InstanceId, wait_key: &WaitKey) {
+    pub fn clear<W>(&mut self, instance_id: &InstanceId, wait_key: W)
+    where
+        W: Into<WaitKey>,
+    {
         let key = BufferKey {
             instance_id: instance_id.clone(),
-            wait_key: wait_key.clone(),
+            wait_key: wait_key.into(),
         };
         self.entries.remove(&key);
     }

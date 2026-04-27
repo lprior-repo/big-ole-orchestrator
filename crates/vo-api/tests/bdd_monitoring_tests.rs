@@ -415,8 +415,7 @@ mod tests {
 
         #[test]
         fn given_effect_journal_entries_when_sorted_by_sequence_then_timestamps_asc() {
-            let mut entries = vec![
-                EffectJournalEntry {
+            let mut entries = [EffectJournalEntry {
                     sequence: 3,
                     timestamp_ms: 1300,
                     event_type: "EffectCommitted".to_string(),
@@ -436,8 +435,7 @@ mod tests {
                     event_type: "EffectCommitted".to_string(),
                     semantics: EffectSemantics::Exact,
                     payload: json!({}),
-                },
-            ];
+                }];
             entries.sort_by_key(|e| e.sequence);
 
             assert_eq!(entries[0].sequence, 1);

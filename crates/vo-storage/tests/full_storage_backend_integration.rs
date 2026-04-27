@@ -283,7 +283,7 @@ fn pers_022_fjall_dedupe_concurrent_insert_same_key() {
         .collect();
 
     for h in handles {
-        let _ = h.join().unwrap();
+        h.join().unwrap();
     }
 
     let results = results.lock().unwrap();
@@ -324,7 +324,7 @@ fn pers_023_fjall_dedupe_concurrent_different_keys() {
         .collect();
 
     for h in handles {
-        let _ = h.join().unwrap();
+        h.join().unwrap();
     }
 
     let results = results.lock().unwrap();
@@ -367,7 +367,7 @@ fn pers_024_fjall_lease_concurrent_acquire_same_step() {
         .collect();
 
     for h in handles {
-        let _ = h.join().unwrap();
+        h.join().unwrap();
     }
 
     let results = results.lock().unwrap();

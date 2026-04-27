@@ -622,9 +622,6 @@ mod proptests {
 
 #[cfg(test)]
 mod invariant_tests {
-
-    use super::*;
-
     #[test]
     #[doc = "I1: Each InstanceId maps to exactly one DekId at runtime"]
     fn invariant_i1_doc() {

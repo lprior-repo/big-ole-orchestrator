@@ -67,7 +67,7 @@ fn dur_004_budget_rejection_under_pressure() {
         let ks = open_events_ks(&db);
 
         let id_bytes = id.to_bytes().unwrap();
-        let recovered: Vec<_> = ks.prefix(&id_bytes).collect();
+        let recovered: Vec<_> = ks.prefix(id_bytes).collect();
 
         assert_eq!(
             recovered.len(),

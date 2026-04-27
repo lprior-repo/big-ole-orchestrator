@@ -26,6 +26,122 @@ use serde::{Deserialize, Serialize};
 use crate::{NodeName, StepOutcome};
 
 // ============================================================================
+// Execution History Types
+// ============================================================================
+
+/// A single step scheduling record from execution history.
+///
+/// Represents one scheduling of a step, used to compute attempt numbers
+/// and fence tokens for exactly-once execution guarantees.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepSchedulingRecord {
+    pub step_id: NodeName,
+    pub attempt: u32,
+    pub fence: u64,
+}
+
+impl StepSchedulingRecord {
+    #[must_use]
+    pub fn new(step_id: NodeName, attempt: u32, fence: u64) -> Self {
+        Self {
+            step_id,
+            attempt,
+            fence,
+        }
+    }
+}
+
+/// Execution history for a workflow instance.
+///
+/// Contains the scheduling records for all steps that have been scheduled,
+/// used to compute attempt numbers and fence tokens for exactly-once execution.
+#[derive(Debug, Clone, Default)]
+pub struct ExecutionHistory {
+    records: Vec<StepSchedulingRecord>,
+}
+
+impl ExecutionHistory {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            records: Vec::with_capacity(capacity),
+        }
+    }
+
+    pub fn add_record(&mut self, record: StepSchedulingRecord) {
+        self.records.push(record);
+    }
+
+    #[must_use]
+    pub fn records(&self) -> &[StepSchedulingRecord] {
+        &self.records
+    }
+
+    pub fn records_for_step(&self, step_id: &NodeName) -> Vec<&StepSchedulingRecord> {
+        self.records.iter().filter(|r| &r.step_id == step_id).collect()
+    }
+}
+
+// ============================================================================
+// Attempt and Fence Computation
+// ============================================================================
+
+/// Compute the attempt number and fence token for scheduling a step.
+///
+/// # Arguments
+///
+/// * `step_id` - The step being scheduled
+/// * `history` - Execution history containing past scheduling records for this workflow instance
+///
+/// # Returns
+///
+/// A tuple of `(attempt, fence)`:
+///
+/// - `attempt`: The next attempt number (1-indexed). This is computed as:
+///   - 1 if the step has never been scheduled
+///   - `max_attempt_in_history + 1` if the step has been scheduled before
+/// - `fence`: A monotonically increasing fence token. This is computed as:
+///   - 1 if no scheduling records exist
+///   - `max_fence_in_history + 1` otherwise
+///
+/// # Examples
+///
+/// ```
+/// use vo_types::next_step_selection::{compute_attempt_and_fence, ExecutionHistory, StepSchedulingRecord};
+/// use vo_types::NodeName;
+///
+/// let history = ExecutionHistory::new();
+/// let (attempt, fence) = compute_attempt_and_fence(&NodeName::parse("step-1").unwrap(), &history);
+/// assert_eq!(attempt, 1);
+/// assert_eq!(fence, 1);
+/// ```
+#[must_use]
+pub fn compute_attempt_and_fence(step_id: &NodeName, history: &ExecutionHistory) -> (u32, u64) {
+    let step_records = history.records_for_step(step_id);
+
+    if step_records.is_empty() {
+        return (1, 1);
+    }
+
+    let max_attempt = step_records
+        .iter()
+        .map(|r| r.attempt)
+        .max()
+        .unwrap_or(1);
+
+    let max_fence = step_records.iter().map(|r| r.fence).max().unwrap_or(0);
+
+    let next_attempt = max_attempt + 1;
+    let next_fence = max_fence + 1;
+
+    (next_attempt, next_fence)
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 
@@ -136,10 +252,11 @@ impl SchedulingIntention {
 /// * `workflow` - The validated workflow definition (guaranteed acyclic)
 /// * `completed` - Set of node names that have been completed
 /// * `last_outcome` - Outcome of the most recently completed step (used for condition matching)
+/// * `history` - Optional execution history for computing attempt and fence (for exactly-once guarantees)
 ///
 /// # Returns
 ///
-/// * `Ok(Some(NextStep))` - A step was selected
+/// * `Ok(Some(NextStep))` - A step was selected with computed attempt and fence
 /// * `Ok(None)` - No ready nodes exist (workflow is waiting for external input or blocked)
 /// * `Err(SelectionError)` - Invalid input (completed set contains unknown nodes)
 ///
@@ -164,11 +281,20 @@ impl SchedulingIntention {
 /// For full per-node outcome tracking, the caller should ensure `completed` only
 /// contains nodes whose outcomes are consistent with `last_outcome`, or use a
 /// more sophisticated outcome map in a future extension.
+///
+/// # Attempt and Fence Computation
+///
+/// When `history` is provided, attempt and fence are computed from the execution history:
+/// - `attempt`: 1 for first scheduling, otherwise max previous attempt + 1
+/// - `fence`: 1 for first scheduling, otherwise max previous fence + 1
+///
+/// When `history` is `None`, defaults to `attempt: 1, fence: 1`.
 #[must_use]
 pub fn select_next_step(
     workflow: &crate::WorkflowDefinition,
     completed: &[NodeName],
     last_outcome: Option<StepOutcome>,
+    history: Option<&ExecutionHistory>,
 ) -> Result<Option<NextStep>, SelectionError> {
     // Validate completed set
     for node in completed {
@@ -187,12 +313,15 @@ pub fn select_next_step(
     // Select first node in definition order (deterministic tiebreaker)
     let selected = ready_nodes.into_iter().next().unwrap();
 
-    // TODO: Compute attempt and fence from command history / instance state
-    // For now, use default values — these should be injected by the caller
+    // Compute attempt and fence from history if provided
+    let (attempt, fence) = history
+        .map(|h| compute_attempt_and_fence(&selected, h))
+        .unwrap_or((1, 1));
+
     Ok(Some(NextStep {
         step_id: selected,
-        attempt: 1,
-        fence: 0,
+        attempt,
+        fence,
     }))
 }
 
@@ -339,12 +468,15 @@ mod tests {
         let workflow = create_test_workflow();
         let completed = vec![];
 
-        let result = select_next_step(&workflow, &completed, None);
+        let result = select_next_step(&workflow, &completed, None, None);
 
         assert!(result.is_ok());
         let next_step = result.unwrap();
         assert!(next_step.is_some());
-        assert_eq!(next_step.unwrap().step_id.to_string(), "A");
+        let next_step = next_step.unwrap();
+        assert_eq!(next_step.step_id.to_string(), "A");
+        assert_eq!(next_step.attempt, 1);
+        assert_eq!(next_step.fence, 1);
     }
 
     #[test]
@@ -352,7 +484,7 @@ mod tests {
         let workflow = create_test_workflow();
         let completed = vec![NodeName("A".to_string())];
 
-        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success));
+        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success), None);
 
         assert!(result.is_ok());
         let next_step = result.unwrap();
@@ -365,7 +497,7 @@ mod tests {
         let workflow = create_test_workflow();
         let completed = vec![NodeName("A".to_string())];
 
-        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success));
+        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success), None);
 
         assert!(result.is_ok());
         let next_step = result.unwrap();
@@ -383,7 +515,7 @@ mod tests {
             NodeName("C".to_string()),
         ];
 
-        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success));
+        let result = select_next_step(&workflow, &completed, Some(StepOutcome::Success), None);
 
         assert!(matches!(result, Err(SelectionError::NoReadyNodes)));
     }
@@ -393,7 +525,7 @@ mod tests {
         let workflow = create_test_workflow();
         let completed = vec![NodeName("Unknown".to_string())];
 
-        let result = select_next_step(&workflow, &completed, None);
+        let result = select_next_step(&workflow, &completed, None, None);
 
         assert!(matches!(
             result,

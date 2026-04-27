@@ -13,55 +13,56 @@ use axum::{
     routing::get,
     Router,
 };
-use fjall::{Database, KeyspaceCreateOptions};
+use fjall::Database;
 use std::sync::Arc;
 use tower::ServiceExt;
 use vo_api::handlers::query::QueryState;
+use vo_storage::event_log::{append_event, AppendEventRequest};
+use vo_types::events::EventMetadata;
 use vo_types::workspace::WorkspaceIndex;
+use vo_types::InstanceId;
 
-fn make_envelope_json(seq: u64, instance_id: &str, event_type: &str) -> Vec<u8> {
-    serde_json::json!({
-        "version": 1,
-        "instance_id": instance_id,
-        "sequence": seq,
-        "timestamp_ms": 1_000 + seq * 100,
-        "payload": {"type": event_type, "step_id": "step-1"},
-        "metadata": {}
-    })
-    .to_string()
-    .into_bytes()
+fn append_projection_event(
+    db: &Database,
+    namespace: &str,
+    instance_id: &InstanceId,
+    event_type: &str,
+) {
+    let request = AppendEventRequest {
+        namespace: namespace.to_string(),
+        instance_id: instance_id.clone(),
+        timestamp_ms: 1_000,
+        payload: serde_json::json!({"type": event_type, "step_id": "step-1"}),
+        metadata: EventMetadata::default(),
+    };
+    append_event(db, request).expect("append projection event");
 }
 
-fn make_envelope_json_with_semantics(
-    seq: u64,
-    instance_id: &str,
+fn append_projection_event_with_semantics(
+    db: &Database,
+    namespace: &str,
+    instance_id: &InstanceId,
     event_type: &str,
     semantics: &str,
-) -> Vec<u8> {
-    serde_json::json!({
-        "version": 1,
-        "instance_id": instance_id,
-        "sequence": seq,
-        "timestamp_ms": 1_000 + seq * 100,
-        "payload": {"type": event_type},
-        "metadata": {"annotations": {"semantics": semantics}}
-    })
-    .to_string()
-    .into_bytes()
-}
-
-fn insert_event(partition: &fjall::Keyspace, instance_id: &str, seq: u64, value: &[u8]) {
-    let mut key = vec![vo_storage::codec::EVENT_KEY_VERSION];
-    key.extend_from_slice(instance_id.as_bytes());
-    key.extend_from_slice(&seq.to_be_bytes());
-    partition.insert(&key, value).unwrap();
+) {
+    let mut annotations = std::collections::HashMap::new();
+    annotations.insert("semantics".to_string(), serde_json::json!(semantics));
+    let request = AppendEventRequest {
+        namespace: namespace.to_string(),
+        instance_id: instance_id.clone(),
+        timestamp_ms: 1_000,
+        payload: serde_json::json!({"type": event_type}),
+        metadata: EventMetadata {
+            command_metadata: None,
+            annotations,
+        },
+    };
+    append_event(db, request).expect("append projection event with semantics");
 }
 
 fn setup_db() -> (tempfile::TempDir, Database) {
     let folder = tempfile::tempdir().expect("temp dir");
     let db = Database::builder(folder.path()).open().expect("database");
-    db.keyspace("events", || KeyspaceCreateOptions::default())
-        .expect("events keyspace");
     (folder, db)
 }
 
@@ -108,20 +109,20 @@ async fn send(req: Request<Body>, app: Router) -> (StatusCode, serde_json::Value
 async fn given_projection_query_test_when_run_then_production_handler_is_exercised() {
     let (_dir, db) = setup_db();
     let db = Arc::new(db);
-    let partition = db
-        .keyspace("events", || KeyspaceCreateOptions::default())
-        .unwrap();
 
-    let instance_id = ulid::Ulid::new().to_string();
-    let path_id = format!("ns/{instance_id}");
+    let namespace = "ns";
+    let instance_id = InstanceId::parse(&ulid::Ulid::new().to_string()).expect("instance id");
+    let path_id = format!("{namespace}/{instance_id}");
 
-    let value1 = make_envelope_json(1, &instance_id, "WorkflowStarted");
-    let value2 = make_envelope_json(2, &instance_id, "StepCompleted");
-    let value3 = make_envelope_json(3, &instance_id, "WorkflowFinished");
-
-    insert_event(&partition, &instance_id, 1, &value1);
-    insert_event(&partition, &instance_id, 2, &value2);
-    insert_event(&partition, &instance_id, 3, &value3);
+    append_projection_event(&db, namespace, &instance_id, "WorkflowStarted");
+    append_projection_event(&db, namespace, &instance_id, "SignalAccepted");
+    append_projection_event(
+        &db,
+        namespace,
+        &instance_id,
+        "WorkflowCompensationInitiated",
+    );
+    append_projection_event(&db, namespace, &instance_id, "WorkflowTerminated");
 
     let app = query_app(Arc::clone(&db));
 
@@ -135,13 +136,14 @@ async fn given_projection_query_test_when_run_then_production_handler_is_exercis
     assert_eq!(status, StatusCode::OK, "timeline response: {body}");
     assert_eq!(body["instance_id"], path_id);
     let entries = body["entries"].as_array().expect("entries array");
-    assert_eq!(entries.len(), 3, "should have 3 timeline entries");
+    assert_eq!(entries.len(), 4, "should have 4 lifecycle timeline entries");
     assert_eq!(entries[0]["event_type"], "WorkflowStarted");
     assert_eq!(entries[0]["sequence"], 1);
-    assert_eq!(entries[1]["event_type"], "StepCompleted");
+    assert_eq!(entries[1]["event_type"], "SignalAccepted");
     assert_eq!(entries[1]["payload"]["step_id"], "step-1");
-    assert_eq!(entries[2]["event_type"], "WorkflowFinished");
-    assert_eq!(body["total_replayed"], 3);
+    assert_eq!(entries[2]["event_type"], "WorkflowCompensationInitiated");
+    assert_eq!(entries[3]["event_type"], "WorkflowTerminated");
+    assert_eq!(body["total_replayed"], 4);
 
     let app = query_app(Arc::clone(&db));
     let req = Request::builder()
@@ -152,9 +154,9 @@ async fn given_projection_query_test_when_run_then_production_handler_is_exercis
     assert_eq!(status, StatusCode::OK, "history response: {body}");
     assert_eq!(body["instance_id"], path_id);
     let hist_entries = body["entries"].as_array().expect("history entries");
-    assert_eq!(hist_entries.len(), 3);
+    assert_eq!(hist_entries.len(), 4);
     assert_eq!(hist_entries[1]["step_id"], "step-1");
-    assert_eq!(hist_entries[1]["event_type"], "StepCompleted");
+    assert_eq!(hist_entries[1]["event_type"], "SignalAccepted");
 
     let app = query_app(Arc::clone(&db));
     let req = Request::builder()
@@ -164,7 +166,7 @@ async fn given_projection_query_test_when_run_then_production_handler_is_exercis
     let (status, body) = send(req, app).await;
     assert_eq!(status, StatusCode::OK, "effect-journal response: {body}");
     let ej_entries = body["entries"].as_array().expect("effect journal entries");
-    assert_eq!(ej_entries.len(), 3);
+    assert_eq!(ej_entries.len(), 4);
     for entry in ej_entries {
         assert!(
             entry.get("semantics").is_some(),
@@ -181,8 +183,8 @@ async fn given_projection_query_test_when_run_then_production_handler_is_exercis
     assert_eq!(status, StatusCode::OK, "version response: {body}");
     assert_eq!(body["instance_id"], path_id);
     assert_eq!(body["schema_version"], 1);
-    assert_eq!(body["event_count"], 3);
-    assert_eq!(body["last_sequence"], 3);
+    assert_eq!(body["event_count"], 4);
+    assert_eq!(body["last_sequence"], 4);
     assert!(body["last_timestamp_ms"].is_number());
 }
 
@@ -205,7 +207,7 @@ async fn given_empty_stream_when_version_queried_then_zero_events() {
     let (_dir, db) = setup_db();
     let app = query_app(Arc::new(db));
 
-    let instance_id = ulid::Ulid::new().to_string();
+    let instance_id = InstanceId::parse(&ulid::Ulid::new().to_string()).expect("instance id");
     let path_id = format!("ns/{instance_id}");
     let encoded_id = encode_path_id(&path_id);
 
@@ -223,17 +225,19 @@ async fn given_empty_stream_when_version_queried_then_zero_events() {
 async fn given_effect_with_exact_semantics_when_journal_queried_then_exact_in_response() {
     let (_dir, db) = setup_db();
     let db = Arc::new(db);
-    let partition = db
-        .keyspace("events", || KeyspaceCreateOptions::default())
-        .unwrap();
 
-    let instance_id = ulid::Ulid::new().to_string();
-    let path_id = format!("ns/{instance_id}");
+    let namespace = "ns";
+    let instance_id = InstanceId::parse(&ulid::Ulid::new().to_string()).expect("instance id");
+    let path_id = format!("{namespace}/{instance_id}");
     let encoded_id = encode_path_id(&path_id);
 
-    let value =
-        make_envelope_json_with_semantics(1, &instance_id, "EffectCommitted", "exact");
-    insert_event(&partition, &instance_id, 1, &value);
+    append_projection_event_with_semantics(
+        &db,
+        namespace,
+        &instance_id,
+        "EffectCommitted",
+        "exact",
+    );
 
     let app = query_app(db);
     let req = Request::builder()

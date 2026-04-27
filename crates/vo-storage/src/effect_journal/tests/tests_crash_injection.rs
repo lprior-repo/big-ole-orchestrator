@@ -304,7 +304,7 @@ fn crash_mid_batch_replays_uncommitted_effects() {
         "exactly 5 uncommitted effects after crash"
     );
 
-    let intent_ids: Vec<&str> = pending.iter().map(|r| r.intent_id()).collect();
+    let intent_ids: Vec<&str> = pending.iter().map(vo_types::EffectRecord::intent_id).collect();
     for i in 5..10 {
         assert!(
             intent_ids.contains(&format!("fx-batch-crash-{i}").as_str()),

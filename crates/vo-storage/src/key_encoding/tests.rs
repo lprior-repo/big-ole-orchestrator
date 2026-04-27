@@ -245,7 +245,7 @@ fn encode_timer_key_produces_length_prefixed_key() {
 #[test]
 fn decode_timer_key_roundtrips_correctly() {
     let id = min_instance_id();
-    let ts = 1234567890u64;
+    let ts = 1_234_567_890u64;
     let key = encode_timer_key(ts, &id);
     let (decoded_ts, decoded_id) = decode_timer_key(&key).unwrap();
     assert_eq!(decoded_ts, ts);
@@ -285,7 +285,7 @@ fn lease_key_format_uses_length_prefix_not_delimiter() {
     // New format: 16 bytes iid + 2 bytes sid_len + sid bytes
     assert_eq!(key.len(), 16 + 2 + "my-step".len());
     assert!(
-        !key.iter().any(|&b| b == b':'),
+        !key.contains(&b':'),
         "new format lease key should not contain colon delimiter bytes"
     );
     // Key should start with the 16-byte instance ID
@@ -532,14 +532,26 @@ fn given_event_key_when_encoded_then_instance_component_is_unambiguous() {
     assert_eq!(decoded_max_last_seq, seq_last);
 
     // Then: different instances produce different keys at the same sequence
-    assert_ne!(key_min_first, key_max_first, "different instance IDs must produce different keys");
+    assert_ne!(
+        key_min_first, key_max_first,
+        "different instance IDs must produce different keys"
+    );
 
     // Then: different sequences produce different keys for the same instance
-    assert_ne!(key_min_first, key_min_last, "different sequences must produce different keys");
+    assert_ne!(
+        key_min_first, key_min_last,
+        "different sequences must produce different keys"
+    );
 
     // Then: lexicographic ordering is preserved (instance dominates, then sequence)
-    assert!(key_min_first < key_min_last, "higher sequence number should sort after lower for same instance");
-    assert!(key_min_first < key_max_first, "smaller instance ID should sort before larger for same sequence");
+    assert!(
+        key_min_first < key_min_last,
+        "higher sequence number should sort after lower for same instance"
+    );
+    assert!(
+        key_min_first < key_max_first,
+        "smaller instance ID should sort before larger for same sequence"
+    );
 
     // Then: instance prefix scan works — prefix bytes match the encoded instance ID
     let prefix_min = get_event_key_prefix(&id_min);
@@ -581,12 +593,21 @@ fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
     assert_ne!(key_early_a, key_early_b);
 
     // Then: lexicographic ordering preserves chronology (earlier timestamp < later)
-    assert!(key_early_a < key_late_a, "earlier timestamp should sort before later");
-    assert!(key_early_b < key_late_a, "earlier timestamp should sort before later");
+    assert!(
+        key_early_a < key_late_a,
+        "earlier timestamp should sort before later"
+    );
+    assert!(
+        key_early_b < key_late_a,
+        "earlier timestamp should sort before later"
+    );
 
     // Then: same timestamp ordering is by instance_id bytes (length-prefixed)
     // id_a < id_b should give key_early_a < key_early_b
-    assert!(key_early_a < key_early_b, "same timestamp: smaller instance_id should sort first");
+    assert!(
+        key_early_a < key_early_b,
+        "same timestamp: smaller instance_id should sort first"
+    );
 }
 
 #[test]
@@ -666,7 +687,8 @@ fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
     // Bytes 0..2 are length prefix (16), bytes 2..18 are instance bytes
     assert_eq!(&key[0..2], 16u16.to_be_bytes());
     assert_eq!(
-        &key[2..18], &iid_bytes,
+        &key[2..18],
+        &iid_bytes,
         "bytes 2..18 of event key must be the raw ULID bytes"
     );
 
@@ -683,11 +705,13 @@ fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
     let id2 = InstanceId::parse("7ZZZZZZZZZZZZZZZZZZZZZZZZZ").unwrap();
     let key2 = encode_event_key(&id2, seq);
     assert_eq!(
-        key2.len(), 26,
+        key2.len(),
+        26,
         "different InstanceId still produces 26-byte key (length-prefixed)"
     );
     assert_ne!(
-        key[2..18], key2[2..18],
+        key[2..18],
+        key2[2..18],
         "different InstanceIds must differ in bytes 2..18"
     );
 }
@@ -723,9 +747,8 @@ fn given_legacy_delimiter_lease_keys_when_startup_scans_then_keys_are_migrated_o
     );
 
     // And: we can extract the components
-    let (extracted_iid, extracted_sid) = extract_legacy_lease_components(&legacy_key).expect(
-        "should extract instance_id and step_id from legacy delimiter key",
-    );
+    let (extracted_iid, extracted_sid) = extract_legacy_lease_components(&legacy_key)
+        .expect("should extract instance_id and step_id from legacy delimiter key");
     assert_eq!(extracted_iid, legacy_iid);
     assert_eq!(extracted_sid, legacy_sid);
 
@@ -757,22 +780,22 @@ fn given_legacy_delimiter_lease_keys_when_startup_scans_then_keys_are_migrated_o
         "legacy fence key should be detected"
     );
 
-    let (fenced_iid, fenced_sid) = extract_legacy_fence_components(&legacy_fence_key).expect(
-        "should extract instance_id and step_id from legacy fence key",
-    );
+    let (fenced_iid, fenced_sid) = extract_legacy_fence_components(&legacy_fence_key)
+        .expect("should extract instance_id and step_id from legacy fence key");
     assert_eq!(fenced_iid, legacy_iid);
     assert_eq!(fenced_sid, legacy_sid);
 
     // And: keys shorter than 14 bytes are not flagged as legacy
     assert!(
-        !is_legacy_delimiter_lease_key(&[b':', b':']),
+        !is_legacy_delimiter_lease_key(b"::"),
         "short keys should not be detected as legacy"
     );
 
     // And: ADR-020 compliant keys with :: in the step_id are not flagged
     // New format: [iid 16 bytes][sid_len BE u16][sid bytes]
     // Even if step_id string contains colons, the binary encoding won't
-    let weird_step = StepId::parse("step::weird").unwrap_or_else(|_| StepId::parse("step-x").unwrap());
+    let weird_step =
+        StepId::parse("step::weird").unwrap_or_else(|_| StepId::parse("step-x").unwrap());
     let new_key2 = encode_lease_key(&id, &weird_step);
     assert!(
         !is_legacy_delimiter_lease_key(&new_key2),
@@ -826,7 +849,7 @@ fn new_format_keys_with_colon_bytes_not_misdetected() {
     );
 }
 
-/// Fence key detection: legacy fence keys end with ::fence
+/// Fence key detection: legacy fence keys end with `::fence`
 #[test]
 fn legacy_fence_key_detection() {
     let legacy_iid = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -835,7 +858,9 @@ fn legacy_fence_key_detection() {
     // Legacy fence key
     let legacy_fence = format!("{legacy_iid}::{legacy_sid}::fence").into_bytes();
     assert!(is_legacy_delimiter_fence_key(&legacy_fence));
-    assert!(is_legacy_delimiter_lease_key(&legacy_fence[..legacy_fence.len() - 7]));
+    assert!(is_legacy_delimiter_lease_key(
+        &legacy_fence[..legacy_fence.len() - 7]
+    ));
 
     // New format fence key should NOT be detected
     let _id = min_instance_id();

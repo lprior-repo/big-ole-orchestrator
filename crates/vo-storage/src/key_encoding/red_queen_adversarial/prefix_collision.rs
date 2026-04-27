@@ -67,7 +67,7 @@ fn red_queen_dedupe_key_has_length_prefix_format() {
 
     assert_eq!(
         dedupe_prefix.len(),
-        2 + dedupe_str.len() as usize,
+        2 + dedupe_str.len(),
         "BUG: dedupe prefix should be 2-byte length + key bytes"
     );
 

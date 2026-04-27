@@ -6,11 +6,11 @@
 //! snapshot as a single atomic batch. If any part fails, none of the state
 //! changes are visible.
 //!
-//! Architecture: Data (SuspendParams, SuspendVerification) -> Calc (key encoding) ->
-//! Actions (atomic_suspend_commit, verify_suspend_rollback)
+//! Architecture: Data (`SuspendParams`, `SuspendVerification`) -> Calc (key encoding) ->
+//! Actions (`atomic_suspend_commit`, `verify_suspend_rollback`)
 
 use fjall::Database;
-use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimestampMs, TimerId};
+use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimerId, TimestampMs};
 
 use crate::codec::StorageError;
 use crate::instance_index::encode_instance_index_key;
@@ -141,13 +141,16 @@ pub fn atomic_suspend_commit(
     let mut batch = db.batch();
 
     // 1. Insert timer entry into timers partition
-    let timer_key =
-        TimerKey::new(params.fire_at_ms, params.instance_id.clone(), params.timer_id.clone())
-            .map_err(|_| StorageError::InvalidArgument)?;
+    let timer_key = TimerKey::new(
+        params.fire_at_ms,
+        params.instance_id.clone(),
+        params.timer_id.clone(),
+    )
+    .map_err(|_| StorageError::InvalidArgument)?;
     let timer_value = TimerValue::new(params.duration_ms)
         .map_err(|_| StorageError::InvalidArgument)?
         .as_be_bytes();
-    batch.insert(&timers_ks, timer_key.as_bytes(), &timer_value);
+    batch.insert(&timers_ks, timer_key.as_bytes(), timer_value);
 
     // 2. Update instance status to Paused in instances partition
     let created_at = TimestampMs::try_from(params.now_ms.saturating_sub(1000))
@@ -155,11 +158,7 @@ pub fn atomic_suspend_commit(
 
     let new_key =
         encode_instance_index_key(InstanceStatus::Paused, created_at, &params.instance_id)?;
-    batch.insert(
-        &instances_ks,
-        new_key,
-        &[] as &[u8],
-    );
+    batch.insert(&instances_ks, new_key, &[] as &[u8]);
 
     // If previous status differed, remove the old status key
     if previous_status != InstanceStatus::Paused {
@@ -172,8 +171,8 @@ pub fn atomic_suspend_commit(
         &params.instance_id,
         params.sequence_number.as_u64(),
     )?;
-    let state_json = serde_json::to_vec(&params.state_bytes)
-        .map_err(|_| StorageError::SerializationFailed)?;
+    let state_json =
+        serde_json::to_vec(&params.state_bytes).map_err(|_| StorageError::SerializationFailed)?;
     let checksum = crc32fast::hash(&state_json);
     let header = SnapshotHeader::new(
         params.instance_id.clone(),
@@ -216,10 +215,15 @@ pub fn verify_suspend_rollback(
     let timers_partition = db
         .keyspace(TIMERS_PARTITION, fjall::KeyspaceCreateOptions::default)
         .map_err(|_| StorageError::Storage)?;
-    let timer_key =
-        TimerKey::new(params.fire_at_ms, params.instance_id.clone(), params.timer_id.clone())
-            .map_err(|_| StorageError::InvalidArgument)?;
-    let timer_exists = timers_partition.get(timer_key.as_bytes()).map_err(|_| StorageError::Storage)?;
+    let timer_key = TimerKey::new(
+        params.fire_at_ms,
+        params.instance_id.clone(),
+        params.timer_id.clone(),
+    )
+    .map_err(|_| StorageError::InvalidArgument)?;
+    let timer_exists = timers_partition
+        .get(timer_key.as_bytes())
+        .map_err(|_| StorageError::Storage)?;
 
     // Check instances partition
     let instances_partition = db
@@ -230,8 +234,7 @@ pub fn verify_suspend_rollback(
     let paused_exists = instances_partition
         .get(paused_key)
         .map_err(|_| StorageError::Storage)?;
-    let previous_key =
-        encode_instance_index_key(previous_status, created_at, &params.instance_id)?;
+    let previous_key = encode_instance_index_key(previous_status, created_at, &params.instance_id)?;
     let previous_exists = instances_partition
         .get(previous_key)
         .map_err(|_| StorageError::Storage)?;
@@ -347,11 +350,11 @@ mod tests {
         let now_ms = 1_000_000u64;
 
         let params = make_params(
-            instance_id.clone(),
-            timer_id.clone(),
-            now_ms + 60_000,  // fire 60s in future
-            now_ms,           // trigger now
-            60_000,           // 60s duration
+            instance_id,
+            timer_id,
+            now_ms + 60_000, // fire 60s in future
+            now_ms,          // trigger now
+            60_000,          // 60s duration
             now_ms,
         )
         .expect("valid params");
@@ -400,8 +403,8 @@ mod tests {
         let now_ms = 2_000_000u64;
 
         let params = make_params(
-            instance_id.clone(),
-            timer_id.clone(),
+            instance_id,
+            timer_id,
             now_ms + 30_000,
             now_ms,
             30_000,
@@ -410,9 +413,8 @@ mod tests {
         .expect("valid params");
 
         // When we verify rollback state before any commit
-        let pre_verification =
-            verify_suspend_rollback(&db, &params, InstanceStatus::Running)
-                .expect("pre-verification should succeed");
+        let pre_verification = verify_suspend_rollback(&db, &params, InstanceStatus::Running)
+            .expect("pre-verification should succeed");
 
         // Then nothing should exist yet
         assert!(
@@ -425,9 +427,8 @@ mod tests {
             .expect("commit should succeed");
 
         // After commit, all state should be visible
-        let post_verification =
-            verify_suspend_rollback(&db, &params, InstanceStatus::Running)
-                .expect("post-verification should succeed");
+        let post_verification = verify_suspend_rollback(&db, &params, InstanceStatus::Running)
+            .expect("post-verification should succeed");
         assert!(
             post_verification.is_complete(),
             "post-commit state should be complete"
@@ -457,15 +458,12 @@ mod tests {
         let params = make_params(
             sample_instance_id(),
             sample_timer_id(),
-            1000,  // fire_at in the past
+            1000, // fire_at in the past
             900,
             100,
             1000, // now >= fire_at
         );
-        assert!(
-            params.is_err(),
-            "fire_at_ms must be greater than now_ms"
-        );
+        assert!(params.is_err(), "fire_at_ms must be greater than now_ms");
         assert_eq!(params.unwrap_err(), StorageError::InvalidArgument);
     }
 
@@ -479,10 +477,7 @@ mod tests {
             0, // zero duration
             1000,
         );
-        assert!(
-            params.is_err(),
-            "duration_ms must be non-zero"
-        );
+        assert!(params.is_err(), "duration_ms must be non-zero");
         assert_eq!(params.unwrap_err(), StorageError::InvalidArgument);
     }
 
@@ -496,10 +491,7 @@ mod tests {
             1000, // duration
             1000,
         );
-        assert!(
-            params.is_err(),
-            "fire_at must equal trigger + duration"
-        );
+        assert!(params.is_err(), "fire_at must equal trigger + duration");
         assert_eq!(params.unwrap_err(), StorageError::InvalidArgument);
     }
 
@@ -538,7 +530,13 @@ mod tests {
         let v1 = verify_suspend_rollback(&db, &params1, InstanceStatus::Running).unwrap();
         let v2 = verify_suspend_rollback(&db, &params2, InstanceStatus::Running).unwrap();
 
-        assert!(v1.is_complete(), "first instance suspend should be complete");
-        assert!(v2.is_complete(), "second instance suspend should be complete");
+        assert!(
+            v1.is_complete(),
+            "first instance suspend should be complete"
+        );
+        assert!(
+            v2.is_complete(),
+            "second instance suspend should be complete"
+        );
     }
 }

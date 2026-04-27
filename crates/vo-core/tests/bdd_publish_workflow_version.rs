@@ -108,13 +108,9 @@ fn given_valid_publish_when_activation_occurs_then_workflow_version_was_stored_f
     let hash = make_hash();
     let name = make_name("order-invariant-wf");
     let ts = make_ts(1712200000000u64);
-    let binary_path = format!(
-        "/var/wtf/versions/{}/order-invariant-wf",
-        hash.as_str()
-    );
+    let binary_path = format!("/var/wtf/versions/{}/order-invariant-wf", hash.as_str());
 
-    let entry =
-        WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
+    let entry = WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
 
     publish_workflow(&store, &cb_state, &cb_config, &entry, &observer).unwrap();
 
@@ -138,13 +134,9 @@ fn given_valid_publish_when_version_missing_then_activation_proof_absent() {
     let hash = make_hash();
     let name = make_name("no-version-no-activate");
     let ts = make_ts(1712200000000u64);
-    let binary_path = format!(
-        "/var/wtf/versions/{}/no-version-no-activate",
-        hash.as_str()
-    );
+    let binary_path = format!("/var/wtf/versions/{}/no-version-no-activate", hash.as_str());
 
-    let entry =
-        WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
+    let entry = WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
 
     assert!(!store.contains(&hash).unwrap());
     assert!(
@@ -214,13 +206,9 @@ fn given_publish_persisted_when_crash_then_version_survives() {
     let hash = make_hash();
     let name = make_name("crash-recovery-wf");
     let ts = make_ts(1712200000000u64);
-    let binary_path = format!(
-        "/var/wtf/versions/{}/crash-recovery-wf",
-        hash.as_str()
-    );
+    let binary_path = format!("/var/wtf/versions/{}/crash-recovery-wf", hash.as_str());
 
-    let entry =
-        WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
+    let entry = WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
 
     {
         let db = fjall::Database::builder(dir.path()).open().unwrap();
@@ -248,13 +236,9 @@ fn given_publish_when_registration_allowed_then_version_was_already_stored() {
     let hash = make_hash();
     let name = make_name("trigger-needs-version");
     let ts = make_ts(1712200000000u64);
-    let binary_path = format!(
-        "/var/wtf/versions/{}/trigger-needs-version",
-        hash.as_str()
-    );
+    let binary_path = format!("/var/wtf/versions/{}/trigger-needs-version", hash.as_str());
 
-    let entry =
-        WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
+    let entry = WorkflowVersionEntry::new(name.clone(), hash.clone(), 1, ts, binary_path).unwrap();
 
     store.put(&entry).unwrap();
 
@@ -263,8 +247,7 @@ fn given_publish_when_registration_allowed_then_version_was_already_stored() {
         binary_hash: hash.clone(),
         force: false,
     };
-    let outcome =
-        evaluate_registration(&request, &cb_config, &cb_state, Instant::now()).unwrap();
+    let outcome = evaluate_registration(&request, &cb_config, &cb_state, Instant::now()).unwrap();
 
     use vo_core::circuit_breaker::RegistrationOutcome;
     assert!(

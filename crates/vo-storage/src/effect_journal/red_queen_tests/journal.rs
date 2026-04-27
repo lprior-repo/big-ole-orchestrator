@@ -54,7 +54,7 @@ fn red_queen_commit_then_rollback_returns_already_terminal() {
                 "BUG: status not Committed"
             );
         }
-        other => panic!("BUG: Wrong error variant for commit+rollback: {:?}", other),
+        other => panic!("BUG: Wrong error variant for commit+rollback: {other:?}"),
     }
 }
 
@@ -92,7 +92,7 @@ fn red_queen_rollback_then_commit_returns_already_terminal() {
                 "BUG: status not RolledBack"
             );
         }
-        other => panic!("BUG: Wrong error variant for rollback+commit: {:?}", other),
+        other => panic!("BUG: Wrong error variant for rollback+commit: {other:?}"),
     }
 }
 
@@ -119,7 +119,7 @@ fn red_queen_prepare_validates_intent_id_non_empty() {
 
     // Now verify that EffectRecord::new correctly rejects empty intent_id (contract enforcement)
     let empty_record_result = vo_types::EffectRecord::new(
-        "".to_string(), // Empty intent_id
+        String::new(), // Empty intent_id
         EffectKind::HttpCall,
         json!({}),
         EffectIntent::Prepared,
@@ -187,7 +187,7 @@ fn red_queen_list_pending_only_returns_prepared() {
     // Prepare 3 effects
     for i in 0..3 {
         let record = vo_types::EffectRecord::new(
-            format!("fx-pending-{}", i),
+            format!("fx-pending-{i}"),
             EffectKind::HttpCall,
             json!({}),
             EffectIntent::Prepared,

@@ -96,9 +96,12 @@ impl WriterPressureGuard for WatchdogPressureGuard {
                 indicators,
                 writer_stalled: _,
             } => {
-                let has_writer_pressure = indicators
-                    .iter()
-                    .any(|i| matches!(i, crate::admission::types::PressureIndicator::WriterQueueDepth));
+                let has_writer_pressure = indicators.iter().any(|i| {
+                    matches!(
+                        i,
+                        crate::admission::types::PressureIndicator::WriterQueueDepth
+                    )
+                });
 
                 if has_writer_pressure {
                     PressureGuardResult::Shed {
@@ -121,10 +124,7 @@ impl WriterPressureGuard for WatchdogPressureGuard {
 mod tests {
     use super::*;
 
-    fn make_guard(
-        health: StorageHealth,
-        threshold: u64,
-    ) -> WatchdogPressureGuard {
+    fn make_guard(health: StorageHealth, threshold: u64) -> WatchdogPressureGuard {
         let (tx, rx) = tokio::sync::watch::channel(health);
         let _ = tx; // keep sender alive
         let config = StorageWatchdogConfig {
@@ -144,9 +144,7 @@ mod tests {
     fn degraded_without_writer_pressure_admits() {
         let guard = make_guard(
             StorageHealth::Degraded {
-                indicators: vec![
-                    crate::admission::types::PressureIndicator::CompactionStall,
-                ],
+                indicators: vec![crate::admission::types::PressureIndicator::CompactionStall],
             },
             500,
         );
@@ -157,9 +155,7 @@ mod tests {
     fn degraded_with_writer_pressure_sheds() {
         let guard = make_guard(
             StorageHealth::Degraded {
-                indicators: vec![
-                    crate::admission::types::PressureIndicator::WriterQueueDepth,
-                ],
+                indicators: vec![crate::admission::types::PressureIndicator::WriterQueueDepth],
             },
             500,
         );
@@ -189,7 +185,9 @@ mod tests {
             500,
         );
         match guard.check() {
-            PressureGuardResult::Shed { retry_after_secs, .. } => {
+            PressureGuardResult::Shed {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 5);
             }
             other => panic!("expected Shed, got {other:?}"),

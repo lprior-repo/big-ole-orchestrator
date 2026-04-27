@@ -5141,8 +5141,6 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "quote",
- "serde",
- "serde_json",
  "syn",
 ]
 
@@ -5205,6 +5203,7 @@ dependencies = [
  "bytes",
  "crc32fast",
  "criterion",
+ "dashmap",
  "fjall",
  "generic-array",
  "memmap2",

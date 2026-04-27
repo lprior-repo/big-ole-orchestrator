@@ -226,7 +226,7 @@ fn purge_instance_with_uuid_format() {
         "550e8400-e29b-41d4-a716-446655440000".into(),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Purge { instance } = &cli.command {
+    if let Command::Purge { instance, .. } = &cli.command {
         assert_eq!(instance, "550e8400-e29b-41d4-a716-446655440000");
     } else {
         panic!("expected Purge");
@@ -242,7 +242,7 @@ fn purge_instance_with_numeric_string() {
         "12345".into(),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Purge { instance } = &cli.command {
+    if let Command::Purge { instance, .. } = &cli.command {
         assert_eq!(instance, "12345");
     } else {
         panic!("expected Purge");

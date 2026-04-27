@@ -40,8 +40,6 @@ pub enum CliError {
 pub enum Command {
     Purge {
         instance: String,
-        storage_path: PathBuf,
-        dry_run: bool,
     },
     Check {
         workflow: bool,
@@ -115,6 +113,7 @@ where
         .version("0.1.0")
         .subcommand_required(true)
         .arg_required_else_help(true)
+        .args_override_self(true)
         .subcommand(
             clap::Command::new("purge")
                 .about("Purge all data for a terminated workflow instance (ADR-025)")
@@ -155,6 +154,7 @@ where
                     clap::Arg::new("workflow-id")
                         .required(true)
                         .index(1)
+                        .value_parser(clap::builder::NonEmptyStringValueParser::new())
                         .help("The workflow instance ID to compensate"),
                 )
                 .arg(
@@ -361,17 +361,8 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
-            let storage_path = purge_matches
-                .get_one::<String>("storage-path")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
-            let dry_run = purge_matches.get_flag("dry-run");
             Ok(Cli {
-                command: Command::Purge {
-                    instance,
-                    storage_path,
-                    dry_run,
-                },
+                command: Command::Purge { instance },
             })
         }
         Some(("check", sub_matches)) => {
@@ -576,7 +567,6 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
     match err {
         CliError::Clap(e) => match e.kind() {
             clap::error::ErrorKind::DisplayHelp
-            | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
             | clap::error::ErrorKind::DisplayVersion => 0,
             _ => 2,
         },
@@ -613,7 +603,7 @@ mod tests {
         assert_eq!(
             cli.command,
             Command::Purge {
-                instance: "123".to_string()
+                instance: "123".to_string(),
             }
         );
     }

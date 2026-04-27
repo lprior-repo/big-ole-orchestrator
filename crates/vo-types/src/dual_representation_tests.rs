@@ -1,8 +1,6 @@
 use crate::dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
-use crate::ParseError;
-
 #[test]
 fn redaction_kind_remove_produces_null() {
     let kind = RedactionKind::Remove;

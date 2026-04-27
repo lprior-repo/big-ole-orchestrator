@@ -20,11 +20,9 @@
 //! - State machine logic ([`apply_effect_transition`]) lives in vo-types
 //! - vo-core re-exports and tests the domain model
 
+pub use vo_types::apply_effect_transition;
 use vo_types::TimestampMs;
-use vo_types::{
-    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError,
-};
+use vo_types::{CompensationPolicy, EffectIntent, EffectKind, EffectRecord, EffectTransitionError};
 
 #[cfg(test)]
 mod tests;

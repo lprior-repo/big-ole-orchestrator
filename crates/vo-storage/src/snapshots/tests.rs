@@ -309,7 +309,7 @@ fn snapshot_write_compresses_with_zstd() {
 
     // Read raw bytes to verify compression
     let key = encode_snapshot_key(&id, 1).unwrap();
-    let raw_value = partition.get(&key).unwrap().unwrap();
+    let raw_value = partition.get(key).unwrap().unwrap();
 
     // Compressed data should be reasonable size (small data may not compress well)
     // but should not be unreasonably large
@@ -453,7 +453,7 @@ fn compat_load_returns_loaded_when_version_matches_engine() {
         result,
         Ok(Some(CompatSnapshotLoad::Loaded {
             sequence: 1,
-            state: state.clone()
+            state
         }))
     );
 }
@@ -470,7 +470,7 @@ fn compat_load_returns_loaded_when_version_in_range() {
         result,
         Ok(Some(CompatSnapshotLoad::Loaded {
             sequence: 5,
-            state: state.clone()
+            state
         }))
     );
 }

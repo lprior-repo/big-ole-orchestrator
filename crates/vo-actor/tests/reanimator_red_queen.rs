@@ -84,7 +84,7 @@ async fn rq_reanimator_shutdown_rejects_new_work() {
     );
 
     // Check state before shutdown - need to subscribe to verify state change
-    let mut state_receiver = handle.state_sender.subscribe();
+    let state_receiver = handle.state_sender.subscribe();
     let result = handle.shutdown().await;
     assert!(result.is_ok(), "Shutdown should succeed");
 }

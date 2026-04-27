@@ -284,8 +284,7 @@ impl CompensationManifest {
             .filter_map(|id| {
                 self.entries
                     .get(id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
                     .then_some(id.clone())
             })
             .collect();
@@ -319,8 +318,7 @@ impl CompensationManifest {
         for effect_id in pending_effects.iter().rev() {
             let all_deps_emitted = dependents
                 .get(effect_id)
-                .map(|deps| deps.iter().all(|d| emitted.contains(d)))
-                .unwrap_or(true);
+                .is_none_or(|deps| deps.iter().all(|d| emitted.contains(d)));
 
             if all_deps_emitted {
                 result.push((*effect_id).clone());
@@ -457,7 +455,10 @@ impl CompensationSaga {
         policy: CompensationPolicy,
         dependencies: Vec<String>,
     ) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         manifest.register(effect_id, policy, dependencies)
     }
 
@@ -475,9 +476,13 @@ impl CompensationSaga {
         dependencies: Vec<String>,
         timeout_ms: u64,
     ) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         manifest.register(effect_id.to_string(), policy, dependencies)?;
-        let entry = manifest.get_mut(effect_id)
+        let entry = manifest
+            .get_mut(effect_id)
             .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
         entry.timeout_ms = Some(timeout_ms);
         drop(manifest);
@@ -493,7 +498,10 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn queue_pending(&self, effect_id: &str) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         let entry = manifest
             .get_mut(effect_id)
             .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
@@ -517,7 +525,10 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn start_compensation(&self, effect_id: &str) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         if !manifest.can_execute(effect_id) {
             return Err(CompensationError::PolicyViolation {
                 effect_id: effect_id.to_string(),
@@ -537,7 +548,10 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn succeed(&self, effect_id: &str) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
     }
 
@@ -549,7 +563,10 @@ impl CompensationSaga {
     ///
     /// Panics if the manifest mutex is poisoned.
     pub fn fail(&self, effect_id: &str) -> Result<(), CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
     }
 
@@ -564,10 +581,14 @@ impl CompensationSaga {
         &self,
         effect_id: &str,
     ) -> Result<ReconciliationAction, CompensationError> {
-        let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+        let mut manifest = self
+            .manifest
+            .lock()
+            .map_err(|_| CompensationError::Poisoned)?;
         manifest.set_ambiguous(effect_id)?;
 
-        let entry = manifest.get(effect_id)
+        let entry = manifest
+            .get(effect_id)
             .ok_or_else(|| CompensationError::NotFound(effect_id.to_string()))?;
         let ctx = ReconciliationContext {
             effect_id: effect_id.to_string(),
@@ -595,16 +616,25 @@ impl CompensationSaga {
     ) -> Result<(), CompensationError> {
         match action {
             ReconciliationAction::CommitCompensation => {
-                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+                let mut manifest = self
+                    .manifest
+                    .lock()
+                    .map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Succeeded)
             }
             ReconciliationAction::RetryCompensation => {
-                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+                let mut manifest = self
+                    .manifest
+                    .lock()
+                    .map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Pending)
             }
             ReconciliationAction::EscalateToOperator
             | ReconciliationAction::AbandonCompensation => {
-                let mut manifest = self.manifest.lock().map_err(|_| CompensationError::Poisoned)?;
+                let mut manifest = self
+                    .manifest
+                    .lock()
+                    .map_err(|_| CompensationError::Poisoned)?;
                 manifest.transition_to(effect_id, SagaCompensationStatus::Failed)
             }
         }

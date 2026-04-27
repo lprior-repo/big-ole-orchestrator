@@ -432,7 +432,7 @@ fn acquire_returns_new_authoritative_lease_when_now_greater_than_expiry() {
 }
 
 /// AQ-09: Simulated concurrent acquisition on same pair — first acquirer wins,
-/// second gets LeaseAlreadyHeld.
+/// second gets `LeaseAlreadyHeld`.
 #[test]
 fn concurrent_acquire_on_same_pair_first_writer_wins() {
     let store = DeterministicLeaseStore::new();
@@ -519,7 +519,7 @@ fn failed_acquire_has_no_side_effects_retry_succeeds() {
     assert_eq!(lease.token().inner().get(), 1);
 }
 
-/// AQ-18: Double-recovery race — first writer wins, second gets LeaseAlreadyHeld.
+/// AQ-18: Double-recovery race — first writer wins, second gets `LeaseAlreadyHeld`.
 #[test]
 fn double_recovery_race_first_writer_wins() {
     let store = DeterministicLeaseStore::new();

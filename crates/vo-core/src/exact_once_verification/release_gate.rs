@@ -42,7 +42,12 @@ pub struct BeadData {
 }
 
 impl BeadData {
-    pub fn new(id: impl Into<String>, labels: Vec<String>, notes: Option<String>, status: String) -> Self {
+    pub fn new(
+        id: impl Into<String>,
+        labels: Vec<String>,
+        notes: Option<String>,
+        status: String,
+    ) -> Self {
         Self {
             id: id.into(),
             labels,
@@ -70,7 +75,10 @@ impl Default for GateConfig {
     fn default() -> Self {
         Self {
             release_labels: [String::from("release-gate")].into_iter().collect(),
-            closure_statuses: ["in_progress", "closed"].into_iter().map(String::from).collect(),
+            closure_statuses: ["in_progress", "closed"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
             required_note_marker: String::from("black-hat"),
         }
     }
@@ -179,7 +187,10 @@ impl ClosureCheck {
             .beads
             .iter()
             .filter(|b| {
-                self.config.release_labels.iter().any(|label| b.labels.contains(label))
+                self.config
+                    .release_labels
+                    .iter()
+                    .any(|label| b.labels.contains(label))
                     && self.config.closure_statuses.contains(&b.status)
             })
             .collect();
@@ -318,7 +329,10 @@ mod tests {
 
         assert!(result.is_reject());
         match result {
-            GateResult::Reject { checked_count, failing } => {
+            GateResult::Reject {
+                checked_count,
+                failing,
+            } => {
                 assert_eq!(checked_count, 1);
                 assert_eq!(failing.len(), 1);
                 assert!(matches!(
@@ -580,9 +594,7 @@ mod tests {
     #[test]
     fn given_custom_config_with_exact_once_label_when_check_then_gates() {
         let mut config = GateConfig::default();
-        config
-            .release_labels
-            .insert("exact-once-crash".to_string());
+        config.release_labels.insert("exact-once-crash".to_string());
 
         let beads = vec![
             BeadData::new(
@@ -604,7 +616,10 @@ mod tests {
 
         assert!(result.is_reject());
         match result {
-            GateResult::Reject { checked_count, failing } => {
+            GateResult::Reject {
+                checked_count,
+                failing,
+            } => {
                 assert_eq!(checked_count, 2);
                 assert_eq!(failing.len(), 1);
             }
@@ -650,8 +665,7 @@ mod tests {
         );
 
         let json = serde_json::to_string(&bead).expect("serde should succeed");
-        let restored: BeadData =
-            serde_json::from_str(&json).expect("serde should deserialize");
+        let restored: BeadData = serde_json::from_str(&json).expect("serde should deserialize");
 
         assert_eq!(bead, restored);
     }

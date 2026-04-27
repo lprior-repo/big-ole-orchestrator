@@ -17,6 +17,9 @@
 
 pub mod cli;
 pub mod commands;
+pub mod init {
+    pub use crate::commands::init::*;
+}
 pub mod dispatch_mod;
 pub mod dispatch_v2;
 pub mod handler;

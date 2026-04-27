@@ -357,7 +357,11 @@ pub struct WorkflowPublishSpec {
 impl WorkflowPublishSpec {
     /// Create a new `WorkflowPublishSpec`.
     #[must_use]
-    pub fn new(guarantee_class: GuaranteeClass, nodes: Vec<vo_types::NodeName>, node_kinds: Vec<NodeKind>) -> Self {
+    pub fn new(
+        guarantee_class: GuaranteeClass,
+        nodes: Vec<vo_types::NodeName>,
+        node_kinds: Vec<NodeKind>,
+    ) -> Self {
         assert_eq!(
             nodes.len(),
             node_kinds.len(),
@@ -374,7 +378,8 @@ impl WorkflowPublishSpec {
     /// Returns the workflow name from the first node, or "unknown" if empty.
     #[must_use]
     pub fn workflow_name(&self) -> String {
-        self.nodes.first()
+        self.nodes
+            .first()
             .map(|n| n.to_string())
             .unwrap_or_else(|| "unknown".to_string())
     }
@@ -668,7 +673,10 @@ mod tests {
         let result = validate_unsafe_nodes(&spec);
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), UnsafePublishError::UnsafeNotAllowed { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            UnsafePublishError::UnsafeNotAllowed { .. }
+        ));
     }
 
     #[test]
@@ -711,11 +719,7 @@ mod tests {
     #[test]
     fn given_empty_workflow_when_published_then_validation_accepts() {
         // Empty workflow has no unsafe nodes regardless of guarantee class
-        let spec = WorkflowPublishSpec::new(
-            GuaranteeClass::ExactOnce,
-            vec![],
-            vec![],
-        );
+        let spec = WorkflowPublishSpec::new(GuaranteeClass::ExactOnce, vec![], vec![]);
 
         let result = validate_unsafe_nodes(&spec);
 
@@ -803,12 +807,8 @@ mod tests {
 
     #[test]
     fn given_at_least_once_workflow_without_dedupe_scope_when_published_then_validation_accepts() {
-        use vo_types::DedupeScope;
-        let spec = WorkflowPublishSpec::new(
-            GuaranteeClass::AtLeastOnce,
-            vec![],
-            vec![],
-        );
+        
+        let spec = WorkflowPublishSpec::new(GuaranteeClass::AtLeastOnce, vec![], vec![]);
 
         let result = validate_dedupe_policy(&spec);
 
@@ -817,12 +817,8 @@ mod tests {
 
     #[test]
     fn given_best_effort_workflow_without_dedupe_scope_when_published_then_validation_accepts() {
-        use vo_types::DedupeScope;
-        let spec = WorkflowPublishSpec::new(
-            GuaranteeClass::BestEffort,
-            vec![],
-            vec![],
-        );
+        
+        let spec = WorkflowPublishSpec::new(GuaranteeClass::BestEffort, vec![], vec![]);
 
         let result = validate_dedupe_policy(&spec);
 
@@ -865,7 +861,10 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.node_name, "send_email");
         assert_eq!(err.sink, "smtp");
-        assert_eq!(UnsupportedConnectorSink::error_code(), "unsupported_connector_sink");
+        assert_eq!(
+            UnsupportedConnectorSink::error_code(),
+            "unsupported_connector_sink"
+        );
         let msg = err.to_string();
         assert!(msg.contains("send_email"));
         assert!(msg.contains("smtp"));

@@ -33,7 +33,7 @@ fn dur_005_corrupt_sst_file_clean_error_or_recovery() {
             let seq_num = SequenceNumber::try_from(seq).unwrap();
             let key = encode_event_key(&id, &seq_num).unwrap();
             let value = serde_json::json!({"sequence": seq, "type": "DurabilityTest"});
-            ks.insert(key, &serde_json::to_vec(&value).unwrap())
+            ks.insert(key, serde_json::to_vec(&value).unwrap())
                 .unwrap();
         }
 
@@ -81,7 +81,7 @@ fn dur_005_corrupt_sst_file_clean_error_or_recovery() {
                     .unwrap();
 
                 let id_bytes = id.to_bytes().unwrap();
-                let count = ks.prefix(&id_bytes).count();
+                let count = ks.prefix(id_bytes).count();
 
                 assert!(
                     count <= 100,
@@ -99,7 +99,7 @@ fn dur_005_corrupt_sst_file_clean_error_or_recovery() {
         let ks = open_events_ks(&db);
 
         let id_bytes = id.to_bytes().unwrap();
-        let count = ks.prefix(&id_bytes).count();
+        let count = ks.prefix(id_bytes).count();
 
         assert_eq!(count, 100, "All 100 events must be intact");
     }

@@ -1,4 +1,4 @@
-//! EffectJournal lifecycle, error handling, and kani verification tests.
+//! `EffectJournal` lifecycle, error handling, and kani verification tests.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]

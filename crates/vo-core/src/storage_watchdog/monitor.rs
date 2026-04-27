@@ -74,7 +74,7 @@ fn disk_space_for_path(path: &str) -> DiskSpaceMetrics {
             if result == 0 {
                 let block_size = statvfs.f_bsize as u64;
                 let total_bytes = statvfs.f_blocks * block_size;
-                let free_bytes = statvfs.f_bfree * block_size;
+                let _free_bytes = statvfs.f_bfree * block_size;
                 let available_bytes = statvfs.f_bavail * block_size;
 
                 // Use available (non-root) space for accuracy

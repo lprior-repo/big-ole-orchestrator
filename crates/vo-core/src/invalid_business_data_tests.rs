@@ -56,8 +56,8 @@ mod admission_boundary {
         let expected = FenceToken::new(42).unwrap();
         let actual = FenceToken::new(99).unwrap();
         let reason = RejectionReason::FenceTokenMismatch {
-            expected: expected.clone(),
-            actual: actual.clone(),
+            expected,
+            actual,
         };
         let msg = reason.to_string();
         assert!(msg.contains("mismatch"));
@@ -994,7 +994,7 @@ mod workflow_version_boundary {
 
 mod debounce_boundary {
     use crate::debounce::Error;
-    use std::time::Duration;
+    
 
     #[test]
     fn error_display_all_variants() {

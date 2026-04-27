@@ -42,7 +42,7 @@ mod tests {
     fn test_reexport_lint_code() {
         let code = LintCode::L002;
         let d = Diagnostic::new(code, "lint");
-        assert!(matches!(d.code, LintCode::L002));
+        assert!(matches!(d.code(), LintCode::L002));
     }
 
     #[test]
@@ -180,8 +180,12 @@ mod tests {
         let initial_count = registry.rule_count();
         struct TestRule;
         impl Rule for TestRule {
-            fn id(&self) -> &'static str { "T001" }
-            fn name(&self) -> &'static str { "test rule" }
+            fn id(&self) -> &'static str {
+                "T001"
+            }
+            fn name(&self) -> &'static str {
+                "test rule"
+            }
             fn execute(&self, _node: &syn::File) -> Vec<Diagnostic> {
                 vec![]
             }
@@ -196,9 +200,12 @@ mod tests {
         let src = "fn workflow() { let id = Uuid::new_v4(); }";
         let file: syn::File = syn::parse_str(src).unwrap();
         let diags = registry.execute_all(&file);
-        assert!(diags.len() >= 1);
+        assert!(!diags.is_empty());
         for diag in &diags {
-            assert!(!diag.message().is_empty(), "diagnostic message must not be empty");
+            assert!(
+                !diag.message().is_empty(),
+                "diagnostic message must not be empty"
+            );
         }
     }
 

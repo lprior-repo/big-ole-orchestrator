@@ -119,6 +119,24 @@ impl WaitKey {
     }
 }
 
+impl From<vo_types::WaitKey> for WaitKey {
+    fn from(value: vo_types::WaitKey) -> Self {
+        Self(value.as_str().to_string())
+    }
+}
+
+impl From<&vo_types::WaitKey> for WaitKey {
+    fn from(value: &vo_types::WaitKey) -> Self {
+        Self(value.as_str().to_string())
+    }
+}
+
+impl From<&WaitKey> for WaitKey {
+    fn from(value: &WaitKey) -> Self {
+        value.clone()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignalPayload(Vec<u8>);
 
@@ -130,7 +148,7 @@ impl SignalPayload {
                 bytes.len()
             ));
         }
-        if bytes.iter().any(|&b| b == 0) {
+        if bytes.contains(&0) {
             return Err("SignalPayload contains null byte".to_string());
         }
         Ok(Self(bytes))
@@ -195,6 +213,36 @@ impl SignalName {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl From<&str> for SignalName {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl From<String> for SignalName {
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl From<&String> for SignalName {
+    fn from(value: &String) -> Self {
+        Self(value.clone())
+    }
+}
+
+impl PartialEq<String> for SignalName {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for SignalName {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
     }
 }
 
@@ -286,6 +334,12 @@ impl NodeName {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl From<vo_types::NodeName> for NodeName {
+    fn from(value: vo_types::NodeName) -> Self {
+        Self(value.as_str().to_string())
     }
 }
 
@@ -532,7 +586,8 @@ pub mod mock_signal_storage {
                 });
             }
             let mut persisted = self.persisted.lock().unwrap();
-            persisted.retain(|s| !(s.instance_id == *instance_id && s.signal_id.as_str() == signal_id));
+            persisted
+                .retain(|s| !(s.instance_id == *instance_id && s.signal_id.as_str() == signal_id));
             Ok(())
         }
     }

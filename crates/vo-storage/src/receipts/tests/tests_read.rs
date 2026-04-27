@@ -57,7 +57,7 @@ fn fjall_get_returns_correct_receipt_fields() {
         format!("{id}::fx-fields"),
         id.to_string(),
         EffectKind::HttpCall,
-        1713999999,
+        1_713_999_999,
         "Success".to_string(),
     )
     .unwrap();
@@ -68,7 +68,7 @@ fn fjall_get_returns_correct_receipt_fields() {
     assert_eq!(retrieved.effect_id(), receipt.effect_id());
     assert_eq!(retrieved.instance_id(), receipt.instance_id());
     assert_eq!(retrieved.kind(), EffectKind::HttpCall);
-    assert_eq!(retrieved.committed_at_ms(), 1713999999);
+    assert_eq!(retrieved.committed_at_ms(), 1_713_999_999);
 }
 
 #[test]

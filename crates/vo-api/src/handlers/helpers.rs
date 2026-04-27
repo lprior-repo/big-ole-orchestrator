@@ -35,5 +35,6 @@ pub fn phase_to_str(p: InstancePhaseView) -> &'static str {
     match p {
         InstancePhaseView::Replay => "replay",
         InstancePhaseView::Live => "live",
+        InstancePhaseView::Terminated => "terminated",
     }
 }

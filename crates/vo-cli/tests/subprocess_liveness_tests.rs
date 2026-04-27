@@ -1,6 +1,7 @@
+mod test_helpers;
 use std::path::PathBuf;
+use test_helpers::{make_temp_dir, setup_project};
 use vo_cli::commands::doctor_checks::{check_subprocess_liveness, CheckResult};
-use crate::helpers::{make_temp_dir, setup_project};
 
 // ============================================================
 // GAP: check_subprocess_liveness with PID files

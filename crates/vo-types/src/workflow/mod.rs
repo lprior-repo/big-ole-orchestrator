@@ -41,6 +41,10 @@ pub enum WorkflowDefinitionError {
         unknown_target: NodeName,
     },
 
+    /// The nodes list contains duplicate node names.
+    #[error("duplicate node name: '{node_name}' appears more than once")]
+    DuplicateNode { node_name: NodeName },
+
     /// A `DagNode` contains an invalid `RetryPolicy`.
     #[error("node '{node_name}' has invalid retry policy: {reason}")]
     InvalidRetryPolicy {
@@ -124,6 +128,17 @@ impl WorkflowDefinition {
         // Step 2: Non-empty nodes check
         if unvalidated.nodes.is_empty() {
             return Err(WorkflowDefinitionError::EmptyWorkflow);
+        }
+
+        // Step 2b: Check for duplicate node names
+        let mut seen: HashMap<&NodeName, usize> = HashMap::new();
+        for (i, node) in unvalidated.nodes.iter().enumerate() {
+            if let Some(first_idx) = seen.get(&node.node_name) {
+                return Err(WorkflowDefinitionError::DuplicateNode {
+                    node_name: node.node_name.clone(),
+                });
+            }
+            seen.insert(&node.node_name, i);
         }
 
         // Step 3: RetryPolicy validation per node

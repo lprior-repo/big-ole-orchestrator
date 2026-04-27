@@ -18,8 +18,8 @@ fn read_valid_json_returns_task_input() {
     let result = read_input_inner(&mut cursor, &mut is_read);
 
     let input = result.expect("valid JSON should parse");
-    assert_eq!(input.idempotency_key().as_str(), "key-abc");
-    assert_eq!(input.data(), &json!({"hello": "world"}));
+    assert_eq!(input.idempotency_key.as_str(), "key-abc");
+    assert_eq!(input.data, json!({"hello": "world"}));
     assert!(is_read, "guard must be set after successful read");
 }
 
@@ -30,7 +30,7 @@ fn read_empty_input_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
     assert!(is_read, "guard is set even on empty input");
 }
 
@@ -43,7 +43,7 @@ fn read_oversized_input_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn read_one_byte_over_max_size_is_rejected() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn read_invalid_json_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn read_missing_idempotency_key_field_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn read_missing_data_field_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -115,8 +115,9 @@ fn read_empty_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(
-        result.is_err(),
+    assert_eq!(
+        result,
+        Err(SdkError::InvalidInput),
         "empty idempotency_key must be rejected by IdempotencyKey::parse"
     );
 }
@@ -133,7 +134,7 @@ fn read_double_read_guard_returns_fd_not_open() {
     let mut cursor2 = Cursor::new(valid_envelope("key-2", &json!(null)));
     let result = read_input_inner(&mut cursor2, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::FdNotOpen));
 }
 
 #[test]
@@ -151,9 +152,9 @@ fn read_nested_json_data_returns_task_input() {
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("nested JSON should parse");
 
-    assert_eq!(input.idempotency_key().as_str(), "nested-key");
-    assert_eq!(input.data()["order"]["items"][0]["sku"], json!("abc"));
-    assert_eq!(input.data()["metadata"], json!(null));
+    assert_eq!(input.idempotency_key.as_str(), "nested-key");
+    assert_eq!(input.data["order"]["items"][0]["sku"], json!("abc"));
+    assert_eq!(input.data["metadata"], json!(null));
 }
 
 #[test]
@@ -169,8 +170,8 @@ fn read_extra_fields_are_ignored() {
 
     let input =
         read_input_inner(&mut cursor, &mut is_read).expect("extra fields should be ignored");
-    assert_eq!(input.idempotency_key().as_str(), "extra-key");
-    assert_eq!(input.data(), &json!({"x": 1}));
+    assert_eq!(input.idempotency_key.as_str(), "extra-key");
+    assert_eq!(input.data, json!({"x": 1}));
 }
 
 #[test]
@@ -180,7 +181,7 @@ fn read_data_field_as_null_is_valid() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("null data should be valid");
-    assert_eq!(input.data(), &json!(null));
+    assert_eq!(input.data, json!(null));
 }
 
 #[test]
@@ -190,7 +191,7 @@ fn read_data_field_as_array_is_valid() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("array data should be valid");
-    assert_eq!(input.data(), &json!([1, 2, 3]));
+    assert_eq!(input.data, json!([1, 2, 3]));
 }
 
 #[test]
@@ -200,7 +201,7 @@ fn read_data_field_as_string_is_valid() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("string data should be valid");
-    assert_eq!(input.data(), &json!("hello"));
+    assert_eq!(input.data, json!("hello"));
 }
 
 #[test]
@@ -210,7 +211,7 @@ fn read_data_field_as_number_is_valid() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("number data should be valid");
-    assert_eq!(input.data(), &json!(42));
+    assert_eq!(input.data, json!(42));
 }
 
 #[test]
@@ -220,7 +221,7 @@ fn read_data_field_as_bool_is_valid() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("bool data should be valid");
-    assert_eq!(input.data(), &json!(true));
+    assert_eq!(input.data, json!(true));
 }
 
 #[test]
@@ -229,7 +230,7 @@ fn read_non_object_json_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner(&mut cursor, &mut is_read);
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -238,7 +239,7 @@ fn read_truncated_json_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner(&mut cursor, &mut is_read);
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -248,7 +249,7 @@ fn read_idempotency_key_with_spaces_returns_invalid_input() {
     let mut is_read = false;
 
     let result = read_input_inner(&mut cursor, &mut is_read);
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -258,7 +259,7 @@ fn read_valid_idempotency_key_with_hyphens() {
     let mut is_read = false;
 
     let input = read_input_inner(&mut cursor, &mut is_read).expect("hyphenated key should work");
-    assert_eq!(input.idempotency_key().as_str(), "my-key-123-abc");
+    assert_eq!(input.idempotency_key.as_str(), "my-key-123-abc");
 }
 
 #[test]
@@ -301,7 +302,8 @@ fn read_input_secrets_empty_object_is_empty() {
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
-    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse with empty secrets");
+    let input =
+        read_input_inner(&mut cursor, &mut is_read).expect("should parse with empty secrets");
     assert!(input.secrets().is_empty());
 }
 
@@ -316,7 +318,8 @@ fn read_input_secret_non_string_returns_none() {
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
-    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse non-string secrets");
+    let input =
+        read_input_inner(&mut cursor, &mut is_read).expect("should parse non-string secrets");
     assert_eq!(input.secret("NUM_KEY"), None);
     assert_eq!(input.secret("BOOL_KEY"), None);
     assert_eq!(input.secret("OBJ_KEY"), None);

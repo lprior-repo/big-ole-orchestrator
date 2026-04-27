@@ -269,5 +269,3 @@ impl ChannelEntry {
         self.destinations.iter().any(|d| d.is_active)
     }
 }
-
-

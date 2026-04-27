@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)]
-//! Integration tests for purge_expired operation.
+//! Integration tests for `purge_expired` operation.
 
 use super::*;
 use std::collections::HashMap;

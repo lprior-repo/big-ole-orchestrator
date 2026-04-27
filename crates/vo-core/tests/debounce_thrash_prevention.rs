@@ -42,8 +42,10 @@ async fn rapid_modify_events_collapse_to_single_yield() {
     }
 
     // Not yet yielded — still within debounce window
-    assert!(poll_ready(&mut debouncer).await.is_none(),
-        "Should not yield during debounce window");
+    assert!(
+        poll_ready(&mut debouncer).await.is_none(),
+        "Should not yield during debounce window"
+    );
 
     // Advance past the debounce window
     tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;
@@ -53,8 +55,10 @@ async fn rapid_modify_events_collapse_to_single_yield() {
     assert_eq!(result, Ok(path.clone()), "Should yield exactly one event");
 
     // No second yield — all 50 events collapsed into one
-    assert!(poll_ready(&mut debouncer).await.is_none(),
-        "Should not yield again after collapse");
+    assert!(
+        poll_ready(&mut debouncer).await.is_none(),
+        "Should not yield again after collapse"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -71,8 +75,10 @@ async fn stable_state_no_spurious_yields() {
     // Advance a long time with no events — stable state
     tokio::time::advance(Duration::from_secs(60)).await;
 
-    assert!(poll_ready(&mut debouncer).await.is_none(),
-        "Stable state must not produce spurious yields");
+    assert!(
+        poll_ready(&mut debouncer).await.is_none(),
+        "Stable state must not produce spurious yields"
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -108,9 +114,15 @@ async fn debounce_window_separates_distinct_bursts() {
     tokio::time::advance(Duration::from_millis(debounce_ms + 1)).await;
 
     let result2 = debouncer.next_debounced_event().await;
-    assert_eq!(result2, Ok(path.clone()), "Burst 2 should yield as separate event");
+    assert_eq!(
+        result2,
+        Ok(path.clone()),
+        "Burst 2 should yield as separate event"
+    );
 
     // No third yield
-    assert!(poll_ready(&mut debouncer).await.is_none(),
-        "Only two bursts should produce two yields");
+    assert!(
+        poll_ready(&mut debouncer).await.is_none(),
+        "Only two bursts should produce two yields"
+    );
 }

@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)]
-//! Mutation-killer tests for dedupe_partition contract (vel-7ffu).
+//! Mutation-killer tests for `dedupe_partition` contract (vel-7ffu).
 //!
 //! These tests use unique values that cannot be confused with hardcoded mutations.
 //! A mutation returning "", "xyzzy", 0, or 1 will ALWAYS fail these tests.

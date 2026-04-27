@@ -72,6 +72,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/workflows/{id}/unquarantine",
             post(crate::handlers::unquarantine_workflow),
         )
+        .route(
+            "/api/v1/workflows/{id}/compensate",
+            post(crate::handlers::compensate_workflow),
+        )
         .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.circuit_breaker.clone()))
         .layer(Extension(state.dedupe_store.clone()))
@@ -106,7 +110,8 @@ pub fn create_router(state: AppState) -> Router {
             post(crate::handlers::send_signal),
         )
         .layer(Extension(state.master.as_ref().clone()))
-        .layer(Extension(state.dedupe_store.clone()));
+        .layer(Extension(state.dedupe_store.clone()))
+        .layer(Extension(state.query.db.clone()));
 
     // Events endpoint -- uses Extension<ActorRef<OrchestratorMsg>>
     let event_routes = Router::new()
@@ -142,7 +147,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(sse_routes)
         .merge(ws_routes)
         .merge(ui_routes)
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(TimeoutLayer::with_status_code(axum::http::StatusCode::REQUEST_TIMEOUT, Duration::from_secs(30)))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
 }

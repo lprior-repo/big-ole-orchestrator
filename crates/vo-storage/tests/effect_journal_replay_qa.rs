@@ -25,9 +25,15 @@ fn list_pending_returns_all_prepared_effects_for_instance() {
     let journal = InMemoryEffectJournal::new();
     let id = sample_instance();
 
-    let _e1 = journal.prepare(&id, make_record("fx-1", EffectKind::HttpCall)).unwrap();
-    let e2 = journal.prepare(&id, make_record("fx-2", EffectKind::SqlQuery)).unwrap();
-    let _ = journal.prepare(&id, make_record("fx-3", EffectKind::BlobWrite)).unwrap();
+    let _e1 = journal
+        .prepare(&id, make_record("fx-1", EffectKind::HttpCall))
+        .unwrap();
+    let e2 = journal
+        .prepare(&id, make_record("fx-2", EffectKind::SqlQuery))
+        .unwrap();
+    let _ = journal
+        .prepare(&id, make_record("fx-3", EffectKind::BlobWrite))
+        .unwrap();
 
     // Commit one, so only 2 should be pending
     journal.commit(&e2).unwrap();
@@ -45,9 +51,15 @@ fn replay_reconstructs_instance_state_from_journal() {
     let id = sample_instance();
 
     // Simulate a workflow's effect history
-    let e1 = journal.prepare(&id, make_record("charge-card", EffectKind::HttpCall)).unwrap();
-    let _e2 = journal.prepare(&id, make_record("reserve-inventory", EffectKind::SqlQuery)).unwrap();
-    let _e3 = journal.prepare(&id, make_record("send-email", EffectKind::HttpCall)).unwrap();
+    let e1 = journal
+        .prepare(&id, make_record("charge-card", EffectKind::HttpCall))
+        .unwrap();
+    let _e2 = journal
+        .prepare(&id, make_record("reserve-inventory", EffectKind::SqlQuery))
+        .unwrap();
+    let _e3 = journal
+        .prepare(&id, make_record("send-email", EffectKind::HttpCall))
+        .unwrap();
 
     // Workflow commits some, crashes before committing others
     journal.commit(&e1).unwrap();
@@ -65,5 +77,8 @@ fn replay_reconstructs_instance_state_from_journal() {
 
     // After replay, no pending effects remain
     let final_pending = journal.list_pending(&id).unwrap();
-    assert!(final_pending.is_empty(), "replay should resolve all pending effects");
+    assert!(
+        final_pending.is_empty(),
+        "replay should resolve all pending effects"
+    );
 }

@@ -1,8 +1,8 @@
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use super::super::types::*;
     use super::super::transitions::*;
+    use super::super::types::*;
     use rstest::rstest;
     use serde_json::json;
 

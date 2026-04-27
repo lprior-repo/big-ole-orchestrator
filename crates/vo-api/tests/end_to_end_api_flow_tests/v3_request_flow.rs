@@ -9,6 +9,7 @@ fn minimal_start_request_serializes_correctly() {
         input: json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: None,
+        workflow_binary_hash: None,
     };
     let json_str = serde_json::to_string(&req).unwrap();
     assert!(json_str.contains(r#""namespace":"payments""#));
@@ -27,6 +28,7 @@ fn full_start_request_with_all_fields() {
         input: json!({"items": ["a", "b"], "priority": 1}),
         instance_id: Some("01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string()),
         dedupe_key: Some("dedupe-abc-123".to_string()),
+        workflow_binary_hash: None,
     };
     let json_str = serde_json::to_string(&req).unwrap();
     assert!(json_str.contains(r#""instance_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV""#));
@@ -57,6 +59,7 @@ fn start_request_with_instance_id_roundtrip() {
         input: json!({}),
         instance_id: Some("01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string()),
         dedupe_key: None,
+        workflow_binary_hash: None,
     };
     let serialized = serde_json::to_string(&req).unwrap();
     let deserialized: V3StartRequest = serde_json::from_str(&serialized).unwrap();

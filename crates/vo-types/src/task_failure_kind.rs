@@ -59,7 +59,11 @@ mod tests {
 
     #[test]
     fn task_failure_kind_serialize_roundtrip() {
-        for kind in [TaskFailureKind::User, TaskFailureKind::System, TaskFailureKind::Timeout] {
+        for kind in [
+            TaskFailureKind::User,
+            TaskFailureKind::System,
+            TaskFailureKind::Timeout,
+        ] {
             let json = serde_json::to_string(&kind).unwrap();
             let deserialized: TaskFailureKind = serde_json::from_str(&json).unwrap();
             assert_eq!(kind, deserialized);

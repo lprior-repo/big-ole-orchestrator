@@ -803,7 +803,7 @@ mod proptest_invariants {
                 // INV-3: count matches tracked active set
                 prop_assert_eq!(registry.active_count(), expected_active.len());
 
-                for (active_id, _) in &expected_active {
+                for active_id in expected_active.keys() {
                     prop_assert!(registry.is_active(active_id));
                     prop_assert!(registry.lookup(active_id).is_some());
                 }

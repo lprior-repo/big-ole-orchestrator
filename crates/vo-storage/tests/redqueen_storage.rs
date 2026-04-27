@@ -105,7 +105,7 @@ fn red_queen_compaction_under_load_concurrent_writers() {
                 barrier.wait();
                 for i in 0..200u32 {
                     let key = format!("rq-{seed}-{i}");
-                    ks.insert(key.as_bytes(), &seed.to_le_bytes()).unwrap();
+                    ks.insert(key.as_bytes(), seed.to_le_bytes()).unwrap();
                 }
             })
         })
@@ -139,7 +139,7 @@ fn red_queen_snapshot_conflict_last_writer_wins() {
     let key = encode_snapshot_key(&iid(0xCC), 10).unwrap();
     let val = ks.get(key).unwrap().unwrap();
     assert!(
-        val.iter().any(|&b| b == b'|'),
+        val.contains(&b'|'),
         "must have header|payload format"
     );
 }

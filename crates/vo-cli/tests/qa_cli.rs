@@ -7,7 +7,7 @@ fn parse_purge_with_instance_id_flag() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: "abc-123".into()
+            instance: "abc-123".into(),
         }
     );
 }

@@ -54,6 +54,7 @@ mod v3_types {
                 input: json!({"key": "value"}),
                 instance_id: Some("01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string()),
                 dedupe_key: Some("key123".to_string()),
+                workflow_binary_hash: None,
             };
             let serialized = serde_json::to_string(&req).unwrap();
             let deserialized: V3StartRequest = serde_json::from_str(&serialized).unwrap();
@@ -73,6 +74,7 @@ mod v3_types {
                 input: json!({}),
                 instance_id: None,
                 dedupe_key: None,
+                workflow_binary_hash: None,
             };
             let json_str = serde_json::to_string(&req).unwrap();
             assert!(!json_str.contains("instance_id"));
@@ -210,7 +212,7 @@ mod v3_types {
 
 mod v1_types {
     use super::json;
-    use super::*;
+    
     use vo_api::types::v1::*;
 
     mod workflow_status_value {
@@ -226,7 +228,7 @@ mod v1_types {
                 (WorkflowStatusValue::Cancelled, "cancelled"),
             ];
             for (val, expected) in values {
-                let json = serde_json::to_value(&val).unwrap();
+                let json = serde_json::to_value(val).unwrap();
                 assert_eq!(json, expected);
             }
         }

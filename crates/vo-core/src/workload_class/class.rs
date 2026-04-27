@@ -64,7 +64,9 @@ impl WorkloadClass {
             "standard" => Ok(WorkloadClass::Standard),
             "unsafe_bulk" => Ok(WorkloadClass::UnsafeBulk),
             "recovery" => Ok(WorkloadClass::Recovery),
-            _ => Err(super::error::WorkloadClassError::UnknownClass(s.to_string())),
+            _ => Err(super::error::WorkloadClassError::UnknownClass(
+                s.to_string(),
+            )),
         }
     }
 

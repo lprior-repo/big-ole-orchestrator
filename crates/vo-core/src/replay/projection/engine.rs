@@ -7,12 +7,11 @@
 //! - `RebuildContext` — tracks individual rebuild operations
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 
-use super::{ProjectionError, ProjectionRecord, ProjectionState, RebuildContext, StaleReason};
 use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
+use super::{ProjectionError, ProjectionRecord, RebuildContext, StaleReason};
 use crate::upcaster::UpcasterRegistry;
 
 // =====================================================================

@@ -7,9 +7,9 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, WorkflowName};
+use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, RetryPolicy, WorkflowName};
 
-use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
+use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -284,7 +284,12 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                retry_policy: default_retry_policy(),
+                retry_policy: RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
                 signal_meta: n.signal_meta.clone(),
             })
             .collect();

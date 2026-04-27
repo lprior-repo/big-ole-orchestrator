@@ -1,6 +1,7 @@
 //! Proptests for Dag builder methods.
 
 #![allow(clippy::unwrap_used)]
+#![allow(deprecated)]
 
 use proptest::prelude::*;
 

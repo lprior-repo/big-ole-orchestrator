@@ -112,7 +112,7 @@ impl SchedulerQueue {
                 job.due_at = Utc::now() + chrono::Duration::from_std(d).unwrap_or_default()
             }
             SchedulePolicy::Immediate => job.due_at = Utc::now(),
-            SchedulePolicy::Cron { .. } => job.due_at = Utc::now(),
+            SchedulePolicy::Cron(_) => job.due_at = Utc::now(),
         }
         self.rebuild_heap_entry(job_id);
         Ok(())

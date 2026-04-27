@@ -81,21 +81,30 @@ fn sort_by_timestamp_produces_correct_order() {
     events.sort_by_key(|e| match e {
         WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
     });
-    let timestamps: Vec<u64> = events.iter().map(|e| match e {
-        WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
-    }).collect();
+    let timestamps: Vec<u64> = events
+        .iter()
+        .map(|e| match e {
+            WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
+        })
+        .collect();
     assert_eq!(timestamps, vec![100, 300, 500]);
 }
 
 #[test]
 fn reverse_chronological_sort_stable() {
-    let mut events: Vec<WorkflowEvent> = (0..100).rev().map(|i| make_evt(&format!("e{i}"), &format!("t{i}"), i as u64)).collect();
+    let mut events: Vec<WorkflowEvent> = (0..100)
+        .rev()
+        .map(|i| make_evt(&format!("e{i}"), &format!("t{i}"), i as u64))
+        .collect();
     events.sort_by_key(|e| match e {
         WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
     });
-    let timestamps: Vec<u64> = events.iter().map(|e| match e {
-        WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
-    }).collect();
+    let timestamps: Vec<u64> = events
+        .iter()
+        .map(|e| match e {
+            WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
+        })
+        .collect();
     let expected: Vec<u64> = (0..100).collect();
     assert_eq!(timestamps, expected);
 }
@@ -128,7 +137,8 @@ fn numeric_string_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
         "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": "999"}
-    })).is_err());
+    }))
+    .is_err());
 }
 
 #[test]
@@ -136,7 +146,8 @@ fn boolean_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
         "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": true}
-    })).is_err());
+    }))
+    .is_err());
 }
 
 #[test]
@@ -186,22 +197,38 @@ fn dedup_map_latest_timestamp_wins() {
     for (i, ts) in [100, 50, 200, 150, 200].into_iter().enumerate() {
         let event = make_evt(&format!("d{i}"), "dedup-test", ts);
         let (key, ts_val) = match &event {
-            WorkflowEvent::TimerFired { timer_id, timestamp_ms, .. } => (timer_id.clone(), *timestamp_ms),
+            WorkflowEvent::TimerFired {
+                timer_id,
+                timestamp_ms,
+                ..
+            } => (timer_id.clone(), *timestamp_ms),
         };
-        latest.entry(key).and_modify(|e| { if ts_val > *e { *e = ts_val; } }).or_insert(ts_val);
+        latest
+            .entry(key)
+            .and_modify(|e| {
+                if ts_val > *e {
+                    *e = ts_val;
+                }
+            })
+            .or_insert(ts_val);
     }
     assert_eq!(latest.get("dedup-test").copied(), Some(200));
 }
 
 #[test]
 fn many_timers_sort_maintains_total_order() {
-    let mut events: Vec<WorkflowEvent> = (0..500).map(|i| make_evt(&format!("e{i}"), &format!("timer-{i}"), (499 - i) as u64)).collect();
+    let mut events: Vec<WorkflowEvent> = (0..500)
+        .map(|i| make_evt(&format!("e{i}"), &format!("timer-{i}"), (499 - i) as u64))
+        .collect();
     events.sort_by_key(|e| match e {
         WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
     });
-    let timestamps: Vec<u64> = events.iter().map(|e| match e {
-        WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
-    }).collect();
+    let timestamps: Vec<u64> = events
+        .iter()
+        .map(|e| match e {
+            WorkflowEvent::TimerFired { timestamp_ms, .. } => *timestamp_ms,
+        })
+        .collect();
     let expected: Vec<u64> = (0..500).collect();
     assert_eq!(timestamps, expected);
 }

@@ -292,15 +292,14 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// let input = vo_sdk::read_input()?;
 /// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
 /// ```
-pub fn secret<'a>(input: &'a vo_types::TaskInput, _key: &str) -> Option<&'a str> {
-    input.secret(_key)
+pub fn secret<'a>(input: &'a vo_types::TaskInput, key: &str) -> Option<&'a str> {
+    input.secret(key)
 }
 
 /// Parse and validate a JSON buffer into a `TaskInput`.
 fn parse_envelope(buf: &[u8]) -> Result<TaskInput, SdkError> {
     let json = std::str::from_utf8(buf).map_err(|_| SdkError::InvalidInput)?;
-    let env: TaskInputEnvelope =
-        serde_json::from_str(json).map_err(|_| SdkError::InvalidInput)?;
+    let env: TaskInputEnvelope = serde_json::from_str(json).map_err(|_| SdkError::InvalidInput)?;
     env.parse().ok_or(SdkError::InvalidInput)
 }
 

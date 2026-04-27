@@ -200,9 +200,9 @@ fn migration_codec_event_key_survives_write_to_fjall_and_read_back() {
     let key = encode_event_key(&id, &seq).unwrap();
     let value = b"test-event-payload-v1";
 
-    partition.insert(&key, value).unwrap();
+    partition.insert(key, value).unwrap();
 
-    let read_back = partition.get(&key).unwrap().unwrap();
+    let read_back = partition.get(key).unwrap().unwrap();
     assert_eq!(&*read_back, value);
 
     let (decoded_id, decoded_seq) = decode_event_key(&key).unwrap();
@@ -492,7 +492,7 @@ fn migration_write_close_reopen_read_all_partitions_intact() {
     let id = InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap();
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let event_key = encode_event_key(&id, &seq).unwrap();
-    events_partition.insert(&event_key, b"event-v1").unwrap();
+    events_partition.insert(event_key, b"event-v1").unwrap();
     instances_partition
         .insert(iid.to_string().as_bytes(), b"instance-running")
         .unwrap();
@@ -524,7 +524,7 @@ fn migration_write_close_reopen_read_all_partitions_intact() {
         "BUG: lease lost after cycle"
     );
 
-    let event_val = events2.get(&event_key).unwrap().unwrap();
+    let event_val = events2.get(event_key).unwrap().unwrap();
     assert_eq!(&*event_val, b"event-v1", "BUG: event data corrupted");
 
     let instance_val = instances2.get(iid.to_string().as_bytes()).unwrap().unwrap();

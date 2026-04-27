@@ -369,7 +369,7 @@ fn given_dedup_store_with_1h_window_when_queried_then_expired_entries_eligible_f
     );
 
     // Then only expired entries are eligible for GC
-    let records = vec![&expired_record, &active_record];
+    let records = [&expired_record, &active_record];
     let gc_eligible: Vec<&&DedupRecord> = records.iter().filter(|r| r.is_expired(now)).collect();
     assert_eq!(gc_eligible.len(), 1);
     assert_eq!(gc_eligible[0].dedup_key.as_str(), "old-key");

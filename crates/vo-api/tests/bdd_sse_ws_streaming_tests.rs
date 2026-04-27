@@ -526,7 +526,7 @@ mod tests {
     // =========================================================================
 
     mod ws_bidirectional_messages {
-        use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster, WsConnectionCount};
+        use vo_api::handlers::ws::WsConnectionCount;
 
         #[test]
         fn given_ws_client_sends_text_when_received_then_message_parseable() {

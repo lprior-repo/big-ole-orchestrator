@@ -577,17 +577,25 @@ fn e2e_dag_node_failure_routes_via_on_failure_edge() {
     let workflow_id = workflow.workflow_name.as_str();
     let events = vec![
         make_event(instance_id, 1, workflow_started_payload(workflow_id)),
-        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "action", 1, 1)),
+        make_event(
+            instance_id,
+            2,
+            step_scheduled_payload(workflow_id, "action", 1, 1),
+        ),
         make_event(instance_id, 3, step_started_payload(workflow_id, "action")),
-        make_event(instance_id, 4, json!({
-            "type": "StepFailed",
-            "workflow_id": workflow_id,
-            "step_id": "action",
-            "failure_reason": "action failed",
-            "attempt": 1,
-            "fence": 1,
-            "version": 1
-        })),
+        make_event(
+            instance_id,
+            4,
+            json!({
+                "type": "StepFailed",
+                "workflow_id": workflow_id,
+                "step_id": "action",
+                "failure_reason": "action failed",
+                "attempt": 1,
+                "fence": 1,
+                "version": 1
+            }),
+        ),
     ];
 
     let engine = ReplayEngine::new();
@@ -631,17 +639,25 @@ fn e2e_dag_failure_routes_to_compensation_via_on_failure() {
     let workflow_id = workflow.workflow_name.as_str();
     let events = vec![
         make_event(instance_id, 1, workflow_started_payload(workflow_id)),
-        make_event(instance_id, 2, step_scheduled_payload(workflow_id, "action", 1, 1)),
+        make_event(
+            instance_id,
+            2,
+            step_scheduled_payload(workflow_id, "action", 1, 1),
+        ),
         make_event(instance_id, 3, step_started_payload(workflow_id, "action")),
-        make_event(instance_id, 4, json!({
-            "type": "StepFailed",
-            "workflow_id": workflow_id,
-            "step_id": "action",
-            "failure_reason": "action failed",
-            "attempt": 1,
-            "fence": 1,
-            "version": 1
-        })),
+        make_event(
+            instance_id,
+            4,
+            json!({
+                "type": "StepFailed",
+                "workflow_id": workflow_id,
+                "step_id": "action",
+                "failure_reason": "action failed",
+                "attempt": 1,
+                "fence": 1,
+                "version": 1
+            }),
+        ),
     ];
 
     let engine = ReplayEngine::new();

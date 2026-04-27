@@ -31,7 +31,7 @@ impl std::fmt::Debug for Fd3Envelope {
 }
 
 /// The envelope sent from Child to Engine over FD4.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct Fd4Envelope {
     pub version: u8,
     pub instance_id: String,
@@ -39,14 +39,14 @@ pub struct Fd4Envelope {
     pub result: TaskResult,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskResult {
     Success { output: serde_json::Value },
     Failure { error: TaskError },
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 pub struct TaskError {
     pub code: String,
     pub message: String,

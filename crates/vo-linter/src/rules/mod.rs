@@ -8,10 +8,6 @@
 //!
 //! - [`random`] — L002: Detects non-deterministic random calls
 //!
-//! # Gate Modules
-//!
-//! - [`rerun_gate`] — Gate for doc-to-beads/arch-spec-to-beads rerun control
-//!
 //! # Rule Architecture
 //!
 //! All rules implement the [`Rule`] trait which ensures:
@@ -19,11 +15,9 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
-mod random;
-mod rerun_gate;
+pub mod random;
 
 pub use random::check_random_in_workflow;
-pub use rerun_gate::{check_spec_hardening_gate, GateResult, GateStatus};
 
 /// Trait for all linting rules.
 ///
@@ -56,9 +50,7 @@ impl RuleRegistry {
     /// Create a new registry with all built-in rules.
     #[must_use]
     pub fn new() -> Self {
-        let mut registry = Self {
-            rules: Vec::new(),
-        };
+        let mut registry = Self { rules: Vec::new() };
         registry.add_rule(random::RandomRule);
         registry
     }

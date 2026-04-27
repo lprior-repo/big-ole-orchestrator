@@ -789,7 +789,7 @@ fn command_debug_all_variants() {
         format!(
             "{:?}",
             Command::Purge {
-                instance: "i".into()
+                instance: "i".into(),
             }
         ),
         format!(

@@ -324,7 +324,7 @@ fn purge_parses_instance() {
     ];
     let cli = interpret_cli_from(args).unwrap();
     match cli.command {
-        Command::Purge { instance } => {
+        Command::Purge { instance, .. } => {
             assert_eq!(instance, "inst-abc-123");
         }
         _ => panic!("expected Purge command"),

@@ -1,6 +1,6 @@
 use super::write_class::WriteClass;
 
-pub(crate) fn emit_rejection(class: WriteClass, reason: &str) {
+pub fn emit_rejection(class: WriteClass, reason: &str) {
     let label = match class {
         WriteClass::CriticalControlPlane => "critical_control_plane",
         WriteClass::OperatorProjection => "operator_projection",
@@ -10,7 +10,7 @@ pub(crate) fn emit_rejection(class: WriteClass, reason: &str) {
         .increment(1);
 }
 
-pub(crate) fn emit_queue_depth(class: WriteClass, depth: usize) {
+pub fn emit_queue_depth(class: WriteClass, depth: usize) {
     let label = match class {
         WriteClass::CriticalControlPlane => "critical_control_plane",
         WriteClass::OperatorProjection => "projection",

@@ -11,7 +11,7 @@
 //!   - serde-integrity: malformed JSON, wrong types, extra fields
 //!   - version-pin-bypass: WorkflowSpec serialization bypassing Dag validation
 
-use crate::dag::{Dag, DagError, Workflow};
+use crate::dag::{Dag, DagError};
 use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
@@ -672,19 +672,32 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
             NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: NodeKind::Pure,
-                ..Default::default()
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("node-b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
-                ..Default::default()
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("node-a").expect("valid"),
             to: NodeName::parse("node-b").expect("valid"),
         }],
-        ..Default::default()
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -719,7 +732,8 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
         workflow_name: WorkflowName::parse("empty_via_serde").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        ..Default::default()
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -763,7 +777,7 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
 }
 
 #[test]
-fn rq_workflow_spec_accepts_duplicate_edges_via_serde() {
+fn rq_workflow_spec_rejects_duplicate_edges_via_serde() {
     let json = r#"{
         "workflow_name": "dup_edges",
         "nodes": [
@@ -777,9 +791,7 @@ fn rq_workflow_spec_accepts_duplicate_edges_via_serde() {
         "version": 1
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(result.is_ok(), "duplicate edges are accepted: {:?}", result);
-    let spec = result.unwrap();
-    assert_eq!(spec.edges.len(), 2);
+    assert!(result.is_err(), "duplicate edges are rejected: {:?}", result);
 }
 
 #[test]
@@ -804,10 +816,8 @@ fn rq_workflow_spec_rejects_unicode_in_workflow_name_via_serde() {
 
 #[test]
 fn rq_workflow_spec_rejects_control_char_in_node_name_via_serde() {
-    let json = format!(
-        r#"{{"workflow_name": "test", "nodes": [{{"name": "node\u{{0000}}", "kind": "pure"}}], "edges": [],
-        "version": 1}}"#
-    );
+    let json = r#"{"workflow_name": "test", "nodes": [{"name": "node\u{0000}", "kind": "pure"}], "edges": [],
+        "version": 1}"#.to_string();
     let result: Result<WorkflowSpec, _> = serde_json::from_str(&json);
     assert!(
         result.is_err(),

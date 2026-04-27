@@ -9,7 +9,7 @@ fn content_address_constructs_with_valid_hex() {
     let s = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
     assert_eq!(s.len(), 64, "string length should be 64");
     let addr = ContentAddress::new(s);
-    assert!(addr.is_ok(), "ContentAddress::new failed: {:?}", addr);
+    assert!(addr.is_ok(), "ContentAddress::new failed: {addr:?}");
     let addr = addr.unwrap();
     assert_eq!(addr.as_str(), s);
 }
@@ -455,7 +455,7 @@ fn all_blob_store_error_variants_implement_error_trait() {
 fn encode_content_address_produces_valid_utf8() {
     let addr = ContentAddress::new(VALID_SHA256).unwrap();
     let encoded = encode_content_address(&addr);
-    let as_str = String::from_utf8(encoded.clone()).unwrap();
+    let as_str = String::from_utf8(encoded).unwrap();
     assert_eq!(as_str, VALID_SHA256);
 }
 
@@ -554,7 +554,7 @@ fn blob_record_is_gc_eligible_requires_both_conditions() {
     assert!(record.is_gc_eligible(1500), "both ref=0 and expired");
 
     let record = BlobRecord::with_status(
-        content_addr.clone(),
+        content_addr,
         1024,
         0,
         1000,
@@ -568,7 +568,7 @@ fn blob_record_is_gc_eligible_requires_both_conditions() {
 fn blob_record_gc_eligible_without_ttl() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
     let record = BlobRecord::with_status(
-        content_addr.clone(),
+        content_addr,
         1024,
         0,
         1000,
@@ -591,7 +591,7 @@ fn blob_record_status_transition_consistency() {
     assert!(!pending.can_transition_to(BlobStatus::Published));
 
     let stored = BlobRecord::with_status(
-        content_addr.clone(),
+        content_addr,
         1024,
         1,
         1000,
@@ -620,7 +620,7 @@ fn blob_record_terminal_states_no_transitions() {
     assert!(!published.can_transition_to(BlobStatus::Failed));
 
     let failed = BlobRecord::with_status(
-        content_addr.clone(),
+        content_addr,
         1024,
         1,
         1000,
@@ -646,7 +646,7 @@ fn blob_record_reference_count_saturation_bounds() {
     let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX - 1, 1000, None).unwrap();
     assert_eq!(record.increment_ref_count(), u64::MAX);
 
-    let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX, 1000, None).unwrap();
+    let record = BlobRecord::new(content_addr, 1024, u64::MAX, 1000, None).unwrap();
     assert_eq!(record.increment_ref_count(), u64::MAX);
 }
 
@@ -697,7 +697,7 @@ fn blob_store_error_is_transient_classification() {
     ];
 
     for err in transient_errors {
-        assert!(err.is_transient(), "Expected {:?} to be transient", err);
+        assert!(err.is_transient(), "Expected {err:?} to be transient");
     }
 
     let fatal_errors = vec![
@@ -719,7 +719,7 @@ fn blob_store_error_is_transient_classification() {
     ];
 
     for err in fatal_errors {
-        assert!(err.is_fatal(), "Expected {:?} to be fatal", err);
+        assert!(err.is_fatal(), "Expected {err:?} to be fatal");
     }
 
     let not_transient_or_fatal = BlobStoreError::ContentNotFound {
@@ -764,7 +764,7 @@ fn blob_record_with_status_allows_direct_status_construction() {
     assert_eq!(record.status(), BlobStatus::Published);
 
     let record = BlobRecord::with_status(
-        content_addr.clone(),
+        content_addr,
         1024,
         1,
         1000,

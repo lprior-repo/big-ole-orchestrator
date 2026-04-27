@@ -13,11 +13,9 @@
 //! 6. **Data Integrity**: Verifies no data loss or corruption after failures
 
 use vo_types::events::EventEnvelope;
-use vo_types::state::LifecycleState;
 
-use crate::exact_once_verification::assertions::{RecoveryAssertion, RecoveryContext};
+use crate::exact_once_verification::assertions::RecoveryContext;
 use crate::exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
-use crate::exact_once_verification::harness::VerificationHarness;
 use crate::replay::test_helpers::*;
 use crate::replay::ReplayEngine;
 
@@ -25,6 +23,7 @@ use crate::replay::ReplayEngine;
 mod step_component_failure_tests {
     use super::*;
 
+    #[allow(dead_code)]
     fn workflow_with_step_sequence() -> Vec<EventEnvelope> {
         vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),
@@ -504,8 +503,8 @@ mod integration_failure_scenario_tests {
 
     #[test]
     fn recovery_after_multiple_component_failures() {
-        let instance1 = make_instance_id(1);
-        let instance2 = make_instance_id(2);
+        let _instance1 = make_instance_id(1);
+        let _instance2 = make_instance_id(2);
 
         let events1 = vec![
             make_event("inst-1", 1, workflow_started_payload("wf-1")),

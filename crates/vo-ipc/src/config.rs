@@ -1,7 +1,7 @@
 use crate::error::ConfigError;
+use libc::{close, fstat, open, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
 use std::ffi::{CString, OsString};
 use std::path::{Path, PathBuf};
-use libc::{fstat, open, close, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessConfig {
@@ -81,7 +81,7 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
     }
 
     let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-    let fstat_result = unsafe { fstat(fd, &mut stat_buf) };
+    let fstat_result = unsafe { fstat(fd, &raw mut stat_buf) };
     let close_result = unsafe { close(fd) };
 
     if fstat_result < 0 {
@@ -108,9 +108,11 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
         });
     }
 
-    let canonical_path = path.canonicalize().map_err(|_| ConfigError::ProgramMissing {
-        path: path.to_path_buf(),
-    })?;
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|_| ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        })?;
 
     Ok(canonical_path)
 }

@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::vault::{CredentialError, RotationFailureReason, CredentialSummary, Permission, CredentialVault};
+    
+    use crate::vault::{
+        CredentialError, CredentialSummary, CredentialVault, Permission, RotationFailureReason,
+    };
     use vo_types::credentials::{
         AccessPolicy, Credential, CredentialId, CredentialKind, CredentialStatus,
         CredentialVersion, CredentialVersionId, RotationPolicy, RotationState, SecretValue,
@@ -59,7 +61,7 @@ mod tests {
         let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
         let err = CredentialError::VersionNotFound {
             credential_id: cred_id,
-            version_id: version_id,
+            version_id,
         };
         let msg = format!("{}", err);
         assert!(
@@ -100,7 +102,7 @@ mod tests {
         let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
         let err = CredentialError::CredentialExpired {
             credential_id: cred_id,
-            version_id: version_id,
+            version_id,
             expired_at: TimestampMs::new_unchecked(1000),
         };
         assert!(format!("{}", err).contains("expired at"));
@@ -438,7 +440,9 @@ mod tests {
         let principal = vo_types::credentials::Principal::User(
             InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
         );
-        vault.revoke_version(&cred_id, &version_id, &principal).unwrap();
+        vault
+            .revoke_version(&cred_id, &version_id, &principal)
+            .unwrap();
 
         let result = vault.get_secret(&cred_id, &principal);
         assert!(result.is_err());
@@ -507,7 +511,9 @@ mod tests {
         let principal = vo_types::credentials::Principal::User(
             InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
         );
-        vault.revoke_version(&cred_id, &new_version_id, &principal).unwrap();
+        vault
+            .revoke_version(&cred_id, &new_version_id, &principal)
+            .unwrap();
 
         let cred = vault.get_credential(&cred_id).unwrap();
         let original_version = cred
@@ -531,16 +537,15 @@ mod tests {
         let entry = create_test_vault_entry();
         let cred_id = entry.credential.id.clone();
         let version_id = entry.credential.current_version.clone();
-        let original_ciphertext = entry.credential.versions[0]
-            .secret_value
-            .ciphertext
-            .clone();
+        let original_ciphertext = entry.credential.versions[0].secret_value.ciphertext.clone();
         vault.create_credential(entry).unwrap();
 
         let principal = vo_types::credentials::Principal::User(
             InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
         );
-        vault.revoke_version(&cred_id, &version_id, &principal).unwrap();
+        vault
+            .revoke_version(&cred_id, &version_id, &principal)
+            .unwrap();
 
         let cred = vault.get_credential(&cred_id).unwrap();
         let revoked_version = cred
@@ -574,10 +579,7 @@ mod tests {
 
         let cred_after_revoke = vault.get_credential(&cred_id).unwrap();
         assert_eq!(
-            cred_after_revoke.versions[0]
-                .secret_value
-                .ciphertext,
-            stored_ciphertext,
+            cred_after_revoke.versions[0].secret_value.ciphertext, stored_ciphertext,
             "ciphertext remains stored after revocation - data is recoverable at storage level"
         );
     }

@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use std::hint::black_box;
+use criterion::{criterion_group, criterion_main, Criterion, Throughput};
 use vo_linter::rules::check_random_in_workflow;
 
 fn bench_lint_clean_file(c: &mut Criterion) {

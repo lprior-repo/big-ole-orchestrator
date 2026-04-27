@@ -1,5 +1,4 @@
 #![cfg(test)]
-#![deny(clippy::unwrap_used, clippy::expect_used)]
 
 use vo_core::exact_once_verification::harness::{LineageRolloverEvent, LineageRoutingState};
 use vo_types::signal::WaitRecord;
@@ -121,7 +120,7 @@ mod signal_routing_across_rollover_tests {
 
     #[test]
     fn lineage_wide_signal_routes_to_current_epoch_after_rollover() {
-        let addr = SignalAddress::lineage_wide(lineage_id(), instance_id(), wait_key_approval());
+        let _addr = SignalAddress::lineage_wide(lineage_id(), instance_id(), wait_key_approval());
 
         let mut routing_state =
             LineageRoutingState::new(lineage_id().as_str().to_string(), Epoch::ZERO);
@@ -288,12 +287,12 @@ mod epoch_transition_tests {
     #[test]
     fn epoch_rollover_increments_epoch() {
         let lineage = WorkflowLineage::new("lin-test".to_string()).expect("valid lineage");
-        assert_eq!(lineage.epoch, Epoch::ZERO);
+        assert_eq!(lineage.epoch(), Epoch::ZERO);
 
         let rolled = lineage.continue_as_new().expect("rollover succeeds");
-        assert_eq!(rolled.epoch, Epoch::new(1));
-        assert_eq!(rolled.parent_epoch, Some(Epoch::ZERO));
-        assert_eq!(rolled.lineage_id, lineage.lineage_id);
+        assert_eq!(rolled.epoch(), Epoch::new(1));
+        assert_eq!(rolled.parent_epoch(), Some(Epoch::ZERO));
+        assert_eq!(rolled.lineage_id(), lineage.lineage_id());
     }
 
     #[test]
@@ -301,25 +300,25 @@ mod epoch_transition_tests {
         let lineage = WorkflowLineage::new("lin-multi".to_string()).expect("valid lineage");
 
         let epoch1 = lineage.continue_as_new().expect("first rollover");
-        assert_eq!(epoch1.epoch, Epoch::new(1));
+        assert_eq!(epoch1.epoch(), Epoch::new(1));
 
         let epoch2 = epoch1.continue_as_new().expect("second rollover");
-        assert_eq!(epoch2.epoch, Epoch::new(2));
+        assert_eq!(epoch2.epoch(), Epoch::new(2));
 
         let epoch3 = epoch2.continue_as_new().expect("third rollover");
-        assert_eq!(epoch3.epoch, Epoch::new(3));
+        assert_eq!(epoch3.epoch(), Epoch::new(3));
     }
 
     #[test]
     fn lineage_id_persists_across_rollovers() {
         let lineage = WorkflowLineage::new("lin-persist".to_string()).expect("valid lineage");
-        let original_id = lineage.lineage_id.clone();
+        let original_id = lineage.lineage_id().to_string();
 
         let rolled1 = lineage.continue_as_new().expect("first rollover");
-        assert_eq!(rolled1.lineage_id, original_id);
+        assert_eq!(rolled1.lineage_id(), original_id);
 
         let rolled2 = rolled1.continue_as_new().expect("second rollover");
-        assert_eq!(rolled2.lineage_id, original_id);
+        assert_eq!(rolled2.lineage_id(), original_id);
     }
 
     #[test]

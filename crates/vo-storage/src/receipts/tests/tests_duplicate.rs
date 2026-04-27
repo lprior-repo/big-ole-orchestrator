@@ -23,7 +23,7 @@ fn fjall_store_same_receipt_twice_is_idempotent() {
         format!("{id}::fx-dup-1"),
         id.to_string(),
         EffectKind::HttpCall,
-        1713000000,
+        1_713_000_000,
         "Success".to_string(),
     )
     .unwrap();
@@ -38,7 +38,7 @@ fn fjall_store_same_receipt_twice_is_idempotent() {
         .get_receipt(&format!("{id}::fx-dup-1"))
         .unwrap()
         .unwrap();
-    assert_eq!(retrieved.committed_at_ms(), 1713000000);
+    assert_eq!(retrieved.committed_at_ms(), 1_713_000_000);
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn fjall_receipt_enforces_exact_once_boundary() {
         eid.clone(),
         id.to_string(),
         EffectKind::HttpCall,
-        1713000000,
+        1_713_000_000,
         "Success".to_string(),
     )
     .unwrap();
@@ -128,7 +128,7 @@ fn fjall_receipt_enforces_exact_once_boundary() {
         eid.clone(),
         id.to_string(),
         EffectKind::HttpCall,
-        1713000001,
+        1_713_000_001,
         "Failure".to_string(),
     )
     .unwrap();
@@ -137,5 +137,5 @@ fn fjall_receipt_enforces_exact_once_boundary() {
 
     let retrieved = store.get_receipt(&eid).unwrap().unwrap();
     assert_eq!(retrieved.connector_result(), "Success");
-    assert_eq!(retrieved.committed_at_ms(), 1713000000);
+    assert_eq!(retrieved.committed_at_ms(), 1_713_000_000);
 }

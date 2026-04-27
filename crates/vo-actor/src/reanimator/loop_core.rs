@@ -24,6 +24,16 @@ pub struct ReanimatorHandle {
     pub(crate) task_handle: Option<JoinHandle<()>>,
 }
 
+impl Clone for ReanimatorHandle {
+    fn clone(&self) -> Self {
+        Self {
+            state_sender: self.state_sender.clone(),
+            shutdown_trigger: self.shutdown_trigger.clone(),
+            task_handle: None,
+        }
+    }
+}
+
 impl ReanimatorHandle {
     /// Requests the reanimator to shut down.
     #[tracing::instrument(skip(self))]

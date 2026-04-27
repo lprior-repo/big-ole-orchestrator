@@ -30,15 +30,15 @@ pub struct SearchResult {
     pub document_type: DocumentType,
 }
 
-   #[derive(Debug, Clone)]
-    pub struct DocumentEntry {
-        pub workspace_id: String,
-        pub doc_type: DocumentType,
-        #[allow(dead_code)]
-        pub text: String,
-        #[allow(dead_code)]
-        pub tags: Vec<String>,
-    }
+#[derive(Debug, Clone)]
+struct DocumentEntry {
+    workspace_id: String,
+    doc_type: DocumentType,
+    #[allow(dead_code)]
+    text: String,
+    #[allow(dead_code)]
+    tags: Vec<String>,
+}
 
 fn tokenize(text: &str) -> Vec<String> {
     text.to_lowercase()
@@ -80,13 +80,8 @@ impl SearchEngine {
 
         let scorer = Bm25Scorer::new();
 
-        let avg_doc_len = self
-            .index
-            .document_lengths
-            .values()
-            .copied()
-            .sum::<u32>() as f64
-            / total_docs;
+        let avg_doc_len =
+            self.index.document_lengths.values().copied().sum::<u32>() as f64 / total_docs;
 
         let mut scores: BTreeMap<WorkspaceId, f64> = BTreeMap::new();
         let mut matched_terms: HashMap<WorkspaceId, HashSet<String>> = HashMap::new();
@@ -114,11 +109,7 @@ impl SearchEngine {
             .into_iter()
             .filter_map(|(doc_id, score)| {
                 let doc = self.documents.get(&doc_id)?;
-                let terms: Vec<String> = matched_terms
-                    .get(&doc_id)?
-                    .iter()
-                    .cloned()
-                    .collect();
+                let terms: Vec<String> = matched_terms.get(&doc_id)?.iter().cloned().collect();
                 Some(SearchResult {
                     document_id: doc_id,
                     score,
@@ -129,17 +120,16 @@ impl SearchEngine {
             })
             .collect();
 
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         Ok(results)
     }
 
-    pub fn index_workspace(
-        &mut self,
-        id: WorkspaceId,
-        text: &str,
-        tags: &[String],
-    ) {
+    pub fn index_workspace(&mut self, id: WorkspaceId, text: &str, tags: &[String]) {
         let all_text = if tags.is_empty() {
             text.to_string()
         } else {
@@ -173,94 +163,98 @@ impl SearchEngine {
 
 #[cfg(test)]
 mod tests {
-        use super::*;
+    use super::*;
 
-        #[test]
-        fn search_returns_matching_results() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "workflow step completed", &[]);
-            let query = QueryParser::new().parse("workflow").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert_eq!(results.len(), 1);
-            assert_eq!(results[0].document_id, id);
-            assert!(results[0].score > 0.0);
-            assert!(results[0].matched_terms.contains(&"workflow".to_string()));
-        }
-
-        #[test]
-        fn search_returns_empty_for_no_match() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "hello world", &[]);
-            let query = QueryParser::new().parse("nonexistent").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert!(results.is_empty());
-        }
-
-        #[test]
-        fn search_ranks_by_relevance() {
-            let mut engine = SearchEngine::new();
-            let id1 = WorkspaceId::generate();
-            let id2 = WorkspaceId::generate();
-            engine.index_workspace(id1, "workflow workflow workflow", &[]);
-            engine.index_workspace(id2, "workflow other", &[]);
-            let query = QueryParser::new().parse("workflow").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert_eq!(results.len(), 2);
-            assert_eq!(results[0].document_id, id1);
-            assert!(results[0].score > results[1].score);
-        }
-
-        #[test]
-        fn search_matches_tags() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "some content", &["important".to_string(), "urgent".to_string()]);
-            let query = QueryParser::new().parse("urgent").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert_eq!(results.len(), 1);
-            assert_eq!(results[0].document_id, id);
-        }
-
-        #[test]
-        fn search_multi_term_query() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "payment processing workflow", &[]);
-            let query = QueryParser::new().parse("payment workflow").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert_eq!(results.len(), 1);
-            assert!(results[0].matched_terms.contains(&"payment".to_string()));
-            assert!(results[0].matched_terms.contains(&"workflow".to_string()));
-        }
-
-        #[test]
-        fn search_empty_index() {
-            let engine = SearchEngine::new();
-            let query = QueryParser::new().parse("test").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert!(results.is_empty());
-        }
-
-        #[test]
-        fn remove_workspace_excludes_from_search() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "test content", &[]);
-            engine.remove_workspace(id);
-            let query = QueryParser::new().parse("test").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert!(results.is_empty());
-        }
-
-        #[test]
-        fn search_case_insensitive() {
-            let mut engine = SearchEngine::new();
-            let id = WorkspaceId::generate();
-            engine.index_workspace(id, "Hello World", &[]);
-            let query = QueryParser::new().parse("hello").unwrap();
-            let results = engine.search(&query).unwrap();
-            assert_eq!(results.len(), 1);
-        }
+    #[test]
+    fn search_returns_matching_results() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(id, "workflow step completed", &[]);
+        let query = QueryParser::new().parse("workflow").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].document_id, id);
+        assert!(results[0].score > 0.0);
+        assert!(results[0].matched_terms.contains(&"workflow".to_string()));
     }
+
+    #[test]
+    fn search_returns_empty_for_no_match() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(id, "hello world", &[]);
+        let query = QueryParser::new().parse("nonexistent").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn search_ranks_by_relevance() {
+        let mut engine = SearchEngine::new();
+        let id1 = WorkspaceId::generate();
+        let id2 = WorkspaceId::generate();
+        engine.index_workspace(id1, "workflow workflow workflow", &[]);
+        engine.index_workspace(id2, "workflow other", &[]);
+        let query = QueryParser::new().parse("workflow").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].document_id, id1);
+        assert!(results[0].score > results[1].score);
+    }
+
+    #[test]
+    fn search_matches_tags() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(
+            id,
+            "some content",
+            &["important".to_string(), "urgent".to_string()],
+        );
+        let query = QueryParser::new().parse("urgent").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].document_id, id);
+    }
+
+    #[test]
+    fn search_multi_term_query() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(id, "payment processing workflow", &[]);
+        let query = QueryParser::new().parse("payment workflow").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].matched_terms.contains(&"payment".to_string()));
+        assert!(results[0].matched_terms.contains(&"workflow".to_string()));
+    }
+
+    #[test]
+    fn search_empty_index() {
+        let engine = SearchEngine::new();
+        let query = QueryParser::new().parse("test").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn remove_workspace_excludes_from_search() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(id, "test content", &[]);
+        engine.remove_workspace(id);
+        let query = QueryParser::new().parse("test").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert!(results.is_empty());
+    }
+
+    #[test]
+    fn search_case_insensitive() {
+        let mut engine = SearchEngine::new();
+        let id = WorkspaceId::generate();
+        engine.index_workspace(id, "Hello World", &[]);
+        let query = QueryParser::new().parse("hello").unwrap();
+        let results = engine.search(&query).unwrap();
+        assert_eq!(results.len(), 1);
+    }
+}

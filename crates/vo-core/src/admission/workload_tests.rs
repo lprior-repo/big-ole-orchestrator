@@ -4,7 +4,7 @@ use super::*;
 use crate::admission::types::WritePressureState;
 use crate::admission::workload::{
     acquire_slot, check_budget, compute_degraded_mode, is_class_accepted_in_mode, release_slot,
-    set_degraded_mode, BudgetAllocation, BudgetCheckResult, BudgetRejectionReason, DegradedMode,
+    set_degraded_mode, BudgetAllocation, BudgetCheckResult, DegradedMode,
     WorkloadBudget, WorkloadClass,
 };
 

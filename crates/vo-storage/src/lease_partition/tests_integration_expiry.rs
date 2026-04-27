@@ -451,7 +451,7 @@ fn release_stale_fence_does_not_extend_current_lease_expiry() {
     verify_release_stale_fence_does_not_extend(&store, current, stale_release, reacquired);
 }
 
-/// AQ-06: Release after lease expired and pair re-acquired returns StaleFence.
+/// AQ-06: Release after lease expired and pair re-acquired returns `StaleFence`.
 #[test]
 fn release_fails_when_lease_expired_and_pair_reacquired() {
     let store = DeterministicLeaseStore::new();
@@ -504,7 +504,7 @@ fn crash_recovery_retry_cycles_advance_fence_without_release() {
     ));
 }
 
-/// AQ-08: u64::MAX TTL blocks reacquire until time reaches u64::MAX.
+/// AQ-08: `u64::MAX` TTL blocks reacquire until time reaches `u64::MAX`.
 #[test]
 fn near_infinite_lease_blocks_reacquire_until_far_future() {
     let store = DeterministicLeaseStore::new();
@@ -604,7 +604,7 @@ fn fence_exhaustion_persists_after_lease_expiry() {
     );
 }
 
-/// AQ-20: Saturating TTL arithmetic at u64::MAX boundaries does not panic.
+/// AQ-20: Saturating TTL arithmetic at `u64::MAX` boundaries does not panic.
 #[test]
 fn saturating_ttl_arithmetic_does_not_panic_at_u64_boundaries() {
     let store = DeterministicLeaseStore::new();

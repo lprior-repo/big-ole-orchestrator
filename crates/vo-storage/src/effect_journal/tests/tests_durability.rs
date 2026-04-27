@@ -1,11 +1,11 @@
 //! Effect journal durability tests — write durability, read-after-write consistency,
 //! journal replay correctness (ADR-030).
 //!
-//! These tests exercise the FjallEffectJournal (production backend) to verify:
+//! These tests exercise the `FjallEffectJournal` (production backend) to verify:
 //! - Writes survive keyspace reopen (durability)
 //! - Read-after-write consistency (freshly written record is immediately visible)
 //! - Journal replay: after crash, pending effects are recoverable
-//! - Idempotency: duplicate prepare with same intent_id returns same effect_id
+//! - Idempotency: duplicate prepare with same `intent_id` returns same `effect_id`
 //! - Compact correctness: only terminal + old effects are removed
 
 #![allow(clippy::unwrap_used)]

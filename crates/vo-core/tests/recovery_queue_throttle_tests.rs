@@ -15,7 +15,7 @@
 //!
 //! ALL TESTS MUST FAIL INITIALLY (TDD-RED phase).
 
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 

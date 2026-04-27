@@ -10,6 +10,7 @@ use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
+#[allow(dead_code)]
 pub struct Fd3Redirect {
     original_fd: libc::c_int,
     _temp_file: Option<File>,
@@ -17,6 +18,7 @@ pub struct Fd3Redirect {
 }
 
 impl Fd3Redirect {
+    #[allow(dead_code)]
     pub fn new(input_data: &[u8]) -> std::io::Result<Self> {
         let temp_dir = TempDir::new()?;
         let temp_path = temp_dir.path().join("input");
@@ -50,6 +52,7 @@ impl Drop for Fd3Redirect {
     }
 }
 
+#[allow(dead_code)]
 pub struct Fd4Redirect {
     original_fd: libc::c_int,
     _temp_dir: TempDir,
@@ -57,6 +60,7 @@ pub struct Fd4Redirect {
 }
 
 impl Fd4Redirect {
+    #[allow(dead_code)]
     pub fn new() -> std::io::Result<Self> {
         let temp_dir = TempDir::new()?;
         let write_path = temp_dir.path().join("output");
@@ -79,6 +83,7 @@ impl Fd4Redirect {
         })
     }
 
+    #[allow(dead_code)]
     pub fn read_written(&self) -> std::io::Result<Vec<u8>> {
         let mut file = File::open(&self.write_path)?;
         let mut contents = Vec::new();

@@ -22,7 +22,7 @@ fn main() {
     for i in 1..=5 {
         let seq = SequenceNumber::try_from(i as u64).unwrap();
         let key = encode_event_key(&terminal_id, &seq).unwrap();
-        events_p.insert(&key, b"event-data").unwrap();
+        events_p.insert(key, b"event-data").unwrap();
     }
 
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();

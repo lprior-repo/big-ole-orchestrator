@@ -264,10 +264,7 @@ mod tests {
         assert_eq!(pe.effect_id, "fx-sql-1");
         assert_eq!(pe.fence, 1);
         assert_eq!(pe.payload["unique_key"], "fx-sql-1:1");
-        assert_eq!(
-            pe.payload["query"],
-            "INSERT INTO effects (id) VALUES (?)"
-        );
+        assert_eq!(pe.payload["query"], "INSERT INTO effects (id) VALUES (?)");
     }
 
     #[tokio::test]
@@ -544,7 +541,8 @@ mod tests {
     #[tokio::test]
     async fn test_sql_connector_large_query_payload() {
         let connector = SqlConnector::new();
-        let large_query = "INSERT INTO large_table (col1, col2, col3, col4, col5) VALUES (".to_string()
+        let large_query = "INSERT INTO large_table (col1, col2, col3, col4, col5) VALUES ("
+            .to_string()
             + &"x".repeat(1000)
             + ")";
         let pe = connector
@@ -565,11 +563,7 @@ mod tests {
     async fn test_sql_connector_special_characters_in_effect_id() {
         let connector = SqlConnector::new();
         let pe = connector
-            .prepare(
-                json!({}),
-                "fx-special-abc-123-xyz-789".to_string(),
-                42,
-            )
+            .prepare(json!({}), "fx-special-abc-123-xyz-789".to_string(), 42)
             .await
             .unwrap();
 
@@ -578,7 +572,10 @@ mod tests {
         let outcome = connector.commit(pe).await.unwrap();
         assert!(matches!(outcome, CommitOutcome::Committed { .. }));
 
-        let reconcile = connector.reconcile("fx-special-abc-123-xyz-789").await.unwrap();
+        let reconcile = connector
+            .reconcile("fx-special-abc-123-xyz-789")
+            .await
+            .unwrap();
         assert!(matches!(reconcile, ReconcileOutcome::Committed { .. }));
     }
 
@@ -589,11 +586,7 @@ mod tests {
         // Deterministic: same inputs always produce same outputs
         for i in 0..5 {
             let pe = connector
-                .prepare(
-                    json!({"query": "SELECT 1"}),
-                    "fx-det".to_string(),
-                    1,
-                )
+                .prepare(json!({"query": "SELECT 1"}), "fx-det".to_string(), 1)
                 .await
                 .unwrap();
 

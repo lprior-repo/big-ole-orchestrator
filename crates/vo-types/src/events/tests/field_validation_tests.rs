@@ -1,6 +1,5 @@
 use crate::events::error::Error;
 use crate::events::payload::EventPayload;
-use crate::events::payload::RoutingProjection;
 use rstest::rstest;
 
 // -------------------------------------------------------------------------

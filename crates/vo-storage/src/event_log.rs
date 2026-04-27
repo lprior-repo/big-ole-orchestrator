@@ -48,6 +48,7 @@ pub fn append_event(
     Ok(envelope)
 }
 
+#[must_use]
 pub fn replay_events_in_namespace(
     db: &fjall::Database,
     namespace: &str,
@@ -57,6 +58,21 @@ pub fn replay_events_in_namespace(
         Ok(prefix) => replay_events_by_prefix(db, prefix),
         Err(error) => EventReplayIterator::error(error),
     }
+}
+
+pub fn replay_all_events(db: &fjall::Database) -> Result<Vec<EventEnvelope>, StorageError> {
+    let partition = events_partition(db)?;
+    partition
+        .iter()
+        .map(|guard| {
+            guard
+                .into_inner()
+                .map_err(|_| StorageError::Storage)
+                .and_then(|(_, value)| {
+                    EventEnvelope::from_bytes(&value).map_err(|_| StorageError::CorruptEventPayload)
+                })
+        })
+        .collect()
 }
 
 pub fn namespaced_stream_prefix(

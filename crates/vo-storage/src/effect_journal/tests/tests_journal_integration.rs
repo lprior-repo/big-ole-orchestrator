@@ -1,4 +1,4 @@
-//! EffectJournal trait integration tests — prepare, commit, rollback, list_pending.
+//! `EffectJournal` trait integration tests — prepare, commit, rollback, `list_pending`.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]

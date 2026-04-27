@@ -63,11 +63,8 @@ impl<K: Ord + Clone, V: Clone> super::BTree<K, V> {
         results
     }
 
-    fn collect_range<'a, R>(
-        node: &'a BTreeNode<K, V>,
-        range: &R,
-        results: &mut Vec<(&'a K, &'a V)>,
-    ) where
+    fn collect_range<'a, R>(node: &'a BTreeNode<K, V>, range: &R, results: &mut Vec<(&'a K, &'a V)>)
+    where
         R: std::ops::RangeBounds<K>,
     {
         for i in 0..node.keys.len() {

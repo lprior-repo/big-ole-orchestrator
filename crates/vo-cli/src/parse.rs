@@ -44,7 +44,10 @@ mod tests {
 
     #[test]
     fn parse_strict_numeric_valid_max_u64() {
-        assert_eq!(parse_strict_numeric("18446744073709551615").unwrap(), u64::MAX);
+        assert_eq!(
+            parse_strict_numeric("18446744073709551615").unwrap(),
+            u64::MAX
+        );
     }
 
     #[test]

@@ -13,8 +13,6 @@
 
 use libc;
 use sha2::{Digest, Sha256};
-use std::fs;
-use std::io::Read;
 use std::os::fd::{FromRawFd, RawFd};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
@@ -38,11 +36,11 @@ pub const MAX_STEP_OUTPUT_BYTES: usize = 10 * 1024 * 1024;
 /// Prevents deadlocks when payloads exceed kernel buffer per ADR-018.
 pub const BOUNDED_READ_BUFFER_SIZE: usize = 64 * 1024;
 
+/// Backwards-compatible alias for ADR-018 tests and callers.
+pub const BOUNDED_BUFFER_SIZE: usize = BOUNDED_READ_BUFFER_SIZE;
+
 /// Version directory root for content-hashed binary storage (ADR-012 section 4).
 pub const VERSION_BASE_PATH: &str = "/var/wtf/versions";
-
-/// Size of chunks for binary hash computation.
-const HASH_CHUNK_SIZE: usize = 65536;
 
 /// Result of pinning a binary to a versioned path.
 #[derive(Debug, Clone)]
@@ -127,17 +125,17 @@ pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> 
 pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> {
     if path.starts_with(VERSION_BASE_PATH) && std::path::Path::new(path).exists() {
         // Already pinned - reconstruct pin info from path
-        let binary_name = std::path::Path::new(path)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
         // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
-        let stripped = path.strip_prefix(VERSION_BASE_PATH).unwrap_or(path);
-        let hash = stripped
-            .split('/')
-            .next()
-            .unwrap_or("")
-            .to_string();
+        let hash = path
+            .strip_prefix(VERSION_BASE_PATH)
+            .map(|suffix| suffix.trim_start_matches('/'))
+            .and_then(|suffix| suffix.split('/').next())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                SubprocessError::BinaryVersioningFailed(format!(
+                    "failed to extract version hash from pinned path {path}"
+                ))
+            })?;
         Ok(PinnedBinary {
             original_path: path.to_string(),
             sha256_hex: hash,
@@ -223,14 +221,10 @@ pub enum SubprocessError {
     BinaryVersioningFailed(String),
 }
 
-
-
 struct PipePair {
     read_fd: RawFd,
     write_fd: RawFd,
 }
-
-
 
 fn create_pipe() -> Result<PipePair, SubprocessError> {
     let mut fds = [0; 2];
@@ -448,7 +442,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let (r, w) = create_pipe().unwrap();
+        let pipe = create_pipe().unwrap();
+        let r = pipe.read_fd;
+        let w = pipe.write_fd;
         unsafe {
             let flags = libc::fcntl(r, libc::F_GETFD);
             assert!(

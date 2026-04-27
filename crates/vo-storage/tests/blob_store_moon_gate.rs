@@ -459,11 +459,10 @@ fn moon_gate_output_ref_cannot_publish_from_pending() {
         BlobStoreError::InvalidPublicationStatus { .. }
     ));
     assert!(
-        protocol
+        !protocol
             .get_status(&addr)
             .unwrap()
             .can_transition_to(BlobStatus::Published)
-            == false
     );
 }
 
@@ -596,8 +595,8 @@ fn moon_gate_published_blob_remains_durable_after_transitions() {
 
     let record = store.get_record(&addr).unwrap();
     assert_eq!(record.status(), BlobStatus::Published);
-    assert!(record.can_transition_to(BlobStatus::Pending) == false);
-    assert!(record.can_transition_to(BlobStatus::DurablyStored) == false);
+    assert!(!record.can_transition_to(BlobStatus::Pending));
+    assert!(!record.can_transition_to(BlobStatus::DurablyStored));
 }
 
 // ========================================================================

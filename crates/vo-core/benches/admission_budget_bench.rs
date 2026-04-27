@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use std::time::{Duration, Instant};
 use vo_core::circuit_breaker::rate_limiter::{
     check_rate_limit, TokenBucketConfig, TokenBucketRateLimiter,

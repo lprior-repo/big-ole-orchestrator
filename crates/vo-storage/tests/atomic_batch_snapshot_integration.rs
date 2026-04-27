@@ -397,7 +397,7 @@ fn snapshot_format_version_stored_in_header() {
         .expect("write failed");
 
     let key = encode_snapshot_key(&id, 1).unwrap();
-    let raw_value = snapshot_ks.get(&key).unwrap().unwrap();
+    let raw_value = snapshot_ks.get(key).unwrap().unwrap();
 
     let parts: Vec<&[u8]> = raw_value.split(|&b| b == b'|').collect();
     assert_eq!(parts.len(), 2, "should have header and state parts");
@@ -674,7 +674,7 @@ fn atomic_snapshot_writer_checksum_verification() {
         .expect("write failed");
 
     let key = encode_snapshot_key(&id, 1).unwrap();
-    let raw_value = snapshot_ks.get(&key).unwrap().unwrap();
+    let raw_value = snapshot_ks.get(key).unwrap().unwrap();
 
     let parts: Vec<&[u8]> = raw_value.split(|&b| b == b'|').collect();
     assert_eq!(parts.len(), 2);
@@ -732,8 +732,8 @@ fn atomic_snapshot_writer_multiple_instances_same_sequence() {
     let key1 = encode_snapshot_key(&id1, 1).unwrap();
     let key2 = encode_snapshot_key(&id2, 1).unwrap();
 
-    let value1 = snapshot_ks.get(&key1).unwrap();
-    let value2 = snapshot_ks.get(&key2).unwrap();
+    let value1 = snapshot_ks.get(key1).unwrap();
+    let value2 = snapshot_ks.get(key2).unwrap();
 
     assert!(value1.is_some(), "data for id1 should be written");
     assert!(value2.is_some(), "data for id2 should be written");

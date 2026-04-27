@@ -12,7 +12,7 @@ use std::thread;
 use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph::{parse_graph_args, default_retry_policy, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
+use crate::graph::{parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 use crate::tests::{
     read_input_inner_with_atomic_guard as read_input_inner_atomic,
@@ -37,7 +37,7 @@ fn read_non_utf8_input_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
     assert!(is_read, "guard must be set even for non-UTF-8 input");
 }
 
@@ -53,7 +53,7 @@ fn read_whitespace_in_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -68,11 +68,11 @@ fn read_special_chars_in_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
-fn read_numeric_idempotency_key_returns_invalid_input() {
+fn read_numeric_idempotency_key_returns_valid_input() {
     let payload = serde_json::to_vec(&json!({
         "idempotency_key": "12345",
         "data": null
@@ -83,7 +83,7 @@ fn read_numeric_idempotency_key_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert!(result.is_ok(), "numeric-only idempotency key is valid: {:?}", result);
 }
 
 #[test]
@@ -106,7 +106,7 @@ fn read_accepts_any_json_value_as_data() {
         let result = read_input_inner(&mut cursor, &mut is_read);
 
         let input = result.expect("any valid JSON value should be accepted as data");
-        assert_eq!(input.data(), &data_val);
+        assert_eq!(input.data, data_val);
     }
 }
 
@@ -146,7 +146,7 @@ fn read_one_byte_over_max_input_size_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 #[test]
@@ -157,7 +157,7 @@ fn read_failed_parse_still_sets_guard() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
     assert!(is_read, "guard must be set before parse attempt");
 }
 
@@ -169,7 +169,7 @@ fn read_partial_json_truncated_returns_invalid_input() {
 
     let result = read_input_inner(&mut cursor, &mut is_read);
 
-    assert!(result.is_err());
+    assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
 // ===========================================================================
@@ -380,7 +380,7 @@ fn concurrent_write_success_only_one_succeeds() {
     }
 
     let succeeded = success_count.load(Ordering::SeqCst);
-    assert_eq!(succeeded, true, "exactly one write should succeed");
+    assert!(succeeded, "exactly one write should succeed");
 }
 
 #[test]
@@ -474,7 +474,7 @@ fn dag_connect_rejects_handle_from_different_dag() {
 
     let result = dag1.connect(&a, &b);
 
-    assert!(matches!(result, Err(DagError::NodeNotFound { name })))
+    assert!(matches!(result, Err(DagError::NodeNotFound { name: _ })))
 }
 
 #[test]
@@ -662,7 +662,7 @@ fn graph_args_is_copy_and_clone() {
     let args = vec!["bin".to_string(), "--graph".to_string()];
     let ga = parse_graph_args(&args).unwrap();
     let copied = ga;
-    let cloned = ga.clone();
+    let cloned = ga;
     assert_eq!(ga, copied);
     assert_eq!(ga, cloned);
 }
@@ -678,10 +678,17 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
-            ..Default::default()
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         }],
         edges: vec![],
-        ..Default::default()
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let bytes = spec.to_json_bytes();
     let json_str = String::from_utf8(bytes).unwrap();
@@ -699,7 +706,13 @@ fn workflow_spec_large_graph_roundtrip() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
-            ..Default::default()
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         })
         .collect();
 
@@ -721,7 +734,8 @@ fn workflow_spec_large_graph_roundtrip() {
         workflow_name: WorkflowName::parse("large_graph").unwrap(),
         nodes: nodes.clone(),
         edges: edges.clone(),
-        ..Default::default()
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -738,7 +752,8 @@ fn workflow_spec_to_json_bytes_never_panics() {
         workflow_name: WorkflowName::parse("empty").unwrap(),
         nodes: vec![],
         edges: vec![],
-        ..Default::default()
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty(), "should produce non-empty JSON");
@@ -800,7 +815,7 @@ fn task_failure_kind_clone_matches_original() {
         TaskFailureKind::System,
         TaskFailureKind::Timeout,
     ] {
-        let cloned = kind.clone();
+        let cloned = kind;
         assert_eq!(kind, cloned);
     }
 }

@@ -367,7 +367,10 @@ fn spawn_record_transition_chain_preserves_all_fields() {
     assert_eq!(health_check.spawn_phase, SpawnPhase::HealthCheck);
     assert_eq!(health_check.instance_id, instance_id);
     assert_eq!(health_check.executable, PathBuf::from("./worker"));
-    assert_eq!(health_check.args, vec!["--port".to_string(), "8080".to_string()]);
+    assert_eq!(
+        health_check.args,
+        vec!["--port".to_string(), "8080".to_string()]
+    );
     assert_eq!(health_check.spawn_attempts, 3);
     assert_eq!(health_check.spawn_id, spawn_id);
 

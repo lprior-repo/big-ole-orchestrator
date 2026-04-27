@@ -18,7 +18,9 @@ use vo_storage::key_encoding::{
     encode_lease_key, encode_timer_key, get_dedupe_key_prefix, get_event_key_prefix,
     get_lease_key_prefix_for_instance, get_timer_key_prefix_for_time,
 };
-use vo_storage::receipts::{decode_receipt, decode_receipt_key, encode_receipt, encode_receipt_key};
+use vo_storage::receipts::{
+    decode_receipt, decode_receipt_key, encode_receipt, encode_receipt_key,
+};
 use vo_storage::snapshots::{decode_snapshot_key, encode_snapshot_key};
 
 fn arb_instance_id() -> impl Strategy<Value = InstanceId> {

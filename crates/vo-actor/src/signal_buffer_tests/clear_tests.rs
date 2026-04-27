@@ -6,7 +6,7 @@ mod signal_buffer_clear_tests {
     #[test]
     fn clear_unknown_key_is_noop() {
         let mut buffer = SignalBuffer::with_default_config();
-        buffer.clear(&instance_id_a(), &wait_key_approval());
+        buffer.clear(&instance_id_a(), wait_key_approval());
         assert_eq!(buffer.total_buffered_count(), 0);
     }
 

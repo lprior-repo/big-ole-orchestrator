@@ -54,7 +54,7 @@ fn shell_metacharacters_pass_through_unsanitized() {
             OsString::from(payload),
         ];
         let cli = interpret_cli_from(args).unwrap();
-        if let Command::Purge { instance } = &cli.command {
+        if let Command::Purge { instance, .. } = &cli.command {
             assert_eq!(instance, payload);
         }
     }
@@ -69,7 +69,7 @@ fn sql_injection_in_instance_id_survives_parse() {
         OsString::from("'; DROP TABLE instances;--"),
     ];
     let cli = interpret_cli_from(args).unwrap();
-    if let Command::Purge { instance } = &cli.command {
+    if let Command::Purge { instance, .. } = &cli.command {
         assert!(instance.contains("DROP TABLE"));
     }
 }

@@ -22,9 +22,7 @@ use tower::ServiceExt;
 use vo_actor::OrchestratorMsg;
 use vo_api::handlers::start_workflow;
 use vo_api::types::V3StartRequest;
-use vo_core::admission::{
-    PressureGuardResult, WriterPressureGuard,
-};
+use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_storage::dedupe_partition::{DedupeStore, InMemoryDedupeStore};
 use vo_types::DedupeKey;
 
@@ -74,13 +72,9 @@ fn next_orch_name() -> String {
 }
 
 async fn spawn_dummy_master() -> ActorRef<OrchestratorMsg> {
-    let (ref_, _) = ractor::Actor::spawn(
-        Some(next_orch_name()),
-        DummyOrch,
-        (),
-    )
-    .await
-    .expect("spawn");
+    let (ref_, _) = ractor::Actor::spawn(Some(next_orch_name()), DummyOrch, ())
+        .await
+        .expect("spawn");
     ref_
 }
 
@@ -104,6 +98,7 @@ fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
         input: json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: Some(dedupe_key.to_string()),
+        workflow_binary_hash: None,
     }
 }
 
@@ -127,7 +122,9 @@ async fn given_overload_when_workflow_start_requested_then_retry_after_is_return
                 .method("POST")
                 .uri("/api/v1/workflows")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&req_body).expect("serialize")))
+                .body(Body::from(
+                    serde_json::to_vec(&req_body).expect("serialize"),
+                ))
                 .expect("valid request"),
         )
         .await
@@ -159,7 +156,9 @@ async fn given_overload_when_workflow_start_requested_then_retry_after_is_return
 
     // And: writes no admission records (dedupe store must be empty)
     let dedupe_key_parsed = DedupeKey::parse(dedupe_key).expect("valid dedupe key");
-    let contains = dedupe_store.contains(&dedupe_key_parsed).expect("contains check");
+    let contains = dedupe_store
+        .contains(&dedupe_key_parsed)
+        .expect("contains check");
     assert!(
         !contains,
         "dedupe store must NOT contain the key when request was shed — no admission records written"
@@ -183,7 +182,9 @@ async fn given_no_overload_when_workflow_start_requested_then_no_retry_after() {
                 .method("POST")
                 .uri("/api/v1/workflows")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&req_body).expect("serialize")))
+                .body(Body::from(
+                    serde_json::to_vec(&req_body).expect("serialize"),
+                ))
                 .expect("valid request"),
         )
         .await

@@ -1,10 +1,11 @@
 use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
-use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
-use std::path::Path;
+use crate::run::SubprocessOutput;
+use std::os::fd::{FromRawFd, RawFd};
+use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::{mpsc, OwnedPermit};
+use tokio::sync::mpsc::{self, OwnedPermit};
 use tokio::time::{timeout, Duration};
 
 const DEFAULT_BACKPRESSURE_LIMIT: usize = 64;
@@ -18,7 +19,7 @@ pub struct BusConfig {
 
 impl BusConfig {
     #[must_use]
-    pub fn new(backpressure_limit: usize, timeout_ms: u64) -> Self {
+    pub const fn new(backpressure_limit: usize, timeout_ms: u64) -> Self {
         Self {
             backpressure_limit,
             timeout_ms,
@@ -26,12 +27,12 @@ impl BusConfig {
     }
 
     #[must_use]
-    pub fn backpressure_limit(&self) -> usize {
+    pub const fn backpressure_limit(&self) -> usize {
         self.backpressure_limit
     }
 
     #[must_use]
-    pub fn timeout_ms(&self) -> u64 {
+    pub const fn timeout_ms(&self) -> u64 {
         self.timeout_ms
     }
 }
@@ -64,6 +65,7 @@ pub struct MessageBus {
 }
 
 impl MessageBus {
+    #[allow(clippy::unused_async)]
     pub async fn spawn(
         config: SubprocessConfig,
         bus_config: BusConfig,
@@ -89,12 +91,9 @@ impl MessageBus {
                 if libc::dup2(fd4_write, 4) == -1 {
                     return Err(std::io::Error::last_os_error());
                 }
-                if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
+                // Close the original pipe FDs in the child (they've been dup'd to 3 and 4)
+                libc::close(fd3_read);
+                libc::close(fd4_write);
                 Ok(())
             });
         }
@@ -135,8 +134,9 @@ impl MessageBus {
         Ok(())
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn send_with_permit(
-        permit: OwnedPermit<'_, BusMessage>,
+        permit: OwnedPermit<BusMessage>,
         envelope: Fd3Envelope,
     ) -> Result<(), BusError> {
         permit.send(BusMessage::Request(envelope));
@@ -155,7 +155,7 @@ impl MessageBus {
         self.sender.capacity()
     }
 
-    pub fn max_capacity(&self) -> usize {
+    pub const fn max_capacity(&self) -> usize {
         self.config.backpressure_limit
     }
 
@@ -182,7 +182,7 @@ impl MessageBus {
 
         let read_task = async {
             let mut reader = fd4_read.take().ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "fd4 reader not available")
+                std::io::Error::other("fd4 reader not available")
             })?;
             let mut total_read = 0;
             let mut header = [0u8; 4];
@@ -255,29 +255,11 @@ impl MessageBus {
         }
     }
 
-    pub async fn shutdown(mut self) -> Result<(), IpcError> {
-        let result = self.drain().await;
-        if result.is_err() {
-            self.terminate().await;
-        }
+    pub async fn shutdown(self) -> Result<(), IpcError> {
+        let _ = self.drain().await;
         Ok(())
     }
 
-    async fn terminate(&mut self) {
-        let Some(pid) = self.child.id() else {
-            return;
-        };
-        let kill_pgid = pid.cast_signed();
-        unsafe {
-            libc::kill(-kill_pgid, libc::SIGTERM);
-        }
-        let res = tokio::time::timeout(Duration::from_millis(100), self.child.wait()).await;
-        if res.is_err() {
-            unsafe {
-                libc::kill(-kill_pgid, libc::SIGKILL);
-            }
-        }
-    }
 }
 
 fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
@@ -298,7 +280,7 @@ pub(crate) fn map_exit_code(status: std::process::ExitStatus) -> i32 {
         .unwrap_or_else(|| status.signal().map_or(-1, |s| 128 + s))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum BusError {
     #[error("bus is closed")]
     BusClosed,
@@ -312,15 +294,10 @@ pub enum BusError {
 
 impl From<mpsc::error::SendError<BusMessage>> for BusError {
     fn from(_: mpsc::error::SendError<BusMessage>) -> Self {
-        BusError::BusClosed
+        Self::BusClosed
     }
 }
 
-impl From<mpsc::error::SendErrorOwned<BusMessage>> for BusError {
-    fn from(_: mpsc::error::SendErrorOwned<BusMessage>) -> Self {
-        BusError::BusClosed
-    }
-}
 
 #[cfg(test)]
 mod tests {

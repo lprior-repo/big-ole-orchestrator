@@ -762,7 +762,7 @@ mod tests {
     #[test]
     fn invalidate_nonexistent_key_sends_event() {
         let temp_dir = TempDir::new().unwrap();
-        let mut cache =
+        let cache =
             MmapCache::with_broadcast_channel(temp_dir.path().to_path_buf(), 1024 * 1024, 100)
                 .unwrap();
         let mut receiver = cache.subscribe();
@@ -798,7 +798,7 @@ mod tests {
                     "got unexpected key: {key}"
                 );
             }
-            other => panic!("Expected Ok or Lagged, got {:?}", other),
+            other => panic!("Expected Ok or Lagged, got {other:?}"),
         }
     }
 }

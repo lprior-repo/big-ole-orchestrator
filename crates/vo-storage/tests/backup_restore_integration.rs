@@ -180,7 +180,7 @@ fn restore_selects_latest_sequence() {
             id.clone(),
             i,
             &InstanceState {
-                counter: i as u64 * 10,
+                counter: i * 10,
             },
         )
         .unwrap();

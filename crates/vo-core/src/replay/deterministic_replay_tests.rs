@@ -9,6 +9,7 @@ use super::test_helpers::*;
 use vo_types::state::LifecycleState;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SnapshotBoundary {
     snapshot_seq: u64,
     pre_snapshot_events: Vec<serde_json::Value>,
@@ -53,7 +54,7 @@ fn replay_from_snapshot(snapshot_seq: u64) -> (Option<LifecycleState>, usize) {
         .iter()
         .skip(snapshot_seq as usize)
         .enumerate()
-        .map(|(i, payload)| make_event("inst-1", (snapshot_seq + i as u64 + 1), payload.clone()))
+        .map(|(i, payload)| make_event("inst-1", snapshot_seq + i as u64 + 1, payload.clone()))
         .collect();
 
     let from_snapshot: Vec<_> = pre_snapshot

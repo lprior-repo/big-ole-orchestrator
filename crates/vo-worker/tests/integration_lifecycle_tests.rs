@@ -70,7 +70,7 @@ fn test_retry_config_jitter() {
     let base_ms = base.as_millis() as i64;
     let jitter_ms = with_jitter.as_millis() as i64;
     let diff = jitter_ms - base_ms;
-    let allowed_range = base_ms as i64 * 50 / 100; // ±50%
+    let allowed_range = base_ms * 50 / 100; // ±50%
     assert!(
         diff.abs() <= allowed_range,
         "Jitter too large: diff={}, allowed_range={}",

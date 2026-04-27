@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)]
-//! Unit tests for DedupeEntry construction and expiry behavior.
+//! Unit tests for `DedupeEntry` construction and expiry behavior.
 
 use super::*;
 

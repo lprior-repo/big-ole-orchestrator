@@ -14,6 +14,10 @@ pub struct V3StartRequest {
     pub paradigm: String,
     /// JSON-encoded input passed to the workflow on first start.
     pub input: serde_json::Value,
+    /// Optional workflow binary/version hash supplied by live clients at the
+    /// top level. Legacy clients may still send this inside `input`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow_binary_hash: Option<String>,
     /// Optional stable ID. If omitted, a ULID is generated.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_id: Option<String>,
@@ -203,6 +207,7 @@ mod tests {
             input: serde_json::json!({}),
             instance_id: None,
             dedupe_key: None,
+            workflow_binary_hash: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(!json.contains("instance_id"));
@@ -218,6 +223,7 @@ mod tests {
             input: serde_json::json!({"key": "val"}),
             instance_id: Some("custom-id".to_string()),
             dedupe_key: Some("dedupe-1".to_string()),
+            workflow_binary_hash: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("custom-id"));
@@ -233,6 +239,7 @@ mod tests {
             input: serde_json::json!({"amount": 100}),
             instance_id: None,
             dedupe_key: None,
+            workflow_binary_hash: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         let back: V3StartRequest = serde_json::from_str(&json).unwrap();

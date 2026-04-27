@@ -1,6 +1,7 @@
 //! Tests for the Dag struct (ADR-010: compile-time type-safe workflow graph construction).
 
 #![allow(clippy::unwrap_used)]
+#![allow(deprecated)]
 
 use crate::dag::{Dag, DagError};
 use crate::node_handle::NodeHandle;

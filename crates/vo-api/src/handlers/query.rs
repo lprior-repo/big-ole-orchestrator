@@ -8,15 +8,15 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use vo_storage::query::replay_events;
-use vo_types::search::{QueryParser, SearchEngine};
+use vo_storage::event_log::replay_events_in_namespace;
+use vo_types::search::QueryParser;
 
 use crate::types::v3::*;
 use crate::types::ApiError;
 use vo_types::workspace::WorkspaceIndex;
 
-use super::split_path_id;
 use super::search::build_search_engine_from_workspace;
+use super::split_path_id;
 
 /// Shared state for query handlers.
 #[derive(Clone)]
@@ -34,7 +34,7 @@ pub async fn get_timeline(
     Path(id): Path<String>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
-    let (_namespace, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -48,7 +48,7 @@ pub async fn get_timeline(
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -60,7 +60,7 @@ pub async fn get_timeline(
                     .payload
                     .get("type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
+                    .map_or("unknown", |value| value)
                     .to_string();
                 entries.push(TimelineEntry {
                     sequence: envelope.sequence,
@@ -96,7 +96,7 @@ pub async fn get_history(
     Path(id): Path<String>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
-    let (_namespace, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -110,7 +110,7 @@ pub async fn get_history(
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -120,7 +120,7 @@ pub async fn get_history(
                     .payload
                     .get("type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
+                    .map_or("unknown", |value| value)
                     .to_string();
                 let step_id = envelope
                     .payload
@@ -169,7 +169,7 @@ pub async fn get_effect_journal(
     Path(id): Path<String>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
-    let (_namespace, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -183,7 +183,7 @@ pub async fn get_effect_journal(
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -193,7 +193,7 @@ pub async fn get_effect_journal(
                     .payload
                     .get("type")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
+                    .map_or("unknown", |value| value)
                     .to_string();
 
                 let semantics = envelope
@@ -208,7 +208,7 @@ pub async fn get_effect_journal(
                             EffectSemantics::Unsafe
                         }
                     })
-                    .unwrap_or(EffectSemantics::Unsafe);
+                    .map_or(EffectSemantics::Unsafe, |value| value);
 
                 entries.push(EffectJournalEntry {
                     sequence: envelope.sequence,
@@ -244,7 +244,7 @@ pub async fn get_workflow_version(
     Path(id): Path<String>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
-    let (_namespace, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -258,7 +258,7 @@ pub async fn get_workflow_version(
         }
     };
 
-    let iter = replay_events(&*state.db, &instance_id);
+    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
     let mut event_count = 0u64;
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;
@@ -315,7 +315,7 @@ pub async fn search(
         Err(e) => {
             return (
                 StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_query", &e.to_string())),
+                Json(ApiError::new("invalid_query", e.to_string())),
             )
                 .into_response();
         }
@@ -340,7 +340,7 @@ pub async fn search(
             tracing::error!(error = %e, "search failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("search_error", &e.to_string())),
+                Json(ApiError::new("search_error", e.to_string())),
             )
         });
 

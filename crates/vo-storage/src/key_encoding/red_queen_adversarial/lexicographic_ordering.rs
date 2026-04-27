@@ -1,6 +1,8 @@
 use vo_types::SequenceNumber;
 
-use crate::key_encoding::{encode_event_key, encode_instance_index_key_for_status, encode_timer_key};
+use crate::key_encoding::{
+    encode_event_key, encode_instance_index_key_for_status, encode_timer_key,
+};
 
 use super::{max_instance_id, mid_instance_id, min_instance_id};
 

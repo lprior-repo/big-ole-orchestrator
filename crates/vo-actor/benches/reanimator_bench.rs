@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
+use criterion::{criterion_group, criterion_main, Criterion};
 use vo_actor::reanimator::{
     calculate_batch_size, check_resume_budget, filter_timers_by_fairness, validate_timer_record,
     FairnessBudget, TimerRecord,

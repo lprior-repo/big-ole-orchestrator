@@ -24,10 +24,7 @@ impl InstanceActor {
         }
     }
 
-    pub fn with_lifecycle(
-        instance_id: InstanceId,
-        lifecycle_state: ActorLifecycleState,
-    ) -> Self {
+    pub fn with_lifecycle(instance_id: InstanceId, lifecycle_state: ActorLifecycleState) -> Self {
         Self {
             instance_id,
             lifecycle_state,
@@ -48,10 +45,12 @@ impl InstanceActor {
 
     pub fn phase(&self) -> InstancePhaseView {
         match self.lifecycle_state {
-            ActorLifecycleState::Pending | ActorLifecycleState::Running => InstancePhaseView::Replay,
-            ActorLifecycleState::Stopping | ActorLifecycleState::Stopped | ActorLifecycleState::Failed => {
-                InstancePhaseView::Live
+            ActorLifecycleState::Pending | ActorLifecycleState::Running => {
+                InstancePhaseView::Replay
             }
+            ActorLifecycleState::Stopping
+            | ActorLifecycleState::Stopped
+            | ActorLifecycleState::Failed => InstancePhaseView::Live,
         }
     }
 
@@ -89,6 +88,7 @@ impl InstanceActorSpawner {
         Self { registry }
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn spawn(
         &self,
         instance_id: InstanceId,
@@ -96,9 +96,10 @@ impl InstanceActorSpawner {
         let handle = InstanceActorHandle::test(0);
 
         {
-            let mut registry = self.registry.lock().map_err(|e| {
-                InstanceActorError::RegistryError(format!("lock poisoned: {}", e))
-            })?;
+            let mut registry = self
+                .registry
+                .lock()
+                .map_err(|e| InstanceActorError::RegistryError(format!("lock poisoned: {}", e)))?;
             registry
                 .register(instance_id.clone(), handle, |_| Ok(()))
                 .map_err(|e| InstanceActorError::RegistryError(e.to_string()))?;
@@ -143,10 +144,7 @@ mod tests {
     #[test]
     fn instance_actor_phase_replay_when_running() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor = InstanceActor::with_lifecycle(
-            instance_id,
-            ActorLifecycleState::Running,
-        );
+        let actor = InstanceActor::with_lifecycle(instance_id, ActorLifecycleState::Running);
 
         assert_eq!(actor.phase(), InstancePhaseView::Replay);
     }
@@ -154,10 +152,7 @@ mod tests {
     #[test]
     fn instance_actor_phase_live_when_stopped() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let actor = InstanceActor::with_lifecycle(
-            instance_id,
-            ActorLifecycleState::Stopped,
-        );
+        let actor = InstanceActor::with_lifecycle(instance_id, ActorLifecycleState::Stopped);
 
         assert_eq!(actor.phase(), InstancePhaseView::Live);
     }
@@ -169,7 +164,7 @@ mod tests {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
 
         assert!(
-            registry.lock().unwrap().is_active(&instance_id) == false,
+            !registry.lock().unwrap().is_active(&instance_id),
             "precondition: no actor should be active for instance"
         );
 

@@ -12,7 +12,7 @@ use vo_core::admission::{
     WritePressureState,
 };
 use vo_core::circuit_breaker::{
-    evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig, CircuitBreakerState,
+    evaluate_registration, record_failure, CircuitBreakerConfig, CircuitBreakerState,
     RegistrationOutcome, RegistrationRequest, RegistrationStatus,
 };
 use vo_core::replay::{ReplayEngine, ReplayError};
@@ -188,6 +188,9 @@ fn circuit_breaker_quarantine_after_threshold() {
     }
     let hash3 = vo_types::BinaryHash::parse("aabbccd3").unwrap();
     let event = record_failure(&wf, &hash3, &config, &state, now).unwrap();
-    assert!(event.is_some(), "quarantine after threshold (4th unique hash)");
+    assert!(
+        event.is_some(),
+        "quarantine after threshold (4th unique hash)"
+    );
     assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
 }

@@ -243,17 +243,17 @@ fn bos02_namespace_quota_isolation_under_pressure() {
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_cpu(*ns, 50);
+        let result = enforcer.check_cpu(ns, 50);
         assert!(result.is_ok(), "CPU check should pass for {ns} at 50%");
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_memory(*ns, 500);
+        let result = enforcer.check_memory(ns, 500);
         assert!(result.is_ok(), "Memory check should pass for {ns} at 50%");
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_disk(*ns, 2500);
+        let result = enforcer.check_disk(ns, 2500);
         assert!(result.is_ok(), "Disk check should pass for {ns} at 50%");
     }
 
@@ -262,7 +262,7 @@ fn bos02_namespace_quota_isolation_under_pressure() {
 
     for ns in &namespaces {
         if *ns != "payments" {
-            let result = enforcer.check_cpu(*ns, 50);
+            let result = enforcer.check_cpu(ns, 50);
             assert!(
                 result.is_ok(),
                 "{ns} should remain unaffected by payments overage"
@@ -757,8 +757,8 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
 
     for ns in &namespaces {
         for level in 1..=5 {
-            let cpu_result = enforcer.check_cpu(*ns, level);
-            let mem_result = enforcer.check_memory(*ns, level * 10);
+            let cpu_result = enforcer.check_cpu(ns, level);
+            let mem_result = enforcer.check_memory(ns, level * 10);
 
             assert!(
                 cpu_result.is_ok(),
@@ -777,8 +777,8 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
 
     for ns in &namespaces {
         for level in 1..=5 {
-            let cpu_result = enforcer.check_cpu(*ns, level);
-            let mem_result = enforcer.check_memory(*ns, level * 10);
+            let cpu_result = enforcer.check_cpu(ns, level);
+            let mem_result = enforcer.check_memory(ns, level * 10);
 
             assert!(
                 cpu_result.is_ok(),
@@ -802,7 +802,7 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
     );
 
     for ns in &namespaces[1..] {
-        let result = enforcer.check_cpu(*ns, 10);
+        let result = enforcer.check_cpu(ns, 10);
         assert!(
             result.is_ok(),
             "{} should not be affected by ns-a over-limit",

@@ -11,8 +11,7 @@ use crate::replay::event_sourcing_engine::{
     EventSourcingConfig, EventSourcingEngine, InMemorySnapshotStore, RecoveryResult, RecoveryType,
     Snapshot, SnapshotStore,
 };
-use crate::replay::projection::{Projector, RebuildThrottleConfig};
-use vo_types::events::metadata::EventMetadata;
+use crate::replay::projection::Projector;
 use vo_types::events::{EventEnvelope, EventPayload};
 use vo_types::state::LifecycleState;
 

@@ -86,7 +86,7 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
 /// Returns `StorageError::InvalidArgument` if the lineage ID is invalid.
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
-    let epoch_bytes = epoch.0.to_be_bytes();
+    let epoch_bytes = epoch.get().to_be_bytes();
     let mut prefix = lineage_prefix;
     prefix.extend_from_slice(&epoch_bytes);
     Ok(prefix)

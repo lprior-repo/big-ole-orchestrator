@@ -14,7 +14,7 @@ fn prepared_effect(id: &str) -> vo_types::EffectRecord {
     vo_types::EffectRecord::new(
         id.to_string(),
         EffectKind::HttpCall,
-        serde_json::json!({}).into(),
+        serde_json::json!({}),
         EffectIntent::Prepared,
         None,
     )
@@ -25,7 +25,7 @@ fn committed_effect(id: &str) -> vo_types::EffectRecord {
     vo_types::EffectRecord::new(
         id.to_string(),
         EffectKind::HttpCall,
-        serde_json::json!({}).into(),
+        serde_json::json!({}),
         EffectIntent::Committed,
         Some(TimestampMs::new_unchecked(9999)),
     )

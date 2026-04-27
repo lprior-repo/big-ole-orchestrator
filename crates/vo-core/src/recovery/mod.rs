@@ -72,7 +72,7 @@ pub struct RecoveryMetrics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::sleep;
+    
 
     #[tokio::test]
     async fn recovery_throttle_respects_capacity_limit() {

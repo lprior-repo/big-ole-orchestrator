@@ -472,7 +472,7 @@ fn fjall_replay_mixed_effects_survive_keyspace_reopen() {
         2,
         "only uncommitted effects should survive replay"
     );
-    let intent_ids: Vec<&str> = pending.iter().map(|r| r.intent_id()).collect();
+    let intent_ids: Vec<&str> = pending.iter().map(vo_types::EffectRecord::intent_id).collect();
     assert!(intent_ids.contains(&"fx-mixed-2"));
     assert!(intent_ids.contains(&"fx-mixed-5"));
 }

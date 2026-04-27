@@ -1,9 +1,9 @@
 //! Effect journal tests.
 //!
 //! Test organization:
-//! - `tests_effect_id` — EffectId construction and error display tests
+//! - `tests_effect_id` — `EffectId` construction and error display tests
 //! - `tests_codec` — encode/decode function tests
-//! - `tests_journal_integration` — EffectJournal trait integration tests
+//! - `tests_journal_integration` — `EffectJournal` trait integration tests
 //! - `tests_journal_lifecycle` — lifecycle, error handling, and kani tests
 
 #![allow(clippy::unwrap_used)]

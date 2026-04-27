@@ -56,7 +56,10 @@ fn is_hex_64(s: &str) -> bool {
 }
 
 fn extract_hash_from_path(path: &Path) -> Option<String> {
-    path.file_name().and_then(|n| n.to_str()).map(String::from)
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| s.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(String::from)
 }
 
 fn is_safe_default_context() -> bool {
@@ -269,10 +272,7 @@ pub fn compute_binary_hash(path: &Path) -> Result<String, GcError> {
 ///
 /// # Errors
 /// Returns an error if the binary cannot be read, hash computed, or directory created.
-pub fn pin_version(
-    source_path: &Path,
-    versions_dir: &Path,
-) -> Result<String, GcError> {
+pub fn pin_version(source_path: &Path, versions_dir: &Path) -> Result<String, GcError> {
     let hash = compute_binary_hash(source_path)?;
 
     let version_dir = versions_dir.join(&hash);
@@ -284,10 +284,18 @@ pub fn pin_version(
         })?;
     }
 
-    let dest_path = version_dir.join(source_path.file_name().ok_or_else(|| GcError::DeleteFailed {
-        path: source_path.to_path_buf(),
-        source: std::io::Error::new(std::io::ErrorKind::InvalidData, "source has no file name"),
-    })?);
+    let dest_path =
+        version_dir.join(
+            source_path
+                .file_name()
+                .ok_or_else(|| GcError::DeleteFailed {
+                    path: source_path.to_path_buf(),
+                    source: std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "source has no file name",
+                    ),
+                })?,
+        );
 
     std::fs::copy(source_path, &dest_path).map_err(|source| GcError::DeleteFailed {
         path: dest_path,
@@ -319,7 +327,11 @@ mod tests {
 
     #[test]
     fn is_hex_64_rejects_non_hex_characters() {
-        assert!(!is_hex_64(&format!("{}g{}", "a".repeat(31), "a".repeat(32))));
+        assert!(!is_hex_64(&format!(
+            "{}g{}",
+            "a".repeat(31),
+            "a".repeat(32)
+        )));
     }
 
     #[test]

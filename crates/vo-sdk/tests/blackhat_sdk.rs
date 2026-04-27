@@ -50,13 +50,13 @@ fn bh_dag_invalid_node_name_rejected() {
         .is_err());
 }
 #[test]
-fn bh_dag_duplicate_name_not_rejected() {
+fn bh_dag_duplicate_name_rejected() {
     let mut dag = Dag::new();
     dag.add_node_with_kind::<i32, i32, _>("dup", NodeKind::Pure, |x: i32| x)
         .unwrap();
     assert!(dag
         .add_node_with_kind::<i32, i32, _>("dup", NodeKind::Pure, |x: i32| x)
-        .is_ok());
+        .is_err());
 }
 #[test]
 fn bh_workflow_invalid_node_name_rejected() {

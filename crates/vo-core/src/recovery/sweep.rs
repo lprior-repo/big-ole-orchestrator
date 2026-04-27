@@ -36,15 +36,12 @@ where
         let mut interval = interval(self.sweep_interval);
         loop {
             interval.tick().await;
-            match self.query.query_orphans().await {
-                Ok(orphans) => {
-                    for orphan in orphans {
-                        if tx.send(orphan).await.is_err() {
-                            return;
-                        }
+            if let Ok(orphans) = self.query.query_orphans().await {
+                for orphan in orphans {
+                    if tx.send(orphan).await.is_err() {
+                        return;
                     }
                 }
-                Err(_) => {}
             }
         }
     }
@@ -196,7 +193,7 @@ mod tests {
 
         let count = counter.load(Ordering::SeqCst);
         assert!(
-            count >= 3 && count <= 6,
+            (3..=6).contains(&count),
             "Expected ~5 sweeps in 100ms with 20ms interval, got {}",
             count
         );

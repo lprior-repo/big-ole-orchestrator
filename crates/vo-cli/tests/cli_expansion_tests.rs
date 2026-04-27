@@ -119,7 +119,7 @@ fn parse_purge_with_uuid_instance() {
     ])
     .expect("parse");
     match cli.command {
-        Command::Purge { instance } => {
+        Command::Purge { instance, .. } => {
             assert_eq!(instance, "550e8400-e29b-41d4-a716-446655440000");
         }
         _ => panic!("expected Purge"),
@@ -130,7 +130,7 @@ fn parse_purge_with_uuid_instance() {
 fn parse_purge_empty_instance_is_accepted() {
     let cli = interpret_cli_from(vec!["vo", "purge", "--instance", ""]).expect("parse");
     match cli.command {
-        Command::Purge { instance } => {
+        Command::Purge { instance, .. } => {
             assert_eq!(instance, "");
         }
         _ => panic!("expected Purge"),

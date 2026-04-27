@@ -48,20 +48,15 @@ pub struct Connection {
     pub target_port: PortName,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ExecutionState {
+    #[default]
     Idle,
     Running,
     Queued,
     Completed,
     Failed,
     Skipped,
-}
-
-impl Default for ExecutionState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]

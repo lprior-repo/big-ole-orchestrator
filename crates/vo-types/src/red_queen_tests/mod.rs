@@ -20,12 +20,12 @@ use crate::WorkflowDefinition;
 
 mod helpers;
 
+mod boundary_values;
 mod contract_violations;
+mod cycle_detection;
 mod error_semantics;
 mod json_attacks;
-mod cycle_detection;
 mod next_nodes;
-mod boundary_values;
 mod parse_behavior;
 mod prop_tests;
 

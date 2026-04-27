@@ -4,10 +4,10 @@
 
 use std::time::Duration;
 
-use super::Actor;
-use super::types::SpawnSupervisorError;
-use super::SpawnSupervisorMetrics;
 use super::traits::ProcessHandle;
+use super::types::SpawnSupervisorError;
+use super::Actor;
+use super::SpawnSupervisorMetrics;
 use vo_types::InstanceId;
 
 impl Actor {

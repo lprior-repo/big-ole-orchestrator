@@ -34,15 +34,19 @@ mod tests {
     #[test]
     fn sha256_hex_zero_padded() {
         let result = sha256_hex("x");
-        assert!(!result.contains("x"));
+        assert_eq!(result.len(), 64);
         assert!(result.starts_with('x'));
+        assert!(result.chars().skip(1).all(|c| c == '0'));
     }
 
     #[test]
     fn sha256_hex_empty_string() {
         let result = sha256_hex("");
         assert_eq!(result.len(), 64);
-        assert_eq!(result, "0000000000000000000000000000000000000000000000000000000000000000");
+        assert_eq!(
+            result,
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        );
     }
 
     #[test]

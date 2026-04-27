@@ -18,7 +18,6 @@ mod write_failure_tests;
 mod write_success_tests;
 
 // Re-export internal functions for tests
-pub use crate::graph::{parse_graph_args, WorkflowSpec};
 pub use crate::io::{
     read_input_inner_with_atomic_guard, read_input_inner_with_state,
     write_failure_inner_with_state, write_success_inner_with_state,

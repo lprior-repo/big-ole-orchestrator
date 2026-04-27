@@ -14,25 +14,24 @@ use vo_types::{InstanceId, SequenceNumber, StepId};
 use crate::key_encoding::{
     decode_dedupe_key, decode_effect_key, decode_event_key, decode_lease_key,
     decode_length_prefixed, decode_timer_key, encode_dedupe_key, encode_effect_key,
-    encode_event_key, encode_lease_key, encode_length_prefixed, encode_timer_key,
-    encode_u16_be, encode_u64_be,
+    encode_event_key, encode_lease_key, encode_length_prefixed, encode_timer_key, encode_u16_be,
+    encode_u64_be,
 };
 
 use crate::dedupe_partition::{
-    encode_dedupe_key as partition_encode_dedupe_key,
     decode_dedupe_key as partition_decode_dedupe_key,
-};
-use crate::lease_partition::{
-    encode_lease_key as partition_encode_lease_key,
-    decode_lease_key as partition_decode_lease_key,
+    encode_dedupe_key as partition_encode_dedupe_key,
 };
 use crate::effect_journal::{
-    encode_effect_key as partition_encode_effect_key,
     decode_effect_key as partition_decode_effect_key,
+    encode_effect_key as partition_encode_effect_key,
+};
+use crate::lease_partition::{
+    decode_lease_key as partition_decode_lease_key, encode_lease_key as partition_encode_lease_key,
 };
 use crate::receipts::{
-    encode_receipt_key as partition_encode_receipt_key,
     decode_receipt_key as partition_decode_receipt_key,
+    encode_receipt_key as partition_encode_receipt_key,
 };
 use vo_types::DedupeKey;
 
@@ -203,8 +202,11 @@ fn given_lease_key_uses_string_delimiter_then_prefix_scans_may_collide() {
     assert_ne!(key_a, key_b);
 
     // AND: The encoded key contains the `::` delimiter bytes
-    let key_str = String::from_utf8(key_a.clone()).unwrap();
-    assert!(key_str.contains("::"), "lease key must contain :: delimiter");
+    let key_str = String::from_utf8(key_a).unwrap();
+    assert!(
+        key_str.contains("::"),
+        "lease key must contain :: delimiter"
+    );
 }
 
 #[test]
@@ -217,7 +219,10 @@ fn given_lease_key_with_empty_step_id_when_decoded_then_rejected() {
     let result = decode_lease_key(&key);
 
     // THEN: Rejected because empty step ID is invalid
-    assert!(result.is_err(), "empty step ID after delimiter must be rejected");
+    assert!(
+        result.is_err(),
+        "empty step ID after delimiter must be rejected"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -300,10 +305,7 @@ fn given_event_keys_for_different_instances_then_all_keys_for_lower_instance_sor
     let key2 = encode_event_key(&id2, seq);
 
     // THEN: All events for id1 sort before all events for id2
-    assert!(
-        key1 < key2,
-        "events for lower instance ID must sort first"
-    );
+    assert!(key1 < key2, "events for lower instance ID must sort first");
 
     // AND: Even the highest sequence for id1 sorts before the lowest for id2
     let key1_max = encode_event_key(&id1, SequenceNumber::try_from(u64::MAX).unwrap());
@@ -317,7 +319,17 @@ fn given_event_keys_for_different_instances_then_all_keys_for_lower_instance_sor
 #[test]
 fn given_u64_values_when_big_endian_encoded_then_lexicographic_order_matches_numeric() {
     // GIVEN: A range of u64 values
-    let values = [0u64, 1, 100, 255, 256, 65535, 65536, u32::MAX as u64, u64::MAX];
+    let values = [
+        0u64,
+        1,
+        100,
+        255,
+        256,
+        65535,
+        65536,
+        u64::from(u32::MAX),
+        u64::MAX,
+    ];
 
     for window in values.windows(2) {
         let enc_low = encode_u64_be(window[0]);
@@ -364,7 +376,10 @@ fn given_length_prefixed_decode_when_length_claims_more_than_available_then_erro
     let result = decode_length_prefixed(&data);
 
     // THEN: Error because claimed length exceeds available data
-    assert!(result.is_err(), "length prefix exceeding data must be rejected");
+    assert!(
+        result.is_err(),
+        "length prefix exceeding data must be rejected"
+    );
 }
 
 #[test]
@@ -406,7 +421,8 @@ fn given_length_prefixed_decode_when_exact_length_match_then_no_remainder() {
 }
 
 #[test]
-fn given_encode_length_prefixed_when_value_exceeds_u16_max_then_length_clamped_but_all_data_included() {
+fn given_encode_length_prefixed_when_value_exceeds_u16_max_then_length_clamped_but_all_data_included(
+) {
     // GIVEN: A value that exceeds u16::MAX (65535) bytes
     let huge: Vec<u8> = vec![0x41; (u16::MAX as usize) + 100];
 
@@ -493,7 +509,7 @@ fn given_effect_key_without_0xff_marker_when_decoded_then_rejected() {
     let event_key = encode_event_key(&id, seq); // 24 bytes, no marker
 
     // WHEN: Treated as an effect key (appending wrong marker)
-    let mut fake_effect = event_key.clone();
+    let mut fake_effect = event_key;
     fake_effect.push(0x00); // wrong marker byte
 
     // THEN: Rejected
@@ -555,11 +571,7 @@ fn given_all_zero_event_key_when_decoded_then_rejected() {
 #[test]
 fn given_lease_key_with_non_ulid_prefix_when_decoded_then_rejected() {
     // GIVEN: A lease key with a non-ULID instance ID portion
-    let bad_keys: &[&[u8]] = &[
-        b"NOT_AN_ID::step-1",
-        b"::step-1",
-        b"short::step",
-    ];
+    let bad_keys: &[&[u8]] = &[b"NOT_AN_ID::step-1", b"::step-1", b"short::step"];
 
     for bad_key in bad_keys {
         let result = decode_lease_key(bad_key);
@@ -738,7 +750,7 @@ fn given_partition_lease_key_uses_delimiter_then_not_binary_framed() {
 
     // WHEN: Encoded via the production lease partition encoder
     let encoded = partition_encode_lease_key(&id, &step);
-    let key_str = String::from_utf8(encoded.clone()).unwrap();
+    let key_str = String::from_utf8(encoded).unwrap();
 
     // THEN: The key uses `::` string delimiter, not length-prefix framing
     // NOTE: ADR-020 compliance gap — uses string delimiter instead of
@@ -746,9 +758,16 @@ fn given_partition_lease_key_uses_delimiter_then_not_binary_framed() {
     // never contains `::`, and StepId rejects `:` characters. However,
     // this is fragile and violates ADR-020's "length-prefix variable
     // identifiers" rule.
-    assert!(key_str.contains("::"), "lease key must contain :: delimiter");
+    assert!(
+        key_str.contains("::"),
+        "lease key must contain :: delimiter"
+    );
     let parts: Vec<&str> = key_str.split("::").collect();
-    assert_eq!(parts.len(), 2, "lease key must have exactly one :: delimiter");
+    assert_eq!(
+        parts.len(),
+        2,
+        "lease key must have exactly one :: delimiter"
+    );
 }
 
 #[test]
@@ -831,7 +850,11 @@ fn given_canonical_vs_partition_dedupe_encoders_then_formats_differ() {
     let partition = partition_encode_dedupe_key(&dk);
 
     // THEN: The canonical encoder adds a length prefix, the partition does not
-    assert_eq!(canonical.len(), 2 + key_str.len(), "canonical has 2-byte length prefix");
+    assert_eq!(
+        canonical.len(),
+        2 + key_str.len(),
+        "canonical has 2-byte length prefix"
+    );
     assert_eq!(partition.len(), key_str.len(), "partition is raw UTF-8");
     assert_ne!(canonical, partition, "formats must differ");
 }

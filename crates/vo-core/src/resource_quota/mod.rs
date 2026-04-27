@@ -244,7 +244,7 @@ mod tests {
         let q = CpuQuota::new(NonZeroU64::new(4).unwrap());
         let q2 = q;
         assert_eq!(q, q2);
-        let q3 = q.clone();
+        let q3 = q;
         assert_eq!(q, q3);
         let mut h1 = std::collections::HashSet::new();
         h1.insert(q);
@@ -256,7 +256,7 @@ mod tests {
         let q = MemoryQuota::new(NonZeroU64::new(1024).unwrap());
         let q2 = q;
         assert_eq!(q, q2);
-        let q3 = q.clone();
+        let q3 = q;
         assert_eq!(q, q3);
         let mut h1 = std::collections::HashSet::new();
         h1.insert(q);
@@ -268,7 +268,7 @@ mod tests {
         let q = DiskQuota::new(NonZeroU64::new(999).unwrap());
         let q2 = q;
         assert_eq!(q, q2);
-        let q3 = q.clone();
+        let q3 = q;
         assert_eq!(q, q3);
         let mut h1 = std::collections::HashSet::new();
         h1.insert(q);
@@ -371,7 +371,7 @@ mod tests {
         let u1 = QuotaUsage::new().with_cpu(2).with_memory(100);
         let u2 = u1;
         assert_eq!(u1, u2);
-        let u3 = u1.clone();
+        let u3 = u1;
         assert_eq!(u1, u3);
         let u4 = QuotaUsage::default();
         assert_eq!(u4.cpu_cores_used, 0);

@@ -33,7 +33,7 @@ use tokio::time::Duration;
 
 pub use lock::{
     LockEntry, LockError, LockId, LockMode, LockPromote, LockPromoteResponse, LockQuery,
-    LockQueryResponse, LockRelease, LockRequest, LockStatus, LockResponse, OwnerId, WaitEdge,
+    LockQueryResponse, LockRelease, LockRequest, LockResponse, LockStatus, OwnerId, WaitEdge,
     WaitForGraph,
 };
 pub use port::LockManager;

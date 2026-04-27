@@ -10,8 +10,8 @@
 use std::sync::Arc;
 
 use tokio::sync::watch;
-use tokio::time::{interval, MissedTickBehavior};
 use tokio::task::JoinHandle;
+use tokio::time::{interval, MissedTickBehavior};
 use tracing::{error, warn};
 
 use super::monitor::{read_storage_metrics, FlushTimeoutTracker};
@@ -102,7 +102,7 @@ impl StorageWatchdog {
     pub fn spawn(
         config: StorageWatchdogConfig,
         data_path: String,
-        flush_timeout_tx: tokio::sync::mpsc::Sender<()>,
+        _flush_timeout_tx: tokio::sync::mpsc::Sender<()>,
         health_sender: watch::Sender<StorageHealth>,
         health_receiver: watch::Receiver<StorageHealth>,
         mut compaction_stall_rx: watch::Receiver<bool>,
@@ -115,7 +115,7 @@ impl StorageWatchdog {
         let task_handle = tokio::spawn(async move {
             let _ = health_sender.send(StorageHealth::Healthy);
 
-            let mut flush_tracker = FlushTimeoutTracker::new(FlushTimeoutConfig {
+            let flush_tracker = FlushTimeoutTracker::new(FlushTimeoutConfig {
                 count_threshold: config.flush_timeout_count_threshold,
                 window: config.flush_timeout_window,
             });
@@ -198,7 +198,10 @@ impl StorageWatchdog {
     /// `StorageHealth::Degraded` if 1-2 indicators are exceeded,
     /// or `StorageHealth::Critical` if 3+ indicators are exceeded or writer is stalled.
     #[must_use]
-    pub fn compute_health(metrics: &StorageMetrics, config: &StorageWatchdogConfig) -> StorageHealth {
+    pub fn compute_health(
+        metrics: &StorageMetrics,
+        config: &StorageWatchdogConfig,
+    ) -> StorageHealth {
         let indicators = metrics.exceeded_indicators(config);
 
         if indicators.is_empty() {
@@ -207,7 +210,9 @@ impl StorageWatchdog {
 
         let writer_stalled = metrics.commit_latency_ms > config.commit_latency_ms_threshold * 5
             || metrics.writer_queue_depth > config.writer_queue_depth_threshold * 3
-            || metrics.disk_space.is_critical(config.disk_space_critical_percent / 2.0);
+            || metrics
+                .disk_space
+                .is_critical(config.disk_space_critical_percent / 2.0);
 
         if indicators.len() >= 3 || writer_stalled {
             StorageHealth::Critical {

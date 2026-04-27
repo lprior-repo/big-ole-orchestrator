@@ -6,20 +6,20 @@
 //! This module defines the type system for managed effects flowing through the Engine.
 //! No I/O, no engine integration — pure types and state machine logic.
 
-pub mod types;
-pub mod transitions;
 pub mod receipt;
+pub mod transitions;
+pub mod types;
 
-#[cfg(test)]
-mod tests;
 #[cfg(feature = "proptest")]
 mod proptests;
+#[cfg(test)]
+mod tests;
 #[cfg(kani)]
 mod verification;
 
+pub use receipt::Receipt;
+pub use transitions::apply_effect_transition;
 pub use types::{
     CompensationPolicy, EffectIntent, EffectKind, EffectRecord, EffectTransitionError,
     EffectTransitionEvent, ExternalReceipt,
 };
-pub use transitions::apply_effect_transition;
-pub use receipt::Receipt;

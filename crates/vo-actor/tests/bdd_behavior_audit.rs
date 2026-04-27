@@ -579,7 +579,7 @@ mod bdd_message_router {
         let mut dlq = DeadLetterQueue::new(2);
         for i in 0..3 {
             dlq.enqueue(DeadLetterEntry {
-                channel_id: ChannelId::new(&format!("ch-{}", i)),
+                channel_id: ChannelId::new(format!("ch-{}", i)),
                 message: DeadLetterMessage::new(&format!("msg-{}", i)).unwrap(),
                 enqueued_at: RouterTimestampMs::now(),
                 reason: DeadLetterReason::ChannelNotFound,
@@ -632,7 +632,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert_eq!(buf.buffered_count(&id, &wk), 1);
@@ -646,7 +646,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert!(buf.pop_buffered(&id, &wk).is_some());
@@ -661,7 +661,7 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk.clone(),
-            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         buf.clear(&id, &wk);
@@ -707,13 +707,13 @@ mod bdd_signal_buffer {
         buf.buffer_signal(
             id.clone(),
             wk1,
-            BufferedSignal::new("s1".into(), SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s1", SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         buf.buffer_signal(
             id.clone(),
             wk2,
-            BufferedSignal::new("s2".into(), SignalPayload::empty(), vts(1)),
+            BufferedSignal::new("s2", SignalPayload::empty(), vts(1)),
             BufferPolicy::BufferOne,
         );
         assert_eq!(buf.total_buffered_count(), 2);
@@ -823,7 +823,12 @@ mod bdd_spawn_supervisor {
     use super::*;
 
     fn test_spawn_record() -> SpawnRecord {
-        SpawnRecord::new(make_id("01H5JYV4XHGSR2F8KZ9B000001"), "bin".into(), None)
+        SpawnRecord::new(
+            make_id("01H5JYV4XHGSR2F8KZ9B000001"),
+            std::path::PathBuf::from("bin"),
+            vec![],
+            None,
+        )
     }
 
     #[test]
