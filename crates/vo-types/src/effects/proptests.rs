@@ -1,7 +1,7 @@
 //! Proptest invariants for effect types (ADR-030).
 
-use super::types::*;
 use super::transitions::*;
+use super::types::*;
 
 proptest::proptest! {
     /// INV: Serde round-trip preserves EffectIntent equality for all variants.

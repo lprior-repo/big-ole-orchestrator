@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use vo_cli::{CheckError, parse_strict_numeric};
+use vo_cli::{parse_strict_numeric, CheckError};
 
 #[test]
 fn check_error_file_not_found_display() {

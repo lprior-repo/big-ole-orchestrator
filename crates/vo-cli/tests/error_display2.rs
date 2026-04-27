@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use vo_cli::{InitError, LockError, DoctorError, GcError, RebuildError, CliError};
+use vo_cli::{CliError, DoctorError, GcError, InitError, LockError, RebuildError};
 
 #[test]
 fn init_error_dir_not_found_display() {

@@ -26,7 +26,10 @@ mod deser_attacks {
             timer_id,
             timestamp_ms,
         } = r;
-        assert_eq!((event_id, timer_id, timestamp_ms), ("e1".to_string(), "t1".to_string(), 100));
+        assert_eq!(
+            (event_id, timer_id, timestamp_ms),
+            ("e1".to_string(), "t1".to_string(), 100)
+        );
     }
 
     #[test]
@@ -86,9 +89,10 @@ mod deser_attacks {
 
     #[test]
     fn accept_zero_timestamp() {
-        let WorkflowEvent::TimerFired { timestamp_ms, .. } =
-            serde_json::from_value(json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}))
-                .unwrap();
+        let WorkflowEvent::TimerFired { timestamp_ms, .. } = serde_json::from_value(
+            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}),
+        )
+        .unwrap();
         assert_eq!(timestamp_ms, 0);
     }
 

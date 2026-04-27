@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -80,6 +81,7 @@ where
         })?,
     );
 
+    let initial_instances = rehydrate_instances(&db)?;
     let db_handle = Arc::new(db);
 
     let workspace_index = Arc::new(std::sync::RwLock::new(
@@ -94,12 +96,21 @@ where
     let sse = vo_api::handlers::SseState::new();
     let ws = vo_api::handlers::WsState::new();
 
-    let (master_ref, _master_handle) =
-        ractor::Actor::spawn(Some("api-orchestrator".to_string()), DummyMaster, ())
-            .await
-            .map_err(|e| {
-                ServeError::InvalidStoragePath(format!("Failed to spawn orchestrator: {e}"))
-            })?;
+    let listen_addr = listener.local_addr().map_or_else(
+        |_| format!("{}:{}", config.host, config.port),
+        |addr| addr.to_string(),
+    );
+
+    let (master_ref, _master_handle) = ractor::Actor::spawn(
+        Some(format!("api-orchestrator-{listen_addr}")),
+        vo_actor::MasterOrchestrator,
+        vo_actor::OrchestratorConfig {
+            initial_instances,
+            ..vo_actor::OrchestratorConfig::default()
+        },
+    )
+    .await
+    .map_err(|e| ServeError::InvalidStoragePath(format!("Failed to spawn orchestrator: {e}")))?;
     let master = Arc::new(master_ref);
 
     let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
@@ -117,11 +128,6 @@ where
 
     let router = vo_api::router::create_router(state);
 
-    let listen_addr = listener
-        .local_addr()
-        .map(|addr| addr.to_string())
-        .unwrap_or_else(|_| format!("{}:{}", config.host, config.port));
-
     println!(
         "Starting veloxide server on {} with storage at {}",
         listen_addr,
@@ -136,38 +142,120 @@ where
     Ok(())
 }
 
-async fn shutdown_signal() {
-    let _ = tokio::signal::ctrl_c().await;
+fn rehydrate_instances(
+    db: &fjall::Database,
+) -> Result<Vec<vo_actor::InstanceSnapshot>, ServeError> {
+    vo_storage::event_log::replay_all_events(db)
+        .map_err(|error| {
+            ServeError::InvalidStoragePath(format!("failed to replay workflow events: {error}"))
+        })
+        .map(|events| {
+            events
+                .into_iter()
+                .fold(HashMap::new(), |mut active, envelope| {
+                    apply_event(&mut active, envelope);
+                    active
+                })
+                .into_values()
+                .collect()
+        })
 }
 
-// Dummy actor for API orchestration.
-// In production this would be a full MasterOrchestrator.
-struct DummyMaster;
-
-impl ractor::Actor for DummyMaster {
-    type Msg = vo_actor::OrchestratorMsg;
-    type State = ();
-    type Arguments = ();
-
-    async fn pre_start(
-        &self,
-        _myself: ractor::ActorRef<Self::Msg>,
-        _args: Self::Arguments,
-    ) -> Result<Self::State, ractor::ActorProcessingErr> {
-        Ok(())
-    }
-
-    async fn handle(
-        &self,
-        _myself: ractor::ActorRef<Self::Msg>,
-        message: Self::Msg,
-        _state: &mut Self::State,
-    ) -> Result<(), ractor::ActorProcessingErr> {
-        if let vo_actor::OrchestratorMsg::StartWorkflow { reply, .. } = message {
-            let _ = reply.send(Ok(()));
+fn apply_event(
+    active: &mut HashMap<(String, String), vo_actor::InstanceSnapshot>,
+    envelope: vo_types::EventEnvelope,
+) {
+    let event_type = envelope
+        .payload
+        .get("type")
+        .and_then(serde_json::Value::as_str);
+    match event_type {
+        Some("WorkflowStarted") => apply_started(active, envelope),
+        Some("WorkflowTerminated") => apply_terminated(active, envelope),
+        Some("SignalAccepted") | Some("WorkflowCompensationInitiated") => {
+            increment_event_count(active, envelope)
         }
-        Ok(())
+        _ => {}
     }
+}
+
+fn apply_started(
+    active: &mut HashMap<(String, String), vo_actor::InstanceSnapshot>,
+    envelope: vo_types::EventEnvelope,
+) {
+    let namespace = payload_namespace(&envelope);
+    let instance_id = vo_types::InstanceId::parse(&envelope.instance_id);
+    if let (Some(namespace), Ok(instance_id)) = (namespace, instance_id) {
+        let workflow_type = envelope
+            .payload
+            .get("workflow_type")
+            .and_then(serde_json::Value::as_str)
+            .map_or_else(|| "unknown".to_string(), ToString::to_string);
+        let paradigm = envelope
+            .payload
+            .get("paradigm")
+            .and_then(serde_json::Value::as_str)
+            .map_or(vo_actor::WorkflowParadigm::Procedural, parse_paradigm);
+        active.insert(
+            (namespace.clone(), envelope.instance_id.clone()),
+            vo_actor::InstanceSnapshot {
+                instance_id,
+                namespace,
+                workflow_type,
+                paradigm,
+                phase: vo_actor::InstancePhaseView::Live,
+                events_applied: envelope.sequence,
+            },
+        );
+    }
+}
+
+fn apply_terminated(
+    active: &mut HashMap<(String, String), vo_actor::InstanceSnapshot>,
+    envelope: vo_types::EventEnvelope,
+) {
+    if let Some(namespace) = payload_namespace(&envelope) {
+        active.remove(&(namespace, envelope.instance_id));
+    }
+}
+
+fn increment_event_count(
+    active: &mut HashMap<(String, String), vo_actor::InstanceSnapshot>,
+    envelope: vo_types::EventEnvelope,
+) {
+    if let Some(namespace) = payload_namespace(&envelope) {
+        active
+            .entry((namespace.clone(), envelope.instance_id.clone()))
+            .and_modify(|snapshot| snapshot.events_applied = envelope.sequence);
+    }
+}
+
+fn payload_namespace(envelope: &vo_types::EventEnvelope) -> Option<String> {
+    envelope
+        .payload
+        .get("namespace")
+        .and_then(serde_json::Value::as_str)
+        .map(ToString::to_string)
+        .or_else(|| {
+            envelope
+                .metadata
+                .annotations
+                .get("namespace")
+                .and_then(serde_json::Value::as_str)
+                .map(ToString::to_string)
+        })
+}
+
+fn parse_paradigm(value: &str) -> vo_actor::WorkflowParadigm {
+    match value {
+        "fsm" => vo_actor::WorkflowParadigm::Fsm,
+        "dag" => vo_actor::WorkflowParadigm::Dag,
+        _ => vo_actor::WorkflowParadigm::Procedural,
+    }
+}
+
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
 }
 
 #[cfg(test)]

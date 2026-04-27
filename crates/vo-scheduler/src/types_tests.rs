@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-use chrono::Utc;
 use crate::types::*;
+use chrono::Utc;
 
 // === JobId tests ===
 
@@ -23,7 +23,9 @@ fn job_id_display_returns_ulid_string() {
     let id = JobId::generate();
     let display = id.to_string();
     assert!(!display.is_empty());
-    assert!(display.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+    assert!(display
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_'));
 }
 
 #[test]
@@ -419,8 +421,7 @@ fn retry_policy_try_new_valid_minimal() {
 
 #[test]
 fn retry_policy_try_new_valid_high_attempts() {
-    let policy =
-        RetryPolicy::try_new(100, 1.5, Duration::from_secs(1), Duration::from_secs(3600));
+    let policy = RetryPolicy::try_new(100, 1.5, Duration::from_secs(1), Duration::from_secs(3600));
     assert!(policy.is_ok());
 }
 
@@ -462,8 +463,7 @@ fn retry_policy_try_new_zero_initial_delay() {
 
 #[test]
 fn retry_policy_try_new_max_delay_below_initial() {
-    let result =
-        RetryPolicy::try_new(3, 2.0, Duration::from_secs(10), Duration::from_secs(5));
+    let result = RetryPolicy::try_new(3, 2.0, Duration::from_secs(10), Duration::from_secs(5));
     assert!(result.is_err());
     assert!(matches!(
         result.unwrap_err(),
@@ -473,8 +473,7 @@ fn retry_policy_try_new_max_delay_below_initial() {
 
 #[test]
 fn retry_policy_try_new_max_delay_equal_to_initial() {
-    let result =
-        RetryPolicy::try_new(3, 2.0, Duration::from_secs(10), Duration::from_secs(10));
+    let result = RetryPolicy::try_new(3, 2.0, Duration::from_secs(10), Duration::from_secs(10));
     assert!(result.is_ok());
 }
 
@@ -516,8 +515,8 @@ fn retry_policy_compute_backoff_attempt_two() {
 
 #[test]
 fn retry_policy_compute_backoff_capped_at_max() {
-    let policy = RetryPolicy::try_new(10, 2.0, Duration::from_secs(1), Duration::from_secs(10))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(10, 2.0, Duration::from_secs(1), Duration::from_secs(10)).unwrap();
     // 2^10 = 1024 > 10, so should be capped
     let backoff = policy.compute_backoff(10);
     assert_eq!(backoff, Duration::from_secs(10));
@@ -525,9 +524,13 @@ fn retry_policy_compute_backoff_capped_at_max() {
 
 #[test]
 fn retry_policy_compute_backoff_exponential_growth() {
-    let policy =
-        RetryPolicy::try_new(10, 3.0, Duration::from_millis(100), Duration::from_secs(600))
-            .unwrap();
+    let policy = RetryPolicy::try_new(
+        10,
+        3.0,
+        Duration::from_millis(100),
+        Duration::from_secs(600),
+    )
+    .unwrap();
     let b0 = policy.compute_backoff(0);
     let b1 = policy.compute_backoff(1);
     let b2 = policy.compute_backoff(2);
@@ -550,8 +553,8 @@ fn retry_policy_compute_backoff_backoff_one_no_growth() {
 
 #[test]
 fn retry_policy_can_retry_within_limit() {
-    let policy = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert!(policy.can_retry(0));
     assert!(policy.can_retry(1));
     assert!(policy.can_retry(2));
@@ -559,22 +562,22 @@ fn retry_policy_can_retry_within_limit() {
 
 #[test]
 fn retry_policy_can_retry_at_max_rejected() {
-    let policy = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert!(!policy.can_retry(3));
 }
 
 #[test]
 fn retry_policy_can_retry_above_max_rejected() {
-    let policy = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert!(!policy.can_retry(10));
 }
 
 #[test]
 fn retry_policy_can_retry_single_attempt() {
-    let policy = RetryPolicy::try_new(1, 2.0, Duration::from_secs(1), Duration::from_secs(300))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(1, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert!(policy.can_retry(0));
     assert!(!policy.can_retry(1));
 }
@@ -588,15 +591,19 @@ fn retry_policy_clone_trait() {
 
 #[test]
 fn retry_policy_eq_trait() {
-    let p1 = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
-    let p2 = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
+    let p1 =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
+    let p2 =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert_eq!(p1, p2);
 }
 
 #[test]
 fn retry_policy_neq_trait_different_attempts() {
-    let p1 = RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
-    let p2 = RetryPolicy::try_new(5, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
+    let p1 =
+        RetryPolicy::try_new(3, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
+    let p2 =
+        RetryPolicy::try_new(5, 2.0, Duration::from_secs(1), Duration::from_secs(300)).unwrap();
     assert_ne!(p1, p2);
 }
 
@@ -609,10 +616,7 @@ fn retry_policy_display_max_attempts_zero() {
 #[test]
 fn retry_policy_display_backoff_below_one() {
     let err = RetryPolicyError::BackoffMultiplierBelowOne { value: 0.5 };
-    assert_eq!(
-        err.to_string(),
-        "backoff_multiplier 0.5 must be >= 1.0"
-    );
+    assert_eq!(err.to_string(), "backoff_multiplier 0.5 must be >= 1.0");
 }
 
 #[test]
@@ -624,10 +628,7 @@ fn retry_policy_display_initial_delay_zero() {
 #[test]
 fn retry_policy_display_max_delay_below_initial() {
     let err = RetryPolicyError::MaxDelayBelowInitial;
-    assert_eq!(
-        err.to_string(),
-        "max_delay must be >= initial_delay"
-    );
+    assert_eq!(err.to_string(), "max_delay must be >= initial_delay");
 }
 
 #[test]
@@ -640,8 +641,8 @@ fn retry_policy_is_error_trait() {
 
 #[test]
 fn retry_policy_serialize_deserialize_roundtrip() {
-    let policy = RetryPolicy::try_new(5, 2.5, Duration::from_secs(2), Duration::from_secs(600))
-        .unwrap();
+    let policy =
+        RetryPolicy::try_new(5, 2.5, Duration::from_secs(2), Duration::from_secs(600)).unwrap();
     let json = serde_json::to_string(&policy).unwrap();
     let recovered: RetryPolicy = serde_json::from_str(&json).unwrap();
     assert_eq!(policy, recovered);
@@ -850,7 +851,11 @@ fn job_state_display_all_lowercase() {
         JobState::Retrying,
     ] {
         let s = state.to_string();
-        assert!(s == s.to_lowercase(), "{:?} Display should be lowercase", state);
+        assert!(
+            s == s.to_lowercase(),
+            "{:?} Display should be lowercase",
+            state
+        );
     }
 }
 

@@ -380,7 +380,7 @@ fn concurrent_write_success_only_one_succeeds() {
     }
 
     let succeeded = success_count.load(Ordering::SeqCst);
-    assert_eq!(succeeded, true, "exactly one write should succeed");
+    assert!(succeeded, "exactly one write should succeed");
 }
 
 #[test]
@@ -474,7 +474,7 @@ fn dag_connect_rejects_handle_from_different_dag() {
 
     let result = dag1.connect(&a, &b);
 
-    assert!(matches!(result, Err(DagError::NodeNotFound { name })))
+    assert!(matches!(result, Err(DagError::NodeNotFound { name: _ })))
 }
 
 #[test]
@@ -662,7 +662,7 @@ fn graph_args_is_copy_and_clone() {
     let args = vec!["bin".to_string(), "--graph".to_string()];
     let ga = parse_graph_args(&args).unwrap();
     let copied = ga;
-    let cloned = ga.clone();
+    let cloned = ga;
     assert_eq!(ga, copied);
     assert_eq!(ga, cloned);
 }
@@ -678,8 +678,17 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         }],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let bytes = spec.to_json_bytes();
     let json_str = String::from_utf8(bytes).unwrap();
@@ -697,6 +706,13 @@ fn workflow_spec_large_graph_roundtrip() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         })
         .collect();
 
@@ -718,6 +734,8 @@ fn workflow_spec_large_graph_roundtrip() {
         workflow_name: WorkflowName::parse("large_graph").unwrap(),
         nodes: nodes.clone(),
         edges: edges.clone(),
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -734,6 +752,8 @@ fn workflow_spec_to_json_bytes_never_panics() {
         workflow_name: WorkflowName::parse("empty").unwrap(),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty(), "should produce non-empty JSON");
@@ -795,7 +815,7 @@ fn task_failure_kind_clone_matches_original() {
         TaskFailureKind::System,
         TaskFailureKind::Timeout,
     ] {
-        let cloned = kind.clone();
+        let cloned = kind;
         assert_eq!(kind, cloned);
     }
 }

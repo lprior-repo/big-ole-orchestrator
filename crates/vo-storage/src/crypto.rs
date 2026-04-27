@@ -175,10 +175,8 @@ pub fn encrypt_blob(
     let tag = ciphertext[tag_start..].to_vec();
     let ciphertext_without_tag = ciphertext[..tag_start].to_vec();
 
-    Ok(
-        vo_types::EncryptedBlob::new(iv.to_vec(), ciphertext_without_tag, tag)
-            .map_err(|e| CryptoError::EncryptionFailed)?,
-    )
+    vo_types::EncryptedBlob::new(iv.to_vec(), ciphertext_without_tag, tag)
+        .map_err(|e| CryptoError::EncryptionFailed)
 }
 
 /// Decrypts an encrypted blob using AES-256-GCM with the given DEK.

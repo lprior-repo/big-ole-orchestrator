@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+mod test_helpers;
 use test_helpers::{make_temp_dir, setup_project};
 use vo_cli::{
     init::InitConfig, run_check, run_doctor, run_lock, BinaryFormat, CheckCategory, CheckError,
@@ -67,7 +68,10 @@ fn init_fails_on_already_initialized_with_different_config() {
         storage_path: PathBuf::from("/other/path"),
     };
     let result = vo_cli::run_init(&config2);
-    assert!(matches!(result, Err(vo_cli::InitError::AlreadyInitialized { .. })));
+    assert!(matches!(
+        result,
+        Err(vo_cli::InitError::AlreadyInitialized { .. })
+    ));
 }
 
 #[test]
@@ -92,7 +96,10 @@ fn init_fails_on_file_as_project_dir() {
         storage_path: PathBuf::from(".vo/storage"),
     };
     let result = vo_cli::run_init(&config);
-    assert!(matches!(result, Err(vo_cli::InitError::NotDirectory { .. })));
+    assert!(matches!(
+        result,
+        Err(vo_cli::InitError::NotDirectory { .. })
+    ));
 }
 
 #[test]
@@ -108,7 +115,10 @@ fn init_fails_on_symlink() {
         storage_path: PathBuf::from(".vo/storage"),
     };
     let result = vo_cli::run_init(&config);
-    assert!(matches!(result, Err(vo_cli::InitError::SymlinkTarget { .. })));
+    assert!(matches!(
+        result,
+        Err(vo_cli::InitError::SymlinkTarget { .. })
+    ));
 }
 
 #[test]
@@ -227,7 +237,10 @@ fn lock_fails_without_vo_dir() {
         project_dir: dir.clone(),
     };
     let result = vo_cli::run_lock(&config);
-    assert!(matches!(result, Err(vo_cli::LockError::NotInitialized { .. })));
+    assert!(matches!(
+        result,
+        Err(vo_cli::LockError::NotInitialized { .. })
+    ));
 }
 
 #[test]
@@ -238,7 +251,10 @@ fn lock_fails_without_workflows_dir() {
         project_dir: dir.clone(),
     };
     let result = vo_cli::run_lock(&config);
-    assert!(matches!(result, Err(vo_cli::LockError::NoWorkflowsDir { .. })));
+    assert!(matches!(
+        result,
+        Err(vo_cli::LockError::NoWorkflowsDir { .. })
+    ));
 }
 
 #[test]

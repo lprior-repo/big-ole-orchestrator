@@ -177,7 +177,11 @@ mod tests {
         }
 
         assert_eq!(dlq.len(), 3);
-        let entries: Vec<_> = dlq.entries().iter().map(|e| e.channel_id.as_str()).collect();
+        let entries: Vec<_> = dlq
+            .entries()
+            .iter()
+            .map(|e| e.channel_id.as_str())
+            .collect();
         assert!(entries.contains(&"channel-2"));
         assert!(entries.contains(&"channel-3"));
         assert!(entries.contains(&"channel-4"));

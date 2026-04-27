@@ -95,9 +95,7 @@ impl LifecycleState {
             LifecycleState::WaitingForTimer | LifecycleState::PendingPublication => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
-            LifecycleState::Failed => {
-                crate::lifecycle_superstate::LifecycleSuperstate::Recovering
-            }
+            LifecycleState::Failed => crate::lifecycle_superstate::LifecycleSuperstate::Recovering,
             LifecycleState::Completed | LifecycleState::Cancelled => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Terminal
             }

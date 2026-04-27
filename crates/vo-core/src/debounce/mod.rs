@@ -40,5 +40,3 @@ impl PartialEq for Debouncer {
         self.duration == other.duration
     }
 }
-
-

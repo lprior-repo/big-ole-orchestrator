@@ -3,6 +3,22 @@
 use vo_common::connection_pool::HealthCheckResult;
 use vo_common::types::TimestampMs;
 
+pub trait TimestampLike {
+    fn timestamp_ms(self) -> u64;
+}
+
+impl TimestampLike for TimestampMs {
+    fn timestamp_ms(self) -> u64 {
+        self.as_u64()
+    }
+}
+
+impl TimestampLike for vo_types::TimestampMs {
+    fn timestamp_ms(self) -> u64 {
+        self.as_u64()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
     timeout_ms: u64,
@@ -13,13 +29,18 @@ impl HealthCheck {
         Self { timeout_ms }
     }
 
-    pub fn check_connection(
+    pub fn check_connection<T>(
         &self,
-        last_used_at: TimestampMs,
+        last_used_at: T,
         idle_timeout_ms: u64,
-        current_time: TimestampMs,
-    ) -> HealthCheckResult {
-        let elapsed = current_time.as_u64().saturating_sub(last_used_at.as_u64());
+        current_time: T,
+    ) -> HealthCheckResult
+    where
+        T: TimestampLike,
+    {
+        let elapsed = current_time
+            .timestamp_ms()
+            .saturating_sub(last_used_at.timestamp_ms());
 
         if elapsed > idle_timeout_ms {
             return HealthCheckResult::Stale;

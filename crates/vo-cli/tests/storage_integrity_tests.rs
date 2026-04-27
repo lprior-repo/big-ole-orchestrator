@@ -1,5 +1,6 @@
+mod test_helpers;
+use test_helpers::{make_temp_dir, setup_project};
 use vo_cli::commands::doctor_checks::{check_storage_integrity, Severity};
-use crate::helpers::{make_temp_dir, setup_project};
 
 // ============================================================
 // GAP: check_storage_integrity config path reference isolation

@@ -15,7 +15,9 @@
 ///   on failure but does not deduplicate ingress or guarantee idempotent replay.
 /// - **BestEffort**: No delivery guarantees. Fire-and-forget semantics with no
 ///   retry or recovery. Useful for logging, telemetry, and non-critical paths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum GuaranteeClass {
@@ -24,6 +26,7 @@ pub enum GuaranteeClass {
     /// At-least-once execution — retries possible, duplicates may occur.
     AtLeastOnce,
     /// Best-effort execution — no guarantees, fire-and-forget.
+    #[default]
     BestEffort,
 }
 
@@ -87,12 +90,6 @@ impl GuaranteeClass {
             GuaranteeClass::AtLeastOnce => "shield-alert",
             GuaranteeClass::BestEffort => "shield-off",
         }
-    }
-}
-
-impl Default for GuaranteeClass {
-    fn default() -> Self {
-        GuaranteeClass::BestEffort
     }
 }
 

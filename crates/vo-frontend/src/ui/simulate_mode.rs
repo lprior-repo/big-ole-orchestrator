@@ -126,6 +126,7 @@ pub enum SimOp {
 }
 
 impl SimOp {
+    #[must_use]
     pub fn activity_id(&self) -> Option<&str> {
         match self {
             Self::CtxActivity { activity_id, .. } => Some(activity_id),
@@ -133,6 +134,7 @@ impl SimOp {
         }
     }
 
+    #[must_use]
     pub fn label(&self) -> &'static str {
         match self {
             Self::CtxActivity { .. } => "Activity",
@@ -142,6 +144,7 @@ impl SimOp {
     }
 }
 
+#[must_use]
 pub fn extract_ctx_ops_from_workflow(_workflow: &Workflow) -> Vec<SimOp> {
     Vec::new()
 }
@@ -258,7 +261,7 @@ mod tests {
     fn provide_result_returns_empty_result_error_when_result_is_empty() {
         let mut state = SimProceduralState::new();
         let result = state.provide_result(String::new(), "act-001", 3);
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), SimError::EmptyResult));
     }
 
@@ -270,7 +273,7 @@ mod tests {
             event_log: Vec::new(),
         };
         let result = state.provide_result("ok".to_string(), "act-1", 5);
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), SimError::AlreadyCompleted));
     }
 
@@ -278,7 +281,7 @@ mod tests {
     fn provide_result_returns_already_completed_when_zero_ops() {
         let mut state = SimProceduralState::new();
         let result = state.provide_result("ok".to_string(), "act-1", 0);
-        assert!(matches!(result, Err(_)));
+        assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), SimError::AlreadyCompleted));
     }
 

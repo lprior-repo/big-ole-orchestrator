@@ -7,10 +7,18 @@ use thiserror::Error;
 
 // Enums
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProbeType { Http, Tcp, Exec }
+pub enum ProbeType {
+    Http,
+    Tcp,
+    Exec,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProbeStatus { Healthy, Unhealthy, Unknown }
+pub enum ProbeStatus {
+    Healthy,
+    Unhealthy,
+    Unknown,
+}
 
 // Data Structures
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,20 +35,46 @@ pub struct ProbeResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ProbeConfig {
-    Http { url: String, expected_status: Option<u16>, timeout_ms: u64 },
-    Tcp { address: String, port: u16, timeout_ms: u64 },
-    Exec { command: String, args: Vec<String>, expected_exit_code: Option<i32>, timeout_ms: u64 },
+    Http {
+        url: String,
+        expected_status: Option<u16>,
+        timeout_ms: u64,
+    },
+    Tcp {
+        address: String,
+        port: u16,
+        timeout_ms: u64,
+    },
+    Exec {
+        command: String,
+        args: Vec<String>,
+        expected_exit_code: Option<i32>,
+        timeout_ms: u64,
+    },
 }
 
 impl ProbeConfig {
     pub fn http(url: impl Into<String>) -> Self {
-        Self::Http { url: url.into(), expected_status: Some(200), timeout_ms: 5000 }
+        Self::Http {
+            url: url.into(),
+            expected_status: Some(200),
+            timeout_ms: 5000,
+        }
     }
     pub fn tcp(address: impl Into<String>, port: u16) -> Self {
-        Self::Tcp { address: address.into(), port, timeout_ms: 5000 }
+        Self::Tcp {
+            address: address.into(),
+            port,
+            timeout_ms: 5000,
+        }
     }
     pub fn exec(command: impl Into<String>, args: Vec<String>) -> Self {
-        Self::Exec { command: command.into(), args, expected_exit_code: Some(0), timeout_ms: 30000 }
+        Self::Exec {
+            command: command.into(),
+            args,
+            expected_exit_code: Some(0),
+            timeout_ms: 30000,
+        }
     }
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         match &mut self {
@@ -52,13 +86,17 @@ impl ProbeConfig {
     }
     pub fn timeout(&self) -> Duration {
         match self {
-            Self::Http { timeout_ms, .. } | Self::Tcp { timeout_ms, .. } | Self::Exec { timeout_ms, .. } => {
-                Duration::from_millis(*timeout_ms)
-            }
+            Self::Http { timeout_ms, .. }
+            | Self::Tcp { timeout_ms, .. }
+            | Self::Exec { timeout_ms, .. } => Duration::from_millis(*timeout_ms),
         }
     }
     pub fn probe_type(&self) -> ProbeType {
-        match self { Self::Http { .. } => ProbeType::Http, Self::Tcp { .. } => ProbeType::Tcp, Self::Exec { .. } => ProbeType::Exec }
+        match self {
+            Self::Http { .. } => ProbeType::Http,
+            Self::Tcp { .. } => ProbeType::Tcp,
+            Self::Exec { .. } => ProbeType::Exec,
+        }
     }
 }
 
@@ -67,27 +105,45 @@ impl ProbeConfig {
 pub struct ProbeId(pub ulid::Ulid);
 
 impl ProbeId {
-    pub fn new() -> Self { Self(ulid::Ulid::new()) }
-    pub fn from_string(s: &str) -> Option<Self> {
-        s.strip_prefix("probe-").and_then(|s| ulid::Ulid::from_str(s).ok()).map(Self)
+    pub fn new() -> Self {
+        Self(ulid::Ulid::new())
     }
-    pub fn as_str(&self) -> String { format!("probe-{}", self.0) }
+    pub fn from_string(s: &str) -> Option<Self> {
+        s.strip_prefix("probe-")
+            .and_then(|s| ulid::Ulid::from_str(s).ok())
+            .map(Self)
+    }
+    pub fn as_str(&self) -> String {
+        format!("probe-{}", self.0)
+    }
 }
 
-impl Default for ProbeId { fn default() -> Self { Self::new() } }
+impl Default for ProbeId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl std::fmt::Display for ProbeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { write!(f, "probe-{}", self.0) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "probe-{}", self.0)
+    }
 }
 
 impl serde::Serialize for ProbeId {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         serializer.serialize_str(&self.as_str())
     }
 }
 
 impl<'de> Deserialize<'de> for ProbeId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
         let s = String::deserialize(deserializer)?;
         ProbeId::from_string(&s).ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
     }
@@ -116,14 +172,20 @@ pub struct BackoffConfig {
 
 impl Default for BackoffConfig {
     fn default() -> Self {
-        Self { initial_interval: Duration::from_secs(1), max_interval: Duration::from_secs(60), multiplier: 2.0, max_failures: 10 }
+        Self {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(60),
+            multiplier: 2.0,
+            max_failures: 10,
+        }
     }
 }
 
 impl BackoffConfig {
     pub fn calculate_interval(&self, consecutive_failures: u32) -> Duration {
         let failures = consecutive_failures.min(self.max_failures);
-        let interval_ms = self.initial_interval.as_millis() as f64 * self.multiplier.powi(failures as i32);
+        let interval_ms =
+            self.initial_interval.as_millis() as f64 * self.multiplier.powi(failures as i32);
         let interval_ms = interval_ms.min(self.max_interval.as_millis() as f64);
         Duration::from_millis(interval_ms as u64)
     }
@@ -141,7 +203,13 @@ pub struct AggregatedStatus {
 
 impl AggregatedStatus {
     pub fn new() -> Self {
-        Self { overall: ProbeStatus::Unknown, healthy_count: 0, unhealthy_count: 0, unknown_count: 0, results: HashMap::new() }
+        Self {
+            overall: ProbeStatus::Unknown,
+            healthy_count: 0,
+            unhealthy_count: 0,
+            unknown_count: 0,
+            results: HashMap::new(),
+        }
     }
     pub fn update(&mut self, result: ProbeResult) {
         if let Some(old_result) = self.results.get(&result.probe_id) {
@@ -165,33 +233,68 @@ impl AggregatedStatus {
             ProbeStatus::Unknown
         };
     }
-    pub fn is_healthy(&self) -> bool { self.overall == ProbeStatus::Healthy }
+    pub fn is_healthy(&self) -> bool {
+        self.overall == ProbeStatus::Healthy
+    }
 }
 
-impl Default for AggregatedStatus { fn default() -> Self { Self::new() } }
+impl Default for AggregatedStatus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // ProbeError
 #[derive(Debug, Clone, Error)]
 pub enum ProbeError {
-    #[error("HTTP probe failed: {0}")] Http(String),
-    #[error("TCP probe failed: {0}")] Tcp(String),
-    #[error("Exec probe failed: {0}")] Exec(String),
-    #[error("Timeout after {0:?}")] Timeout(Duration),
-    #[error("Probe {0} not found")] NotFound(ProbeId),
+    #[error("HTTP probe failed: {0}")]
+    Http(String),
+    #[error("TCP probe failed: {0}")]
+    Tcp(String),
+    #[error("Exec probe failed: {0}")]
+    Exec(String),
+    #[error("Timeout after {0:?}")]
+    Timeout(Duration),
+    #[error("Probe {0} not found")]
+    NotFound(ProbeId),
 }
 
 // ProbeRegistry
 #[derive(Debug, Clone)]
-pub struct ProbeRegistry { probes: HashMap<ProbeId, ProbeDefinition> }
-
-impl ProbeRegistry {
-    pub fn new() -> Self { Self { probes: HashMap::new() } }
-    pub fn register(&mut self, definition: ProbeDefinition) -> ProbeId { let id = definition.id; self.probes.insert(id, definition); id }
-    pub fn unregister(&mut self, id: ProbeId) -> Option<ProbeDefinition> { self.probes.remove(&id) }
-    pub fn get(&self, id: &ProbeId) -> Option<&ProbeDefinition> { self.probes.get(id) }
-    pub fn list(&self) -> Vec<&ProbeDefinition> { self.probes.values().collect() }
-    pub fn len(&self) -> usize { self.probes.len() }
-    pub fn is_empty(&self) -> bool { self.probes.is_empty() }
+pub struct ProbeRegistry {
+    probes: HashMap<ProbeId, ProbeDefinition>,
 }
 
-impl Default for ProbeRegistry { fn default() -> Self { Self::new() } }
+impl ProbeRegistry {
+    pub fn new() -> Self {
+        Self {
+            probes: HashMap::new(),
+        }
+    }
+    pub fn register(&mut self, definition: ProbeDefinition) -> ProbeId {
+        let id = definition.id;
+        self.probes.insert(id, definition);
+        id
+    }
+    pub fn unregister(&mut self, id: ProbeId) -> Option<ProbeDefinition> {
+        self.probes.remove(&id)
+    }
+    pub fn get(&self, id: &ProbeId) -> Option<&ProbeDefinition> {
+        self.probes.get(id)
+    }
+    pub fn list(&self) -> Vec<&ProbeDefinition> {
+        self.probes.values().collect()
+    }
+    pub fn len(&self) -> usize {
+        self.probes.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.probes.is_empty()
+    }
+}
+
+impl Default for ProbeRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}

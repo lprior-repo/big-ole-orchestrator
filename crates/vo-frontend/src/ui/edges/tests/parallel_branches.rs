@@ -28,7 +28,7 @@ fn given_source_with_two_targets_when_find_parallel_then_returns_one_group() {
     assert_eq!(group.branch_node_ids.len(), 2);
     // Target nodes are sorted by ID lexicographically
     let mut sorted_ids = [target_a_id, target_b_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
     assert_eq!(group.branch_node_ids[0], sorted_ids[0]);
     assert_eq!(group.branch_node_ids[1], sorted_ids[1]);
     assert_eq!(group.bounding_box.x, 292.0);

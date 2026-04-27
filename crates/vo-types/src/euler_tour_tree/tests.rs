@@ -1,4 +1,4 @@
-use super::traits::{EttAggregate, EttError, Monoid};
+use super::traits::EttError;
 use super::tree::EulerTourTree;
 
 #[test]

@@ -220,8 +220,6 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use futures::StreamExt;
-    use tokio_stream::StreamExt as TokioStreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {

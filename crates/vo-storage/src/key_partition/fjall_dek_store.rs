@@ -258,9 +258,9 @@ impl DekStore for FjallDekStore {
         let new_entry_bytes = super::encode_dek_entry(&entry);
 
         let mut batch = self.db.batch();
-        batch.remove(&*self.dek_partition, &old_key);
-        batch.insert(&*self.dek_partition, &new_key, &new_entry_bytes);
-        batch.insert(&*self.index_partition, &index_key, index_value);
+        batch.remove(&self.dek_partition, &old_key);
+        batch.insert(&self.dek_partition, &new_key, &new_entry_bytes);
+        batch.insert(&self.index_partition, &index_key, index_value);
         batch.commit().map_err(|e| DekStoreError::Storage {
             reason: format!("failed to commit DEK rotation batch: {e}"),
         })?;

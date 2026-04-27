@@ -495,7 +495,7 @@ fn test_uuid_uppercase_not_detected() {
 }
 
 #[test]
-fn test_mixed_case_rand_Rand_not_detected() {
+fn test_mixed_case_rand_rand_not_detected() {
     let src = quote! {
         fn workflow() {
             let x = rAnd::random();
@@ -506,7 +506,7 @@ fn test_mixed_case_rand_Rand_not_detected() {
 }
 
 #[test]
-fn test_mixed_case_uuid_Uuid_not_detected() {
+fn test_mixed_case_uuid_uuid_not_detected() {
     let src = quote! {
         fn workflow() {
             let id = uUid::new_v4();
@@ -544,7 +544,10 @@ fn test_random_rule_execute_finds_uuid() {
     let file: File = syn::parse_str(&src).unwrap();
     let diags = rule.execute(&file);
     assert_eq!(diags.len(), 1);
-    assert_eq!(diags[0].message(), "non-deterministic random call in workflow function");
+    assert_eq!(
+        diags[0].message(),
+        "non-deterministic random call in workflow function"
+    );
 }
 
 #[test]
@@ -577,7 +580,8 @@ fn test_random_rule_execute_multiple_produces_multiple_diagnostics() {
             let val = rand::random::<u64>();
             let id2 = Uuid::new_v4();
         }
-    }.to_string();
+    }
+    .to_string();
     let file: File = syn::parse_str(&src).unwrap();
     let diags = rule.execute(&file);
     assert_eq!(diags.len(), 3);
@@ -592,7 +596,8 @@ fn test_random_rule_execute_with_use_renamed_import() {
     let src = quote! {
         use uuid::Uuid as GenId;
         fn workflow() { let id = GenId::new_v4(); }
-    }.to_string();
+    }
+    .to_string();
     let file: File = syn::parse_str(&src).unwrap();
     let diags = rule.execute(&file);
     assert_eq!(diags.len(), 1);
@@ -614,6 +619,9 @@ fn test_random_rule_execute_preserves_suggestion() {
     let file: File = syn::parse_str(&src).unwrap();
     let diags = rule.execute(&file);
     assert_eq!(diags.len(), 1);
-    assert!(diags[0].suggestion.is_some());
-    assert_eq!(diags[0].suggestion.as_ref().unwrap(), "use `ctx.random_u64()` instead");
+    assert!(diags[0].suggestion().is_some());
+    assert_eq!(
+        diags[0].suggestion(),
+        Some("use `ctx.random_u64()` instead")
+    );
 }

@@ -33,26 +33,33 @@ fn effect_record_rejects_truncated_json() {
 
 #[test]
 fn effect_record_rejects_wrong_type_for_kind() {
-    let result: Result<EffectRecord, _> = serde_json::from_str(r#"{
+    let result: Result<EffectRecord, _> = serde_json::from_str(
+        r#"{
         "intent_id": "fx-003",
         "kind": 42,
         "params_json": {},
         "status": "Prepared",
         "committed_at": null
-    }"#);
+    }"#,
+    );
     assert!(result.is_err(), "Integer kind should fail to deserialize");
 }
 
 #[test]
 fn effect_record_accepts_empty_intent_id_via_deserialize() {
-    let result: Result<EffectRecord, _> = serde_json::from_str(r#"{
+    let result: Result<EffectRecord, _> = serde_json::from_str(
+        r#"{
         "intent_id": "",
         "kind": "HttpCall",
         "params_json": {},
         "status": "Prepared",
         "committed_at": null
-    }"#);
+    }"#,
+    );
     // serde accepts empty string — the empty-id guard is in new(), not serde
-    assert!(result.is_ok(), "Empty intent_id is valid JSON, serde accepts it");
+    assert!(
+        result.is_ok(),
+        "Empty intent_id is valid JSON, serde accepts it"
+    );
     assert_eq!(result.unwrap().intent_id(), "");
 }

@@ -50,7 +50,7 @@ fn given_parallel_groups_when_resolve_anchors_then_offsets_applied_to_targets() 
 
     let spacing = NODE_HEIGHT / 2.5;
     let mut sorted_ids = [target_a_id, target_b_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_offset_a = if target_a_id == sorted_ids[0] {
         -spacing / 2.0
@@ -136,7 +136,7 @@ fn given_mixed_parallel_and_non_parallel_edges_when_resolve_anchors() {
 
     let spacing = NODE_HEIGHT / 2.5;
     let mut sorted_ids = [target_a_id, target_b_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_offset_a = if target_a_id == sorted_ids[0] {
         -spacing / 2.0

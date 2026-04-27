@@ -37,7 +37,10 @@ fn given_append_event_called_when_query_runs_then_event_is_durable() {
     // Given: a fresh instance with no events
     let test_instance = "bdd-test-instance";
     let events_before = query_events(test_instance);
-    assert!(events_before.is_empty(), "Given: instance starts with no events");
+    assert!(
+        events_before.is_empty(),
+        "Given: instance starts with no events"
+    );
 
     // When: an event append is requested
     let payload = serde_json::json!({
@@ -55,7 +58,10 @@ fn given_append_event_called_when_query_runs_then_event_is_durable() {
         "result": "success"
     });
     let append_result2 = append_event("test-namespace", test_instance, payload2.clone());
-    assert!(append_result2.is_ok(), "When: second append_event returns Ok");
+    assert!(
+        append_result2.is_ok(),
+        "When: second append_event returns Ok"
+    );
 
     // Then: the events are durably visible through storage query
     let events_after = query_events(test_instance);
@@ -63,11 +69,17 @@ fn given_append_event_called_when_query_runs_then_event_is_durable() {
 
     // Verify first event durability (exact-once evidence)
     assert_eq!(events_after[0].0, 1, "Then: first event has sequence 1");
-    assert_eq!(events_after[0].1, payload, "Then: first event payload matches original");
+    assert_eq!(
+        events_after[0].1, payload,
+        "Then: first event payload matches original"
+    );
 
     // Verify second event durability
     assert_eq!(events_after[1].0, 2, "Then: second event has sequence 2");
-    assert_eq!(events_after[1].1, payload2, "Then: second event payload matches original");
+    assert_eq!(
+        events_after[1].1, payload2,
+        "Then: second event payload matches original"
+    );
 }
 
 #[test]

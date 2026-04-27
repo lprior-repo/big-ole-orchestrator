@@ -28,7 +28,7 @@ fn node_render_invariants_category_matches_kind() {
 
 #[test]
 fn workflow_render_empty_produces_valid_nodes_by_id() {
-    let wf = Workflow::new("empty".into());
+    let wf = Workflow::new("empty".into(), vo_types::GuaranteeClass::BestEffort);
     assert!(wf.nodes_by_id().is_empty());
 }
 
@@ -65,7 +65,7 @@ fn escape_key_detection() {
 
 #[test]
 fn workflow_mutation_add_remove_get_consistent() {
-    let mut wf = Workflow::new("test".into());
+    let mut wf = Workflow::new("test".into(), vo_types::GuaranteeClass::BestEffort);
     let id = NodeId::new();
     wf.add_node(Node::new(id.clone(), "a".into(), vo_types::NodeKind::Pure));
     assert!(wf.get_node(id.clone()).is_some());
@@ -132,7 +132,7 @@ fn command_palette_case_insensitive_filter() {
 
 #[test]
 fn workflow_nodes_by_id_lookup_consistent() {
-    let mut wf = Workflow::new("lookup".into());
+    let mut wf = Workflow::new("lookup".into(), vo_types::GuaranteeClass::BestEffort);
     let id = NodeId::new();
     wf.add_node(Node::new(
         id.clone(),

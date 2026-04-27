@@ -52,7 +52,11 @@ impl ProcessHandle {
     /// Creates a new `ProcessHandle`.
     #[must_use]
     pub fn new(pid: u32, executable: PathBuf, args: Vec<String>) -> Self {
-        Self { pid, executable, args }
+        Self {
+            pid,
+            executable,
+            args,
+        }
     }
 }
 

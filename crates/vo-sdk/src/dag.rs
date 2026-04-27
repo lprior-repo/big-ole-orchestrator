@@ -7,7 +7,7 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, LineageScope, NodeKind, NodeName, WorkflowName};
+use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, RetryPolicy, WorkflowName};
 
 use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
@@ -284,6 +284,12 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
+                retry_policy: RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
                 signal_meta: n.signal_meta.clone(),
             })
             .collect();
@@ -301,6 +307,8 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
+            dedupe_scope: DedupeScope::default(),
+            guarantee_class: GuaranteeClass::default(),
         })
     }
 

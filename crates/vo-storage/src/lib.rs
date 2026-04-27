@@ -20,7 +20,7 @@
 //!
 //! [`append_event`] provides a synchronous event append facade that
 //! serializes events to JSON, validates sequence continuity, and stores
-//! them in an in-memory event log. Events are keyed by instance_id and
+//! them in an in-memory event log. Events are keyed by `instance_id` and
 //! assigned monotonically increasing sequence numbers.
 
 #![cfg_attr(not(test), deny(clippy::unwrap_used))]
@@ -125,7 +125,7 @@ impl EventStoreBackend {
         self.sequences.insert(instance_id.to_string(), sequence);
         self.events
             .entry(instance_id.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(EventRecord { sequence, payload });
 
         Ok(sequence)
@@ -163,7 +163,7 @@ pub fn append_event<E: Serialize>(
     Ok(())
 }
 
-/// Queries all stored events for a given instance_id.
+/// Queries all stored events for a given `instance_id`.
 ///
 /// Returns a vector of `(sequence, payload)` tuples in ascending sequence order.
 /// Returns an empty vector if no events exist for the instance.

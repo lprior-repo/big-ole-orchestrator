@@ -15,7 +15,7 @@ use vo_common::NamespaceId;
 use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
-use vo_storage::event_log::{append_event, AppendEventRequest};
+use vo_storage::event_log::{append_event, replay_events_in_namespace, AppendEventRequest};
 use vo_types::events::EventMetadata;
 use vo_types::InstanceId;
 
@@ -103,6 +103,27 @@ pub async fn start_workflow(
         }
     };
 
+    match replay_events_in_namespace(&event_db, &namespace, &instance_id).next() {
+        Some(Ok(_)) => {
+            return (
+                StatusCode::CONFLICT,
+                Json(ApiError::new(
+                    "already_exists",
+                    format!("instance {namespace}/{instance_id} already has durable events"),
+                )),
+            )
+                .into_response();
+        }
+        Some(Err(error)) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("event_replay_failed", error.to_string())),
+            )
+                .into_response();
+        }
+        None => {}
+    }
+
     // Step 3: Check writer pressure BEFORE dedupe admission (ADR-006, ADR-015).
     // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
     // MUST happen before dedupe admission so no records are written when shed.
@@ -113,10 +134,9 @@ pub async fn start_workflow(
             reason,
         } => {
             let mut headers = HeaderMap::new();
-            headers.insert(
-                axum::http::header::RETRY_AFTER,
-                retry_after_secs.to_string().parse().expect("valid header value"),
-            );
+            if let Ok(value) = retry_after_secs.to_string().parse() {
+                headers.insert(axum::http::header::RETRY_AFTER, value);
+            }
             return (
                 StatusCode::TOO_MANY_REQUESTS,
                 headers,
@@ -232,10 +252,59 @@ pub async fn start_workflow(
     let captured_namespace = namespace.clone();
     let captured_id = instance_id.clone();
 
-    // Step 5: Proceed to start workflow via actor (ADR-028 atomic write).
+    let reserve_result = master
+        .call(
+            |tx| OrchestratorMsg::ReserveWorkflowStart {
+                namespace: namespace.clone(),
+                instance_id: instance_id.clone(),
+                workflow_type: workflow_type.clone(),
+                paradigm: paradigm.clone(),
+                input: input.clone(),
+                reply: tx,
+            },
+            Some(ACTOR_CALL_TIMEOUT),
+        )
+        .await;
+
+    if let Some(response) = start_error_response(reserve_result) {
+        return response;
+    }
+
+    let persisted_start = persist_workflow_started_event(
+        &event_db,
+        &captured_namespace,
+        &captured_id,
+        &workflow_type,
+        &req.paradigm,
+        req.workflow_binary_hash.as_deref(),
+        &req.input,
+        &dedupe_key,
+    );
+    if let Err(error) = persisted_start {
+        let _ = master
+            .call(
+                |tx| OrchestratorMsg::AbortWorkflowStart {
+                    namespace: captured_namespace.clone(),
+                    instance_id: captured_id.clone(),
+                    reply: tx,
+                },
+                Some(ACTOR_CALL_TIMEOUT),
+            )
+            .await;
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new(
+                "event_persist_failed",
+                format!("workflow start event persistence failed before actor mutation: {error}"),
+            )),
+        )
+            .into_response();
+    }
+
+    // Step 5: Proceed to start workflow via actor after durable event append.
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::StartWorkflow {
+            |tx| OrchestratorMsg::CommitWorkflowStart {
                 namespace,
                 instance_id,
                 workflow_type: workflow_type.clone(),
@@ -246,6 +315,10 @@ pub async fn start_workflow(
             Some(ACTOR_CALL_TIMEOUT),
         )
         .await;
+
+    if !matches!(call_result, Ok(CallResult::Success(Ok(())))) {
+        let _ = persist_workflow_start_rejected_event(&event_db, &captured_namespace, &captured_id);
+    }
 
     match call_result {
         Err(e) => (
@@ -306,38 +379,140 @@ pub async fn start_workflow(
                 available,
             };
             (
-                StatusCode::from_u16(rejection.status_code())
-                    .unwrap_or(StatusCode::TOO_MANY_REQUESTS),
+                match StatusCode::from_u16(rejection.status_code()) {
+                    Ok(status) => status,
+                    Err(_) => StatusCode::TOO_MANY_REQUESTS,
+                },
                 Json(ApiError::new(rejection.error_code(), rejection.to_string())),
             )
                 .into_response()
         }
-        Ok(CallResult::Success(Ok(_))) => match persist_workflow_started_event(
-            &event_db,
-            &captured_namespace,
-            &captured_id,
-            &workflow_type,
-            &req.input,
-            &dedupe_key,
-        ) {
-            Ok(()) => (
-                StatusCode::CREATED,
-                Json(V3StartResponse {
-                    instance_id: captured_id.to_string(),
-                    namespace: captured_namespace.to_string(),
-                    workflow_type,
-                }),
+        Ok(CallResult::Success(Ok(_))) => (
+            StatusCode::CREATED,
+            Json(V3StartResponse {
+                instance_id: captured_id.to_string(),
+                namespace: captured_namespace.to_string(),
+                workflow_type,
+            }),
+        )
+            .into_response(),
+    }
+}
+
+fn persist_workflow_start_rejected_event(
+    db: &fjall::Database,
+    namespace: &str,
+    instance_id: &InstanceId,
+) -> Result<(), vo_storage::codec::StorageError> {
+    let payload = serde_json::json!({
+        "type": "WorkflowTerminated",
+        "namespace": namespace,
+        "reason": "start-commit-failed",
+    });
+    let annotations = HashMap::from([("namespace".to_string(), serde_json::json!(namespace))]);
+    append_event(
+        db,
+        AppendEventRequest {
+            namespace: namespace.to_string(),
+            instance_id: instance_id.clone(),
+            timestamp_ms: now_ms(),
+            payload,
+            metadata: EventMetadata {
+                command_metadata: None,
+                annotations,
+            },
+        },
+    )
+    .map(|_| ())
+}
+
+fn start_error_response(
+    call_result: Result<CallResult<Result<(), StartError>>, ractor::MessagingErr<OrchestratorMsg>>,
+) -> Option<axum::response::Response> {
+    match call_result {
+        Err(e) => Some(
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ApiError::new("actor_unavailable", e.to_string())),
             )
                 .into_response(),
-            Err(error) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
+        ),
+        Ok(CallResult::Timeout) => Some(
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
                 Json(ApiError::new(
-                    "event_persist_failed",
-                    format!("workflow started but event persistence failed: {error}"),
+                    "actor_timeout",
+                    "orchestrator did not respond in time",
                 )),
             )
                 .into_response(),
-        },
+        ),
+        Ok(CallResult::SenderError) => Some(
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new(
+                    "actor_error",
+                    "orchestrator dropped the reply",
+                )),
+            )
+                .into_response(),
+        ),
+        Ok(CallResult::Success(Err(StartError::AtCapacity { running, max }))) => Some(
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(ApiError::new(
+                    "at_capacity",
+                    format!("engine at capacity: {running}/{max} instances running"),
+                )),
+            )
+                .into_response(),
+        ),
+        Ok(CallResult::Success(Err(StartError::AlreadyExists(id)))) => Some(
+            (
+                StatusCode::CONFLICT,
+                Json(ApiError::new(
+                    "already_exists",
+                    format!("instance {id} already exists"),
+                )),
+            )
+                .into_response(),
+        ),
+        Ok(CallResult::Success(Err(StartError::SpawnFailed(msg)))) => Some(
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("spawn_failed", msg)),
+            )
+                .into_response(),
+        ),
+        Ok(CallResult::Success(Err(StartError::InvalidConfig(msg)))) => Some(
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ApiError::new("invalid_config", msg)),
+            )
+                .into_response(),
+        ),
+        Ok(CallResult::Success(Err(StartError::BudgetExhaustion {
+            class,
+            requested,
+            available,
+        }))) => {
+            let rejection = WorkloadRejectionError::BudgetExhausted {
+                class: class.to_string(),
+                requested,
+                available,
+            };
+            Some(
+                (
+                    match StatusCode::from_u16(rejection.status_code()) {
+                        Ok(status) => status,
+                        Err(_) => StatusCode::TOO_MANY_REQUESTS,
+                    },
+                    Json(ApiError::new(rejection.error_code(), rejection.to_string())),
+                )
+                    .into_response(),
+            )
+        }
+        Ok(CallResult::Success(Ok(()))) => None,
     }
 }
 
@@ -356,14 +531,17 @@ fn persist_workflow_started_event(
     namespace: &str,
     instance_id: &InstanceId,
     workflow_type: &str,
+    paradigm: &str,
+    top_level_binary_hash: Option<&str>,
     input: &serde_json::Value,
     dedupe_key: &str,
 ) -> Result<(), vo_storage::codec::StorageError> {
-    let binary_hash = workflow_binary_hash(input);
+    let binary_hash = workflow_binary_hash(top_level_binary_hash, input);
     let payload = serde_json::json!({
         "type": "WorkflowStarted",
         "workflow_id": instance_id.to_string(),
         "workflow_type": workflow_type,
+        "paradigm": paradigm,
         "namespace": namespace,
         "binary_hash": binary_hash,
         "workflow_version_hash": binary_hash,
@@ -388,7 +566,14 @@ fn persist_workflow_started_event(
     .map(|_| ())
 }
 
-fn workflow_binary_hash(input: &serde_json::Value) -> String {
+fn workflow_binary_hash(top_level_binary_hash: Option<&str>, input: &serde_json::Value) -> String {
+    match top_level_binary_hash.filter(|value| !value.is_empty()) {
+        Some(value) => value.to_string(),
+        None => input_binary_hash(input),
+    }
+}
+
+fn input_binary_hash(input: &serde_json::Value) -> String {
     match input
         .get("workflow_binary_hash")
         .and_then(serde_json::Value::as_str)

@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use tokio::sync::Mutex;
 
-use super::types::*;
 use super::probes::*;
+use super::types::*;
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -27,9 +27,16 @@ mod integration_tests {
     async fn test_probe_trait_object_can_be_stored_and_called() {
         let probe: Box<dyn Probe> = Box::new(HttpProbe::new("http://localhost:9999"));
         let result = probe.check().await;
-        assert!(result.is_err(), "HTTP probe to nonexistent host should fail");
+        assert!(
+            result.is_err(),
+            "HTTP probe to nonexistent host should fail"
+        );
         let err = result.unwrap_err();
-        assert!(matches!(err, ProbeError::Http(_)), "Expected Http error variant, got {:?}", err);
+        assert!(
+            matches!(err, ProbeError::Http(_)),
+            "Expected Http error variant, got {:?}",
+            err
+        );
     }
 
     #[tokio::test]
@@ -44,7 +51,10 @@ mod integration_tests {
 
         assert!(tcp_result.is_ok(), "TCP probe check should succeed");
         assert_eq!(tcp_result.unwrap().status, ProbeStatus::Unhealthy);
-        assert!(exec_result.is_ok(), "Exec false should return Ok with Unhealthy status");
+        assert!(
+            exec_result.is_ok(),
+            "Exec false should return Ok with Unhealthy status"
+        );
         assert_eq!(exec_result.unwrap().status, ProbeStatus::Unhealthy);
         assert!(http_result.is_err(), "HTTP to nonexistent host should fail");
         assert!(matches!(http_result.unwrap_err(), ProbeError::Http(_)));
@@ -76,7 +86,9 @@ mod integration_tests {
             handles.push(handle);
         }
 
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
 
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -106,8 +118,10 @@ mod legacy_tests {
     #[test]
     fn test_backoff_config_max_interval() {
         let config = BackoffConfig {
-            initial_interval: Duration::from_secs(1), max_interval: Duration::from_secs(10),
-            multiplier: 2.0, max_failures: 10,
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(10),
+            multiplier: 2.0,
+            max_failures: 10,
         };
         assert_eq!(config.calculate_interval(10), Duration::from_secs(10));
         assert_eq!(config.calculate_interval(100), Duration::from_secs(10));
@@ -117,8 +131,12 @@ mod legacy_tests {
     fn test_aggregated_status_update() {
         let mut status = AggregatedStatus::new();
         let healthy_result = ProbeResult {
-            probe_id: ProbeId::new(), status: ProbeStatus::Healthy, latency_ms: 10,
-            consecutive_failures: 0, last_check_ms: now_ms(), message: None,
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
         };
         status.update(healthy_result);
         assert_eq!(status.healthy_count, 1);
@@ -126,8 +144,12 @@ mod legacy_tests {
         assert_eq!(status.overall, ProbeStatus::Healthy);
 
         let unhealthy_result = ProbeResult {
-            probe_id: ProbeId::new(), status: ProbeStatus::Unhealthy, latency_ms: 10,
-            consecutive_failures: 1, last_check_ms: now_ms(), message: None,
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
         };
         status.update(unhealthy_result);
         assert_eq!(status.healthy_count, 1);

@@ -20,6 +20,7 @@ pub mod fairness;
 pub mod instance;
 pub mod instance_registry;
 pub mod lifecycle;
+pub mod master;
 pub mod message_router;
 pub mod port;
 pub mod probe;
@@ -42,9 +43,11 @@ pub mod vo_actor_comprehensive_tests;
 // #[cfg(test)]
 // pub mod replay_attack_tests;  // module file missing
 pub mod timer_lifecycle;
-pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timers;
+
+pub use master::{MasterOrchestrator, OrchestratorConfig};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -65,6 +68,7 @@ pub enum WorkflowParadigm {
 pub enum InstancePhaseView {
     Replay,
     Live,
+    Terminated,
 }
 
 /// Messages sent to the orchestrator actor.
@@ -80,16 +84,56 @@ pub enum OrchestratorMsg {
         input: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
     },
+    ReserveWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
+    },
+    CommitWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
+    },
+    AbortWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<()>,
+    },
     /// Get status of a workflow instance
     GetStatus {
+        namespace: NamespaceId,
         instance_id: InstanceId,
         reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
     },
     /// Terminate a workflow instance
     Terminate {
+        namespace: NamespaceId,
         instance_id: InstanceId,
         reason: String,
         reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    ReserveTerminate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    CommitTerminate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    AbortWorkflowTransition {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<()>,
     },
     /// List all active workflow instances
     ListActive {
@@ -97,11 +141,36 @@ pub enum OrchestratorMsg {
     },
     /// Compensate a completed workflow
     Compensate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+    ReserveCompensate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+    CommitCompensate {
+        namespace: NamespaceId,
         instance_id: InstanceId,
         reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
     },
     /// Send a signal to a workflow instance
     Signal {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+    ReserveSignal {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        signal_name: String,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+    CommitSignal {
+        namespace: NamespaceId,
         instance_id: InstanceId,
         signal_name: String,
         payload: Bytes,
@@ -154,6 +223,7 @@ mod signal_error_tests {
     fn orchestrator_msg_signal_variant_exists() {
         fn _check(_msg: OrchestratorMsg) {
             if let OrchestratorMsg::Signal {
+                namespace: _,
                 instance_id: _,
                 signal_name: _,
                 payload: _,
@@ -183,9 +253,9 @@ pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWork
 pub use signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
-    SecretId, SignalAccepted, SignalName, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
-    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
-    WorkflowContinued,
+    SecretId, SignalAccepted, SignalName, SignalPayload, SignalStorage, SignalStorageError,
+    SignalWorkQueue, SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey,
+    WorkflowCancelled, WorkflowContinued,
 };
 
 /// Messages sent to/from workflow instance actors.
@@ -246,43 +316,52 @@ pub enum ControlActorMessage {
 impl InstanceActorMessage {
     /// Creates a new `StartWorkflow` message.
     #[must_use]
-    pub fn new_start_workflow(
+    pub fn new_start_workflow<N>(
         instance_id: InstanceId,
         workflow_name: WorkflowName,
-        node_name: NodeName,
-    ) -> Self {
+        node_name: N,
+    ) -> Self
+    where
+        N: Into<NodeName>,
+    {
         Self::StartWorkflow {
             instance_id,
             workflow_name,
-            node_name,
+            node_name: node_name.into(),
         }
     }
 
     /// Creates a new `StepCompleted` message.
     #[must_use]
-    pub fn new_step_completed(
+    pub fn new_step_completed<N>(
         instance_id: InstanceId,
-        node_name: NodeName,
+        node_name: N,
         sequence: SequenceNumber,
-    ) -> Self {
+    ) -> Self
+    where
+        N: Into<NodeName>,
+    {
         Self::StepCompleted {
             instance_id,
-            node_name,
+            node_name: node_name.into(),
             sequence,
         }
     }
 
     /// Creates a new `StepFailed` message.
     #[must_use]
-    pub fn new_step_failed(
+    pub fn new_step_failed<N>(
         instance_id: InstanceId,
-        node_name: NodeName,
+        node_name: N,
         sequence: SequenceNumber,
         error: String,
-    ) -> Self {
+    ) -> Self
+    where
+        N: Into<NodeName>,
+    {
         Self::StepFailed {
             instance_id,
-            node_name,
+            node_name: node_name.into(),
             sequence,
             error,
         }
@@ -443,8 +522,7 @@ mod constructor_tests_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let timer_id = TimerId::parse("timer-abc-123").unwrap();
 
-        let message =
-            InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+        let message = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
 
         match &message {
             InstanceActorMessage::TimerFired {
@@ -577,8 +655,7 @@ mod debug_format_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let node_name = NodeName::parse("compile-step").unwrap();
         let sequence = SequenceNumber::new_unchecked(1);
-        let message =
-            InstanceActorMessage::new_step_completed(instance_id, node_name, sequence);
+        let message = InstanceActorMessage::new_step_completed(instance_id, node_name, sequence);
 
         let debug_str = format!("{:?}", message);
         assert_eq!(
@@ -679,12 +756,8 @@ mod debug_format_control_actor_message {
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
         let signal_name = SignalName::parse("sig-1").unwrap();
-        let message = ControlActorMessage::new_accept_and_resume(
-            instance_id,
-            wait_key,
-            signal_name,
-            payload,
-        );
+        let message =
+            ControlActorMessage::new_accept_and_resume(instance_id, wait_key, signal_name, payload);
 
         let debug_str = format!("{:?}", message);
         assert!(debug_str.contains("AcceptAndResume"));
@@ -814,8 +887,7 @@ mod clone_instance_actor_message {
     fn timer_fired_clone_produces_bitwise_identical_copy() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let timer_id = TimerId::parse("timer-abc-123").unwrap();
-        let message =
-            InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+        let message = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
 
         let clone = message.clone();
 
@@ -962,8 +1034,7 @@ mod partial_eq_instance_actor_message {
 
         let msg1 =
             InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
-        let msg2 =
-            InstanceActorMessage::new_step_completed(instance_id2, node_name2, sequence2);
+        let msg2 = InstanceActorMessage::new_step_completed(instance_id2, node_name2, sequence2);
 
         assert!(msg1 != msg2);
     }
@@ -1042,8 +1113,7 @@ mod eq_properties_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
         let node_name = NodeName::parse("build-step").unwrap();
-        let msg =
-            InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
+        let msg = InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
 
         assert!(msg == msg);
     }
@@ -1730,12 +1800,11 @@ impl ControlActor {
         signal_id: String,
         payload: SignalPayload,
     ) -> Result<AcceptResumeOutcome, AcceptResumeError> {
-        let signal_name = SignalName::parse(&signal_id).map_err(|e| {
-            AcceptResumeError::StorageError {
+        let signal_name =
+            SignalName::parse(&signal_id).map_err(|e| AcceptResumeError::StorageError {
                 instance_id: instance_id.clone(),
                 reason: format!("invalid signal_id: {}", e),
-            }
-        })?;
+            })?;
         let id_str = instance_id.as_str();
 
         // P1: Check for non-existent actor
@@ -2924,4 +2993,3 @@ mod accept_resume_tests {
         );
     }
 }
-

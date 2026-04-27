@@ -302,7 +302,8 @@ fn read_input_secrets_empty_object_is_empty() {
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
-    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse with empty secrets");
+    let input =
+        read_input_inner(&mut cursor, &mut is_read).expect("should parse with empty secrets");
     assert!(input.secrets().is_empty());
 }
 
@@ -317,7 +318,8 @@ fn read_input_secret_non_string_returns_none() {
     let mut cursor = Cursor::new(payload);
     let mut is_read = false;
 
-    let input = read_input_inner(&mut cursor, &mut is_read).expect("should parse non-string secrets");
+    let input =
+        read_input_inner(&mut cursor, &mut is_read).expect("should parse non-string secrets");
     assert_eq!(input.secret("NUM_KEY"), None);
     assert_eq!(input.secret("BOOL_KEY"), None);
     assert_eq!(input.secret("OBJ_KEY"), None);

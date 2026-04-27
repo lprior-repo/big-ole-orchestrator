@@ -41,6 +41,14 @@ pub enum CartesianTreeError {
     KeyNotFound,
 }
 
+type CartesianNodeBox<K, T> = Box<CartesianNode<K, T>>;
+type InsertNodeResult<K, T> =
+    Result<(CartesianNodeBox<K, T>, Option<CartesianTreeError>), CartesianTreeError>;
+type SplitNodeResult<K, T> = (
+    Option<CartesianNodeBox<K, T>>,
+    Option<CartesianNodeBox<K, T>>,
+);
+
 impl<K, T: Clone> CartesianNode<K, T> {
     fn new(key: K, value: T, priority: u64) -> Self {
         Self {
@@ -135,9 +143,9 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
     }
 
     fn insert_node(
-        mut root: Box<CartesianNode<K, T>>,
-        mut new_node: Box<CartesianNode<K, T>>,
-    ) -> Result<(Box<CartesianNode<K, T>>, Option<CartesianTreeError>), CartesianTreeError> {
+        mut root: CartesianNodeBox<K, T>,
+        mut new_node: CartesianNodeBox<K, T>,
+    ) -> InsertNodeResult<K, T> {
         if new_node.key == root.key {
             root.value = new_node.value;
             root.priority = new_node.priority;
@@ -248,13 +256,7 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         )
     }
 
-    fn split_node(
-        node: Option<Box<CartesianNode<K, T>>>,
-        key: &K,
-    ) -> (
-        Option<Box<CartesianNode<K, T>>>,
-        Option<Box<CartesianNode<K, T>>>,
-    ) {
+    fn split_node(node: Option<Box<CartesianNode<K, T>>>, key: &K) -> SplitNodeResult<K, T> {
         match node {
             None => (None, None),
             Some(mut n) => {
@@ -297,23 +299,25 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
     }
 
     fn rotate_left(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
-        let mut new_root = node
-            .right
-            .take()
-            .expect("rotate_left called on node with no right child");
-        node.right = new_root.left.take();
-        new_root.left = Some(node);
-        new_root
+        match node.right.take() {
+            Some(mut new_root) => {
+                node.right = new_root.left.take();
+                new_root.left = Some(node);
+                new_root
+            }
+            None => node,
+        }
     }
 
     fn rotate_right(mut node: Box<CartesianNode<K, T>>) -> Box<CartesianNode<K, T>> {
-        let mut new_root = node
-            .left
-            .take()
-            .expect("rotate_right called on node with no left child");
-        node.left = new_root.right.take();
-        new_root.right = Some(node);
-        new_root
+        match node.left.take() {
+            Some(mut new_root) => {
+                node.left = new_root.right.take();
+                new_root.right = Some(node);
+                new_root
+            }
+            None => node,
+        }
     }
 
     fn count_nodes(node: &Option<Box<CartesianNode<K, T>>>) -> usize {

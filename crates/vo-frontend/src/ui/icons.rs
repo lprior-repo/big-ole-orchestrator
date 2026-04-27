@@ -3,6 +3,8 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
+//! Small inline icon renderer used by UI badges.
+
 use dioxus::prelude::*;
 
 #[component]

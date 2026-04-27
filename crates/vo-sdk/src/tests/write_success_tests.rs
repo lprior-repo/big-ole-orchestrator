@@ -16,7 +16,7 @@ fn write_success_valid_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    assert_eq!(is_written, true, "guard must be set after write");
+    assert!(is_written, "guard must be set after write");
 
     let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "success");

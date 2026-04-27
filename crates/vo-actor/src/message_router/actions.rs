@@ -4,9 +4,9 @@
 
 use std::collections::HashMap;
 
-use super::calc::{validate_route, RouteError, select_active_destinations, should_broadcast};
+use super::calc::{select_active_destinations, should_broadcast, validate_route, RouteError};
 use super::data::{
-    ActorDestination, ChannelEntry, ChannelId, RoutingDestination, RouterConfig, TimestampMs,
+    ActorDestination, ChannelEntry, ChannelId, RouterConfig, RoutingDestination, TimestampMs,
 };
 use super::dlq::{DeadLetterEntry, DeadLetterMessage, DeadLetterQueue, DeadLetterReason};
 

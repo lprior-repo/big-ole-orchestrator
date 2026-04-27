@@ -46,7 +46,9 @@ mod signal_buffer_one_tests {
             1
         );
         assert_eq!(
-            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0].signal_id.as_str(),
+            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0]
+                .signal_id
+                .as_str(),
             "sig-first"
         );
     }

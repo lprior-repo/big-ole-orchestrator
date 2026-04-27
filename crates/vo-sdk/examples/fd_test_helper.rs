@@ -1,7 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
+use std::os::unix::io::IntoRawFd;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -33,10 +33,10 @@ impl Fd3Redirect {
                 unsafe { libc::dup2(original_fd, 3) };
                 unsafe { libc::close(original_fd) };
             }
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Expected temp_fd=3, got {}", temp_fd),
-            ));
+            return Err(std::io::Error::other(format!(
+                "Expected temp_fd=3, got {}",
+                temp_fd
+            )));
         }
 
         Ok(Self {

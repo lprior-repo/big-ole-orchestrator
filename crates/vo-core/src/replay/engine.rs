@@ -118,7 +118,7 @@ impl ReplayEngine {
             // Track latest fence from StepScheduled events (ADR-029).
             // This allows replay to recover the current fence state for each step.
             if let EventPayload::StepScheduled { fence, .. } = payload {
-                if latest_fence.map_or(true, |current| fence > current) {
+                if latest_fence.is_none_or(|current| fence > current) {
                     latest_fence = Some(fence);
                 }
             }

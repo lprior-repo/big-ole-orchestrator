@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use vo_core::admission::{
-    check_admission_with_thresholds, AdmissionThresholds, AdmissionError, WritePressureState,
+    check_admission_with_thresholds, AdmissionError, AdmissionThresholds, WritePressureState,
 };
 
 fn healthy_state(depth: u64) -> WritePressureState {
@@ -78,9 +78,15 @@ fn queue_bound_concurrent_reads_never_admit_above_threshold() {
                     let state = healthy_state(depth);
                     let result = check_admission_with_thresholds(&state, &t);
                     if depth <= threshold {
-                        assert!(result.is_ok(), "depth {depth} <= threshold {threshold} should admit");
+                        assert!(
+                            result.is_ok(),
+                            "depth {depth} <= threshold {threshold} should admit"
+                        );
                     } else {
-                        assert!(result.is_err(), "depth {depth} > threshold {threshold} should reject");
+                        assert!(
+                            result.is_err(),
+                            "depth {depth} > threshold {threshold} should reject"
+                        );
                         over.fetch_add(1, Ordering::Relaxed);
                     }
                 }
@@ -93,5 +99,8 @@ fn queue_bound_concurrent_reads_never_admit_above_threshold() {
     }
     let total_over = over_threshold_count.load(Ordering::Relaxed);
     // Thread 0: depths 11..99 = 89 over. Threads 1-7: 100 each = 700. Total = 789.
-    assert_eq!(total_over, 789, "every check above threshold must be rejected");
+    assert_eq!(
+        total_over, 789,
+        "every check above threshold must be rejected"
+    );
 }

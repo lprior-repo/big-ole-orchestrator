@@ -999,11 +999,7 @@ mod timer_accuracy_under_load {
         }
     }
 
-    fn assert_drift_within_tolerance(
-        label: &str,
-        expected_ms: u64,
-        actual_ms: i64,
-    ) {
+    fn assert_drift_within_tolerance(label: &str, expected_ms: u64, actual_ms: i64) {
         let drift_percent = calculate_drift_percent(expected_ms, actual_ms);
         assert!(
             drift_percent < DRIFT_TOLERANCE_PERCENT,
@@ -1073,7 +1069,7 @@ mod timer_accuracy_under_load {
 
         let _guard = handle.clone();
         let cpu_load_handle = tokio::spawn(async move {
-            let counter = AtomicU64::new(0);
+            let counter = Arc::new(AtomicU64::new(0));
             for _ in 0..LOAD_SPIKE_TASK_COUNT {
                 let c = counter.clone();
                 tokio::spawn(async move {
@@ -1184,7 +1180,11 @@ mod timer_accuracy_under_load {
         let enqueued = work_queue.enqueued().await;
         let elapsed_ms = start.elapsed().as_millis() as i64;
 
-        assert_eq!(enqueued.len(), 1, "Timer should fire under async congestion");
+        assert_eq!(
+            enqueued.len(),
+            1,
+            "Timer should fire under async congestion"
+        );
         assert_drift_within_tolerance("RQ-TUL04 async congestion", TIMER_DELAY_MS, elapsed_ms);
     }
 
@@ -1220,7 +1220,7 @@ mod timer_accuracy_under_load {
             let mut handles = Vec::new();
             for _ in 0..50 {
                 handles.push(tokio::spawn(async move {
-                    let counter = AtomicU64::new(0);
+                    let counter = Arc::new(AtomicU64::new(0));
                     for _ in 0..1000 {
                         let c = counter.clone();
                         tokio::spawn(async move {
@@ -1231,10 +1231,10 @@ mod timer_accuracy_under_load {
                             c.fetch_add(sum, Ordering::Relaxed);
                         });
                     }
-                    for h in handles {
-                        let _ = h.await;
-                    }
                 }));
+            }
+            for h in handles {
+                let _ = h.await;
             }
         });
 
@@ -1252,11 +1252,7 @@ mod timer_accuracy_under_load {
             3,
             "All 3 timers should fire under combined load"
         );
-        assert_drift_within_tolerance(
-            "RQ-TUL05 combined load",
-            TIMER_DELAY_MS,
-            elapsed_ms,
-        );
+        assert_drift_within_tolerance("RQ-TUL05 combined load", TIMER_DELAY_MS, elapsed_ms);
     }
 
     // RQ-TUL06: Timer drift is NOT caused by wall clock adjustment (dual-clock protection)
@@ -1276,7 +1272,12 @@ mod timer_accuracy_under_load {
 
         let wall_clock_drifted_now = 1000u64;
         assert!(
-            !verify_dual_clock(fire_at_ms, trigger_time_ms, duration_ms, wall_clock_drifted_now),
+            !verify_dual_clock(
+                fire_at_ms,
+                trigger_time_ms,
+                duration_ms,
+                wall_clock_drifted_now
+            ),
             "Dual clock should NOT fire if wall clock drifted back but monotonic hasn't caught up"
         );
     }
@@ -1332,7 +1333,11 @@ mod signal_buffer_overflow {
     use vo_types::BufferPolicy;
 
     fn make_signal(signal_id: &str) -> BufferedSignal {
-        BufferedSignal::new(signal_id.to_string(), vo_actor::SignalPayload::empty(), TimestampMs::now())
+        BufferedSignal::new(
+            signal_id.to_string(),
+            vo_actor::SignalPayload::empty(),
+            TimestampMs::now(),
+        )
     }
 
     // RQ-SBO01: BufferMany returns Dropped when at capacity
@@ -1350,7 +1355,11 @@ mod signal_buffer_overflow {
                 make_signal(&format!("sig-{i}")),
                 BufferPolicy::BufferMany,
             );
-            assert_eq!(result, BufferResult::Buffered, "First 3 signals should be buffered");
+            assert_eq!(
+                result,
+                BufferResult::Buffered,
+                "First 3 signals should be buffered"
+            );
         }
 
         let overflow_result = buffer.buffer_signal(
@@ -1359,7 +1368,11 @@ mod signal_buffer_overflow {
             make_signal("sig-overflow"),
             BufferPolicy::BufferMany,
         );
-        assert_eq!(overflow_result, BufferResult::Dropped, "Overflow signal should be dropped");
+        assert_eq!(
+            overflow_result,
+            BufferResult::Dropped,
+            "Overflow signal should be dropped"
+        );
     }
 
     // RQ-SBO02: Buffer count stays at max when overflow occurs
@@ -1407,7 +1420,11 @@ mod signal_buffer_overflow {
             make_signal("sig-first"),
             BufferPolicy::BufferOne,
         );
-        assert_eq!(first, BufferResult::Buffered, "First signal should be buffered");
+        assert_eq!(
+            first,
+            BufferResult::Buffered,
+            "First signal should be buffered"
+        );
 
         let second = buffer.buffer_signal(
             instance_id.clone(),
@@ -1415,7 +1432,11 @@ mod signal_buffer_overflow {
             make_signal("sig-second"),
             BufferPolicy::BufferOne,
         );
-        assert_eq!(second, BufferResult::Rejected, "Second signal should be rejected");
+        assert_eq!(
+            second,
+            BufferResult::Rejected,
+            "Second signal should be rejected"
+        );
 
         let third = buffer.buffer_signal(
             instance_id.clone(),
@@ -1423,10 +1444,18 @@ mod signal_buffer_overflow {
             make_signal("sig-third"),
             BufferPolicy::BufferOne,
         );
-        assert_eq!(third, BufferResult::Rejected, "Third signal should also be rejected");
+        assert_eq!(
+            third,
+            BufferResult::Rejected,
+            "Third signal should also be rejected"
+        );
 
         let popped = buffer.pop_buffered(&instance_id, &wait_key);
-        assert_eq!(popped.unwrap().signal_id, "sig-first", "Should pop first signal");
+        assert_eq!(
+            popped.unwrap().signal_id,
+            "sig-first",
+            "Should pop first signal"
+        );
 
         let after_pop = buffer.buffer_signal(
             instance_id.clone(),
@@ -1434,7 +1463,11 @@ mod signal_buffer_overflow {
             make_signal("sig-after-pop"),
             BufferPolicy::BufferOne,
         );
-        assert_eq!(after_pop, BufferResult::Buffered, "Signal after pop should be buffered");
+        assert_eq!(
+            after_pop,
+            BufferResult::Buffered,
+            "Signal after pop should be buffered"
+        );
     }
 
     // RQ-SBO04: Overflow signals are not silently lost - caller receives Dropped
@@ -1446,8 +1479,18 @@ mod signal_buffer_overflow {
         let instance_id = make_instance_id(0x01);
         let wait_key = make_wait_key("approval");
 
-        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
-        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-0"),
+            BufferPolicy::BufferMany,
+        );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-1"),
+            BufferPolicy::BufferMany,
+        );
 
         let dropped_signal_id = "sig-dropped".to_string();
         let overflow_result = buffer.buffer_signal(
@@ -1457,9 +1500,14 @@ mod signal_buffer_overflow {
             BufferPolicy::BufferMany,
         );
 
-        assert_eq!(overflow_result, BufferResult::Dropped, "Overflow must return Dropped for accountability");
+        assert_eq!(
+            overflow_result,
+            BufferResult::Dropped,
+            "Overflow must return Dropped for accountability"
+        );
         assert!(
-            buffer.peek_all(&instance_id, &wait_key)
+            buffer
+                .peek_all(&instance_id, &wait_key)
                 .iter()
                 .all(|s| s.signal_id != dropped_signal_id),
             "Dropped signal must not appear in buffer"
@@ -1475,18 +1523,46 @@ mod signal_buffer_overflow {
         let wait_key_b = make_wait_key("authorization");
 
         for i in 0..2 {
-            buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal(&format!("sig-a-{i}")), BufferPolicy::BufferMany);
+            buffer.buffer_signal(
+                instance_id.clone(),
+                wait_key_a.clone(),
+                make_signal(&format!("sig-a-{i}")),
+                BufferPolicy::BufferMany,
+            );
         }
 
         for i in 0..2 {
-            buffer.buffer_signal(instance_id.clone(), wait_key_b.clone(), make_signal(&format!("sig-b-{i}")), BufferPolicy::BufferMany);
+            buffer.buffer_signal(
+                instance_id.clone(),
+                wait_key_b.clone(),
+                make_signal(&format!("sig-b-{i}")),
+                BufferPolicy::BufferMany,
+            );
         }
 
-        let overflow_a = buffer.buffer_signal(instance_id.clone(), wait_key_a.clone(), make_signal("sig-a-overflow"), BufferPolicy::BufferMany);
-        let overflow_b = buffer.buffer_signal(instance_id.clone(), wait_key_b.clone(), make_signal("sig-b-overflow"), BufferPolicy::BufferMany);
+        let overflow_a = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key_a.clone(),
+            make_signal("sig-a-overflow"),
+            BufferPolicy::BufferMany,
+        );
+        let overflow_b = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key_b.clone(),
+            make_signal("sig-b-overflow"),
+            BufferPolicy::BufferMany,
+        );
 
-        assert_eq!(overflow_a, BufferResult::Dropped, "Key A should be at capacity");
-        assert_eq!(overflow_b, BufferResult::Dropped, "Key B should be at capacity");
+        assert_eq!(
+            overflow_a,
+            BufferResult::Dropped,
+            "Key A should be at capacity"
+        );
+        assert_eq!(
+            overflow_b,
+            BufferResult::Dropped,
+            "Key B should be at capacity"
+        );
         assert_eq!(buffer.buffered_count(&instance_id, &wait_key_a), 2);
         assert_eq!(buffer.buffered_count(&instance_id, &wait_key_b), 2);
     }
@@ -1498,17 +1574,49 @@ mod signal_buffer_overflow {
         let instance_id = make_instance_id(0x01);
         let wait_key = make_wait_key("approval");
 
-        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-0"), BufferPolicy::BufferMany);
-        buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-1"), BufferPolicy::BufferMany);
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-0"),
+            BufferPolicy::BufferMany,
+        );
+        buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-1"),
+            BufferPolicy::BufferMany,
+        );
 
-        let overflow = buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-overflow"), BufferPolicy::BufferMany);
+        let overflow = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-overflow"),
+            BufferPolicy::BufferMany,
+        );
         assert_eq!(overflow, BufferResult::Dropped, "Should be at capacity");
 
         let popped = buffer.pop_buffered(&instance_id, &wait_key);
-        assert_eq!(popped.unwrap().signal_id, "sig-0", "Should pop first signal");
+        assert_eq!(
+            popped.unwrap().signal_id,
+            "sig-0",
+            "Should pop first signal"
+        );
 
-        let after_consume = buffer.buffer_signal(instance_id.clone(), wait_key.clone(), make_signal("sig-new"), BufferPolicy::BufferMany);
-        assert_eq!(after_consume, BufferResult::Buffered, "Should be able to buffer after consume");
-        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 2, "Should have 2 signals again");
+        let after_consume = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-new"),
+            BufferPolicy::BufferMany,
+        );
+        assert_eq!(
+            after_consume,
+            BufferResult::Buffered,
+            "Should be able to buffer after consume"
+        );
+        assert_eq!(
+            buffer.buffered_count(&instance_id, &wait_key),
+            2,
+            "Should have 2 signals again"
+        );
     }
 }

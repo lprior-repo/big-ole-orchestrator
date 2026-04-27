@@ -1267,8 +1267,8 @@ fn attack_manual_override_race_unquarantine_vs_quarantine_trigger() {
         )
     });
 
-    let (unq_result, unq_final_status) = handle1.join().unwrap();
-    let (trig_final_status, trig_final_count) = handle2.join().unwrap();
+    let (unq_result, _unq_final_status) = handle1.join().unwrap();
+    let (trig_final_status, _trig_final_count) = handle2.join().unwrap();
 
     // Both operations should succeed without panic
     assert!(unq_result.is_ok() || unq_result.is_err());
@@ -1291,7 +1291,7 @@ fn attack_manual_override_race_double_unquarantine() {
     use std::thread;
 
     let state = Arc::new(CircuitBreakerState::new());
-    let t0 = Instant::now();
+    let _t0 = Instant::now();
     let wf = make_wf("race-dbl-unq");
 
     // Pre-quarantine
@@ -1406,8 +1406,8 @@ fn attack_inv002_rate_limit_is_per_workflow_independent() {
     let config = default_config();
     let t0 = Instant::now();
 
-    let wf_a = make_wf("workflow-a");
-    let wf_b = make_wf("workflow-b");
+    let _wf_a = make_wf("workflow-a");
+    let _wf_b = make_wf("workflow-b");
 
     // wf_a registers at t0 (sets rate limit for wf_a only)
     let req_a1 = make_request("workflow-a", "aaaa0001", false);
@@ -1469,8 +1469,8 @@ fn attack_inv002_workflow_a_rate_limit_does_not_affect_workflow_b() {
     let config = default_config();
     let t0 = Instant::now();
 
-    let wf_active = make_wf("active-workflow");
-    let wf_victim = make_wf("victim-workflow");
+    let _wf_active = make_wf("active-workflow");
+    let _wf_victim = make_wf("victim-workflow");
 
     // Victim workflow registers first (establishes its rate limit)
     let req_victim = make_request("victim-workflow", "cccc0001", false);

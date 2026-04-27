@@ -20,6 +20,3 @@ mod tests;
 
 #[cfg(all(test, feature = "proptest"))]
 mod proptests;
-
-pub use tree::EulerTourTree;
-pub use traits::{EttAggregate, EttError, Monoid};

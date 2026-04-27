@@ -5,7 +5,7 @@
 
 use thiserror::Error;
 
-use super::data::{ChannelEntry, ChannelId, RoutingDestination, RouterConfig};
+use super::data::{ChannelEntry, ChannelId, RouterConfig, RoutingDestination};
 
 #[derive(Debug, Clone, Error)]
 pub enum RouteError {

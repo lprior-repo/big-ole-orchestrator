@@ -377,7 +377,7 @@ fn gc_summary_zero_values() {
 fn parse_purge_with_special_chars_in_instance() {
     let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123_456"]).unwrap();
     match cli.command {
-        Command::Purge { instance } => assert_eq!(instance, "inst-123_456"),
+        Command::Purge { instance, .. } => assert_eq!(instance, "inst-123_456"),
         _ => panic!("expected Purge"),
     }
 }
@@ -899,7 +899,7 @@ fn command_all_variants_debug_format() {
         format!(
             "{:?}",
             Command::Purge {
-                instance: "test".into()
+                instance: "test".into(),
             }
         ),
         format!(

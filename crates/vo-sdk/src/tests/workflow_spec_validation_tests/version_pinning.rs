@@ -59,8 +59,9 @@ fn sdk_workflow_spec_has_no_version_field() {
     let spec = WorkflowSpec {
         workflow_name: vo_types::WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
-        edges: vec![],
-    };
+        edges: vec![],    dedupe_scope: vo_types::DedupeScope::default(),
+    guarantee_class: vo_types::GuaranteeClass::default(),
+};
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
         !json.contains("version"),
@@ -75,17 +76,20 @@ fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
         nodes: vec![
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("a").expect("valid"),
-                kind: NodeKind::Pure,
-            },
+                kind: NodeKind::Pure,    retry_policy: vo_types::RetryPolicy { max_attempts: 1, backoff_ms: 0, backoff_multiplier: 1.0, max_backoff_ms: u64::MAX },
+},
             crate::NodeSpec {
                 name: vo_types::NodeName::parse("b").expect("valid"),
-                kind: NodeKind::ManagedEffect,
-            },
+                kind: NodeKind::ManagedEffect,    retry_policy: vo_types::RetryPolicy { max_attempts: 1, backoff_ms: 0, backoff_multiplier: 1.0, max_backoff_ms: u64::MAX },
+    signal_meta: None,
+},
         ],
         edges: vec![crate::EdgeSpec {
             from: vo_types::NodeName::parse("a").expect("valid"),
             to: vo_types::NodeName::parse("b").expect("valid"),
         }],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     let json1 = serde_json::to_string(&spec).expect("serialize");

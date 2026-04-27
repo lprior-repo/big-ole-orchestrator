@@ -12,7 +12,7 @@ pub struct Appender {
 impl Appender {
     pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: super::queue::BudgetQueues::new(&config, budget),
+            queues: super::queue::BudgetQueues::new(config, budget),
         }
     }
 
@@ -44,14 +44,17 @@ impl Appender {
     }
 
     pub fn dequeue_critical(&self) -> Option<AppendEntry> {
-        self.queues.dequeue(super::write_class::WriteClass::CriticalControlPlane)
+        self.queues
+            .dequeue(super::write_class::WriteClass::CriticalControlPlane)
     }
 
     pub fn dequeue_projection(&self) -> Option<AppendEntry> {
-        self.queues.dequeue(super::write_class::WriteClass::OperatorProjection)
+        self.queues
+            .dequeue(super::write_class::WriteClass::OperatorProjection)
     }
 
     pub fn dequeue_blob(&self) -> Option<AppendEntry> {
-        self.queues.dequeue(super::write_class::WriteClass::BulkBlob)
+        self.queues
+            .dequeue(super::write_class::WriteClass::BulkBlob)
     }
 }

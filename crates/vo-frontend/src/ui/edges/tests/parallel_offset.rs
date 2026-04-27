@@ -19,7 +19,7 @@ fn given_two_targets_when_calculate_offset_then_returns_symmetric_values() {
     let spacing = NODE_HEIGHT / 2.5;
 
     let mut sorted_ids = [target_a_id, target_b_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_a = if target_a_id == sorted_ids[0] {
         -spacing / 2.0
@@ -51,7 +51,7 @@ fn given_three_targets_when_calculate_offset_then_returns_centered_values() {
     let spacing = NODE_HEIGHT / 2.5;
 
     let mut sorted_ids = [target_a_id, target_b_id, target_c_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_for = |id: NodeId| {
         if id == sorted_ids[0] {
@@ -90,7 +90,7 @@ fn given_four_targets_when_calculate_offset_then_returns_symmetric_values() {
     let spacing = NODE_HEIGHT / 2.5;
 
     let mut sorted_ids = [target_a_id, target_b_id, target_c_id, target_d_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_for = |id: NodeId| {
         if id == sorted_ids[0] {
@@ -155,7 +155,7 @@ fn given_targets_at_varying_y_positions_when_calculate_offset_then_respects_sort
     // Offsets are determined by sorted ID order, not y-position
     let spacing = NODE_HEIGHT / 2.5;
     let mut sorted_ids = [target_a_id, target_b_id, target_c_id];
-    sorted_ids.sort_by(|left, right| left.0.cmp(&right.0));
+    sorted_ids.sort_by_key(|left| left.0);
 
     let expected_for = |id: NodeId| {
         if id == sorted_ids[0] {

@@ -3,7 +3,6 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
-use crate::job::SerializedPayload;
 use crate::job::ScheduledJob;
 use crate::types::{JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy};
 
@@ -66,7 +65,10 @@ fn new_scheduled_job_has_scheduled_state_for_after() {
 
 #[test]
 fn new_cron_job_has_pending_state() {
-    let job = make_job(JobPriority::Normal, SchedulePolicy::Cron("0 * * * *".to_string()));
+    let job = make_job(
+        JobPriority::Normal,
+        SchedulePolicy::Cron("0 * * * *".to_string()),
+    );
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -97,7 +99,11 @@ fn new_job_generates_unique_id() {
 
 #[test]
 fn new_job_has_correct_kind() {
-    let job = make_job_with_kind(JobKind::Delayed, JobPriority::Critical, SchedulePolicy::Immediate);
+    let job = make_job_with_kind(
+        JobKind::Delayed,
+        JobPriority::Critical,
+        SchedulePolicy::Immediate,
+    );
     assert_eq!(job.kind, JobKind::Delayed);
 }
 
@@ -131,7 +137,10 @@ fn new_job_with_cron_invalid_returns_error() {
         bytes::Bytes::from_static(b"test"),
     );
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), SchedulerError::InvalidSchedule));
+    assert!(matches!(
+        result.unwrap_err(),
+        SchedulerError::InvalidSchedule
+    ));
 }
 
 #[test]
@@ -313,7 +322,11 @@ fn transition_completed_to_scheduled_is_one_shot_invalid() {
 
 #[test]
 fn transition_completed_to_scheduled_is_recurring_valid() {
-    let mut job = make_job_with_kind(JobKind::Recurring, JobPriority::Normal, SchedulePolicy::Immediate);
+    let mut job = make_job_with_kind(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Immediate,
+    );
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Completed).unwrap();
     job.transition(JobState::Scheduled).unwrap();
@@ -379,7 +392,11 @@ fn transition_failed_cannot_go_to_scheduled() {
 
 #[test]
 fn delayed_job_state_transitions_work() {
-    let mut job = make_job_with_kind(JobKind::Delayed, JobPriority::High, SchedulePolicy::Immediate);
+    let mut job = make_job_with_kind(
+        JobKind::Delayed,
+        JobPriority::High,
+        SchedulePolicy::Immediate,
+    );
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Completed).unwrap();
     assert_eq!(job.state, JobState::Completed);
@@ -387,7 +404,11 @@ fn delayed_job_state_transitions_work() {
 
 #[test]
 fn delayed_job_cannot_reschedule_after_completed() {
-    let mut job = make_job_with_kind(JobKind::Delayed, JobPriority::High, SchedulePolicy::Immediate);
+    let mut job = make_job_with_kind(
+        JobKind::Delayed,
+        JobPriority::High,
+        SchedulePolicy::Immediate,
+    );
     job.transition(JobState::Running).unwrap();
     job.transition(JobState::Completed).unwrap();
     let result = job.transition(JobState::Scheduled);

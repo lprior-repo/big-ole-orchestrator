@@ -404,7 +404,12 @@ async fn process_cycle_spawn_failure_records_error() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
@@ -455,7 +460,12 @@ async fn process_cycle_max_attempts_exceeded_skips_record() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(
+        instance_id.clone(),
+        std::path::PathBuf::from("./worker"),
+        vec![],
+        None,
+    );
     record.spawn_attempts = 10; // Exceeds max_spawn_attempts of 5
     storage.add_record(record);
 
@@ -522,7 +532,12 @@ async fn process_cycle_respawn_uses_work_queue() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(
+        instance_id.clone(),
+        std::path::PathBuf::from("./worker"),
+        vec![],
+        None,
+    );
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2;
     storage.add_record(record);
@@ -594,7 +609,12 @@ async fn process_cycle_increments_spawns_failed_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
@@ -1169,8 +1189,8 @@ fn spawn_record_transition_to_health_check() {
 #[test]
 fn spawn_record_transition_to_running() {
     let instance_id = test_instance_id();
-    let record =
-        SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None).transition_to_health_check();
+    let record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None)
+        .transition_to_health_check();
     let transitioned = record.transition_to_running();
 
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Running);
@@ -1307,7 +1327,12 @@ async fn respawn_failed_phase_delays_by_backoff() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(
+        instance_id.clone(),
+        std::path::PathBuf::from("./worker"),
+        vec![],
+        None,
+    );
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2; // Attempt 2: backoff = 300ms * 2^1 = 600ms
     storage.add_record(record);
@@ -1355,7 +1380,12 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
 
     // Attempt 1: 50ms
     let instance_id_1 = test_instance_id();
-    let mut record_1 = SpawnRecord::new(instance_id_1.clone(), "./worker".to_string(), None);
+    let mut record_1 = SpawnRecord::new(
+        instance_id_1.clone(),
+        std::path::PathBuf::from("./worker"),
+        vec![],
+        None,
+    );
     record_1.spawn_phase = SpawnPhase::Failed;
     record_1.spawn_attempts = 1;
     storage.add_record(record_1);
@@ -1379,7 +1409,12 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
     // Attempt 2: 100ms
     storage.records.lock().unwrap().clear();
     let instance_id_2 = test_instance_id();
-    let mut record_2 = SpawnRecord::new(instance_id_2.clone(), "./worker".to_string(), None);
+    let mut record_2 = SpawnRecord::new(
+        instance_id_2.clone(),
+        std::path::PathBuf::from("./worker"),
+        vec![],
+        None,
+    );
     record_2.spawn_phase = SpawnPhase::Failed;
     record_2.spawn_attempts = 2;
     storage.add_record(record_2);

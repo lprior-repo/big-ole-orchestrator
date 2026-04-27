@@ -58,7 +58,7 @@ impl Projection {
     /// Returns `true` if the projection includes the payload.
     #[must_use]
     pub const fn include_payload(&self) -> bool {
-        !matches!(self, Projection::WorkflowVersion)
+        !matches!(self, Self::WorkflowVersion)
     }
 
     /// Returns `true` if the projection includes metadata fields.

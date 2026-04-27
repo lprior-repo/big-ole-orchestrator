@@ -44,13 +44,19 @@ fn given_low_storage_space_when_watchdog_runs_then_degraded_mode_is_entered() {
     // Given: available storage drops below critical threshold (3% < 5% critical)
     let config = low_storage_config();
     let metrics = metrics_with_disk_space(3.0);
-    assert!(metrics.disk_space.is_critical(config.disk_space_critical_percent));
+    assert!(metrics
+        .disk_space
+        .is_critical(config.disk_space_critical_percent));
 
     // When: watchdog samples storage and evaluates health
     let health = StorageWatchdog::compute_health(&metrics, &config);
 
     // Then: runtime enters degraded mode and exposes reason
-    assert!(health.is_degraded(), "expected degraded mode when free space is below critical threshold, got {:?}", health);
+    assert!(
+        health.is_degraded(),
+        "expected degraded mode when free space is below critical threshold, got {:?}",
+        health
+    );
     assert!(!health.is_healthy());
     assert!(!health.is_critical());
 
@@ -76,13 +82,19 @@ fn given_storage_at_warn_level_when_watchdog_runs_then_degraded_mode_is_entered(
     let config = low_storage_config();
     let metrics = metrics_with_disk_space(10.0);
     assert!(metrics.disk_space.is_warn(config.disk_space_warn_percent));
-    assert!(!metrics.disk_space.is_critical(config.disk_space_critical_percent));
+    assert!(!metrics
+        .disk_space
+        .is_critical(config.disk_space_critical_percent));
 
     // When: watchdog samples storage
     let health = StorageWatchdog::compute_health(&metrics, &config);
 
     // Then: runtime enters degraded mode (warn level also triggers degraded)
-    assert!(health.is_degraded(), "expected degraded mode at warn level, got {:?}", health);
+    assert!(
+        health.is_degraded(),
+        "expected degraded mode at warn level, got {:?}",
+        health
+    );
 }
 
 #[test]
@@ -91,12 +103,18 @@ fn given_healthy_storage_when_watchdog_runs_then_no_degraded_mode() {
     let config = low_storage_config();
     let metrics = metrics_with_disk_space(80.0);
     assert!(!metrics.disk_space.is_warn(config.disk_space_warn_percent));
-    assert!(!metrics.disk_space.is_critical(config.disk_space_critical_percent));
+    assert!(!metrics
+        .disk_space
+        .is_critical(config.disk_space_critical_percent));
 
     // When: watchdog samples storage
     let health = StorageWatchdog::compute_health(&metrics, &config);
 
     // Then: runtime remains healthy
-    assert!(health.is_healthy(), "expected healthy when storage is above thresholds, got {:?}", health);
+    assert!(
+        health.is_healthy(),
+        "expected healthy when storage is above thresholds, got {:?}",
+        health
+    );
     assert!(!health.is_degraded());
 }

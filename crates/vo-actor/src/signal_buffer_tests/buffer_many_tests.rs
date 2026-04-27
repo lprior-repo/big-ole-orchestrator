@@ -57,9 +57,18 @@ mod signal_buffer_many_tests {
                 BufferPolicy::BufferMany,
             );
         }
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-0");
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-1");
-        assert_eq!(buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(), "sig-2");
+        assert_eq!(
+            buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(),
+            "sig-0"
+        );
+        assert_eq!(
+            buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(),
+            "sig-1"
+        );
+        assert_eq!(
+            buffer.pop_buffered(&id, &key).unwrap().signal_id.as_str(),
+            "sig-2"
+        );
         assert!(buffer.pop_buffered(&id, &key).is_none());
     }
 

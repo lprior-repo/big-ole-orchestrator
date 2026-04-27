@@ -340,15 +340,18 @@ fn given_concurrent_duplicate_starts_when_admitted_then_only_one_instance_exists
         })
         .collect();
 
-    let results: Vec<_> = handles.into_iter().map(|h| h.join().expect("thread panicked")).collect();
+    let results: Vec<_> = handles
+        .into_iter()
+        .map(|h| h.join().expect("thread panicked"))
+        .collect();
 
     let admitted: Vec<_> = results.iter().filter(|r| r.is_ok()).collect();
     let duplicates: Vec<_> = results
         .iter()
         .filter_map(|r| match r {
-            Err(AdmissionError::Duplicate { original_instance_id }) => {
-                Some(original_instance_id.clone())
-            }
+            Err(AdmissionError::Duplicate {
+                original_instance_id,
+            }) => Some(original_instance_id.clone()),
             _ => None,
         })
         .collect();

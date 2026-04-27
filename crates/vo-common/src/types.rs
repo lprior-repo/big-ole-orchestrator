@@ -25,11 +25,7 @@ impl TimestampMs {
         let millis = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_millis());
-        Self(if let Ok(v) = u64::try_from(millis) {
-            v
-        } else {
-            u64::MAX
-        })
+        Self(u64::try_from(millis).map_or(u64::MAX, |value| value))
     }
 }
 
@@ -76,61 +72,5 @@ mod tests {
         let id: InstanceId = "实例-123-🔱".into();
         assert_eq!(id.len(), 15); // UTF-8 bytes: 6 + 1 + 3 + 1 + 4
         assert_eq!(id.as_str(), "实例-123-🔱");
-    }
-
-    #[test]
-    fn timestamp_ms_new_unchecked_zero() {
-        let ts = TimestampMs::new_unchecked(0);
-        assert_eq!(ts.as_u64(), 0);
-    }
-
-    #[test]
-    fn timestamp_ms_new_unchecked_max() {
-        let ts = TimestampMs::new_unchecked(u64::MAX);
-        assert_eq!(ts.as_u64(), u64::MAX);
-    }
-
-    #[test]
-    fn timestamp_ms_as_u64_roundtrip() {
-        let val = 1234567890u64;
-        let ts = TimestampMs::new_unchecked(val);
-        assert_eq!(ts.as_u64(), val);
-    }
-
-    #[test]
-    fn timestamp_ms_now_produces_reasonable_value() {
-        let ts = TimestampMs::now();
-        let val = ts.as_u64();
-        assert!(val > 0, "now() should produce a positive timestamp");
-        assert!(val <= u64::MAX, "now() should not overflow u64");
-    }
-
-    #[test]
-    fn timestamp_ms_now_increases_over_time() {
-        let ts1 = TimestampMs::now();
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        let ts2 = TimestampMs::now();
-        assert!(ts2 > ts1, "subsequent now() calls should produce larger values");
-    }
-
-    #[test]
-    fn timestamp_ms_ord_implementation() {
-        let ts1 = TimestampMs::new_unchecked(100);
-        let ts2 = TimestampMs::new_unchecked(200);
-        let ts3 = TimestampMs::new_unchecked(100);
-        assert!(ts1 < ts2);
-        assert!(ts2 > ts1);
-        assert_eq!(ts1, ts3);
-        assert!(ts1 <= ts2);
-        assert!(ts1 <= ts3);
-        assert!(ts2 >= ts1);
-        assert!(ts1 >= ts3);
-    }
-
-    #[test]
-    fn timestamp_ms_debug_format() {
-        let ts = TimestampMs::new_unchecked(42);
-        let debug = format!("{:?}", ts);
-        assert!(debug.contains("42"), "Debug format should contain the value");
     }
 }

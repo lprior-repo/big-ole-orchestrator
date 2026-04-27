@@ -237,9 +237,6 @@ pub struct DagNode {
     pub retry_policy: RetryPolicy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compensation_policy: Option<CompensationPolicy>,
-    /// Node capability metadata (ADR-009, ADR-031).
-    #[serde(default)]
-    pub capability: NodeCapability,
 }
 
 impl DagNode {
@@ -259,7 +256,6 @@ impl DagNode {
             node_name,
             retry_policy: RetryPolicy::new(1, 0, 1.0)?,
             compensation_policy: None,
-            capability: NodeCapability::new(NodeKind::Pure),
         })
     }
 }

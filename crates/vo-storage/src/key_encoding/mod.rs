@@ -255,13 +255,18 @@ pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), Ke
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] = bytes[2..2 + id_len].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 2 + id_len,
-        actual: bytes.len(),
-    })?;
-    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 2 + id_len + 8,
-        actual: bytes.len(),
+    let iid_bytes: [u8; 16] =
+        bytes[2..2 + id_len]
+            .try_into()
+            .map_err(|_| KeyEncodingError::InvalidLength {
+                expected: 2 + id_len,
+                actual: bytes.len(),
+            })?;
+    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| {
+        KeyEncodingError::InvalidLength {
+            expected: 2 + id_len + 8,
+            actual: bytes.len(),
+        }
     })?;
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
@@ -298,29 +303,32 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
             actual: bytes.len(),
         });
     }
-    let ts_bytes: [u8; 8] = bytes[..8].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 8,
-        actual: bytes.len(),
-    })?;
+    let ts_bytes: [u8; 8] = bytes[..8]
+        .try_into()
+        .map_err(|_| KeyEncodingError::InvalidLength {
+            expected: 8,
+            actual: bytes.len(),
+        })?;
     let ts = u64::from_be_bytes(ts_bytes);
-    let iid_len = u16::from_be_bytes(
-        bytes[8..10]
-            .try_into()
-            .map_err(|_| KeyEncodingError::InvalidLength {
-                expected: 10,
-                actual: bytes.len(),
-            })?,
-    ) as usize;
+    let iid_len = u16::from_be_bytes(bytes[8..10].try_into().map_err(|_| {
+        KeyEncodingError::InvalidLength {
+            expected: 10,
+            actual: bytes.len(),
+        }
+    })?) as usize;
     if bytes.len() < 10 + iid_len {
         return Err(KeyEncodingError::InvalidLength {
             expected: 10 + iid_len,
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] = bytes[10..10 + iid_len].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 10 + iid_len,
-        actual: bytes.len(),
-    })?;
+    let iid_bytes: [u8; 16] =
+        bytes[10..10 + iid_len]
+            .try_into()
+            .map_err(|_| KeyEncodingError::InvalidLength {
+                expected: 10 + iid_len,
+                actual: bytes.len(),
+            })?;
     Ok((ts, InstanceId::from_bytes(iid_bytes)))
 }
 
@@ -355,14 +363,19 @@ pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodin
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] = bytes[..16].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 16,
-        actual: bytes.len(),
-    })?;
+    let iid_bytes: [u8; 16] =
+        bytes[..16]
+            .try_into()
+            .map_err(|_| KeyEncodingError::InvalidLength {
+                expected: 16,
+                actual: bytes.len(),
+            })?;
     let instance_id = InstanceId::from_bytes(iid_bytes);
-    let sid_len = u16::from_be_bytes(bytes[16..18].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 2,
-        actual: bytes.len() - 16,
+    let sid_len = u16::from_be_bytes(bytes[16..18].try_into().map_err(|_| {
+        KeyEncodingError::InvalidLength {
+            expected: 2,
+            actual: bytes.len() - 16,
+        }
     })?) as usize;
     if bytes.len() < 18 + sid_len {
         return Err(KeyEncodingError::InvalidLength {
@@ -460,13 +473,18 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), K
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] = bytes[2..2 + id_len].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 2 + id_len,
-        actual: bytes.len(),
-    })?;
-    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| KeyEncodingError::InvalidLength {
-        expected: 2 + id_len + 8,
-        actual: bytes.len(),
+    let iid_bytes: [u8; 16] =
+        bytes[2..2 + id_len]
+            .try_into()
+            .map_err(|_| KeyEncodingError::InvalidLength {
+                expected: 2 + id_len,
+                actual: bytes.len(),
+            })?;
+    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| {
+        KeyEncodingError::InvalidLength {
+            expected: 2 + id_len + 8,
+            actual: bytes.len(),
+        }
     })?;
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
@@ -495,7 +513,7 @@ pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
 
 /// Get the key prefix for all lease entries of a given instance.
 ///
-/// Returns the 16-byte instance ID prefix (no step_id component).
+/// Returns the 16-byte instance ID prefix (no `step_id` component).
 #[must_use]
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
     instance_id.to_bytes().unwrap_or([0u8; 16]).to_vec()
@@ -526,8 +544,8 @@ pub const LEGACY_FENCE_DELIMITER: &[u8] = b"::fence";
 ///
 /// A key is considered legacy if it is at least 20 bytes long (minimum:
 /// 11-char ULID + 2 `::` + 6-char step like "step-1" + 1 = 20),
-/// contains `::` at a position that could split into valid instance_id
-/// and step_id strings, and does NOT start with a valid ADR-020 length prefix.
+/// contains `::` at a position that could split into valid `instance_id`
+/// and `step_id` strings, and does NOT start with a valid ADR-020 length prefix.
 #[must_use]
 pub fn is_legacy_delimiter_lease_key(key: &[u8]) -> bool {
     // Minimum legacy key: 11-char ULID (min for ULID validation) + "::" + 1-char step_id
@@ -618,10 +636,11 @@ pub struct LegacyKeyInfo {
     pub is_fence: bool,
 }
 
-/// Try to extract instance_id and step_id from a legacy delimiter lease key.
+/// Try to extract `instance_id` and `step_id` from a legacy delimiter lease key.
 ///
 /// Returns `None` if the key is not in legacy delimiter format or cannot be
 /// parsed into valid instance/step IDs.
+#[must_use]
 pub fn extract_legacy_lease_components(key: &[u8]) -> Option<(String, String)> {
     if !is_legacy_delimiter_lease_key(key) {
         return None;
@@ -650,10 +669,11 @@ pub fn extract_legacy_lease_components(key: &[u8]) -> Option<(String, String)> {
     Some((iid_str, sid_str))
 }
 
-/// Try to extract instance_id and step_id from a legacy delimiter fence key.
+/// Try to extract `instance_id` and `step_id` from a legacy delimiter fence key.
 ///
 /// Returns `None` if the key is not in legacy delimiter format or cannot be
 /// parsed into valid instance/step IDs.
+#[must_use]
 pub fn extract_legacy_fence_components(key: &[u8]) -> Option<(String, String)> {
     if !is_legacy_delimiter_fence_key(key) {
         return None;

@@ -33,18 +33,12 @@ impl Connector for NoopConnector {
             fence,
         })
     }
-    async fn commit(
-        &self,
-        _prepared: PreparedEffect,
-    ) -> Result<CommitOutcome, ConnectorError> {
+    async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
         Ok(CommitOutcome::Committed {
             receipt: "noop".into(),
         })
     }
-    async fn reconcile(
-        &self,
-        _effect_id: &str,
-    ) -> Result<ReconcileOutcome, ConnectorError> {
+    async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
         Ok(ReconcileOutcome::NotCommitted)
     }
 }
@@ -131,11 +125,7 @@ async fn default_compensate_returns_not_supported() {
 async fn noop_connector_prepare_commit_cycle() {
     let c = NoopConnector;
     let pe = c
-        .prepare(
-            json!({"url": "https://example.com"}),
-            "fx-1".into(),
-            1,
-        )
+        .prepare(json!({"url": "https://example.com"}), "fx-1".into(), 1)
         .await
         .unwrap();
     assert_eq!(pe.effect_id, "fx-1");

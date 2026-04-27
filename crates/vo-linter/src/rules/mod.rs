@@ -15,7 +15,7 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
-mod random;
+pub mod random;
 
 pub use random::check_random_in_workflow;
 
@@ -50,9 +50,7 @@ impl RuleRegistry {
     /// Create a new registry with all built-in rules.
     #[must_use]
     pub fn new() -> Self {
-        let mut registry = Self {
-            rules: Vec::new(),
-        };
+        let mut registry = Self { rules: Vec::new() };
         registry.add_rule(random::RandomRule);
         registry
     }

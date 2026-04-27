@@ -111,8 +111,7 @@ mod tests {
 
     #[test]
     fn compute_failure_outcome_lineage_scope_tombstones_lineage() {
-        let outcome =
-            compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Lineage);
+        let outcome = compute_failure_outcome(ActorLifecycleState::Running, FailureScope::Lineage);
         assert!(!outcome.is_epoch_failure());
         assert!(outcome.is_lineage_failure());
         assert_eq!(outcome.actor_state(), ActorLifecycleState::Failed);

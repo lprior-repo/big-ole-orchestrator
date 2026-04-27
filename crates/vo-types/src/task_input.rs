@@ -42,11 +42,11 @@ impl TaskInputEnvelope {
 }
 
 /// Parsed task input ready for consumption by a task binary.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TaskInput {
-    idempotency_key: IdempotencyKey,
-    data: Value,
-    secrets: BTreeMap<String, Value>,
+    pub idempotency_key: IdempotencyKey,
+    pub data: Value,
+    pub secrets: BTreeMap<String, Value>,
 }
 
 impl TaskInput {
@@ -126,8 +126,14 @@ mod tests {
         let json = r#"{"idempotency_key":"test-key-123","data":{"foo":"bar"},"secrets":{"STRIPE_KEY":"sk_live_abc","DB_PASS":"hunter2"}}"#;
         let env: TaskInputEnvelope = serde_json::from_str(json).unwrap();
         assert_eq!(env.secrets.len(), 2);
-        assert_eq!(env.secrets.get("STRIPE_KEY").unwrap().as_str(), Some("sk_live_abc"));
-        assert_eq!(env.secrets.get("DB_PASS").unwrap().as_str(), Some("hunter2"));
+        assert_eq!(
+            env.secrets.get("STRIPE_KEY").unwrap().as_str(),
+            Some("sk_live_abc")
+        );
+        assert_eq!(
+            env.secrets.get("DB_PASS").unwrap().as_str(),
+            Some("hunter2")
+        );
     }
 
     #[test]
@@ -162,7 +168,8 @@ mod tests {
 
     #[test]
     fn task_input_secret_non_string_value() {
-        let json = r#"{"idempotency_key":"test-key-123","data":{"foo":"bar"},"secrets":{"NUM_KEY":42}}"#;
+        let json =
+            r#"{"idempotency_key":"test-key-123","data":{"foo":"bar"},"secrets":{"NUM_KEY":42}}"#;
         let env: TaskInputEnvelope = serde_json::from_str(json).unwrap();
         let task = env.parse();
         match task {

@@ -29,13 +29,22 @@ fn inmem_full_lifecycle_acquire_release_reacquire() {
 
     let first = store.acquire(&iid, &sid, 5_000).unwrap();
     assert_eq!(first.token().inner().get(), 1);
-    assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), false);
+    assert_eq!(
+        store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+        false
+    );
     assert_eq!(store.release(&first), Ok(()));
 
     let second = store.acquire(&iid, &sid, 5_000).unwrap();
     assert_eq!(second.token().inner().get(), 2);
-    assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), true);
-    assert_eq!(store.check_stale_fence(&iid, &sid, second.token()).unwrap(), false);
+    assert_eq!(
+        store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+        true
+    );
+    assert_eq!(
+        store.check_stale_fence(&iid, &sid, second.token()).unwrap(),
+        false
+    );
     assert_eq!(store.release(&second), Ok(()));
 }
 
@@ -73,8 +82,14 @@ fn inmem_expiry_allows_reacquire_with_new_fence() {
     let second = store.acquire(&iid, &sid, 5_000).unwrap();
     assert_eq!(second.token().inner().get(), 2);
 
-    assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), true);
-    assert_eq!(store.check_stale_fence(&iid, &sid, second.token()).unwrap(), false);
+    assert_eq!(
+        store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+        true
+    );
+    assert_eq!(
+        store.check_stale_fence(&iid, &sid, second.token()).unwrap(),
+        false
+    );
 }
 
 #[test]
@@ -152,11 +167,15 @@ fn inmem_independent_pairs_have_independent_fences() {
     assert_eq!(lease_a2.token().inner().get(), 2);
 
     assert_eq!(
-        store.check_stale_fence(&iid_a, &sid_a, lease_a.token()).unwrap(),
+        store
+            .check_stale_fence(&iid_a, &sid_a, lease_a.token())
+            .unwrap(),
         true
     );
     assert_eq!(
-        store.check_stale_fence(&iid_b, &sid_b, lease_b.token()).unwrap(),
+        store
+            .check_stale_fence(&iid_b, &sid_b, lease_b.token())
+            .unwrap(),
         false
     );
 }
@@ -246,13 +265,22 @@ mod fjall_integration {
 
         let first = store.acquire(&iid, &sid, 5_000).unwrap();
         assert_eq!(first.token().inner().get(), 1);
-        assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), false);
+        assert_eq!(
+            store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+            false
+        );
         assert_eq!(store.release(&first), Ok(()));
 
         let second = store.acquire(&iid, &sid, 5_000).unwrap();
         assert_eq!(second.token().inner().get(), 2);
-        assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), true);
-        assert_eq!(store.check_stale_fence(&iid, &sid, second.token()).unwrap(), false);
+        assert_eq!(
+            store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+            true
+        );
+        assert_eq!(
+            store.check_stale_fence(&iid, &sid, second.token()).unwrap(),
+            false
+        );
         assert_eq!(store.release(&second), Ok(()));
     }
 
@@ -290,8 +318,14 @@ mod fjall_integration {
         let second = store.acquire(&iid, &sid, 5_000).unwrap();
         assert_eq!(second.token().inner().get(), 2);
 
-        assert_eq!(store.check_stale_fence(&iid, &sid, first.token()).unwrap(), true);
-        assert_eq!(store.check_stale_fence(&iid, &sid, second.token()).unwrap(), false);
+        assert_eq!(
+            store.check_stale_fence(&iid, &sid, first.token()).unwrap(),
+            true
+        );
+        assert_eq!(
+            store.check_stale_fence(&iid, &sid, second.token()).unwrap(),
+            false
+        );
     }
 
     #[test]
@@ -369,11 +403,15 @@ mod fjall_integration {
         assert_eq!(lease_a2.token().inner().get(), 2);
 
         assert_eq!(
-            store.check_stale_fence(&iid_a, &sid_a, lease_a.token()).unwrap(),
+            store
+                .check_stale_fence(&iid_a, &sid_a, lease_a.token())
+                .unwrap(),
             true
         );
         assert_eq!(
-            store.check_stale_fence(&iid_b, &sid_b, lease_b.token()).unwrap(),
+            store
+                .check_stale_fence(&iid_b, &sid_b, lease_b.token())
+                .unwrap(),
             false
         );
     }
@@ -457,14 +495,23 @@ mod fjall_integration {
         assert_eq!(recovery.token().inner().get(), 2);
 
         assert_eq!(
-            store.release(&LeaseRecord::new(iid.clone(), sid.clone(), subprocess_fence)),
+            store.release(&LeaseRecord::new(
+                iid.clone(),
+                sid.clone(),
+                subprocess_fence
+            )),
             Err(LeaseStoreError::StaleFence {
                 expected: "2".to_string(),
                 actual: "1".to_string(),
             })
         );
 
-        assert_eq!(store.check_stale_fence(&iid, &sid, recovery.token()).unwrap(), false);
+        assert_eq!(
+            store
+                .check_stale_fence(&iid, &sid, recovery.token())
+                .unwrap(),
+            false
+        );
         assert_eq!(store.release(&recovery), Ok(()));
     }
 

@@ -22,8 +22,7 @@ use std::time::Duration;
 use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
-    MockTimerStorage, MockWorkQueue, ReanimatorConfig, ReanimatorLoop, ReanimatorState,
-    TimerRecord,
+    MockTimerStorage, MockWorkQueue, ReanimatorConfig, ReanimatorLoop, ReanimatorState, TimerRecord,
 };
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 use vo_actor::timer_supervisor::{
@@ -74,9 +73,8 @@ mod reanimator_panic_timer_recovery {
             shutdown_timeout: Duration::from_secs(5),
         };
 
-        let handle =
-            ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
-                .expect("spawn should succeed");
+        let handle = ReanimatorLoop::spawn(config.clone(), storage.clone(), work_queue.clone())
+            .expect("spawn should succeed");
 
         // Wait for the first scan cycle to fire the timer
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -257,13 +255,7 @@ mod timer_supervisor_panic_cleanup {
 
         let instance_id = make_instance_id(0xB1);
         let trigger_time = now_ms.saturating_sub(2000);
-        let timer = SyncTimerRecord::new(
-            instance_id.clone(),
-            now_ms,
-            None,
-            trigger_time,
-            2000,
-        );
+        let timer = SyncTimerRecord::new(instance_id.clone(), now_ms, None, trigger_time, 2000);
 
         let storage: Arc<dyn SyncTimerStorage> = Arc::new(PanicOnEnqueueStorage::new(vec![timer]));
         let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(PanicWorkQueue::new());
@@ -368,7 +360,9 @@ mod timer_supervisor_panic_cleanup {
                 _instance_id: &InstanceId,
                 _fire_at_ms: u64,
             ) -> Result<(), TimerSupervisorError> {
-                Err(TimerSupervisorError::StorageError("simulated failure".to_string()))
+                Err(TimerSupervisorError::StorageError(
+                    "simulated failure".to_string(),
+                ))
             }
             fn retry_timer(
                 &self,
@@ -426,10 +420,7 @@ mod timer_lifecycle_panic_safety {
             .await
             .expect("cancel should succeed");
 
-        assert_eq!(
-            count, 5,
-            "All 5 timers for the instance must be cancelled"
-        );
+        assert_eq!(count, 5, "All 5 timers for the instance must be cancelled");
 
         let has_pending = has_pending_timers(&storage, &instance_id)
             .await
@@ -591,7 +582,10 @@ mod crash_recovery_timer_safety {
 
         #[async_trait::async_trait]
         impl WorkQueue for TerminalWorkQueue {
-            async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), vo_actor::reanimator::ReanimatorError> {
+            async fn enqueue_resume(
+                &self,
+                instance_id: InstanceId,
+            ) -> Result<(), vo_actor::reanimator::ReanimatorError> {
                 self.inner.enqueue_resume(instance_id).await
             }
             async fn is_instance_terminal(
@@ -652,8 +646,8 @@ mod concurrent_panic_invariants {
             shutdown_timeout: Duration::from_secs(5),
         };
 
-        let handle = ReanimatorLoop::spawn(config, storage, work_queue)
-            .expect("spawn should succeed");
+        let handle =
+            ReanimatorLoop::spawn(config, storage, work_queue).expect("spawn should succeed");
 
         // Wait for the spawned task to transition to Running.
         // The task runs crash recovery first, then sends Running.
@@ -714,7 +708,8 @@ mod concurrent_panic_invariants {
         assert_eq!(
             enqueued.len(),
             timer_count as usize,
-            "All {} timers must be dispatched", timer_count
+            "All {} timers must be dispatched",
+            timer_count
         );
 
         for i in 0..timer_count {

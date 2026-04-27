@@ -447,7 +447,10 @@ mod tests {
         let input = quote! { async fn fetch() -> Result<Vec<u8>, Error> {} };
         let expected_ty: Type = parse_quote!(Result<Vec<u8>, Error>);
         let result = parse_task(&input).unwrap();
-        assert!(result.is_async, "async fn with return type should have is_async = true");
+        assert!(
+            result.is_async,
+            "async fn with return type should have is_async = true"
+        );
         assert_eq!(result.return_type, Some(expected_ty));
     }
 
@@ -465,8 +468,14 @@ mod tests {
     fn parse_task_detects_async_unsafe_function() {
         let input = quote! { async unsafe fn low_level_op() {} };
         let result = parse_task(&input).unwrap();
-        assert!(result.is_async, "async unsafe fn should have is_async = true");
-        assert!(result.is_unsafe, "async unsafe fn should have is_unsafe = true");
+        assert!(
+            result.is_async,
+            "async unsafe fn should have is_async = true"
+        );
+        assert!(
+            result.is_unsafe,
+            "async unsafe fn should have is_unsafe = true"
+        );
     }
 
     #[test]
@@ -482,14 +491,26 @@ mod tests {
         let def = parse_task(&input).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
-        assert!(output.contains("fn main ()"), "should generate main: {}", output);
+        assert!(
+            output.contains("fn main ()"),
+            "should generate main: {}",
+            output
+        );
         assert!(
             output.contains("tokio :: runtime :: Builder :: new_current_thread ()"),
             "should use tokio runtime: {}",
             output
         );
-        assert!(output.contains("block_on"), "should call block_on: {}", output);
-        assert!(output.contains("my_async_task () . await"), "should await call: {}", output);
+        assert!(
+            output.contains("block_on"),
+            "should call block_on: {}",
+            output
+        );
+        assert!(
+            output.contains("my_async_task () . await"),
+            "should await call: {}",
+            output
+        );
     }
 
     #[test]
@@ -498,7 +519,11 @@ mod tests {
         let def = parse_task(&input).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
-        assert!(output.contains("std :: env :: var (\"URL\")"), "should read env var URL: {}", output);
+        assert!(
+            output.contains("std :: env :: var (\"URL\")"),
+            "should read env var URL: {}",
+            output
+        );
         assert!(
             output.contains("fetch (url) . await"),
             "should call fetch(url).await: {}",

@@ -37,7 +37,6 @@ impl EventMetadata {
 
     /// Serialize to a JSON object value.
     pub fn to_json(&self) -> Result<serde_json::Value, Error> {
-        serde_json::to_value(self)
-            .map_err(|e| Error::SerializationError(e.to_string()))
+        serde_json::to_value(self).map_err(|e| Error::SerializationError(e.to_string()))
     }
 }

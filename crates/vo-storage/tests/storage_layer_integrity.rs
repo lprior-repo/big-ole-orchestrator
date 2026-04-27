@@ -46,9 +46,9 @@ mod content_address_proptests {
     #[test]
     fn encode_decode_content_address_roundtrip_unit() {
         let bytes = [
-            0x9f_u8, 0x86, 0xd0, 0x81, 0x88, 0x84, 0xc7, 0xd6, 0x59, 0xa2, 0xfe, 0xaa,
-            0x0c, 0x55, 0xad, 0x01, 0x5a, 0x3b, 0xf4, 0xf1, 0xb2, 0xb0, 0xb8, 0x22,
-            0xcd, 0x15, 0xd6, 0xc1, 0x5b, 0x0f, 0x00, 0xa0,
+            0x9f_u8, 0x86, 0xd0, 0x81, 0x88, 0x84, 0xc7, 0xd6, 0x59, 0xa2, 0xfe, 0xaa, 0x0c, 0x55,
+            0xad, 0x01, 0x5a, 0x3b, 0xf4, 0xf1, 0xb2, 0xb0, 0xb8, 0x22, 0xcd, 0x15, 0xd6, 0xc1,
+            0x5b, 0x0f, 0x00, 0xa0,
         ];
         let addr = ContentAddress::from_bytes(&bytes);
         let encoded = vo_storage::blob_store::encode_content_address(&addr);
@@ -85,9 +85,8 @@ mod blob_record_lifecycle {
     #[test]
     fn blob_record_serde_roundtrip_preserves_all_fields() {
         let addr = ContentAddress::new(VALID_SHA256).unwrap();
-        let record = BlobRecord::with_status(
-            addr, 2048, 3, 12345, Some(99999), BlobStatus::DurablyStored,
-        );
+        let record =
+            BlobRecord::with_status(addr, 2048, 3, 12345, Some(99999), BlobStatus::DurablyStored);
         let encoded = encode_blob_record(&record).unwrap();
         let decoded = decode_blob_record(&encoded).unwrap();
         assert_eq!(decoded.content_addr(), record.content_addr());
@@ -311,7 +310,9 @@ mod lineage_multi_epoch {
             record_rollover(&db, "lin-chain", Epoch::new(i as u64), instances[i].clone()).unwrap();
         }
 
-        let loaded = get_lineage_record(&partition, "lin-chain").unwrap().unwrap();
+        let loaded = get_lineage_record(&partition, "lin-chain")
+            .unwrap()
+            .unwrap();
         assert_eq!(loaded.active_epoch, Epoch::new(4u64));
         assert_eq!(loaded.active_instance_id, instances[4]);
         assert_eq!(loaded.previous_instance_id, Some(instances[3].clone()));
@@ -344,7 +345,9 @@ mod lineage_multi_epoch {
             upsert_lineage_record(&partition, &format!("lin-{i}"), &record).unwrap();
         }
         for i in 1u8..11 {
-            let loaded = get_lineage_record(&partition, &format!("lin-{i}")).unwrap().unwrap();
+            let loaded = get_lineage_record(&partition, &format!("lin-{i}"))
+                .unwrap()
+                .unwrap();
             assert_eq!(loaded.active_epoch, Epoch::new(i as u64));
         }
         drop(dir);
@@ -391,7 +394,10 @@ mod partition_management {
     fn hot_partitions_have_bloom_filter() {
         for name in HOT_PARTITIONS {
             let config = get_partition_config(name);
-            assert_eq!(config.bloom_filter_bits_per_key, 10, "{name} should have bloom filter");
+            assert_eq!(
+                config.bloom_filter_bits_per_key, 10,
+                "{name} should have bloom filter"
+            );
         }
     }
 
@@ -399,7 +405,10 @@ mod partition_management {
     fn cold_partitions_have_no_bloom_filter() {
         for name in COLD_PARTITIONS {
             let config = get_partition_config(name);
-            assert_eq!(config.bloom_filter_bits_per_key, 0, "{name} should not have bloom filter");
+            assert_eq!(
+                config.bloom_filter_bits_per_key, 0,
+                "{name} should not have bloom filter"
+            );
         }
     }
 
@@ -426,9 +435,14 @@ mod partition_management {
         let layout = create_partition_layout(&custom).unwrap();
         assert!(custom.exists());
         let db = layout.db();
-        let events = db.keyspace("events", fjall::KeyspaceCreateOptions::default).unwrap();
+        let events = db
+            .keyspace("events", fjall::KeyspaceCreateOptions::default)
+            .unwrap();
         events.insert(b"key", b"value").unwrap();
-        assert_eq!(events.get(b"key").unwrap().as_deref(), Some(b"value".as_slice()));
+        assert_eq!(
+            events.get(b"key").unwrap().as_deref(),
+            Some(b"value".as_slice())
+        );
     }
 }
 
@@ -441,7 +455,9 @@ mod event_store_fjall {
     use vo_types::events::{EventEnvelope, EventMetadata};
     use vo_types::{InstanceId, SequenceNumber};
 
-    fn make_id() -> InstanceId { InstanceId::from_bytes([1u8; 16]) }
+    fn make_id() -> InstanceId {
+        InstanceId::from_bytes([1u8; 16])
+    }
 
     fn make_envelope(id: &InstanceId, seq: u64) -> EventEnvelope {
         EventEnvelope {
@@ -458,7 +474,9 @@ mod event_store_fjall {
     fn append_and_scan_events_via_fjall() {
         let dir = tempfile::tempdir().unwrap();
         let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let partition = db.keyspace("events", fjall::KeyspaceCreateOptions::default).unwrap();
+        let partition = db
+            .keyspace("events", fjall::KeyspaceCreateOptions::default)
+            .unwrap();
         let id = make_id();
         let events: Vec<EventEnvelope> = (1..=10).map(|seq| make_envelope(&id, seq)).collect();
 
@@ -476,7 +494,9 @@ mod event_store_fjall {
             let event: EventEnvelope = serde_json::from_slice(&value).unwrap();
             assert_eq!(event.sequence, seq.as_u64());
             scanned += 1;
-            if scanned >= 10 { break; }
+            if scanned >= 10 {
+                break;
+            }
         }
         assert_eq!(scanned, 10);
     }
@@ -485,7 +505,9 @@ mod event_store_fjall {
     fn event_key_ordering_ensures_lexicographic_scan() {
         let dir = tempfile::tempdir().unwrap();
         let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let partition = db.keyspace("events", fjall::KeyspaceCreateOptions::default).unwrap();
+        let partition = db
+            .keyspace("events", fjall::KeyspaceCreateOptions::default)
+            .unwrap();
         let id = make_id();
         for seq in [5u64, 1, 10, 3, 7] {
             let key = encode_event_key(&id, SequenceNumber::try_from(seq).unwrap());
@@ -498,7 +520,9 @@ mod event_store_fjall {
             let (key, _) = item.into_inner().map_err(|e| format!("{e:?}")).unwrap();
             let (_, seq) = decode_event_key(&key).unwrap();
             seqs.push(seq.as_u64());
-            if seqs.len() >= 5 { break; }
+            if seqs.len() >= 5 {
+                break;
+            }
         }
         assert_eq!(seqs, vec![1, 3, 5, 7, 10]);
     }
@@ -525,20 +549,25 @@ mod cross_module_integrity {
         let db = layout.db();
 
         // 1. Write events to events partition
-        let events_partition = db.keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default).unwrap();
+        let events_partition = db
+            .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .unwrap();
         let instance_id = InstanceId::from_bytes([42u8; 16]);
-        let events: Vec<EventEnvelope> = (1..=5).map(|seq| EventEnvelope {
-            schema_version: 1,
-            instance_id: instance_id.to_string(),
-            sequence: seq,
-            timestamp_ms: 1000 + seq,
-            payload: serde_json::json!({"type": "TestEvent", "seq": seq}),
-            metadata: EventMetadata::default(),
-        }).collect();
+        let events: Vec<EventEnvelope> = (1..=5)
+            .map(|seq| EventEnvelope {
+                schema_version: 1,
+                instance_id: instance_id.to_string(),
+                sequence: seq,
+                timestamp_ms: 1000 + seq,
+                payload: serde_json::json!({"type": "TestEvent", "seq": seq}),
+                metadata: EventMetadata::default(),
+            })
+            .collect();
 
         for event in &events {
             let key = vo_storage::key_encoding::encode_event_key(
-                &instance_id, SequenceNumber::try_from(event.sequence).unwrap()
+                &instance_id,
+                SequenceNumber::try_from(event.sequence).unwrap(),
             );
             let value = serde_json::to_vec(event).unwrap();
             events_partition.insert(&key, &value).unwrap();
@@ -553,12 +582,19 @@ mod cross_module_integrity {
             let event: EventEnvelope = serde_json::from_slice(&value).unwrap();
             assert_eq!(event.sequence, seq.as_u64());
             count += 1;
-            if count >= 5 { break; }
+            if count >= 5 {
+                break;
+            }
         }
         assert_eq!(count, 5);
 
         // 2. Write blob record to blob_records partition
-        let blob_partition = db.keyspace(BLOB_RECORDS_PARTITION, fjall::KeyspaceCreateOptions::default).unwrap();
+        let blob_partition = db
+            .keyspace(
+                BLOB_RECORDS_PARTITION,
+                fjall::KeyspaceCreateOptions::default,
+            )
+            .unwrap();
         let data = b"hello from veloxide storage layer";
         let addr = {
             let mut hasher = sha2::Sha256::new();
@@ -568,15 +604,22 @@ mod cross_module_integrity {
         };
         let record = BlobRecord::new(addr.clone(), data.len() as u64, 1, 1000, None).unwrap();
         let encoded = encode_blob_record(&record).unwrap();
-        blob_partition.insert(addr.as_str().as_bytes(), &encoded).unwrap();
+        blob_partition
+            .insert(addr.as_str().as_bytes(), &encoded)
+            .unwrap();
 
-        let stored = blob_partition.get(addr.as_str().as_bytes()).unwrap().unwrap();
+        let stored = blob_partition
+            .get(addr.as_str().as_bytes())
+            .unwrap()
+            .unwrap();
         let decoded = decode_blob_record(&stored).unwrap();
         assert_eq!(decoded.content_addr(), &addr);
         assert_eq!(decoded.size_bytes(), data.len() as u64);
 
         // 3. Lineage tracking with rollover
-        let lineage_partition = db.keyspace(LINEAGE_PARTITION, fjall::KeyspaceCreateOptions::default).unwrap();
+        let lineage_partition = db
+            .keyspace(LINEAGE_PARTITION, fjall::KeyspaceCreateOptions::default)
+            .unwrap();
         let lin_record = LineageRecord {
             lineage_id: "lin-pipeline".to_string(),
             active_epoch: Epoch::new(0u64),
@@ -588,13 +631,18 @@ mod cross_module_integrity {
         let new_instance = InstanceId::from_bytes([99u8; 16]);
         record_rollover(db, "lin-pipeline", Epoch::new(1u64), new_instance.clone()).unwrap();
 
-        let loaded = get_lineage_record(&lineage_partition, "lin-pipeline").unwrap().unwrap();
+        let loaded = get_lineage_record(&lineage_partition, "lin-pipeline")
+            .unwrap()
+            .unwrap();
         assert_eq!(loaded.active_epoch, Epoch::new(1u64));
         assert_eq!(loaded.active_instance_id, new_instance);
         assert_eq!(loaded.previous_instance_id, Some(instance_id.clone()));
 
         // 4. Merkle tree: build from events data, verify proofs
-        let all_data: Vec<u8> = events.iter().flat_map(|e| serde_json::to_vec(e).unwrap()).collect();
+        let all_data: Vec<u8> = events
+            .iter()
+            .flat_map(|e| serde_json::to_vec(e).unwrap())
+            .collect();
         let tree = MerkleTree::new(&all_data, 64);
         let root = tree.root_hash();
         assert!(!tree.leaf_hashes.is_empty());
@@ -604,7 +652,11 @@ mod cross_module_integrity {
         }
 
         // 5. Append queue: enqueue and dequeue control-plane writes
-        let config = QueueConfig { critical_capacity: 100, projection_capacity: 50, blob_capacity: 25 };
+        let config = QueueConfig {
+            critical_capacity: 100,
+            projection_capacity: 50,
+            blob_capacity: 25,
+        };
         let budget = WriteBudget::new(1_000_000, 1_000_000, 1_000_000);
         let appender = Appender::new(&config, budget);
         for event in &events {
@@ -612,11 +664,11 @@ mod cross_module_integrity {
             assert!(appender.append_control_plane(write).is_ok());
         }
         let mut dequeued = 0;
-        while appender.dequeue_critical().is_some() { dequeued += 1; }
+        while appender.dequeue_critical().is_some() {
+            dequeued += 1;
+        }
         assert_eq!(dequeued, 5);
     }
-
-
 }
 
 // ========================================================================
@@ -633,7 +685,9 @@ mod checksum_consistency {
             let data: Vec<u8> = (0..size).map(|i| (i % 256) as u8).collect();
             let one_shot = compute_checksum(&data);
             let mut hasher = StreamingHasher::new();
-            for chunk in data.chunks(7) { hasher.update(chunk); }
+            for chunk in data.chunks(7) {
+                hasher.update(chunk);
+            }
             let streaming = hasher.finalize();
             assert_eq!(one_shot.crc32, streaming.crc32, "CRC32 at size {size}");
             assert_eq!(one_shot.sha256, streaming.sha256, "SHA256 at size {size}");

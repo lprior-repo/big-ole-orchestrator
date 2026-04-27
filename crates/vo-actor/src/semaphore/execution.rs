@@ -181,83 +181,80 @@ impl ExecutionSemaphore {
 }
 
 #[cfg(test)]
-    mod tests {
-        use super::*;
-        use std::time::Duration;
+mod tests {
+    use super::*;
+    use std::time::Duration;
 
-        #[tokio::test]
-        async fn given_permit_waiters_when_no_permits_then_wait_is_async_not_spin() {
-            // ADR-006: Async wait must not busy-loop.
-            // Given: permits unavailable
-            // When: many actors wait for permits
-            // Then: waiters suspend asynchronously and CPU spin counters stay bounded
+    #[tokio::test]
+    async fn given_permit_waiters_when_no_permits_then_wait_is_async_not_spin() {
+        // ADR-006: Async wait must not busy-loop.
+        // Given: permits unavailable
+        // When: many actors wait for permits
+        // Then: waiters suspend asynchronously and CPU spin counters stay bounded
 
-            let config = SemaphoreConfig {
-                max_concurrent_binaries: 1,
-                acquire_timeout: Duration::from_secs(10),
-                ..Default::default()
-            };
-            let sem = Arc::new(ExecutionSemaphore::new(config));
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            acquire_timeout: Duration::from_secs(10),
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
 
-            // Exhaust all permits so waiters must block
-            let _permit = sem.try_acquire();
-            assert_eq!(sem.available_permits(), 0);
+        // Exhaust all permits so waiters must block
+        let _permit = sem.try_acquire();
+        assert_eq!(sem.available_permits(), 0);
 
-            // Spawn N concurrent waiters — all must see zero permits
-            let num_waiters = 10;
-            let mut handles = Vec::with_capacity(num_waiters);
+        // Spawn N concurrent waiters — all must see zero permits
+        let num_waiters = 10;
+        let mut handles = Vec::with_capacity(num_waiters);
 
-            for _ in 0..num_waiters {
-                let sem = Arc::clone(&sem);
-                let handle = tokio::spawn(async move { sem.acquire().await });
-                handles.push(handle);
-            }
-
-            // Verify waiters are tracked (bounded)
-            let waiting = sem.waiting_count();
-            assert_eq!(waiting, num_waiters, "All {num_waiters} waiters must be tracked");
-
-            // Give waiters a moment to enter the async sleep state
-            tokio::time::sleep(Duration::from_millis(50)).await;
-
-            // Release permit → first waiter acquires → releases → chain completes
-            drop(_permit);
-
-            // All waiters must complete within a bounded time window.
-            // If acquire() busy-looped, it would consume CPU and likely hit
-            // the acquire_timeout before the permit could be released.
-            let result = tokio::time::timeout(
-                Duration::from_secs(5),
-                futures::future::join_all(handles),
-            )
-            .await;
-
-            // Verify all waiters finished (no timeout = async suspend, not spin)
-            assert!(
-                result.is_ok(),
-                "Waiters timed out — acquire() may be busy-spinning instead of suspending"
-            );
-
-            let decisions = result.unwrap();
-            let admitted_count = decisions
-                .into_iter()
-                .filter(|d| matches!(d.as_ref().unwrap(), AdmissionDecision::Admitted))
-                .count();
-            assert_eq!(
-                admitted_count, num_waiters,
-                "All waiters must be admitted"
-            );
-
-            // Verify waiters returned to zero (all acquired and moved past the wait)
-            assert_eq!(
-                sem.waiting_count(),
-                0,
-                "Waiting count should return to zero after all permits acquired"
-            );
+        for _ in 0..num_waiters {
+            let sem = Arc::clone(&sem);
+            let handle = tokio::spawn(async move { sem.acquire().await });
+            handles.push(handle);
         }
 
-        #[tokio::test]
-        async fn execution_semaphore_try_acquire_success() {
+        // Verify waiters are tracked (bounded)
+        let waiting = sem.waiting_count();
+        assert_eq!(
+            waiting, num_waiters,
+            "All {num_waiters} waiters must be tracked"
+        );
+
+        // Give waiters a moment to enter the async sleep state
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        // Release permit → first waiter acquires → releases → chain completes
+        drop(_permit);
+
+        // All waiters must complete within a bounded time window.
+        // If acquire() busy-looped, it would consume CPU and likely hit
+        // the acquire_timeout before the permit could be released.
+        let result =
+            tokio::time::timeout(Duration::from_secs(5), futures::future::join_all(handles)).await;
+
+        // Verify all waiters finished (no timeout = async suspend, not spin)
+        assert!(
+            result.is_ok(),
+            "Waiters timed out — acquire() may be busy-spinning instead of suspending"
+        );
+
+        let decisions = result.unwrap();
+        let admitted_count = decisions
+            .into_iter()
+            .filter(|d| matches!(d.as_ref().unwrap(), AdmissionDecision::Admitted))
+            .count();
+        assert_eq!(admitted_count, num_waiters, "All waiters must be admitted");
+
+        // Verify waiters returned to zero (all acquired and moved past the wait)
+        assert_eq!(
+            sem.waiting_count(),
+            0,
+            "Waiting count should return to zero after all permits acquired"
+        );
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_try_acquire_success() {
         let sem = ExecutionSemaphore::default();
         let initial_available = sem.available_permits();
 

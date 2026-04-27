@@ -17,15 +17,15 @@
 //!     .with_failure_threshold(3);
 //! ```
 
-pub mod types;
 pub mod probes;
+pub mod types;
 
-#[cfg(test)]
-mod proptest;
 #[cfg(test)]
 mod integration_tests;
 #[cfg(test)]
+mod proptest;
+#[cfg(test)]
 mod qa_smoke;
 
-pub use types::*;
 pub use probes::*;
+pub use types::*;

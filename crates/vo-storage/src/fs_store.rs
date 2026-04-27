@@ -83,9 +83,10 @@ impl FsBlobStore {
             Ok(f) => f,
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
                 return Err(BlobStoreError::DuplicateContent {
-                    content_addr: addr
-                        .map(|a| a.to_string())
-                        .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+                    content_addr: addr.map_or_else(
+                        || path.to_string_lossy().into_owned(),
+                        std::string::ToString::to_string,
+                    ),
                 });
             }
             Err(e) => {

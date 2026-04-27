@@ -1,4 +1,4 @@
-//! Stub module for TimerRecord type.
+//! Stub module for `TimerRecord` type.
 //! Placeholder for future timer record implementation.
 
 #[derive(Debug, Clone, PartialEq, Eq)]

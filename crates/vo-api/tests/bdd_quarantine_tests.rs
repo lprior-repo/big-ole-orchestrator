@@ -31,7 +31,10 @@ mod tests {
         // - CircuitBreakerState.get_status() correctly returns Quarantined
         // - start_workflow handler checks quarantine status before proceeding
         // - Returns 403 Forbidden when workflow is quarantined (ADR-026)
-        assert!(true, "Quarantine gating implementation verified via circuit_breaker state");
+        assert!(
+            true,
+            "Quarantine gating implementation verified via circuit_breaker state"
+        );
     }
 
     #[test]

@@ -12,7 +12,10 @@ use syn::File;
 use vo_linter::{rules::check_random_in_workflow, Diagnostic};
 
 fn parse(src: &str) -> File {
-    syn::parse_str(src).expect("failed to parse Rust source")
+    match syn::parse_str(src) {
+        Ok(file) => file,
+        Err(error) => panic!("failed to parse Rust source: {error}"),
+    }
 }
 
 fn lint(src: &str) -> Vec<Diagnostic> {
@@ -219,7 +222,11 @@ fn coevo_gen5_random_in_bare_loop_body() {
         }
         .to_string(),
     );
-    assert_eq!(diags.len(), 1, "Uuid::new_v4 inside bare loop must be caught");
+    assert_eq!(
+        diags.len(),
+        1,
+        "Uuid::new_v4 inside bare loop must be caught"
+    );
 }
 
 #[test]

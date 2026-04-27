@@ -24,6 +24,6 @@
 pub mod allocation;
 pub mod consumption;
 
+pub use allocation::SagaError;
 pub use allocation::{BudgetManifest, SagaEntry, SagaStatus};
 pub use consumption::{DurableBudgetSaga, RecoveryOutcome, SagaStore, StagedWrite};
-pub use allocation::SagaError;

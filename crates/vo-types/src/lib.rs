@@ -27,10 +27,11 @@ pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
 mod encryption;
-mod euler_tour_tree;
 #[cfg(test)]
 mod encryption_tests;
 mod errors;
+#[cfg(test)]
+mod euler_tour_tree;
 pub mod events;
 mod identity;
 mod instance_status;
@@ -155,14 +156,14 @@ pub use spqr_tree::{
     Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
     StaticGraph,
 };
+pub use task_failure_kind::TaskFailureKind;
+pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
     TransactionRecord, TransactionState,
 };
-pub use task_failure_kind::TaskFailureKind;
-pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use types::{
     extract_schema_version, AttemptNumber, BinaryHash, DurationMs, EventVersion, FenceToken,
     FireAtMs, IdempotencyKey, InstanceId, LeaseRecord, MaxAttempts, NodeName, SequenceNumber,

@@ -76,12 +76,6 @@ impl Runtime {
     }
 }
 
-impl Default for Runtime {
-    fn default() -> Self {
-        Self::new().expect("Failed to create default runtime")
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct StepContext {
     step_id: StepId,

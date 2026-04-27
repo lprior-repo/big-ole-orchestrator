@@ -421,7 +421,7 @@ fn parse_purge_empty_instance() {
 fn parse_purge_special_chars_instance() {
     let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-àéïôü-测试"]).unwrap();
     match cli.command {
-        Command::Purge { instance } => {
+        Command::Purge { instance, .. } => {
             assert_eq!(instance, "inst-àéïôü-测试");
         }
         _ => panic!("expected Purge"),

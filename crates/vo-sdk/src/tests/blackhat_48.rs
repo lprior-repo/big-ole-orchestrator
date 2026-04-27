@@ -9,7 +9,7 @@
 //!   6. emit_graph_if_requested: process::exit bypasses Drop, stdout write failure
 //!   7. Stress: concurrent read+write guard interaction, large spec stress
 
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -18,11 +18,11 @@ use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
 use crate::graph::{
-    parse_graph_args, emit_graph_if_requested, EdgeSpec, GraphArgsError, NodeSpec, WorkflowSpec,
+    emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgsError, NodeSpec, WorkflowSpec,
 };
 use crate::io::{
-    read_input_inner_with_atomic_guard, read_input_inner_with_state, write_failure_inner_with_state,
-    write_success_inner_with_state,
+    read_input_inner_with_atomic_guard, read_input_inner_with_state,
+    write_failure_inner_with_state, write_success_inner_with_state,
 };
 use crate::{SdkError, TaskFailureKind};
 use vo_types::{NodeKind, NodeName, WorkflowName};
@@ -148,7 +148,11 @@ fn bh48_atomic_guard_set_after_empty_read() {
 
     let result = read_input_inner_with_atomic_guard(&mut cursor, &guard);
 
-    assert_eq!(result, Err(SdkError::FdNotOpen), "empty read returns FdNotOpen via guard");
+    assert_eq!(
+        result,
+        Err(SdkError::FdNotOpen),
+        "empty read returns FdNotOpen via guard"
+    );
     assert!(guard.load(Ordering::SeqCst), "guard set on empty input");
 }
 
@@ -165,7 +169,11 @@ fn bh48_atomic_guard_blocks_second_read() {
     let mut cursor2 = Cursor::new(payload2);
     let result2 = read_input_inner_with_atomic_guard(&mut cursor2, &guard);
 
-    assert_eq!(result2, Err(SdkError::FdNotOpen), "second read should be blocked");
+    assert_eq!(
+        result2,
+        Err(SdkError::FdNotOpen),
+        "second read should be blocked"
+    );
 }
 
 // ===========================================================================
@@ -178,6 +186,8 @@ fn bh48_validate_empty_nodes_skips_entry_point_check() {
         workflow_name: WorkflowName::parse("empty-nodes").unwrap(),
         nodes: vec![],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let result = spec.validate();
     assert!(
@@ -194,10 +204,24 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
         ],
         edges: vec![
@@ -210,6 +234,8 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
                 to: NodeName::parse("a").unwrap(),
             },
         ],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let result = spec.validate();
     assert!(
@@ -225,10 +251,22 @@ fn bh48_validate_single_node_no_edges_has_entry_point() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("solo").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         }],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
-    assert!(spec.validate().is_ok(), "single node with no edges is valid");
+    assert!(
+        spec.validate().is_ok(),
+        "single node with no edges is valid"
+    );
 }
 
 #[test]
@@ -239,14 +277,35 @@ fn bh48_validate_chain_has_entry_point() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
             NodeSpec {
                 name: NodeName::parse("c").unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             },
         ],
         edges: vec![
@@ -259,6 +318,8 @@ fn bh48_validate_chain_has_entry_point() {
                 to: NodeName::parse("c").unwrap(),
             },
         ],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     assert!(spec.validate().is_ok(), "linear chain should be valid");
 }
@@ -312,7 +373,11 @@ fn bh48_graph_args_many_args_before_graph() {
 fn bh48_graph_args_empty_string_as_flag() {
     let args = vec!["bin".to_string(), "".to_string()];
     let result = parse_graph_args(&args);
-    assert_eq!(result, Err(GraphArgsError::NoGraphFlag), "empty string is not --graph");
+    assert_eq!(
+        result,
+        Err(GraphArgsError::NoGraphFlag),
+        "empty string is not --graph"
+    );
 }
 
 #[test]
@@ -342,7 +407,10 @@ fn bh48_dag_duplicate_edges_accepted_by_connect() {
 
     dag.connect(&a, &b).unwrap();
     let result = dag.connect(&a, &b);
-    assert!(result.is_ok(), "duplicate edge is accepted silently by Dag::connect");
+    assert!(
+        result.is_ok(),
+        "duplicate edge is accepted silently by Dag::connect"
+    );
     assert_eq!(dag.edge_count(), 2, "duplicate edge is stored");
 }
 
@@ -451,8 +519,17 @@ fn bh48_emit_graph_returns_ok_when_no_graph_flag() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         }],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     let result = emit_graph_if_requested(&args, &spec);
@@ -471,12 +548,25 @@ fn bh48_emit_graph_returns_err_for_unrecognized_args() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         }],
         edges: vec![],
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     let result = emit_graph_if_requested(&args, &spec);
-    assert_eq!(result, Err(()), "extra args after --graph should return Err(())");
+    assert_eq!(
+        result,
+        Err(()),
+        "extra args after --graph should return Err(())"
+    );
 }
 
 #[test]
@@ -487,6 +577,13 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
             .map(|i| NodeSpec {
                 name: NodeName::parse(&format!("node-{}", i)).unwrap(),
                 kind: NodeKind::Pure,
+                retry_policy: vo_types::RetryPolicy {
+                    max_attempts: 1,
+                    backoff_ms: 0,
+                    backoff_multiplier: 1.0,
+                    max_backoff_ms: u64::MAX,
+                },
+                signal_meta: None,
             })
             .collect(),
         edges: (0..99)
@@ -495,6 +592,8 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
                 to: NodeName::parse(&format!("node-{}", i + 1)).unwrap(),
             })
             .collect(),
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty());
@@ -587,7 +686,10 @@ fn bh48_concurrent_writes_both_fail_after_one_succeeds() {
         h.join().expect("no panic");
     }
 
-    assert!(success_count.load(Ordering::SeqCst), "at least one write succeeds");
+    assert!(
+        success_count.load(Ordering::SeqCst),
+        "at least one write succeeds"
+    );
     assert!(
         fail_count.load(Ordering::SeqCst) >= 7,
         "at least 7 writes should fail with AlreadyWritten"
@@ -693,7 +795,10 @@ fn bh48_read_idempotency_key_at_max_length() {
     let mut is_read = false;
 
     let result = read_input_inner_with_state(&mut cursor, &mut is_read);
-    assert!(result.is_ok(), "idempotency key at max length should be accepted");
+    assert!(
+        result.is_ok(),
+        "idempotency key at max length should be accepted"
+    );
 }
 
 // ===========================================================================
@@ -706,7 +811,8 @@ fn bh48_write_failure_message_with_carriage_return() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let result = write_failure_inner_with_state(&mut buf, TaskFailureKind::User, msg, &mut is_written);
+    let result =
+        write_failure_inner_with_state(&mut buf, TaskFailureKind::User, msg, &mut is_written);
     assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).unwrap();
     assert_eq!(written["message"], "line1\r\nline2");
@@ -718,7 +824,8 @@ fn bh48_write_failure_message_with_tab_characters() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let result = write_failure_inner_with_state(&mut buf, TaskFailureKind::System, msg, &mut is_written);
+    let result =
+        write_failure_inner_with_state(&mut buf, TaskFailureKind::System, msg, &mut is_written);
     assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).unwrap();
     assert_eq!(written["message"], "col1\tcol2\tcol3");
@@ -730,7 +837,8 @@ fn bh48_write_failure_message_with_emoji() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let result = write_failure_inner_with_state(&mut buf, TaskFailureKind::User, msg, &mut is_written);
+    let result =
+        write_failure_inner_with_state(&mut buf, TaskFailureKind::User, msg, &mut is_written);
     assert_eq!(result, Ok(()));
     let written: Value = serde_json::from_slice(&buf).unwrap();
     assert_eq!(written["message"], msg);
@@ -747,7 +855,8 @@ fn bh48_write_failure_four_byte_emoji_exceeds_byte_limit() {
     let mut buf: Vec<u8> = Vec::new();
     let mut is_written = false;
 
-    let result = write_failure_inner_with_state(&mut buf, TaskFailureKind::User, &msg, &mut is_written);
+    let result =
+        write_failure_inner_with_state(&mut buf, TaskFailureKind::User, &msg, &mut is_written);
     assert_eq!(result, Err(SdkError::InvalidInput));
 }
 
@@ -932,7 +1041,11 @@ fn bh48_validation_error_all_variants_have_display() {
 
     for err in &errors {
         let display = format!("{}", err);
-        assert!(!display.is_empty(), "Display should not be empty for {:?}", err);
+        assert!(
+            !display.is_empty(),
+            "Display should not be empty for {:?}",
+            err
+        );
     }
 }
 
@@ -1002,6 +1115,13 @@ fn bh48_workflow_spec_500_node_stress() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         })
         .collect();
 
@@ -1016,6 +1136,8 @@ fn bh48_workflow_spec_500_node_stress() {
         workflow_name: WorkflowName::parse("stress").unwrap(),
         nodes,
         edges,
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     assert!(spec.validate().is_ok());
@@ -1031,11 +1153,25 @@ fn bh48_workflow_spec_fan_out_100_stress() {
     let mut nodes = vec![NodeSpec {
         name: NodeName::parse("root").unwrap(),
         kind: NodeKind::Pure,
+        retry_policy: vo_types::RetryPolicy {
+            max_attempts: 1,
+            backoff_ms: 0,
+            backoff_multiplier: 1.0,
+            max_backoff_ms: u64::MAX,
+        },
+        signal_meta: None,
     }];
     for i in 0..100 {
         nodes.push(NodeSpec {
             name: NodeName::parse(&format!("leaf{}", i)).unwrap(),
             kind: NodeKind::Pure,
+            retry_policy: vo_types::RetryPolicy {
+                max_attempts: 1,
+                backoff_ms: 0,
+                backoff_multiplier: 1.0,
+                max_backoff_ms: u64::MAX,
+            },
+            signal_meta: None,
         });
     }
 
@@ -1050,6 +1186,8 @@ fn bh48_workflow_spec_fan_out_100_stress() {
         workflow_name: WorkflowName::parse("fan100").unwrap(),
         nodes,
         edges,
+        dedupe_scope: vo_types::DedupeScope::default(),
+        guarantee_class: vo_types::GuaranteeClass::default(),
     };
 
     assert!(spec.validate().is_ok());
@@ -1125,7 +1263,11 @@ fn bh48_dag_error_all_variants_display() {
 
     for err in &errors {
         let display = format!("{}", err);
-        assert!(!display.is_empty(), "Display should not be empty for {:?}", err);
+        assert!(
+            !display.is_empty(),
+            "Display should not be empty for {:?}",
+            err
+        );
     }
 }
 

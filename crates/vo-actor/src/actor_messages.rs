@@ -484,12 +484,8 @@ mod debug_format_control_actor_message {
         let wait_key = crate::WaitKey::parse("approval-v2").unwrap();
         let payload = crate::SignalPayload::empty();
         let signal_name = crate::SignalName::parse("sig-1").unwrap();
-        let message = ControlActorMessage::new_accept_and_resume(
-            instance_id,
-            wait_key,
-            signal_name,
-            payload,
-        );
+        let message =
+            ControlActorMessage::new_accept_and_resume(instance_id, wait_key, signal_name, payload);
 
         let debug_str = format!("{:?}", message);
         assert!(debug_str.contains("AcceptAndResume"));

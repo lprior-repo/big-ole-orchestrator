@@ -11,7 +11,7 @@ fn rq_purge_shell_metachars_pass_through_untampered() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: payload.into()
+            instance: payload.into(),
         }
     );
 }

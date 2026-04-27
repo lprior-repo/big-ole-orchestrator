@@ -192,7 +192,8 @@ mod serialization_roundtrip {
     /// Kills: wrong field type silently coerced.
     #[test]
     fn rq_timer_fired_wrong_type_rejects() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":"not_a_number"}}"#;
+        let json =
+            r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":"not_a_number"}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "string timestamp must fail");
     }
@@ -931,7 +932,10 @@ mod duplicate_event_id {
     fn rq_dedup_empty_event_id() {
         let mut dedup = EventDedup::new();
         assert_eq!(dedup.check_and_track("".into()), DuplicateResult::New);
-        assert_eq!(dedup.check_and_track("".into()), DuplicateResult::Duplicate("".into()));
+        assert_eq!(
+            dedup.check_and_track("".into()),
+            DuplicateResult::Duplicate("".into())
+        );
     }
 
     /// Kills: Unicode event_id not properly deduplicated.
@@ -954,7 +958,10 @@ mod duplicate_event_id {
     fn rq_dedup_long_event_id() {
         let mut dedup = EventDedup::new();
         let long_id: String = "x".repeat(100_000);
-        assert_eq!(dedup.check_and_track(long_id.clone().into()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(long_id.clone().into()),
+            DuplicateResult::New
+        );
         assert_eq!(
             dedup.check_and_track(long_id.into()),
             DuplicateResult::Duplicate("x".repeat(100_000).into())
@@ -983,9 +990,15 @@ mod duplicate_event_id {
         let a = make_event("evt-1", "shared-timer", 100);
         let b = make_event("evt-2", "shared-timer", 100);
         let WorkflowEvent::TimerFired { event_id, .. } = &a;
-        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(event_id.clone()),
+            DuplicateResult::New
+        );
         let WorkflowEvent::TimerFired { event_id, .. } = &b;
-        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(event_id.clone()),
+            DuplicateResult::New
+        );
         assert_eq!(dedup.len(), 2);
     }
 
@@ -996,7 +1009,10 @@ mod duplicate_event_id {
         let a = make_event("evt-x", "timer-alpha", 100);
         let b = make_event("evt-x", "timer-beta", 200);
         let WorkflowEvent::TimerFired { event_id, .. } = &a;
-        assert_eq!(dedup.check_and_track(event_id.clone()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track(event_id.clone()),
+            DuplicateResult::New
+        );
         let WorkflowEvent::TimerFired { event_id, .. } = &b;
         assert_eq!(
             dedup.check_and_track(event_id.clone()),

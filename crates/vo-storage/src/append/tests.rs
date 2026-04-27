@@ -520,7 +520,8 @@ fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is
 }
 
 #[test]
-fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is_not_starved_budget_queues() {
+fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is_not_starved_budget_queues(
+) {
     // Direct BudgetQueues path: verify the core queue isolation invariant
     let config = QueueConfig {
         critical_capacity: 1024,
@@ -544,11 +545,12 @@ fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is
     assert!(queues.try_enqueue(&blob_entry).is_ok());
 
     // Verify blob is full
-    assert!(queues.try_enqueue(&AppendEntry::Blob(BlobWrite::bulk(
-        "overflow-blob".to_string(),
-        100
-    )))
-    .is_err());
+    assert!(queues
+        .try_enqueue(&AppendEntry::Blob(BlobWrite::bulk(
+            "overflow-blob".to_string(),
+            100
+        )))
+        .is_err());
 
     // When: critical write arrives
     let critical_entry = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));

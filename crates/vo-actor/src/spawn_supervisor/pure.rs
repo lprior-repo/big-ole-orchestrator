@@ -168,12 +168,7 @@ mod tests {
 
     #[test]
     fn spawn_record_transitions_correctly() {
-        let record = SpawnRecord::new(
-            test_instance_id(),
-            PathBuf::from("test"),
-            vec![],
-            None,
-        );
+        let record = SpawnRecord::new(test_instance_id(), PathBuf::from("test"), vec![], None);
 
         assert_eq!(record.spawn_phase, SpawnPhase::Spawn);
 
@@ -262,7 +257,10 @@ mod tests {
         assert!(SpawnSupervisorError::AlreadyRunning.is_operational());
         assert!(SpawnSupervisorError::AlreadyShutdown.is_operational());
         assert!(SpawnSupervisorError::NotRunning.is_operational());
-        assert!(SpawnSupervisorError::ShutdownTimeout(std::time::Duration::from_secs(30)).is_operational());
+        assert!(
+            SpawnSupervisorError::ShutdownTimeout(std::time::Duration::from_secs(30))
+                .is_operational()
+        );
         assert!(SpawnSupervisorError::AtomicityViolation("test".to_string()).is_operational());
         assert!(!SpawnSupervisorError::StorageError("test".to_string()).is_operational());
     }

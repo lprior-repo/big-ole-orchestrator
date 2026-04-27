@@ -7,14 +7,8 @@ use crate::payload_parser::{
 };
 use crate::ExternalReceipt;
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RoutingProjection {}
-
-impl Default for RoutingProjection {
-    fn default() -> Self {
-        Self {}
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
@@ -214,16 +208,13 @@ impl EventPayload {
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
                 external_receipt: {
-                    let receipt_json = obj.get("external_receipt").ok_or(
-                        Error::InvalidPayloadField(
-                            "missing required field: external_receipt".to_string(),
-                        ),
-                    )?;
+                    let receipt_json =
+                        obj.get("external_receipt")
+                            .ok_or(Error::InvalidPayloadField(
+                                "missing required field: external_receipt".to_string(),
+                            ))?;
                     serde_json::from_value(receipt_json.clone()).map_err(|e| {
-                        Error::InvalidPayloadField(format!(
-                            "invalid external_receipt: {}",
-                            e
-                        ))
+                        Error::InvalidPayloadField(format!("invalid external_receipt: {}", e))
                     })?
                 },
                 fence: require_u64(obj, "fence")?,

@@ -1,4 +1,4 @@
-use super::node::{BTreeNode, BTreeError};
+use super::node::{BTreeError, BTreeNode};
 
 impl<K: Ord + Clone, V: Clone> super::BTree<K, V> {
     pub(crate) fn delete_recursive(

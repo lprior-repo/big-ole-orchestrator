@@ -42,7 +42,10 @@ mod tests {
     fn sha256_hex_empty_string() {
         let result = sha256_hex("");
         assert_eq!(result.len(), 64);
-        assert_eq!(result, "0000000000000000000000000000000000000000000000000000000000000000");
+        assert_eq!(
+            result,
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        );
     }
 
     #[test]

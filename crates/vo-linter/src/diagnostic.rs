@@ -36,6 +36,11 @@ impl Diagnostic {
     pub fn suggestion(&self) -> Option<&str> {
         self.suggestion.as_deref()
     }
+
+    #[must_use]
+    pub const fn code(&self) -> &LintCode {
+        &self.code
+    }
 }
 
 #[cfg(test)]

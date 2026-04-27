@@ -56,22 +56,10 @@ pub struct WorkflowHistoryResponse {
 
 fn default_redaction_rules() -> Vec<RedactionRule> {
     vec![
-        RedactionRule::new(
-            vec!["secrets".to_string()],
-            RedactionKind::Remove,
-        ),
-        RedactionRule::new(
-            vec!["api_key".to_string()],
-            RedactionKind::Remove,
-        ),
-        RedactionRule::new(
-            vec!["token".to_string()],
-            RedactionKind::Remove,
-        ),
-        RedactionRule::new(
-            vec!["password".to_string()],
-            RedactionKind::Remove,
-        ),
+        RedactionRule::new(vec!["secrets".to_string()], RedactionKind::Remove),
+        RedactionRule::new(vec!["api_key".to_string()], RedactionKind::Remove),
+        RedactionRule::new(vec!["token".to_string()], RedactionKind::Remove),
+        RedactionRule::new(vec!["password".to_string()], RedactionKind::Remove),
     ]
 }
 
@@ -106,10 +94,7 @@ pub async fn fetch_workflow_history(
     engine_url: &str,
     instance_id: &str,
 ) -> Result<WorkflowHistoryResponse, WorkflowHistoryError> {
-    let url = format!(
-        "{}/api/v1/workflows/{}/history",
-        engine_url, instance_id
-    );
+    let url = format!("{}/api/v1/workflows/{}/history", engine_url, instance_id);
 
     let response = reqwest::get(&url)
         .await

@@ -1,7 +1,7 @@
 //! Kani verification harnesses for effect types.
 
-use super::types::*;
 use super::transitions::*;
+use super::types::*;
 
 /// K-01: Verify apply_effect_transition exhaustiveness.
 /// All 3×2 = 6 combinations must be covered without panic.

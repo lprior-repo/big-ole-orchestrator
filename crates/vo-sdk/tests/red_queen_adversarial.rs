@@ -11,8 +11,7 @@
 //!   - unbounded-recursion: large DAG causing stack overflow in traversal
 //!   - type-confusion: unknown NodeKind variants
 
-use vo_sdk::graph::{EdgeSpec, NodeSpec, WorkflowSpec};
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use vo_sdk::graph::WorkflowSpec;
 
 #[test]
 fn rq_workflowspec_rejects_unknown_node_kind() {
@@ -189,7 +188,7 @@ fn rq_workflowspec_extra_fields_are_ignored() {
 #[test]
 fn rq_workflowspec_large_workflow_could_cause_stack_overflow() {
     let num_nodes = 100_000;
-    let mut json = format!(r#"{{"workflow_name": "massive_flow", "nodes": ["#);
+    let mut json = r#"{"workflow_name": "massive_flow", "nodes": ["#.to_string();
     for i in 0..num_nodes {
         if i > 0 {
             json.push(',');

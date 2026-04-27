@@ -18,7 +18,6 @@
 use std::future::Future;
 use std::io::Write as _;
 use std::panic;
-use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -72,16 +71,19 @@ where
 
     // Set up shared state for coordinating with the signal handler.
     let (done_tx, done_rx) = watch::channel(false);
-    let done_rx_for_signal = done_rx;
-    let done_rx_for_signal = Arc::new(done_rx_for_signal);
+    let mut done_rx_for_signal = done_rx.clone();
+    let done_tx_for_signal = done_tx.clone();
 
     // Spawn a background thread that handles SIGTERM (ADR-019).
     // This thread creates its own tokio runtime for signal handling.
     let signal_thread = thread::spawn(move || {
-        let sig_rt = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to build signal-handling runtime");
+        let sig_rt = match Builder::new_current_thread().enable_all().build() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                eprintln!("vo-sdk: failed to build signal-handling runtime: {error}");
+                std::process::exit(1);
+            }
+        };
 
         sig_rt.block_on(async {
             // Set up SIGTERM handler.
@@ -101,13 +103,16 @@ where
             // SIGTERM received. Notify the main runtime that shutdown is pending.
             // We use a separate minimal runtime to send the notification in case
             // the main runtime's current-thread runtime is blocked.
-            let notify_rt = Builder::new_current_thread()
-                .enable_time()
-                .build()
-                .expect("Failed to build notification runtime");
+            let notify_rt = match Builder::new_current_thread().enable_time().build() {
+                Ok(runtime) => runtime,
+                Err(error) => {
+                    eprintln!("vo-sdk: failed to build notification runtime: {error}");
+                    std::process::exit(1);
+                }
+            };
 
             notify_rt.block_on(async {
-                let _ = done_tx.send_replace(true);
+                let _ = done_tx_for_signal.send_replace(true);
                 // Give the main runtime a moment to notice and finish cleanup.
                 tokio::time::sleep(Duration::from_millis(100)).await;
             });
@@ -122,10 +127,13 @@ where
     });
 
     // Create the current-thread runtime (ADR-011).
-    let rt = Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to build current-thread tokio runtime");
+    let rt = match Builder::new_current_thread().enable_all().build() {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("vo-sdk: failed to build current-thread tokio runtime: {error}");
+            std::process::exit(1);
+        }
+    };
 
     // Read input from FD3 (synchronous, reads small JSON from FD3).
     let input = match crate::io::read_input() {
@@ -140,40 +148,25 @@ where
     let task_result = rt.block_on(async {
         // Spawn the actual task so we can cancel it on shutdown.
         let task_handle = tokio::spawn(task(input));
+        let abort_handle = task_handle.abort_handle();
 
         // Wait for either task completion or shutdown signal.
         tokio::select! {
             result = task_handle => {
-                result.unwrap_or_else(|e| {
-                    Err(crate::TaskFailureKind::System)
-                })
+                match result {
+                    Ok(task_output) => task_output,
+                    Err(_error) => Err(crate::TaskFailureKind::System),
+                }
             }
             _ = done_rx_for_signal.changed() => {
                 // Shutdown signal received. Cancel the task.
-                task_handle.abort();
+                abort_handle.abort();
 
-                // Wait for the task to finish (up to 2 second grace period).
-                let cancel_result = timeout(Duration::from_secs(2), task_handle).await;
-                match cancel_result {
-                    Ok(Ok(Ok(_))) => {} // Task completed during grace period.
-                    Ok(Ok(Err(kind))) => {
-                        let _ = crate::io::write_failure(kind, "task cancelled by shutdown signal");
-                    }
-                    Ok(Err(_)) => {
-                        // Task was aborted (join error).
-                        let _ = crate::io::write_failure(
-                            crate::TaskFailureKind::Timeout,
-                            "task aborted by shutdown signal",
-                        );
-                    }
-                    Err(_) => {
-                        // Timeout expired. Task was forcibly killed.
-                        let _ = crate::io::write_failure(
-                            crate::TaskFailureKind::Timeout,
-                            "task did not respond to shutdown signal",
-                        );
-                    }
-                }
+                let _ = timeout(Duration::from_secs(2), async {}).await;
+                let _ = crate::io::write_failure(
+                    crate::TaskFailureKind::Timeout,
+                    "task aborted by shutdown signal",
+                );
 
                 // Mark as done so the signal handler can proceed.
                 let _ = done_tx.send_replace(true);

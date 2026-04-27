@@ -92,7 +92,10 @@ impl Arbitrary for ArbitrarySpawnSupervisorError {
                 SpawnSupervisorError::DispatchError(s)
             )),
             (any::<String>(), any::<String>()).prop_map(|(command, error)| {
-                ArbitrarySpawnSupervisorError(SpawnSupervisorError::SpawnFailed { command, error })
+                ArbitrarySpawnSupervisorError(SpawnSupervisorError::SpawnFailed {
+                    executable: command.into(),
+                    error,
+                })
             }),
             (any::<ArbitraryInstanceId>(), any::<u32>(), any::<String>()).prop_map(
                 |(aid, check_number, error)| ArbitrarySpawnSupervisorError(

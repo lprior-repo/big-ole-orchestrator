@@ -2,10 +2,12 @@
 //!
 //! Fuzz-based property tests for RetryPolicy, next_nodes, parse, and serde.
 
+#[cfg(feature = "proptest")]
 use super::helpers;
 #[cfg(feature = "proptest")]
-use proptest::prelude::*;
 use crate::*;
+#[cfg(feature = "proptest")]
+use proptest::prelude::*;
 
 #[cfg(feature = "proptest")]
 mod proptests {

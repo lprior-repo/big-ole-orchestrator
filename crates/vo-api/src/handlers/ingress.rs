@@ -72,11 +72,10 @@ pub fn admit_ingress(
     instance_id: &InstanceId,
     ttl_ms: u64,
 ) -> Result<IngressAdmission, IngressAdmissionError> {
-    let dedupe_key = DedupeKey::parse(dedupe_key_str).map_err(|e| {
-        IngressAdmissionError::InvalidDedupeKey {
+    let dedupe_key =
+        DedupeKey::parse(dedupe_key_str).map_err(|e| IngressAdmissionError::InvalidDedupeKey {
             reason: e.to_string(),
-        }
-    })?;
+        })?;
 
     let effective_ttl = if ttl_ms == 0 {
         DEFAULT_DEDUPE_TTL_MS
@@ -90,11 +89,11 @@ pub fn admit_ingress(
 
     match result {
         AdmissionResult::Admitted => Ok(IngressAdmission::Admitted),
-        AdmissionResult::Duplicate { instance_id: existing } => {
-            Ok(IngressAdmission::Duplicate {
-                existing_instance_id: existing,
-            })
-        }
+        AdmissionResult::Duplicate {
+            instance_id: existing,
+        } => Ok(IngressAdmission::Duplicate {
+            existing_instance_id: existing,
+        }),
     }
 }
 
@@ -109,13 +108,17 @@ pub fn admit_ingress(
 /// Same error conditions as `admit_ingress`.
 pub fn admit_signal(
     store: &dyn DedupeStore,
+    namespace: &str,
     instance_id: &InstanceId,
     signal_name: &str,
     dedupe_key_str: &str,
     ttl_ms: u64,
 ) -> Result<IngressAdmission, IngressAdmissionError> {
-    // Create a composite dedupe key: sig:instance_id:signal_name:raw_key
-    // This ensures per-instance, per-signal-type deduplication.
-    let composite_key = format!("sig:{}:{signal_name}:{dedupe_key_str}", instance_id.as_str());
+    // Create a composite dedupe key: sig:namespace:instance_id:signal_name:raw_key
+    // This ensures per-namespace, per-instance, per-signal-type deduplication.
+    let composite_key = format!(
+        "sig:{namespace}:{}:{signal_name}:{dedupe_key_str}",
+        instance_id.as_str()
+    );
     admit_ingress(store, &composite_key, instance_id, ttl_ms)
 }

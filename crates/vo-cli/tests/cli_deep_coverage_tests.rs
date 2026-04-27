@@ -66,7 +66,7 @@ fn parse_purge_without_instance_returns_error() {
 fn parse_purge_with_empty_instance_succeeds() {
     let cli = interpret_cli_from(vec!["vo", "purge", "--instance", ""]).expect("parse");
     match &cli.command {
-        Command::Purge { instance } => assert_eq!(instance, ""),
+        Command::Purge { instance, .. } => assert_eq!(instance, ""),
         _ => panic!("expected Purge"),
     }
 }
@@ -76,7 +76,7 @@ fn parse_purge_with_special_chars_instance() {
     let cli =
         interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123_abc.v2"]).expect("parse");
     match &cli.command {
-        Command::Purge { instance } => assert_eq!(instance, "inst-123_abc.v2"),
+        Command::Purge { instance, .. } => assert_eq!(instance, "inst-123_abc.v2"),
         _ => panic!("expected Purge"),
     }
 }
