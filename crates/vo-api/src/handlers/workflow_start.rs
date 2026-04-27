@@ -92,7 +92,7 @@ pub async fn start_workflow(
         Some(ref id) => id.clone(),
         None => Ulid::new().to_string(),
     };
-    let instance_id = match InstanceId::parse(&instance_id_str) {
+   let instance_id = match InstanceId::parse(&instance_id_str) {
         Ok(instance_id) => instance_id,
         Err(error) => {
             return (
@@ -113,10 +113,20 @@ pub async fn start_workflow(
             reason,
         } => {
             let mut headers = HeaderMap::new();
-            headers.insert(
-                axum::http::header::RETRY_AFTER,
-                retry_after_secs.to_string().parse().expect("valid header value"),
-            );
+            let retry_header = match retry_after_secs.to_string().parse() {
+                Ok(h) => h,
+                Err(e) => {
+                    return (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiError::new(
+                            "retry_header_error",
+                            format!("failed to create Retry-After header: {e}"),
+                        )),
+                    )
+                        .into_response();
+                }
+            };
+            headers.insert(axum::http::header::RETRY_AFTER, retry_header);
             return (
                 StatusCode::TOO_MANY_REQUESTS,
                 headers,
