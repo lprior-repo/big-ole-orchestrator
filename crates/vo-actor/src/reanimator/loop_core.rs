@@ -170,7 +170,7 @@ impl ReanimatorLoop {
                 .as_u64()
                 .saturating_sub(STALE_PENDING_THRESHOLD_MS),
         )
-        .unwrap_or(TimestampMs::try_from(0u64).expect("0 is valid"));
+        .unwrap_or_else(|| TimestampMs::new_unchecked(0u64));
 
         let cleaned = storage
             .cleanup_stale_pending_timers(stale_threshold)
@@ -338,7 +338,7 @@ impl ReanimatorLoop {
         // Scan for due timers
         let scan_result = storage
             .scan_due_timers(
-                vo_types::TimestampMs::try_from(0u64).expect("0 is valid TimestampMs"),
+                vo_types::TimestampMs::new_unchecked(0u64),
                 current_time,
                 config.max_timers_per_cycle,
             )
