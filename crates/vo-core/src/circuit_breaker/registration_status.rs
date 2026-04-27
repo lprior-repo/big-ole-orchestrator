@@ -1,6 +1,39 @@
 //! Registration status enum for workflow lifecycle.
 //!
-//! Re-exports the canonical type from `vo-types`.
+//! Re-exports the canonical [`RegistrationStatus`] type from `vo-types`.
+//! This type represents the four possible states a workflow can be in during
+//! its lifecycle, as defined in [ADR-021].
+//!
+//! # Lifecycle
+//!
+//! ```text
+//!  ┌──────────┐    register    ┌──────────┐    fail N times    ┌─────────────┐
+//! │  Active   │───────────────>│  Active  │───────────────────>│ Quarantined │
+//! │  (default)│                │          │                    │             │
+//!  └──────────┘                └──────────┘                    └──────┬──────┘
+//!       │                                                              │
+//!       │              unquarantine()                                  │
+//!       │──────────────────────────────────────────────────────────────┘
+//!
+//!  ┌──────────────┐    operator removes    ┌──────────┐
+//! │  Deactivated  │───────────────────────>│ Deleted   │
+//! │               │                        └──────────┘
+//! ```
+//!
+//! # Variants
+//!
+//! | Variant | Meaning | Registrations Allowed? |
+//! |---------|---------|----------------------|
+//! | `Active` | Normal, healthy workflow | Yes (subject to rate limiting) |
+//! | `Quarantined` | Automatically blocked due to repeated failures | No |
+//! | `Deactivated` | Manually disabled by operator | No |
+//! | `Deleted` | Removed by operator | No |
+//!
+//! # See Also
+//!
+//! - [ADR-021] — Workflow registration status architecture
+//! - [`crate::circuit_breaker::evaluate_registration`] — Uses status for registration gate
+//! - [`crate::circuit_breaker::unquarantine`] — Restores `Quarantined` → `Active`
 
 pub use vo_types::RegistrationStatus;
 
