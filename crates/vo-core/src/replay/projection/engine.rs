@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
 use super::{ProjectionError, ProjectionRecord, RebuildContext, StaleReason};
+use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
 use crate::upcaster::UpcasterRegistry;
 
 // =====================================================================
