@@ -1,15 +1,9 @@
-pub mod api;
-pub mod key;
-pub mod record;
+pub mod query;
 pub mod storage;
-pub mod value;
+#[cfg(test)]
+mod tests;
+pub mod types;
 
-pub use api::{
-    poll_expired_timers, scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set,
-};
-pub use key::TimerKey;
-pub use record::TimerRecord;
-pub use storage::Storage;
-pub use value::TimerValue;
-
-pub(crate) type ScanResult = Vec<record::TimerRecord>;
+pub use query::{scan_all_timers_for_instance, scan_due_timers};
+pub use storage::{poll_expired_timers, timer_delete, timer_set, Storage, ScanResult};
+pub use types::{TimerKey, TimerRecord, TimerValue};
