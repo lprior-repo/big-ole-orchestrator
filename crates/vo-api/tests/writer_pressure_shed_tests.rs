@@ -82,11 +82,23 @@ fn build_test_app(
     writer_pressure: Arc<dyn WriterPressureGuard>,
     master: ActorRef<OrchestratorMsg>,
 ) -> Router {
+    use vo_core::circuit_breaker::CircuitBreakerState;
+    let circuit_breaker = Arc::new(CircuitBreakerState::new());
+    let tmp = tempfile::tempdir().expect("create temp dir");
+    let db = Arc::new(
+        fjall::Database::open(fjall::Config::new(tmp.path()))
+            .expect("open test db"),
+    );
+    db.keyspace("events", fjall::KeyspaceCreateOptions::default)
+        .expect("create events partition");
+    std::mem::forget(tmp);
     Router::new()
         .route("/api/v1/workflows", post(start_workflow))
         .layer(Extension(master))
         .layer(Extension(writer_pressure))
         .layer(Extension(dedupe_store))
+        .layer(Extension(circuit_breaker))
+        .layer(Extension(db))
 }
 
 fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
