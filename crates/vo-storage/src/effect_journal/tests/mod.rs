@@ -5,6 +5,7 @@
 //! - `tests_codec` — encode/decode function tests
 //! - `tests_journal_integration` — `EffectJournal` trait integration tests
 //! - `tests_journal_lifecycle` — lifecycle, error handling, and kani tests
+//! - `tests_effect_handler_errors` — handler panic, hang, and timeout error tests
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -12,6 +13,7 @@
 mod tests_codec;
 mod tests_crash_injection;
 mod tests_durability;
+mod tests_effect_handler_errors;
 mod tests_effect_id;
 mod tests_journal_durability;
 mod tests_journal_integration;

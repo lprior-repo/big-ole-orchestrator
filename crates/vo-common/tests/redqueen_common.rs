@@ -1053,3 +1053,113 @@ mod duplicate_event_id {
         }
     }
 }
+
+// ============================================================================
+// M10: Invalid enum variant rejection mutants
+// ============================================================================
+
+#[cfg(test)]
+mod invalid_enum_variants {
+    use super::*;
+
+    /// Kills: VoError unknown variant accepted silently (should reject).
+    #[test]
+    fn rq_voerror_unknown_variant_rejects() {
+        let json = r#"{"UnknownVariant":{"message":"test"}}"#;
+        let result: Result<VoError, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "unknown VoError variant must fail");
+    }
+
+    /// Kills: VoError known variants deserialize correctly.
+    #[test]
+    fn rq_voerror_config_deserializes() {
+        let json = r#"{"Config":"bad key"}"#;
+        let err: VoError = serde_json::from_str(json).expect("Config must deserialize");
+        assert!(matches!(err, VoError::Config(msg) if msg == "bad key"));
+    }
+
+    /// Kills: VoError internal variant deserializes.
+    #[test]
+    fn rq_voerror_internal_deserializes() {
+        let json = r#"{"Internal":"oops"}"#;
+        let err: VoError = serde_json::from_str(json).expect("Internal must deserialize");
+        assert!(matches!(err, VoError::Internal(msg) if msg == "oops"));
+    }
+
+    /// Kills: VoError not_found variant deserializes.
+    #[test]
+    fn rq_voerror_not_found_deserializes() {
+        let json = r#"{"NotFound":"missing thing"}"#;
+        let err: VoError = serde_json::from_str(json).expect("NotFound must deserialize");
+        assert!(matches!(err, VoError::NotFound(msg) if msg == "missing thing"));
+    }
+
+    /// Kills: VoError validation variant deserializes.
+    #[test]
+    fn rq_voerror_validation_deserializes() {
+        let json = r#"{"Validation":"invalid input"}"#;
+        let err: VoError = serde_json::from_str(json).expect("Validation must deserialize");
+        assert!(matches!(err, VoError::Validation(msg) if msg == "invalid input"));
+    }
+
+    /// Kills: VoError timeout variant deserializes.
+    #[test]
+    fn rq_voerror_timeout_deserializes() {
+        let json = r#"{"Timeout":"30s elapsed"}"#;
+        let err: VoError = serde_json::from_str(json).expect("Timeout must deserialize");
+        assert!(matches!(err, VoError::Timeout(msg) if msg == "30s elapsed"));
+    }
+
+    /// Kills: VoError roundtrip serialization works.
+    #[test]
+    fn rq_voerror_all_variants_roundtrip() {
+        for err in [
+            VoError::config("test config"),
+            VoError::internal("test internal"),
+            VoError::not_found("test not found"),
+            VoError::validation("test validation"),
+            VoError::timeout("test timeout"),
+        ] {
+            let json = serde_json::to_string(&err).expect("serialize");
+            let back: VoError = serde_json::from_str(&json).expect("deserialize roundtrip");
+            assert_eq!(err, back);
+        }
+    }
+
+    /// Kills: VoError with extra fields silently accepted.
+    #[test]
+    fn rq_voerror_extra_fields_rejected() {
+        let json = r#"{"Config":"x","extra":"garbage"}"#;
+        let result: Result<VoError, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "extra fields must fail");
+    }
+
+    /// Kills: VoError with wrong field type not handled.
+    #[test]
+    fn rq_voerror_wrong_field_type_rejected() {
+        let json = r#"{"Config":123}"#;
+        let result: Result<VoError, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "wrong field type must fail");
+    }
+
+    /// Kills: VoError null JSON accepted.
+    #[test]
+    fn rq_voerror_null_rejects() {
+        let result: Result<VoError, _> = serde_json::from_str("null");
+        assert!(result.is_err(), "null must not deserialize");
+    }
+
+    /// Kills: VoError empty object accepted.
+    #[test]
+    fn rq_voerror_empty_object_rejects() {
+        let result: Result<VoError, _> = serde_json::from_str("{}");
+        assert!(result.is_err(), "empty object must not deserialize");
+    }
+
+    /// Kills: VoError bare string accepted.
+    #[test]
+    fn rq_voerror_bare_string_rejects() {
+        let result: Result<VoError, _> = serde_json::from_str(r#""Config""#);
+        assert!(result.is_err(), "bare string must not deserialize");
+    }
+}

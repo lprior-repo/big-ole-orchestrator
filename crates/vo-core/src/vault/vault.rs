@@ -67,6 +67,16 @@ impl CredentialVault {
             ));
         }
 
+        if let Some(expires_at) = current.expires_at {
+            if expires_at <= vo_types::TimestampMs::now() {
+                return Err(CredentialError::CredentialExpired {
+                    credential_id: id.clone(),
+                    version_id: current.version_id.clone(),
+                    expired_at: expires_at,
+                });
+            }
+        }
+
         let active = entry
             .credential
             .active_version()

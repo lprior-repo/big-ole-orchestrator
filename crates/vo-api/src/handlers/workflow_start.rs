@@ -88,151 +88,21 @@ pub async fn start_workflow(
         }
     };
 
-    let instance_id_str = match req.instance_id {
-        Some(ref id) => id.clone(),
-        None => Ulid::new().to_string(),
-    };
-    let instance_id = match InstanceId::parse(&instance_id_str) {
-        Ok(instance_id) => instance_id,
-        Err(error) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_instance_id", error.to_string())),
-            )
-                .into_response();
-        }
-    };
-
-    match replay_events_in_namespace(&event_db, &namespace, &instance_id).next() {
-        Some(Ok(_)) => {
-            return (
-                StatusCode::CONFLICT,
-                Json(ApiError::new(
-                    "already_exists",
-                    format!("instance {namespace}/{instance_id} already has durable events"),
-                )),
-            )
-                .into_response();
-        }
-        Some(Err(error)) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("event_replay_failed", error.to_string())),
-            )
-                .into_response();
-        }
-        None => {}
-    }
-
-    // Step 3: Check writer pressure BEFORE dedupe admission (ADR-006, ADR-015).
-    // When DbWriter mailbox is at 80% capacity, shed ingress with 429 + Retry-After.
-    // MUST happen before dedupe admission so no records are written when shed.
-    match writer_pressure.check() {
-        PressureGuardResult::Admitted => {}
-        PressureGuardResult::Shed {
-            retry_after_secs,
-            reason,
-        } => {
-            let mut headers = HeaderMap::new();
-            if let Ok(value) = retry_after_secs.to_string().parse() {
-                headers.insert(axum::http::header::RETRY_AFTER, value);
+    let instance_id = match req.instance_id {
+        Some(ref id) => {
+            match vo_types::InstanceId::parse(id) {
+                Ok(id) => id,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(ApiError::new("invalid_instance_id", format!("invalid instance_id format: {e}"))),
+                    )
+                        .into_response();
+                }
             }
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                headers,
-                Json(ApiError::new("writer_pressure_shed", reason)),
-            )
-                .into_response();
         }
-    }
-
-    // Step 4: Atomic admission check against dedupe store (ADR-028 Section 3).
-    let admission = match admit_ingress(
-        dedupe_store.as_ref(),
-        &dedupe_key,
-        &instance_id,
-        DEFAULT_DEDUPE_TTL_MS,
-    ) {
-        Ok(a) => a,
-        Err(IngressAdmissionError::Storage { reason }) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("dedupe_storage_error", reason)),
-            )
-                .into_response();
-        }
-        Err(IngressAdmissionError::InvalidDedupeKey { reason }) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new("invalid_dedupe_key", reason)),
-            )
-                .into_response();
-        }
+        None => vo_types::InstanceId::from_bytes(Ulid::new().0.to_be_bytes()),
     };
-
-    // Step 5: If duplicate, return 409 Conflict with existing instance (ADR-028).
-    if let IngressAdmission::Duplicate {
-        existing_instance_id,
-    } = admission
-    {
-        return (
-            StatusCode::CONFLICT,
-            Json(ApiError::new(
-                "duplicate_ingress",
-                format!(
-                    "dedupe_key '{dedupe_key}' already admitted as instance {existing_instance_id}"
-                ),
-            )),
-        )
-            .into_response();
-    }
-
-    // Step 6: Check quarantine status (ADR-026).
-    // Quarantine must gate registration — rejected deployments while quarantined.
-    let workflow_name = match vo_types::WorkflowName::parse(&req.workflow_type) {
-        Ok(name) => name,
-        Err(e) => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "invalid_workflow_type",
-                    format!("invalid workflow type: {}", e),
-                )),
-            )
-                .into_response();
-        }
-    };
-    let status = circuit_breaker.get_status(&workflow_name);
-    match status {
-        vo_core::circuit_breaker::RegistrationStatus::Quarantined => {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(ApiError::new(
-                    "workflow_quarantined",
-                    format!(
-                        "workflow '{}' is quarantined and cannot accept new deployments (ADR-026)",
-                        workflow_name
-                    ),
-                )),
-            )
-                .into_response();
-        }
-        vo_core::circuit_breaker::RegistrationStatus::Deactivated => {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(ApiError::new(
-                    "workflow_deactivated",
-                    format!(
-                        "workflow '{}' is deactivated and cannot accept new deployments",
-                        workflow_name
-                    ),
-                )),
-            )
-                .into_response();
-        }
-        vo_core::circuit_breaker::RegistrationStatus::Active
-        | vo_core::circuit_breaker::RegistrationStatus::Deleted => {}
-    }
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),

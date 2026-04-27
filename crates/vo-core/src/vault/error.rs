@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use vo_types::credentials::{CredentialId, CredentialVersionId, Principal};
+use vo_types::credentials::{CredentialId, CredentialVersionId, Permission, Principal};
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CredentialError {
@@ -36,7 +36,7 @@ pub enum CredentialError {
     AccessDenied {
         principal: Principal,
         credential_id: CredentialId,
-        required_permission: super::types::Permission,
+        required_permission: Permission,
     },
 
     #[error("credential {credential_id} version {version_id} expired at {expired_at}")]

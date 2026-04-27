@@ -86,7 +86,7 @@ impl FjallDekStore {
 
     fn insert_dek_entry(&self, entry: &DekEntry) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(entry.dek_id());
-        let value = super::encode_dek_entry(entry);
+        let value = super::encode_dek_entry(entry)?;
         self.dek_partition
             .insert(&key, &value)
             .map_err(|e| DekStoreError::Storage {
@@ -123,7 +123,7 @@ impl FjallDekStore {
             Ok(Some(bytes)) => {
                 let mut entry = super::decode_dek_entry(&bytes)?;
                 entry.retire();
-                let value = super::encode_dek_entry(&entry);
+                let value = super::encode_dek_entry(&entry)?;
                 self.dek_partition
                     .insert(&key, &value)
                     .map_err(|e| DekStoreError::Storage {

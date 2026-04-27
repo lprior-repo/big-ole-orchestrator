@@ -69,9 +69,6 @@ mod reanimator_error_tests {
 
         let err = ReanimatorError::CorruptKey("bad key".to_string());
         assert_eq!(format!("{}", err), "Corrupt key format: bad key");
-
-        let err = ReanimatorError::ShutdownTimeout(Duration::from_secs(5));
-        assert_eq!(format!("{}", err), "Shutdown timed out after 5s");
     }
 }
 

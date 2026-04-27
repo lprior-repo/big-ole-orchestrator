@@ -180,14 +180,14 @@ fn test_signal_address_epoch_local() {
     assert_eq!(addr.lineage_scope(), LineageScope::EpochLocal);
 }
 
-#[test]
-fn test_epoch_new() {
-    let epoch = Epoch::new(42);
-    assert_eq!(epoch.get(), 42);
-}
+    #[test]
+    fn test_epoch_new() {
+        let epoch = Epoch::new(42);
+        assert_eq!(epoch.get(), 42);
+    }
 
-#[test]
-fn test_epoch_zero() {
-    let epoch = Epoch::ZERO;
-    assert_eq!(epoch.get(), 0);
-}
+    #[test]
+    fn test_epoch_zero() {
+        let epoch = Epoch::ZERO;
+        assert_eq!(epoch.get(), 0);
+    }

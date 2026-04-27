@@ -113,7 +113,6 @@ impl BlobStore for FsBlobStore {
 mod tests {
     use super::*;
     use crate::fs_store::integrity::*;
-    use sha2::Digest;
     use vo_types::BlobStatus;
 
     fn make_temp_store() -> FsBlobStore {

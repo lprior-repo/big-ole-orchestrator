@@ -37,7 +37,6 @@ use std::sync::Arc;
 use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::mock::{MockTimerStorage, MockWorkQueue};
-use vo_actor::reanimator::traits::{TimerStorage, WorkQueue};
 use vo_actor::reanimator::types::{validate_timer_record, TimerRecord};
 use vo_actor::reanimator::ReanimatorError;
 

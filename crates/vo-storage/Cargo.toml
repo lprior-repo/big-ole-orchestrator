@@ -30,6 +30,7 @@ generic-array = { workspace = true }
 ulid = { workspace = true }
 dashmap = { workspace = true }
 metrics = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

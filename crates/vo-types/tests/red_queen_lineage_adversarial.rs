@@ -173,6 +173,7 @@ fn rq_timer_created_in_epoch_zero_fires_in_epoch_one() {
     // After rollover, lineage is at epoch 1
     let epoch1 = root.continue_as_new().expect("rollover");
     assert_eq!(epoch1.epoch(), timer_epoch_1);
+
     // The timer was bound to the lineage, not a specific epoch
     // so it should be queryable from the current epoch
     // (lineage-wide timer query would resolve to active epoch)
@@ -302,7 +303,7 @@ fn rq_effects_created_before_rollover_visible_in_new_epoch() {
 
     // In a real system, effects would be stored with lineage_id
     // and be queryable via lineage-wide queries
-    let epoch_0_effect_lineage_id = root.lineage_id();
+    let epoch_0_effect_lineage_id = root.lineage_id().to_string();
 
     // Rollover happens
     let epoch1 = root.continue_as_new().expect("rollover");

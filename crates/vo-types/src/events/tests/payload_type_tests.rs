@@ -1,9 +1,13 @@
+<<<<<<< HEAD
+use crate::events::payload::EventPayload;
+use crate::WorkflowVersionHash;
+=======
 use crate::events::payload::{EventPayload, RoutingProjection};
-use crate::ExternalReceipt;
+>>>>>>> 74a266485 (polecat/nuka-completed-tw-rneg)
 
 #[test]
 fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started() {
-    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "dag_topology": {}, "binary_hash": "abc123", "workflow_version_hash": "vhash123", "dedupe_key_hash": null, "version": 1});
+    let json = serde_json::json!({"type": "WorkflowStarted", "workflow_id": "wf-123", "dag_topology": {}, "binary_hash": "abc123", "workflow_version_hash": "deadbeef", "dedupe_key_hash": null, "version": 1});
     let result = EventPayload::try_from_json(&json);
     assert_eq!(
         result,
@@ -11,7 +15,7 @@ fn payload_try_from_json_returns_workflow_started_when_type_is_workflow_started(
             workflow_id: "wf-123".to_string(),
             dag_topology: serde_json::json!({}),
             binary_hash: "abc123".to_string(),
-            workflow_version_hash: "vhash123".to_string(),
+            workflow_version_hash: WorkflowVersionHash::parse("deadbeef").unwrap(),
             dedupe_key_hash: None
         })
     );
@@ -198,7 +202,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             dag_topology: serde_json::json!({"nodes": []}),
             binary_hash: "abc123".to_string(),
-            workflow_version_hash: "vhash123".to_string(),
+            workflow_version_hash: WorkflowVersionHash::parse("deadbeef").unwrap(),
             dedupe_key_hash: None,
         },
         EventPayload::WorkflowCompleted {
@@ -255,13 +259,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             effect_id: "effect-1".to_string(),
-            external_receipt: ExternalReceipt::new(
-                "test-connector".to_string(),
-                "1.0.0".to_string(),
-                crate::EffectKind::HttpCall,
-                serde_json::Value::Null,
-            )
-            .unwrap(),
+            external_receipt: serde_json::json!({}),
             fence: 42,
         },
         EventPayload::TimerSet {
@@ -309,7 +307,7 @@ fn payload_all_variants_round_trip_via_serde() {
                     "workflow_id": workflow_id,
                     "dag_topology": dag_topology,
                     "binary_hash": binary_hash,
-                    "workflow_version_hash": workflow_version_hash,
+                    "workflow_version_hash": workflow_version_hash.as_str(),
                     "dedupe_key_hash": dedupe_key_hash,
                     "version": 1
                 })

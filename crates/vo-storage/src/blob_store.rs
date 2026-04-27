@@ -61,9 +61,17 @@ use vo_types::BlobStatus;
 /// `content_addr` is always exactly 64 characters of lowercase hex (0-9, a-f),
 /// representing a full SHA-256 digest.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
-#[expect(clippy::unsafe_derive_deserialize)]
-#[derive(Deserialize)]
 pub struct ContentAddress(String);
+
+impl<'de> Deserialize<'de> for ContentAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        ContentAddress::new(&s).map_err(|e| serde::de::Error::custom(e))
+    }
+}
 
 impl ContentAddress {
     const LENGTH: usize = 64;

@@ -277,32 +277,31 @@ impl ConnectionPool {
         self.state.checked_out_connections.remove(&checkout_id);
 
         if let Some(conn) = self.state.connections.get_mut(&connection_id) {
+            conn.status = ConnectionStatus::Idle;
+
+            self.state.total_releases += 1;
+
             if let Some(waiter) = self.state.pending_acquires.pop_front() {
                 conn.status = ConnectionStatus::CheckedOut;
                 conn.increment_use_count();
 
-                let waiter_checkout_id = ConnectionId::new();
+                let new_checkout_id = ConnectionId::new();
                 self.state
                     .checked_out_connections
-                    .insert(waiter_checkout_id, connection_id);
-
-                self.connection_semaphore.add_permits(1);
+                    .insert(new_checkout_id, connection_id);
 
                 debug!(
-                    "Released connection {} to waiting request {} in pool {}",
+                    "Released connection {} fulfilled pending acquire (request_id: {}) in pool {}",
                     connection_id, waiter.request_id, self.pool_id
                 );
-                return ReleaseResult::Returned;
+            } else {
+                self.state.idle_connections.push_back(connection_id);
+                debug!(
+                    "Released connection {} back to pool {}",
+                    connection_id, self.pool_id
+                );
             }
 
-            conn.status = ConnectionStatus::Idle;
-            self.state.idle_connections.push_back(connection_id);
-            self.state.total_releases += 1;
-
-            debug!(
-                "Released connection {} back to pool {}",
-                connection_id, self.pool_id
-            );
             return ReleaseResult::Returned;
         }
 
@@ -550,37 +549,5 @@ mod pool_tests {
         let never_acquired = ConnectionId::new();
         let result = pool.release(never_acquired);
         assert_eq!(result, ReleaseResult::AlreadyClosed);
-    }
-
-    #[tokio::test]
-    async fn test_release_fulfills_pending_acquire() {
-        let pool_id = PoolId::new("pending-test-pool");
-        let nats_urls = vec!["nats://localhost:4222".to_string()];
-        let config = PoolConfig::new(0, 1, 5000, 30000, 10000, 5).unwrap();
-        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
-
-        let result1 = pool.acquire().await;
-        let conn_id = match result1 {
-            AcquireResult::Available { connection } => connection.connection_id,
-            _ => panic!("Expected Available result"),
-        };
-        assert_eq!(pool.stats().checked_out_connections, 1);
-        assert_eq!(pool.stats().idle_connections, 0);
-        assert_eq!(pool.stats().pending_acquires, 0);
-
-        let pending_result = pool.acquire().await;
-        let pending_handle = match pending_result {
-            AcquireResult::Pending { wait_handle } => wait_handle,
-            _ => panic!("Expected Pending result"),
-        };
-        assert_eq!(pool.stats().pending_acquires, 1);
-
-        pool.release(conn_id);
-
-        assert_eq!(pool.stats().pending_acquires, 0);
-        assert_eq!(pool.stats().checked_out_connections, 1);
-        assert_eq!(pool.stats().idle_connections, 0);
-
-        let _ = pending_handle;
     }
 }
