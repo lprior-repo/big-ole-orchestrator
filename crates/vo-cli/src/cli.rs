@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use crate::commands::purge::PurgeError;
 use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("{0}")]
     Clap(#[from] clap::Error),
+    #[error(transparent)]
+    Purge(#[from] PurgeError),
     #[error("invalid numeric: {0}")]
     InvalidNumeric(String),
     #[error("dispatch error: {0}")]
@@ -37,6 +40,8 @@ pub enum CliError {
 pub enum Command {
     Purge {
         instance: String,
+        storage_path: PathBuf,
+        dry_run: bool,
     },
     Check {
         workflow: bool,
@@ -88,6 +93,7 @@ pub enum Command {
         instance_id: String,
         engine_url: String,
         json: bool,
+        canonical: bool,
     },
 }
 
@@ -110,13 +116,27 @@ where
         .subcommand_required(true)
         .arg_required_else_help(true)
         .subcommand(
-            clap::Command::new("purge").arg(
-                clap::Arg::new("instance")
-                    .long("instance")
-                    .required(true)
-                    .value_name("ID")
-                    .help("The instance ID to purge"),
-            ),
+            clap::Command::new("purge")
+                .about("Purge all data for a terminated workflow instance (ADR-025)")
+                .arg(
+                    clap::Arg::new("instance")
+                        .long("instance")
+                        .required(true)
+                        .value_name("ID")
+                        .help("The instance ID to purge"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .env("VO_STORAGE_PATH")
+                        .default_value(".vo/storage"),
+                )
+                .arg(
+                    clap::Arg::new("dry-run")
+                        .long("dry-run")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Show what would be purged without deleting"),
+                ),
         )
         .subcommand(
             clap::Command::new("check")
@@ -302,6 +322,12 @@ where
                         .long("json")
                         .action(clap::ArgAction::SetTrue)
                         .help("Output redacted workflow history as stable JSON (operator projection)"),
+                )
+                .arg(
+                    clap::Arg::new("canonical")
+                        .long("canonical")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Output canonical encrypted state for deep forensic inspection (privileged)"),
                 ),
         )
         .subcommand(
@@ -522,11 +548,13 @@ where
                 .cloned()
                 .unwrap_or_else(|| "http://localhost:3000".to_string());
             let json = sub_matches.get_flag("json");
+            let canonical = sub_matches.get_flag("canonical");
             Ok(Cli {
                 command: Command::History {
                     instance_id,
                     engine_url,
                     json,
+                    canonical,
                 },
             })
         }

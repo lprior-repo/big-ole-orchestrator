@@ -7,9 +7,9 @@ use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
-use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, SpawnSupervisorMetrics};
-use super::{ProcessManager, WorkQueue};
+use super::traits::ProcessManager;
+use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState};
+use super::{SpawnStorage, SpawnSupervisorMetrics, WorkQueue};
 
 // =============================================================================
 // `SpawnSupervisor` - Async actor that manages spawn lifecycle

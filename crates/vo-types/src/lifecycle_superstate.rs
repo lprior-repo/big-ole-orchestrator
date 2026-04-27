@@ -118,10 +118,18 @@ mod tests {
     }
 
     #[test]
-    fn preparing_effect_maps_to_active() {
+    fn preparing_effect_maps_to_compensating() {
         assert_eq!(
             LifecycleState::PreparingEffect.superstate(),
-            LifecycleSuperstate::Active
+            LifecycleSuperstate::Compensating
+        );
+    }
+
+    #[test]
+    fn failed_maps_to_recovering() {
+        assert_eq!(
+            LifecycleState::Failed.superstate(),
+            LifecycleSuperstate::Recovering
         );
     }
 

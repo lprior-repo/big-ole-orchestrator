@@ -127,7 +127,12 @@ pub fn effect_committed_payload(
         "workflow_id": workflow_id,
         "step_id": step_id,
         "effect_id": effect_id,
-        "external_receipt": null,
+        "external_receipt": {
+            "connector_id": "test-connector",
+            "connector_version": "1.0.0",
+            "sink_kind": "HttpCall",
+            "receipt_payload": {}
+        },
         "fence": 1,
         "version": 1
     })

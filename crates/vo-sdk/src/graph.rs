@@ -9,7 +9,7 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, SignalScope, WorkflowName};
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -49,6 +49,9 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     }
 }
 
+/// Metadata for Signal/Wait nodes in a workflow graph.
+pub type SignalNodeMeta = SignalScope;
+
 /// Specification of a single workflow node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeSpec {
@@ -56,6 +59,8 @@ pub struct NodeSpec {
     pub kind: NodeKind,
     #[serde(default = "default_retry_policy")]
     pub retry_policy: RetryPolicy,
+    #[serde(default)]
+    pub signal_meta: Option<SignalNodeMeta>,
 }
 
 fn default_retry_policy() -> RetryPolicy {

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::effects::CompensationPolicy;
+use crate::node_kind::NodeKind;
 use crate::NodeName;
 
 // ---------------------------------------------------------------------------
@@ -16,7 +17,52 @@ pub enum StepOutcome {
 }
 
 // ---------------------------------------------------------------------------
-// EdgeCondition
+// ConnectorRequirement
+// ---------------------------------------------------------------------------
+
+/// Requirements for a managed connector effect (ADR-041).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConnectorRequirement {
+    /// Connector identifier.
+    pub connector_id: String,
+    /// Connector version constraint.
+    pub version_constraint: String,
+    /// Whether reconciliation is required after commit.
+    pub requires_reconciliation: bool,
+}
+
+// ---------------------------------------------------------------------------
+// NodeCapability
+// ---------------------------------------------------------------------------
+
+/// The capability profile of a workflow node (ADR-009, ADR-031).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NodeCapability {
+    /// Node kind classification (pure, managed effect, wait, signal, unsafe).
+    pub kind: NodeKind,
+    /// Connector requirements if this node performs managed effects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connector: Option<ConnectorRequirement>,
+}
+
+impl NodeCapability {
+    #[must_use]
+    pub fn new(kind: NodeKind) -> Self {
+        Self {
+            kind,
+            connector: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_connector(mut self, connector: ConnectorRequirement) -> Self {
+        self.connector = Some(connector);
+        self
+    }
+}
+
+// ---------------------------------------------------------------------------
+// DagNode (expanded with capability metadata)
 // ---------------------------------------------------------------------------
 
 /// Condition on which an edge is traversed.
@@ -182,6 +228,9 @@ pub struct DagNode {
     pub retry_policy: RetryPolicy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compensation_policy: Option<CompensationPolicy>,
+    /// Node capability metadata (ADR-009, ADR-031).
+    #[serde(default)]
+    pub capability: NodeCapability,
 }
 
 impl DagNode {
@@ -201,6 +250,7 @@ impl DagNode {
             node_name,
             retry_policy: RetryPolicy::new(1, 0, 1.0)?,
             compensation_policy: None,
+            capability: NodeCapability::new(NodeKind::Pure),
         })
     }
 }

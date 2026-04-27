@@ -9,6 +9,7 @@
 //!   - [`exact_once_verification::assertions`] - Invariant checking for recovery
 //!   - [`exact_once_verification::crash_points`] - Injectable crash scenarios for testing
 //!   - [`exact_once_verification::harness`] - Verification harness for lineage routing
+//!   - [`exact_once_verification::release_gate`] - Black-hat review gate for release-gate beads
 //! - [`workflow_version`] - Workflow schema versioning and migration
 //! - [`replay`] - Event sourcing and state replay logic
 //! - [`snapshot_compat`] - Snapshot compatibility checks

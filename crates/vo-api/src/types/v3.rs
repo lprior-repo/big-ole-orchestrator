@@ -106,6 +106,32 @@ pub struct HistoryResponse {
     pub entries: Vec<HistoryEntry>,
 }
 
+/// Canonical history entry with full event data for forensic inspection (ADR-008).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanonicalHistoryEntry {
+    pub sequence: u64,
+    pub timestamp_ms: u64,
+    pub schema_version: u8,
+    pub event_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub step_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<serde_json::Value>,
+    /// Full raw payload including secrets and encrypted fields (privileged access).
+    pub raw_payload: serde_json::Value,
+}
+
+/// Canonical history response for deep forensic inspection (ADR-008).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanonicalHistoryResponse {
+    pub instance_id: String,
+    pub entries: Vec<CanonicalHistoryEntry>,
+    pub total_replayed: usize,
+    pub warning: String,
+}
+
 /// Semantic guarantee class for an effect.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

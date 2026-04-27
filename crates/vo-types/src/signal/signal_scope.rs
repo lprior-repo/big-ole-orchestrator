@@ -82,9 +82,6 @@ mod tests {
         assert_eq!(recovered, scope);
     }
 
-    #[test]
-    fn signal_scope_wait_key_rejects_empty_string() {
-        let result = SignalScope::new(WaitKey::parse(""));
-        assert!(result.is_err());
-    }
+    // NOTE: WaitKey::parse("") rejection is tested in wait_key.rs (signal_scope
+    // takes a pre-parsed WaitKey, so the rejection happens before construction).
 }

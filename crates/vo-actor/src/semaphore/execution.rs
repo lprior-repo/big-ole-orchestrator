@@ -228,7 +228,7 @@ impl ExecutionSemaphore {
             // the acquire_timeout before the permit could be released.
             let result = tokio::time::timeout(
                 Duration::from_secs(5),
-                futures_future::future::join_all(handles),
+                futures::future::join_all(handles),
             )
             .await;
 
@@ -241,7 +241,7 @@ impl ExecutionSemaphore {
             let decisions = result.unwrap();
             let admitted_count = decisions
                 .into_iter()
-                .filter(|d| matches!(d, AdmissionDecision::Admitted))
+                .filter(|d| matches!(d.as_ref().unwrap(), AdmissionDecision::Admitted))
                 .count();
             assert_eq!(
                 admitted_count, num_waiters,

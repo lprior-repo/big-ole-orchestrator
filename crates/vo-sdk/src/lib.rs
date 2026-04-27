@@ -4,6 +4,7 @@
 //!
 //! ## Modules
 //!
+//! - [`runtime`] - Async task execution with current-thread Tokio runtime (ADR-011)
 //! - [`io`] - I/O helpers: `read_input`, `write_success`, `write_failure` with single-write guard
 //! - [`graph`] - Graph emission: `--graph` CLI argument handling and workflow specification types
 //! - [`dag`] - DAG construction with compile-time type-safe workflow graph builder
@@ -37,10 +38,29 @@
 //! let spec = wf.build().unwrap();
 //! emit_graph_if_requested(&std::env::args().collect::<Vec<_>>(), &spec);
 //! ```
+//!
+//! ## Task Execution
+//!
+//! Task binaries use [`runtime::start`] as their entry point instead of `#[tokio::main]`:
+//!
+//! ```ignore
+//! use vo_sdk::runtime::start;
+//! use vo_sdk::TaskInput;
+//!
+//! fn main() {
+//!     start(|input: TaskInput| async move {
+//!         // Your async task logic here
+//!         Ok(serde_json::json!({"result": "done"}))
+//!     });
+//! }
+//! ```
+//!
+//! This provides sub-millisecond startup vs ~200ms for a full Tokio multi-threaded runtime.
 
 pub mod dag;
 pub mod graph;
 pub mod node_handle;
+pub mod runtime;
 
 pub use dag::Workflow;
 pub use graph::{

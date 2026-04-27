@@ -653,8 +653,8 @@ fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
 
     assert_eq!(
         key.len(),
-        24,
-        "event key must be exactly 24 bytes (16-byte instance + 8-byte sequence)"
+        26,
+        "event key must be exactly 26 bytes (2-byte length prefix + 16-byte instance + 8-byte sequence)"
     );
 
     let iid_bytes = id.to_bytes().unwrap();
@@ -663,9 +663,11 @@ fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
         16,
         "InstanceId::to_bytes must produce exactly 16 bytes (ULID binary)"
     );
+    // Bytes 0..2 are length prefix (16), bytes 2..18 are instance bytes
+    assert_eq!(&key[0..2], 16u16.to_be_bytes());
     assert_eq!(
-        &key[..16], &iid_bytes,
-        "first 16 bytes of event key must be the raw ULID bytes"
+        &key[2..18], &iid_bytes,
+        "bytes 2..18 of event key must be the raw ULID bytes"
     );
 
     let reconstructed = InstanceId::from_bytes(iid_bytes);
@@ -681,12 +683,12 @@ fn given_event_key_when_encoded_with_ulid_then_instance_bytes_are_preserved() {
     let id2 = InstanceId::parse("7ZZZZZZZZZZZZZZZZZZZZZZZZZ").unwrap();
     let key2 = encode_event_key(&id2, seq);
     assert_eq!(
-        key2.len(), 24,
-        "different InstanceId still produces 24-byte key (fixed width)"
+        key2.len(), 26,
+        "different InstanceId still produces 26-byte key (length-prefixed)"
     );
     assert_ne!(
-        key[..16], key2[..16],
-        "different InstanceIds must differ in the first 16 bytes"
+        key[2..18], key2[2..18],
+        "different InstanceIds must differ in bytes 2..18"
     );
 }
 
@@ -736,10 +738,13 @@ fn given_legacy_delimiter_lease_keys_when_startup_scans_then_keys_are_migrated_o
         "new format lease key should NOT be detected as legacy"
     );
 
-    // And: new format key does not contain :: delimiter
+    // And: new format key does not contain :: as a field delimiter
+    // (the 16-byte instance ID binary may contain 0x3A bytes, but not as :: delimiter)
+    let sid_start = 18;
+    let sid_bytes = &new_key[sid_start..];
     assert!(
-        !new_key.iter().any(|&b| b == b':'),
-        "new format key should not contain colon delimiter"
+        !sid_bytes.windows(2).any(|w| w == b"::"),
+        "new format step_id portion should not contain :: delimiter"
     );
 
     // And: new format key is length-prefixed and starts with instance ID bytes

@@ -6,8 +6,10 @@ use axum::{
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::{OrchestratorMsg, TerminateError};
+use vo_core::circuit_breaker::{CircuitBreakerState, UnquarantineResult};
 use vo_types::WorkflowName;
 
 use crate::handlers::helpers::split_path_id;
@@ -102,8 +104,9 @@ pub async fn terminate_workflow(
 #[tracing::instrument(skip_all)]
 pub async fn unquarantine_workflow(
     Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Path(id): Path<String>,
-    Json(_req): Json<UnquarantineRequest>,
+    Json(req): Json<UnquarantineRequest>,
 ) -> impl IntoResponse {
     let (_, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
@@ -119,7 +122,7 @@ pub async fn unquarantine_workflow(
         }
     };
 
-    let _workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
+    let workflow_name = match WorkflowName::parse(&instance_id.to_string()) {
         Ok(name) => name,
         Err(_) => {
             return (
@@ -133,14 +136,42 @@ pub async fn unquarantine_workflow(
         }
     };
 
-    (
-        StatusCode::NOT_IMPLEMENTED,
-        Json(ApiError::new(
-            "not_implemented",
-            "circuit breaker state injection required (see bead ve-jfj5)",
-        )),
-    )
-        .into_response()
+    let operator = req.operator;
+
+    match vo_core::circuit_breaker::unquarantine(&workflow_name, &operator, circuit_breaker.as_ref()) {
+        Ok(UnquarantineResult {
+            workflow_name,
+            previous_status,
+            new_status,
+            failures_cleared,
+        }) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "workflow_name": workflow_name.to_string(),
+                "previous_status": format!("{:?}", previous_status),
+                "new_status": format!("{:?}", new_status),
+                "failures_cleared": failures_cleared,
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            let (status, error_code, message) = match e {
+                vo_core::circuit_breaker::CircuitBreakerError::WorkflowNotFound { workflow_name } => {
+                    (StatusCode::NOT_FOUND, "workflow_not_found", format!("workflow '{}' not found", workflow_name))
+                }
+                vo_core::circuit_breaker::CircuitBreakerError::NotQuarantined { workflow_name, current_status } => {
+                    (StatusCode::CONFLICT, "not_quarantined", format!("workflow '{}' is not quarantined (current status: {:?})", workflow_name, current_status))
+                }
+                vo_core::circuit_breaker::CircuitBreakerError::StorageError { reason } => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "storage_error", format!("storage error: {}", reason))
+                }
+                _ => {
+                    (StatusCode::INTERNAL_SERVER_ERROR, "unquarantine_failed", e.to_string())
+                }
+            };
+            (status, Json(ApiError::new(error_code, message))).into_response()
+        }
+    }
 }
 
 /// POST /api/v1/workflows/:id/compensate — trigger manual compensation for a workflow instance.

@@ -73,20 +73,32 @@ impl LifecycleState {
     }
 
     /// Map this flat state to its hierarchical superstate (ADR-039).
+    ///
+    /// Superstate assignments per ADR-039:
+    /// - `Active`: states where the workflow is actively processing
+    /// - `Suspended`: states where execution is paused (waiting/holding)
+    /// - `Recovering`: states where the instance is being recovered from failure
+    /// - `Compensating`: states where forward effects are being compensated
+    /// - `Terminal`: states where the workflow has permanently ended
     #[must_use]
     pub fn superstate(&self) -> crate::lifecycle_superstate::LifecycleSuperstate {
         match self {
             LifecycleState::Pending
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
-            | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect => {
+            | LifecycleState::StepExecuting => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Active
+            }
+            LifecycleState::PreparingEffect => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Compensating
             }
             LifecycleState::WaitingForTimer | LifecycleState::PendingPublication => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
-            LifecycleState::Completed | LifecycleState::Failed | LifecycleState::Cancelled => {
+            LifecycleState::Failed => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Recovering
+            }
+            LifecycleState::Completed | LifecycleState::Cancelled => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Terminal
             }
         }

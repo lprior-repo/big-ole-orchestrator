@@ -15,16 +15,25 @@ use serde::{Deserialize, Serialize};
 use crate::workspace::WorkspaceId;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum DocumentType {
+    Workspace,
+    Workflow,
+    Execution,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SearchResult {
     pub document_id: WorkspaceId,
     pub score: f64,
     pub workspace_id: String,
     pub matched_terms: Vec<String>,
+    pub document_type: DocumentType,
 }
 
 #[derive(Debug, Clone)]
 struct DocumentEntry {
     workspace_id: String,
+    doc_type: DocumentType,
     #[allow(dead_code)]
     text: String,
     #[allow(dead_code)]
@@ -42,7 +51,7 @@ fn tokenize(text: &str) -> Vec<String> {
 #[derive(Debug, Clone)]
 pub struct SearchEngine {
     index: InvertedIndex,
-    documents: HashMap<WorkspaceId, DocumentEntry>,
+    documents: HashMap<String, DocumentEntry>,
 }
 
 impl Default for SearchEngine {
@@ -79,8 +88,8 @@ impl SearchEngine {
             .sum::<u32>() as f64
             / total_docs;
 
-        let mut scores: BTreeMap<WorkspaceId, f64> = BTreeMap::new();
-        let mut matched_terms: HashMap<WorkspaceId, HashSet<String>> = HashMap::new();
+        let mut scores: BTreeMap<String, f64> = BTreeMap::new();
+        let mut matched_terms: HashMap<String, HashSet<String>> = HashMap::new();
 
         for term in &query.terms {
             let postings = match self.index.get(term) {
@@ -111,10 +120,11 @@ impl SearchEngine {
                     .cloned()
                     .collect();
                 Some(SearchResult {
-                    document_id: doc_id,
+                    document_id: doc_id.parse().unwrap_or_else(|_| WorkspaceId::generate()),
                     score,
                     workspace_id: doc.workspace_id.clone(),
                     matched_terms: terms,
+                    document_type: doc.doc_type.clone(),
                 })
             })
             .collect();
