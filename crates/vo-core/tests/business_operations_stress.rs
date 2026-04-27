@@ -42,7 +42,7 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force { Some("test-operator-token".into()) } else { None },
     }
 }
 
@@ -668,9 +668,10 @@ fn bos05_composite_quota_and_breaker_interaction() {
     let force_request = RegistrationRequest {
         workflow_name: wf.clone(),
         binary_hash: make_hash("deadbeef"),
-        force: true,
+        force: Some("test-operator-token".into()),
     };
 
+    cb_state.register_operator_token("test-operator-token".into());
     let force_result = evaluate_registration(&force_request, &cb_config, &cb_state, t0);
     assert_eq!(
         force_result,

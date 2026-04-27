@@ -4,7 +4,8 @@ use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
 use crate::job::ScheduledJob;
-use crate::types::{JobId, JobKind, JobPriority, JobState, SchedulePolicy};
+use crate::metrics;
+use crate::types::{JobId, JobPriority, JobState, SchedulePolicy};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct QueueEntry {
@@ -55,6 +56,8 @@ impl SchedulerQueue {
         };
         self.heap.push(entry);
         self.jobs.insert(job_id, job);
+        metrics::jobs_scheduled_total();
+        metrics::set_queue_depth(self.jobs.len());
         Ok(job_id)
     }
 
@@ -64,6 +67,7 @@ impl SchedulerQueue {
             .remove(job_id)
             .ok_or(SchedulerError::JobNotFound)?;
         self.heap.retain(|entry| &entry.job_id != job_id);
+        metrics::set_queue_depth(self.jobs.len());
         Ok(job)
     }
 
@@ -85,6 +89,13 @@ impl SchedulerQueue {
             .get_mut(job_id)
             .ok_or(SchedulerError::JobNotFound)?;
         job.transition(new_state)?;
+        match new_state {
+            JobState::Completed => metrics::jobs_completed_total(),
+            JobState::Failed => metrics::jobs_failed_total(),
+            JobState::Cancelled => metrics::jobs_cancelled_total(),
+            JobState::Retrying => metrics::jobs_retried_total(),
+            _ => {}
+        }
         Ok(())
     }
 

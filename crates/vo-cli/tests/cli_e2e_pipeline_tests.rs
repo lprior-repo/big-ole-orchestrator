@@ -29,26 +29,26 @@ use vo_cli::{
 
 fn setup_project(dir: &Path) {
     let vo_dir = dir.join(".vo");
-    fs::create_dir_all(vo_dir.join("workflows")).unwrap();
-    fs::create_dir_all(vo_dir.join("storage")).unwrap();
+    fs::create_dir_all(vo_dir.join("workflows")).expect("create directory");
+    fs::create_dir_all(vo_dir.join("storage")).expect("create directory");
     fs::write(
         dir.join(CONFIG_FILE_NAME),
         "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \".vo/storage\"\n",
     )
-    .unwrap();
+    .expect("write file");
 }
 
 fn create_elf_binary(dir: &Path, name: &str) -> PathBuf {
     let path = dir.join(name);
-    fs::write(&path, [0x7Fu8, 0x45, 0x4C, 0x46, 0x00, 0x00, 0x00, 0x00]).unwrap();
+    fs::write(&path, [0x7Fu8, 0x45, 0x4C, 0x46, 0x00, 0x00, 0x00, 0x00]).expect("write file");
     path
 }
 
 fn create_workflow_binary(dir: &Path, name: &str, content: &[u8]) -> PathBuf {
     let wf_dir = dir.join(".vo/workflows");
-    fs::create_dir_all(&wf_dir).unwrap();
+    fs::create_dir_all(&wf_dir).expect("create directory");
     let path = wf_dir.join(name);
-    fs::write(&path, content).unwrap();
+    fs::write(&path, content).expect("write file");
     path
 }
 
@@ -58,7 +58,7 @@ fn create_workflow_binary(dir: &Path, name: &str, content: &[u8]) -> PathBuf {
 
 #[test]
 fn e2e_full_pipeline_happy_path() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let project_dir = dir.path();
 
     run_init(&InitConfig {
@@ -66,7 +66,7 @@ fn e2e_full_pipeline_happy_path() {
         engine_url: "http://localhost:3000".to_string(),
         storage_path: PathBuf::from(".vo/storage"),
     })
-    .unwrap();
+    .expect("init should succeed");
 
     assert!(project_dir.join(".vo").is_dir());
     assert!(project_dir.join(".vo/workflows").is_dir());
@@ -77,7 +77,7 @@ fn e2e_full_pipeline_happy_path() {
     let lockmap = run_lock(&LockConfig {
         project_dir: project_dir.to_path_buf(),
     })
-    .unwrap();
+    .expect("lock should succeed");
     assert_eq!(lockmap.len(), 1);
     assert!(lockmap.contains_key("test-wf"));
     assert!(project_dir.join(LOCK_FILE_NAME).exists());
@@ -85,7 +85,7 @@ fn e2e_full_pipeline_happy_path() {
     let report = run_doctor(&DoctorConfig {
         project_dir: project_dir.to_path_buf(),
     })
-    .unwrap();
+    .expect("doctor should succeed");
     assert!(report.is_healthy());
 
     let rebuild_report = run_rebuild(&RebuildConfig {
@@ -95,13 +95,13 @@ fn e2e_full_pipeline_happy_path() {
         force: false,
         schema_version: None,
     })
-    .unwrap();
+    .expect("rebuild should succeed");
     assert!(matches!(rebuild_report.status, RebuildStatus::Listed(_)));
 }
 
 #[test]
 fn e2e_init_lock_tamper_doctor_catches_mismatch() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let project_dir = dir.path();
 
     run_init(&InitConfig {
@@ -109,28 +109,28 @@ fn e2e_init_lock_tamper_doctor_catches_mismatch() {
         engine_url: "http://localhost:3000".to_string(),
         storage_path: PathBuf::from(".vo/storage"),
     })
-    .unwrap();
+    .expect("init should succeed");
 
     create_workflow_binary(project_dir, "my-wf", b"original content");
 
     run_lock(&LockConfig {
         project_dir: project_dir.to_path_buf(),
     })
-    .unwrap();
+    .expect("lock should succeed");
 
-    fs::write(project_dir.join(".vo/workflows/my-wf"), b"tampered content").unwrap();
+    fs::write(project_dir.join(".vo/workflows/my-wf"), b"tampered content").expect("write file");
 
     let report = run_doctor(&DoctorConfig {
         project_dir: project_dir.to_path_buf(),
     })
-    .unwrap();
+    .expect("doctor should succeed");
     assert!(!report.is_healthy());
     assert!(report.errors().any(|e| e.check == "lock-integrity"));
 }
 
 #[test]
 fn e2e_init_idempotent_same_config() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let project_dir = dir.path();
 
     let config = InitConfig {
@@ -139,14 +139,14 @@ fn e2e_init_idempotent_same_config() {
         storage_path: PathBuf::from(".vo/storage"),
     };
 
-    let vo1 = run_init(&config).unwrap();
-    let vo2 = run_init(&config).unwrap();
+    let vo1 = run_init(&config).expect("init should succeed");
+    let vo2 = run_init(&config).expect("init should succeed");
     assert_eq!(vo1, vo2);
 }
 
 #[test]
 fn e2e_init_rejects_different_config() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let project_dir = dir.path();
 
     let config1 = InitConfig {
@@ -154,7 +154,7 @@ fn e2e_init_rejects_different_config() {
         engine_url: "http://localhost:3000".to_string(),
         storage_path: PathBuf::from(".vo/storage"),
     };
-    run_init(&config1).unwrap();
+    run_init(&config1).expect("init should succeed");
 
     let config2 = InitConfig {
         project_dir: project_dir.to_path_buf(),
@@ -167,7 +167,7 @@ fn e2e_init_rejects_different_config() {
 
 #[test]
 fn e2e_doctor_without_init_returns_error() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let result = run_doctor(&DoctorConfig {
         project_dir: dir.path().to_path_buf(),
     });
@@ -176,7 +176,7 @@ fn e2e_doctor_without_init_returns_error() {
 
 #[test]
 fn e2e_rebuild_without_init_returns_error() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let result = run_rebuild(&RebuildConfig {
         project_dir: dir.path().to_path_buf(),
         projection_id: Some("proj-1".to_string()),
@@ -189,7 +189,7 @@ fn e2e_rebuild_without_init_returns_error() {
 
 #[test]
 fn e2e_rebuild_requires_projection_id() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
 
     let result = run_rebuild(&RebuildConfig {
@@ -204,7 +204,7 @@ fn e2e_rebuild_requires_projection_id() {
 
 #[test]
 fn e2e_lock_without_init_returns_error() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let result = run_lock(&LockConfig {
         project_dir: dir.path().to_path_buf(),
     });
@@ -213,10 +213,10 @@ fn e2e_lock_without_init_returns_error() {
 
 #[test]
 fn e2e_lock_with_empty_workflows_returns_error() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let project_dir = dir.path();
-    fs::create_dir_all(project_dir.join(".vo/workflows")).unwrap();
-    fs::write(project_dir.join(CONFIG_FILE_NAME), "").unwrap();
+    fs::create_dir_all(project_dir.join(".vo/workflows")).expect("create directory");
+    fs::write(project_dir.join(CONFIG_FILE_NAME), "").expect("write file");
 
     let result = run_lock(&LockConfig {
         project_dir: project_dir.to_path_buf(),
@@ -226,7 +226,7 @@ fn e2e_lock_with_empty_workflows_returns_error() {
 
 #[test]
 fn e2e_check_valid_elf_binary() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let path = create_elf_binary(dir.path(), "test.bin");
     let result = validate_binary_header(&path);
     assert_eq!(result, Ok(BinaryFormat::Elf));
@@ -244,7 +244,7 @@ fn e2e_check_nonexistent_file() {
 
 #[test]
 fn parse_init_all_defaults() {
-    let cli = interpret_cli_from(vec!["vo", "init"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "init"]).expect("valid CLI input");
     match cli.command {
         Command::Init {
             project_dir,
@@ -261,7 +261,7 @@ fn parse_init_all_defaults() {
 
 #[test]
 fn parse_init_custom_project_dir() {
-    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/custom/dir"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/custom/dir"]).expect("valid CLI input");
     match cli.command {
         Command::Init { project_dir, .. } => {
             assert_eq!(project_dir, PathBuf::from("/custom/dir"));
@@ -282,7 +282,7 @@ fn parse_init_all_custom() {
         "--storage-path",
         "/data/vo",
     ])
-    .unwrap();
+    .expect("valid CLI input");
     match cli.command {
         Command::Init {
             project_dir,
@@ -299,7 +299,7 @@ fn parse_init_all_custom() {
 
 #[test]
 fn parse_rebuild_defaults() {
-    let cli = interpret_cli_from(vec!["vo", "rebuild"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "rebuild"]).expect("valid CLI input");
     match cli.command {
         Command::Rebuild {
             project_dir,
@@ -318,7 +318,7 @@ fn parse_rebuild_defaults() {
 
 #[test]
 fn parse_rebuild_with_projection_id() {
-    let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "my-proj"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "my-proj"]).expect("valid CLI input");
     match cli.command {
         Command::Rebuild { projection_id, .. } => {
             assert_eq!(projection_id, Some("my-proj".to_string()));
@@ -329,7 +329,7 @@ fn parse_rebuild_with_projection_id() {
 
 #[test]
 fn parse_rebuild_list_only() {
-    let cli = interpret_cli_from(vec!["vo", "rebuild", "--list"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "rebuild", "--list"]).expect("valid CLI input");
     match cli.command {
         Command::Rebuild {
             list_projections, ..
@@ -349,7 +349,7 @@ fn parse_rebuild_force_with_projection_id() {
         "proj-1",
         "--force",
     ])
-    .unwrap();
+    .expect("valid CLI input");
     match cli.command {
         Command::Rebuild {
             projection_id,
@@ -375,7 +375,7 @@ fn parse_rebuild_all_flags() {
         "--list",
         "--force",
     ])
-    .unwrap();
+    .expect("valid CLI input");
     match cli.command {
         Command::Rebuild {
             project_dir,
@@ -394,7 +394,7 @@ fn parse_rebuild_all_flags() {
 
 #[test]
 fn parse_purge_basic() {
-    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123"]).expect("valid CLI input");
     assert_eq!(
         cli.command,
         Command::Purge {
@@ -405,7 +405,7 @@ fn parse_purge_basic() {
 
 #[test]
 fn parse_purge_empty_instance() {
-    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", ""]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", ""]).expect("valid CLI input");
     assert_eq!(
         cli.command,
         Command::Purge {
@@ -416,7 +416,7 @@ fn parse_purge_empty_instance() {
 
 #[test]
 fn parse_purge_special_chars_instance() {
-    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-àéïôü-测试"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-àéïôü-测试"]).expect("valid CLI input");
     match cli.command {
         Command::Purge { instance } => {
             assert_eq!(instance, "inst-àéïôü-测试");
@@ -427,7 +427,7 @@ fn parse_purge_special_chars_instance() {
 
 #[test]
 fn parse_lock_defaults() {
-    let cli = interpret_cli_from(vec!["vo", "lock"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "lock"]).expect("valid CLI input");
     match cli.command {
         Command::Lock { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("."));
@@ -438,7 +438,7 @@ fn parse_lock_defaults() {
 
 #[test]
 fn parse_lock_custom_dir() {
-    let cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", "/my/project"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", "/my/project"]).expect("valid CLI input");
     match cli.command {
         Command::Lock { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/my/project"));
@@ -449,7 +449,7 @@ fn parse_lock_custom_dir() {
 
 #[test]
 fn parse_doctor_defaults() {
-    let cli = interpret_cli_from(vec!["vo", "doctor"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "doctor"]).expect("valid CLI input");
     match cli.command {
         Command::Doctor { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("."));
@@ -460,7 +460,7 @@ fn parse_doctor_defaults() {
 
 #[test]
 fn parse_doctor_custom_dir() {
-    let cli = interpret_cli_from(vec!["vo", "doctor", "--project-dir", "/health"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "doctor", "--project-dir", "/health"]).expect("valid CLI input");
     match cli.command {
         Command::Doctor { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/health"));
@@ -501,7 +501,7 @@ fn parse_unknown_subcommand() {
 
 #[test]
 fn parse_check_path_with_spaces() {
-    let cli = interpret_cli_from(vec!["vo", "check", "/path/with spaces/bin"]).unwrap();
+    let cli = interpret_cli_from(vec!["vo", "check", "/path/with spaces/bin"]).expect("valid CLI input");
     match cli.command {
         Command::Check {
             workflow: false,
@@ -741,17 +741,17 @@ fn format_report_json_structure() {
         categories: vec![cat],
     };
     let json = format_report_json(&report);
-    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
 
     assert_eq!(parsed["project_dir"].as_str(), Some("/tmp/json-test"));
-    assert!(parsed["healthy"].as_bool().unwrap());
-    assert_eq!(parsed["error_count"].as_u64().unwrap(), 0);
-    assert_eq!(parsed["categories"].as_array().unwrap().len(), 1);
+    assert!(parsed["healthy"].as_bool().expect("valid JSON"));
+    assert_eq!(parsed["error_count"].as_u64().expect("valid JSON"), 0);
+    assert_eq!(parsed["categories"].as_array().expect("valid JSON").len(), 1);
 
     let cat_val = &parsed["categories"][0];
     assert_eq!(cat_val["category"].as_str(), Some("lock-state"));
-    assert!(cat_val["healthy"].as_bool().unwrap());
-    assert_eq!(cat_val["checks"].as_array().unwrap().len(), 1);
+    assert!(cat_val["healthy"].as_bool().expect("valid JSON"));
+    assert_eq!(cat_val["checks"].as_array().expect("valid JSON").len(), 1);
 
     let check = &cat_val["checks"][0];
     assert_eq!(check["check"].as_str(), Some("lock"));
@@ -772,7 +772,7 @@ fn format_report_json_severity_serialization() {
             categories: vec![cat],
         };
         let json = format_report_json(&report);
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).expect("valid JSON");
         assert_eq!(
             parsed["categories"][0]["checks"][0]["severity"].as_str(),
             Some(expected)
@@ -843,13 +843,13 @@ fn rebuild_format_progress_all_statuses() {
 
 #[test]
 fn config_missing_engine_section() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[storage]\npath = \".vo/storage\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-engine"));
@@ -857,13 +857,13 @@ fn config_missing_engine_section() {
 
 #[test]
 fn config_missing_storage_section() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[engine]\nurl = \"http://localhost:3000\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-storage"));
@@ -871,13 +871,13 @@ fn config_missing_storage_section() {
 
 #[test]
 fn config_empty_engine_url() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[engine]\nurl = \"\"\n\n[storage]\npath = \".vo/storage\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-engine-url"));
@@ -885,13 +885,13 @@ fn config_empty_engine_url() {
 
 #[test]
 fn config_empty_storage_path() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\npath = \"\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-storage-path"));
@@ -899,13 +899,13 @@ fn config_empty_storage_path() {
 
 #[test]
 fn config_missing_url_field() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[engine]\nport = 3000\n\n[storage]\npath = \".vo/storage\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-engine-url"));
@@ -913,13 +913,13 @@ fn config_missing_url_field() {
 
 #[test]
 fn config_missing_path_field() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     fs::write(
         dir.path().join(CONFIG_FILE_NAME),
         "[engine]\nurl = \"http://localhost:3000\"\n\n[storage]\nmode = \"local\"\n",
     )
-    .unwrap();
+    .expect("write file");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-storage-path"));
@@ -927,12 +927,12 @@ fn config_missing_path_field() {
 
 #[test]
 fn config_readonly_permissions() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     let config_path = dir.path().join(CONFIG_FILE_NAME);
-    let mut perms = fs::metadata(&config_path).unwrap().permissions();
+    let mut perms = fs::metadata(&config_path).expect("read metadata").permissions();
     perms.set_readonly(true);
-    fs::set_permissions(&config_path, perms).unwrap();
+    fs::set_permissions(&config_path, perms).expect("set permissions");
 
     let report = check_config_validation(dir.path());
     assert!(report.warnings().any(|w| w.check == "config-perms"));
@@ -946,7 +946,7 @@ fn config_readonly_permissions() {
 fn history_load_nonexistent_returns_new() {
     let path = PathBuf::from("/tmp/vo-test-noexist-history.json");
     let _ = fs::remove_file(&path);
-    let history = load_history(&path).unwrap();
+    let history = load_history(&path).expect("load history");
     assert!(history.entries().is_empty());
     assert!(!history.can_undo());
     assert!(!history.can_redo());
@@ -954,25 +954,25 @@ fn history_load_nonexistent_returns_new() {
 
 #[test]
 fn history_save_and_reload_roundtrip() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let path = dir.path().join("history.json");
 
     let mut history = vo_types::CommandHistory::new();
     let snapshot = vo_types::WorkflowSnapshot::new(
         "wf-test".into(),
         vec![vo_types::DagNode {
-            node_name: vo_types::NodeName::parse("node-1").unwrap(),
-            retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).unwrap(),
             compensation_policy: None,
+            node_name: vo_types::NodeName::parse("node-1").expect("valid node name"),
+            retry_policy: vo_types::RetryPolicy::new(3, 1000, 2.0).expect("valid retry policy"),
         }],
         vec![],
     );
     history
         .save_undo_point(vo_types::CommandKind::NodeCreate, snapshot)
-        .unwrap();
+        .expect("save undo point");
 
-    save_history(&path, &history).unwrap();
-    let loaded = load_history(&path).unwrap();
+    save_history(&path, &history).expect("save history");
+    let loaded = load_history(&path).expect("load history");
     assert_eq!(loaded.entries().len(), 1);
 }
 
@@ -1031,26 +1031,26 @@ fn sha256_hex_empty_input() {
 
 #[test]
 fn file_hash_deterministic() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let path = dir.path().join("hash_test");
-    fs::write(&path, b"hello world").unwrap();
+    fs::write(&path, b"hello world").expect("write file");
 
-    let h1 = file_hash(&path).unwrap();
-    let h2 = file_hash(&path).unwrap();
+    let h1 = file_hash(&path).expect("hash computation");
+    let h2 = file_hash(&path).expect("hash computation");
     assert_eq!(h1, h2);
     assert_eq!(h1.len(), 64);
 }
 
 #[test]
 fn file_hash_different_content() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let p1 = dir.path().join("a");
     let p2 = dir.path().join("b");
-    fs::write(&p1, b"content a").unwrap();
-    fs::write(&p2, b"content b").unwrap();
+    fs::write(&p1, b"content a").expect("write file");
+    fs::write(&p2, b"content b").expect("write file");
 
-    let h1 = file_hash(&p1).unwrap();
-    let h2 = file_hash(&p2).unwrap();
+    let h1 = file_hash(&p1).expect("hash computation");
+    let h2 = file_hash(&p2).expect("hash computation");
     assert_ne!(h1, h2);
 }
 
@@ -1279,13 +1279,13 @@ async fn metrics_middleware_v2_on_error_captures_context() {
 
 #[test]
 fn doctor_workspace_detects_readonly_vo_dir() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     let vo_dir = dir.path().join(".vo");
-    fs::create_dir_all(&vo_dir).unwrap();
+    fs::create_dir_all(&vo_dir).expect("create directory");
 
-    let mut perms = fs::metadata(&vo_dir).unwrap().permissions();
+    let mut perms = fs::metadata(&vo_dir).expect("read metadata").permissions();
     perms.set_mode(0o444);
-    fs::set_permissions(&vo_dir, perms).unwrap();
+    fs::set_permissions(&vo_dir, perms).expect("set permissions");
 
     let report = check_workspace(dir.path(), &vo_dir);
     assert!(report
@@ -1296,7 +1296,7 @@ fn doctor_workspace_detects_readonly_vo_dir() {
 
 #[test]
 fn doctor_workspace_info_for_writable_vo_dir() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
 
     let report = check_workspace(dir.path(), &dir.path().join(".vo"));
@@ -1308,9 +1308,9 @@ fn doctor_workspace_info_for_writable_vo_dir() {
 
 #[test]
 fn doctor_lockstate_empty_lockfile() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
-    fs::write(dir.path().join(LOCK_FILE_NAME), "").unwrap();
+    fs::write(dir.path().join(LOCK_FILE_NAME), "").expect("write file");
 
     let report = check_lock_state(dir.path(), &dir.path().join(".vo"));
     assert!(report
@@ -1321,13 +1321,13 @@ fn doctor_lockstate_empty_lockfile() {
 
 #[test]
 fn doctor_lockstate_unreadable_lockfile() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     let lock_path = dir.path().join(LOCK_FILE_NAME);
-    fs::write(&lock_path, "test hash123\n").unwrap();
-    let mut perms = fs::metadata(&lock_path).unwrap().permissions();
+    fs::write(&lock_path, "test hash123\n").expect("write file");
+    let mut perms = fs::metadata(&lock_path).expect("read metadata").permissions();
     perms.set_mode(0o000);
-    fs::set_permissions(&lock_path, perms).unwrap();
+    fs::set_permissions(&lock_path, perms).expect("set permissions");
 
     let report = check_lock_state(dir.path(), &dir.path().join(".vo"));
     assert!(report
@@ -1335,14 +1335,14 @@ fn doctor_lockstate_unreadable_lockfile() {
         .iter()
         .any(|c| c.check == "lockfile" && c.severity == Severity::Error));
 
-    let mut perms = fs::metadata(&lock_path).unwrap().permissions();
+    let mut perms = fs::metadata(&lock_path).expect("read metadata").permissions();
     perms.set_mode(0o644);
-    fs::set_permissions(&lock_path, perms).unwrap();
+    fs::set_permissions(&lock_path, perms).expect("set permissions");
 }
 
 #[test]
 fn doctor_storage_wal_patterns() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     let storage = dir.path().join(".vo/storage");
 
@@ -1352,7 +1352,7 @@ fn doctor_storage_wal_patterns() {
         "main-wal",
         "secondary-journal",
     ] {
-        fs::write(storage.join(pattern), b"wal").unwrap();
+        fs::write(storage.join(pattern), b"wal").expect("write file");
     }
 
     let report = check_storage_integrity(&dir.path().join(".vo"), dir.path());
@@ -1365,7 +1365,7 @@ fn doctor_storage_wal_patterns() {
 
 #[test]
 fn doctor_storage_probe_cleanup() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
 
     let report = check_storage_integrity(&dir.path().join(".vo"), dir.path());
@@ -1379,8 +1379,8 @@ fn doctor_storage_probe_cleanup() {
 
 #[test]
 fn doctor_storage_empty() {
-    let dir = tempfile::tempdir().unwrap();
-    fs::create_dir_all(dir.path().join(".vo/storage")).unwrap();
+    let dir = tempfile::tempdir().expect("temp dir creation");
+    fs::create_dir_all(dir.path().join(".vo/storage")).expect("create directory");
 
     let report = check_storage_integrity(&dir.path().join(".vo"), dir.path());
     assert!(report
@@ -1486,11 +1486,11 @@ fn check_category_display_all() {
 
 #[test]
 fn parse_strict_numeric_valid_numbers() {
-    assert_eq!(parse_strict_numeric("0").unwrap(), 0);
-    assert_eq!(parse_strict_numeric("1").unwrap(), 1);
-    assert_eq!(parse_strict_numeric("999999").unwrap(), 999999);
+    assert_eq!(parse_strict_numeric("0").expect("valid numeric"), 0);
+    assert_eq!(parse_strict_numeric("1").expect("valid numeric"), 1);
+    assert_eq!(parse_strict_numeric("999999").expect("valid numeric"), 999999);
     assert_eq!(
-        parse_strict_numeric("18446744073709551615").unwrap(),
+        parse_strict_numeric("18446744073709551615").expect("valid numeric"),
         u64::MAX
     );
 }

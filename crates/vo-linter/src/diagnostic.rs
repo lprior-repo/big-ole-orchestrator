@@ -4,29 +4,6 @@ pub enum LintCode {
     L003,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LintSeverity {
-    Info,
-    Warning,
-    Error,
-}
-
-impl std::fmt::Display for LintSeverity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LintSeverity::Info => write!(f, "INFO"),
-            LintSeverity::Warning => write!(f, "WARNING"),
-            LintSeverity::Error => write!(f, "ERROR"),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error, Clone)]
-pub enum LintError {
-    #[error("parse error: {0}")]
-    ParseError(String),
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
     pub code: LintCode,

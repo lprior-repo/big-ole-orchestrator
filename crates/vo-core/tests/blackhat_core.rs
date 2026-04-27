@@ -16,7 +16,7 @@ fn req(wf: &str, h: &str) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: vo_types::WorkflowName::parse(wf).unwrap(),
         binary_hash: vo_types::BinaryHash::parse(h).unwrap(),
-        force: false,
+        force: None,
     }
 }
 fn ev(id: &str, seq: u64) -> EventEnvelope {

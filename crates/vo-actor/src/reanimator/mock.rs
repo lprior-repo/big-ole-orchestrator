@@ -87,6 +87,20 @@ impl MockTimerStorage {
     pub async fn delete_all_calls(&self) -> Vec<InstanceId> {
         self.delete_all_calls.lock().await.clone()
     }
+
+    /// Adds a pending timer directly (for testing purposes).
+    pub async fn add_pending_timer(&self, pending: PendingTimer) {
+        self.pending_timers
+            .lock()
+            .await
+            .insert(pending.instance_id.clone(), pending);
+    }
+
+    /// Gets a clone of pending timers (for testing purposes).
+    #[cfg(test)]
+    pub async fn get_pending_timers(&self) -> HashMap<InstanceId, PendingTimer> {
+        self.pending_timers.lock().await.clone()
+    }
 }
 
 #[async_trait::async_trait]

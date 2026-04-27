@@ -18,7 +18,7 @@ fn write_success_valid_output() {
     assert_eq!(result, Ok(()));
     assert!(is_written, "guard must be set after write");
 
-    let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "success");
     assert_eq!(written["output"], json!({"result": 42}));
 }
@@ -58,7 +58,7 @@ fn write_success_null_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["status"], "success");
     assert_eq!(written["output"], json!(null));
 }
@@ -72,7 +72,7 @@ fn write_success_string_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!("hello world"));
 }
 
@@ -85,7 +85,7 @@ fn write_success_number_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!(42));
 }
 
@@ -98,7 +98,7 @@ fn write_success_bool_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!(true));
 }
 
@@ -114,7 +114,7 @@ fn write_success_nested_object_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"]["user"]["name"], json!("Alice"));
     assert_eq!(written["output"]["items"][0]["sku"], json!("abc"));
 }
@@ -128,7 +128,7 @@ fn write_success_array_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!([1, 2, 3]));
 }
 
@@ -140,7 +140,7 @@ fn write_success_envelope_has_exactly_two_fields() {
 
     write_success_inner(&mut buf, &output, &mut is_written).unwrap();
 
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     let obj = written.as_object().expect("should be object");
     assert_eq!(
         obj.len(),
@@ -181,7 +181,7 @@ fn write_success_empty_object_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!({}));
 }
 
@@ -194,7 +194,7 @@ fn write_success_unicode_output() {
     let result = write_success_inner(&mut buf, &output, &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["output"], json!("日本語テスト"));
 }
 

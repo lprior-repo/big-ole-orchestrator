@@ -339,11 +339,11 @@ impl HeartbeatWatcher {
                 "Actor exceeded failure threshold, triggering shutdown"
             );
             drop(states);
-            self.trigger_shutdown(actor_id).await;
+            self.trigger_shutdown(actor_id);
         }
     }
 
-    async fn trigger_shutdown(&self, actor_id: &str) {
+    fn trigger_shutdown(&self, actor_id: &str) {
         if let Some(ref callback) = self.shutdown_callback {
             match callback(actor_id.to_string()) {
                 Ok(()) => {

@@ -108,7 +108,7 @@ fn arb_threshold_swap_case() -> impl Strategy<Value = ThresholdSwapCase> {
             )| {
                 let writer_over = writer_queue_depth > writer_threshold;
                 let batch_over = batch_commit_latency_ms > batch_threshold;
-                let _blob_over = blob_queue_depth > blob_threshold;
+                let blob_over = blob_queue_depth > blob_threshold;
 
                 let expected = if writer_over {
                     PressureIndicator::WriterQueueDepth
@@ -369,12 +369,11 @@ fn red_queen_at_max_u64_no_panic() {
         storage_stall_active: true,
     };
 
-    let result = std::panic::catch_unwind(|| check_admission(&state));
+    let result = std::panic::catch_unwind(|| {
+        check_admission(&state)
+    });
 
-    assert!(
-        result.is_ok(),
-        "check_admission must not panic on max u64 values"
-    );
+    assert!(result.is_ok(), "check_admission must not panic on max u64 values");
 }
 
 #[test]
@@ -394,11 +393,7 @@ fn red_queen_boundary_u64_max_minus_one() {
     };
 
     let result = check_admission_with_thresholds(&state, &thresholds);
-    assert_eq!(
-        result,
-        Ok(()),
-        "u64::MAX - 1 should be below u64::MAX threshold"
-    );
+    assert_eq!(result, Ok(()), "u64::MAX - 1 should be below u64::MAX threshold");
 }
 
 #[test]
@@ -414,10 +409,7 @@ fn red_queen_serialization_integrity() {
     let json = serde_json::to_string(&state).unwrap();
     let deserialized: WritePressureState = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(
-        state, deserialized,
-        "Serialization must preserve all fields"
-    );
+    assert_eq!(state, deserialized, "Serialization must preserve all fields");
 }
 
 #[test]
@@ -431,10 +423,7 @@ fn red_queen_thresholds_serialization_integrity() {
     let json = serde_json::to_string(&thresholds).unwrap();
     let deserialized: AdmissionThresholds = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(
-        thresholds, deserialized,
-        "Serialization must preserve all threshold values"
-    );
+    assert_eq!(thresholds, deserialized, "Serialization must preserve all threshold values");
 }
 
 #[test]
@@ -445,10 +434,7 @@ fn red_queen_error_values_match_for_writer_queue_exceeded() {
     };
 
     match error {
-        AdmissionError::WriterQueueDepthExceeded {
-            current_depth,
-            threshold,
-        } => {
+        AdmissionError::WriterQueueDepthExceeded { current_depth, threshold } => {
             assert_eq!(current_depth, 150);
             assert_eq!(threshold, 100);
         }
@@ -464,10 +450,7 @@ fn red_queen_error_values_match_for_batch_latency_exceeded() {
     };
 
     match error {
-        AdmissionError::BatchCommitLatencyExceeded {
-            current_latency_ms,
-            threshold_ms,
-        } => {
+        AdmissionError::BatchCommitLatencyExceeded { current_latency_ms, threshold_ms } => {
             assert_eq!(current_latency_ms, 1500);
             assert_eq!(threshold_ms, 1000);
         }
@@ -483,10 +466,7 @@ fn red_queen_error_values_match_for_blob_depth_exceeded() {
     };
 
     match error {
-        AdmissionError::BlobQueueDepthExceeded {
-            current_depth,
-            threshold,
-        } => {
+        AdmissionError::BlobQueueDepthExceeded { current_depth, threshold } => {
             assert_eq!(current_depth, 75);
             assert_eq!(threshold, 50);
         }
@@ -528,10 +508,7 @@ fn red_queen_concurrent_reads_deterministic() {
     }
 
     let ok_count = results.load(Ordering::Relaxed);
-    assert_eq!(
-        ok_count, 100,
-        "All 100 concurrent reads must return Ok (deterministic)"
-    );
+    assert_eq!(ok_count, 100, "All 100 concurrent reads must return Ok (deterministic)");
 }
 
 proptest! {
@@ -552,7 +529,7 @@ proptest! {
         let result_a = check_admission_with_thresholds(&state, &thresholds_a);
         let result_b = check_admission_with_thresholds(&state, &thresholds_b);
 
-        if matches!(result_a, Ok(())) && result_b.is_err() {
+        if matches!(result_a, Ok(())) && matches!(result_b, Err(_)) {
             prop_assert!(false, "State passed tighter thresholds but failed looser: tighter={:?} looser={:?}", result_a, result_b);
         }
     }
@@ -635,7 +612,10 @@ fn red_queen_zero_thresholds_exact_boundary() {
     };
 
     let result = check_admission_with_thresholds(&state_one, &thresholds);
-    assert!(result.is_err(), "Value 1 at threshold 0 must be rejected");
+    assert!(
+        result.is_err(),
+        "Value 1 at threshold 0 must be rejected"
+    );
 }
 
 #[test]
@@ -657,10 +637,7 @@ fn red_queen_cross_contamination_check() {
     let result = check_admission_with_thresholds(&state, &thresholds);
 
     match result {
-        Err(AdmissionError::WriterQueueDepthExceeded {
-            current_depth,
-            threshold,
-        }) => {
+        Err(AdmissionError::WriterQueueDepthExceeded { current_depth, threshold }) => {
             assert_eq!(current_depth, 150);
             assert_eq!(threshold, 100);
         }

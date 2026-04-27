@@ -33,7 +33,7 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force { Some("test-operator-token".into()) } else { None },
     }
 }
 
@@ -130,6 +130,7 @@ fn evaluate_registration_returns_allowed_when_force_true_and_rate_limited() {
     // Rate-limited: last registration 10s ago
     state.rate_limiter.insert(make_wf("deploy-prod"), t0);
 
+    state.register_operator_token("test-operator-token".into());
     let now = t0 + Duration::from_secs(10);
     let request = make_request("deploy-prod", "abcdef01", true);
 
@@ -149,6 +150,7 @@ fn evaluate_registration_returns_allowed_when_force_true_and_quarantined() {
         .statuses
         .insert(make_wf("ai-loop-fix"), RegistrationStatus::Quarantined);
 
+    state.register_operator_token("test-operator-token".into());
     let request = make_request("ai-loop-fix", "abcdef01", true);
 
     let result = evaluate_registration(&request, &config, &state, now);
@@ -166,6 +168,7 @@ fn evaluate_registration_returns_allowed_when_force_true_and_within_rate_window(
     // Rate-limited: last registration 5s ago
     state.rate_limiter.insert(make_wf("deploy-prod"), t0);
 
+    state.register_operator_token("test-operator-token".into());
     let now = t0 + Duration::from_secs(5);
     let request = make_request("deploy-prod", "abcdef01", true);
 
@@ -204,6 +207,8 @@ fn evaluate_registration_updates_rate_limiter_on_force_allowed() {
     let state = CircuitBreakerState::new();
     let config = default_config();
     let t0 = Instant::now();
+
+    state.register_operator_token("test-operator-token".into());
 
     // Force registration
     let force_request = make_request("deploy-prod", "abcdef01", true);
@@ -614,6 +619,7 @@ fn evaluate_registration_returns_allowed_when_force_true_and_deactivated() {
         .statuses
         .insert(make_wf("wf-force-deact"), RegistrationStatus::Deactivated);
 
+    state.register_operator_token("test-operator-token".into());
     let request = make_request("wf-force-deact", "abcdef01", true);
 
     let result = evaluate_registration(&request, &config, &state, now);

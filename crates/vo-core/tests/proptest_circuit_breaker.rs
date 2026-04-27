@@ -137,10 +137,11 @@ proptest! {
         }
 
         let now = t0 + Duration::from_secs(elapsed_secs);
+        state.register_operator_token("test-operator-token".into());
         let request = RegistrationRequest {
             workflow_name: wf,
             binary_hash: make_hash("abcdef01"),
-            force: true,
+            force: Some("test-operator-token".into()),
         };
 
         let result = evaluate_registration(&request, &config, &state, now);
@@ -164,7 +165,7 @@ proptest! {
         let request = RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: make_hash("abcdef01"),
-            force: false,
+            force: None,
         };
 
         let result = evaluate_registration(&request, &config, &state, now);
@@ -219,7 +220,7 @@ proptest! {
                     let request = RegistrationRequest {
                         workflow_name: wf.clone(),
                         binary_hash: hash_from_idx(i + 100),
-                        force: false,
+                        force: None,
                     };
                     let eval_result = evaluate_registration(&request, &config, &state, current_time);
                     prop_assert_eq!(
@@ -281,7 +282,7 @@ proptest! {
         let request = RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: hash_from_idx(initial_failures + 100), // new hash
-            force: false,
+            force: None,
         };
         let result = evaluate_registration(&request, &config, &state, now);
 

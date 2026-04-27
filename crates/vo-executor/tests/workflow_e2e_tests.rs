@@ -9,23 +9,28 @@
 //! Tests are organized into workflow lifecycle, multi-step workflows,
 //! error propagation, timeout handling, retry handling, and concurrent execution.
 
-#[cfg(test)]
-mod workflow_lifecycle_tests {
+mod shared {
     use std::sync::LazyLock;
     use std::sync::Mutex;
     use std::sync::MutexGuard;
-    use vo_executor::{
-        cancel_execution, execute_step, get_execution_status, get_last_error, reset_all_state,
-        StepId, StepResult,
-    };
+    use vo_executor::reset_all_state;
 
     static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
-    fn state_guard() -> MutexGuard<'static, ()> {
+    pub fn state_guard() -> MutexGuard<'static, ()> {
         let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset_all_state();
         guard
     }
+}
+
+#[cfg(test)]
+mod workflow_lifecycle_tests {
+    use super::shared::state_guard;
+    use vo_executor::{
+        cancel_execution, execute_step, get_execution_status, get_last_error,
+        StepId, StepResult,
+    };
 
     // =========================================================================
     // Section 1: Complete Workflow Lifecycle (Ingestion → Execution → Persistence)
@@ -42,7 +47,7 @@ mod workflow_lifecycle_tests {
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(result.is_ok(), "Execute should succeed");
         assert!(
-            matches!(result.unwrap(), StepResult::Success { output } if output == "done"),
+            matches!(&result, Ok(StepResult::Success { output }) if output == "done"),
             "Should return Success with 'done' output"
         );
 
@@ -213,21 +218,11 @@ mod workflow_lifecycle_tests {
 
 #[cfg(test)]
 mod multi_step_workflow_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use vo_executor::{
         execute_step, execute_step_with_retry, get_execution_status, get_last_error,
-        reset_all_state, RetryPolicy, StepId, StepResult,
+        RetryPolicy, StepId, StepResult,
     };
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
 
     // =========================================================================
     // Section 3: Multi-Step Workflow Execution
@@ -242,7 +237,7 @@ mod multi_step_workflow_tests {
             let step_id = StepId::new(step_name.to_string());
             let result = execute_step(step_id.clone(), 5000).await;
             assert!(
-                result.is_ok() && matches!(result.unwrap(), StepResult::Success { .. }),
+                matches!(&result, Ok(StepResult::Success { .. })),
                 "Step {} should succeed in sequential workflow",
                 step_name
             );
@@ -310,7 +305,7 @@ mod multi_step_workflow_tests {
     #[tokio::test]
     async fn multi_step_workflow_with_retry_handles_flaky_steps() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
         let step_id = StepId::new("step-flaky".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
@@ -326,12 +321,12 @@ mod multi_step_workflow_tests {
     #[tokio::test]
     async fn multi_step_workflow_retry_with_successful_step() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
         let step_id = StepId::new("step-1".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         assert!(
-            result.is_ok() && matches!(result.unwrap(), StepResult::Success { .. }),
+            matches!(&result, Ok(StepResult::Success { .. })),
             "Successful step with retry should still succeed"
         );
     }
@@ -339,21 +334,11 @@ mod multi_step_workflow_tests {
 
 #[cfg(test)]
 mod workflow_timeout_e2e_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use vo_executor::{
-        execute_step, execute_step_with_retry, get_execution_status, get_last_error,
-        reset_all_state, RetryPolicy, StepId, StepResult,
+        execute_step, execute_step_with_retry, get_execution_status,
+        RetryPolicy, StepId, StepResult,
     };
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
 
     // =========================================================================
     // Section 4: End-to-End Timeout Handling
@@ -366,7 +351,7 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), 5000).await;
         assert!(
-            result.is_ok() && matches!(result.unwrap(), StepResult::Success { .. }),
+            matches!(&result, Ok(StepResult::Success { .. })),
             "Slow step with 5000ms timeout should succeed"
         );
 
@@ -399,7 +384,7 @@ mod workflow_timeout_e2e_tests {
 
         let result = execute_step(step_id.clone(), 3000).await;
         assert!(
-            result.is_ok() && matches!(result.unwrap(), StepResult::Success { .. }),
+            matches!(&result, Ok(StepResult::Success { .. })),
             "Slow step with exactly 3000ms timeout should succeed (boundary)"
         );
     }
@@ -422,7 +407,7 @@ mod workflow_timeout_e2e_tests {
     #[tokio::test]
     async fn e2e_timeout_with_retry_respects_timeout_on_each_attempt() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 100, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 100, 2.0).expect("valid retry policy");
         let step_id = StepId::new("step-slow".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 1, policy).await;
@@ -471,21 +456,11 @@ mod workflow_timeout_e2e_tests {
 
 #[cfg(test)]
 mod workflow_error_propagation_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use vo_executor::{
         execute_step, execute_step_with_retry, get_execution_status, get_last_error,
-        reset_all_state, RetryPolicy, StepId, StepResult,
+        RetryPolicy, StepId, StepResult,
     };
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
 
     // =========================================================================
     // Section 5: Error Propagation End-to-End
@@ -527,7 +502,7 @@ mod workflow_error_propagation_tests {
     #[tokio::test]
     async fn error_propagation_retry_exhausted_contains_all_attempts() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
         let step_id = StepId::new("step-flaky".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
@@ -560,7 +535,7 @@ mod workflow_error_propagation_tests {
     #[tokio::test]
     async fn error_propagation_step_not_found_is_terminal() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
         let step_id = StepId::new("nonexistent-step".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
@@ -582,7 +557,7 @@ mod workflow_error_propagation_tests {
     #[tokio::test]
     async fn error_propagation_invalid_timeout_is_terminal() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
         let step_id = StepId::new("step-1".to_string());
 
         let result = execute_step_with_retry(step_id.clone(), 0, policy).await;
@@ -622,20 +597,10 @@ mod workflow_error_propagation_tests {
 
 #[cfg(test)]
 mod workflow_scheduler_e2e_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use std::time::Duration;
     use vo_executor::scheduler::Scheduler;
-    use vo_executor::{reset_all_state, Job, JobId, JobPriority, Schedule, SchedulerConfig};
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
+    use vo_executor::{Job, JobId, JobPriority, Schedule, SchedulerConfig};
 
     // =========================================================================
     // Section 6: Scheduler Integration (Job → Step Execution Pipeline)
@@ -688,8 +653,8 @@ mod workflow_scheduler_e2e_tests {
         )
         .with_priority(JobPriority::Low);
 
-        scheduler.schedule(job_low).unwrap();
-        scheduler.schedule(job_critical).unwrap();
+        scheduler.schedule(job_low).expect("schedule should succeed");
+        scheduler.schedule(job_critical).expect("schedule should succeed");
 
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -723,7 +688,7 @@ mod workflow_scheduler_e2e_tests {
             "step-1".to_string(),
             Schedule::interval(Duration::from_millis(100)),
         );
-        scheduler.schedule(job).unwrap();
+        scheduler.schedule(job).expect("schedule should succeed");
 
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -756,7 +721,7 @@ mod workflow_scheduler_e2e_tests {
             "step-1".to_string(),
             Schedule::one_shot(Duration::from_millis(50)),
         );
-        scheduler.schedule(job).unwrap();
+        scheduler.schedule(job).expect("schedule should succeed");
 
         let removed = scheduler.cancel(JobId::new(42));
         assert!(removed.is_some(), "Cancel should return the removed job");
@@ -814,21 +779,11 @@ mod workflow_scheduler_e2e_tests {
 
 #[cfg(test)]
 mod workflow_concurrent_e2e_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use vo_executor::{
-        execute_step, execute_step_with_retry, get_execution_status, reset_all_state, RetryPolicy,
-        StepId, StepResult,
+        execute_step, execute_step_with_retry, get_execution_status, RetryPolicy,
+        StepId,
     };
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
 
     // =========================================================================
     // Section 7: Concurrent Workflow Execution
@@ -868,7 +823,7 @@ mod workflow_concurrent_e2e_tests {
     #[tokio::test]
     async fn concurrent_e2e_retry_and_non_retry_executed_together() {
         let _guard = state_guard();
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
 
         let (retry_result, direct_result) = tokio::join!(
             execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy.clone()),
@@ -948,20 +903,10 @@ mod workflow_concurrent_e2e_tests {
 
 #[cfg(test)]
 mod workflow_state_transition_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
+    use super::shared::state_guard;
     use vo_executor::{
-        cancel_execution, execute_step, get_execution_status, reset_all_state, StepId,
+        cancel_execution, execute_step, get_execution_status, StepId,
     };
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
 
     // =========================================================================
     // Section 8: State Machine Transitions
@@ -1044,18 +989,8 @@ mod workflow_state_transition_tests {
 
 #[cfg(test)]
 mod workflow_runtime_e2e_tests {
-    use std::sync::LazyLock;
-    use std::sync::Mutex;
-    use std::sync::MutexGuard;
-    use vo_executor::{reset_all_state, RetryPolicy, Runtime, StepContext, StepId};
-
-    static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
-
-    fn state_guard() -> MutexGuard<'static, ()> {
-        let guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        reset_all_state();
-        guard
-    }
+    use super::shared::state_guard;
+    use vo_executor::{RetryPolicy, Runtime, StepContext, StepId};
 
     // =========================================================================
     // Section 9: Runtime Integration (Single-Threaded Runtime)
@@ -1078,7 +1013,7 @@ mod workflow_runtime_e2e_tests {
         let result = runtime.execute_step_sync(StepId::new("step-1".to_string()), 5000);
         assert!(result.is_ok(), "Runtime should execute step successfully");
         assert!(
-            result.unwrap().is_success(),
+            result.expect("step should succeed").is_success(),
             "Result should indicate success"
         );
     }
@@ -1088,7 +1023,7 @@ mod workflow_runtime_e2e_tests {
     fn runtime_e2e_execute_step_with_retry_sync() {
         let _guard = state_guard();
         let runtime = Runtime::new().expect("Runtime creation should succeed");
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
 
         let result = runtime.execute_step_with_retry_sync(
             StepId::new("step-flaky".to_string()),
@@ -1131,7 +1066,7 @@ mod workflow_runtime_e2e_tests {
         let result = context.execute(5000);
         assert!(result.is_ok(), "StepContext execute should succeed");
         assert!(
-            result.unwrap().is_success(),
+            result.expect("step should succeed").is_success(),
             "Result should indicate success"
         );
     }
@@ -1141,7 +1076,7 @@ mod workflow_runtime_e2e_tests {
         let _guard = state_guard();
         let context = StepContext::new(StepId::new("step-1".to_string()))
             .expect("StepContext creation should succeed");
-        let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
+        let policy = RetryPolicy::new(3, 10, 2.0).expect("valid retry policy");
 
         let result = context.execute_with_retry(5000, policy);
         assert!(result.is_ok(), "StepContext retry execute should succeed");

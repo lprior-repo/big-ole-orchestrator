@@ -3,9 +3,20 @@
 //! Provides automatic retry with exponential backoff for LockManager implementations.
 //! Wraps any LockManager and retries failed acquire() calls with configurable
 //! exponential backoff, jitter, and max attempts.
+//!
+//! # Retry Amplification Prevention
+//!
+//! This module implements circuit breaker pattern to prevent retry amplification
+//! attacks. When downstream failures exceed a threshold, the circuit trips and
+//! subsequent requests are immediately rejected, reducing traffic to failing
+//! downstream services per EARS requirements:
+//! - "When downstream fails, THE SYSTEM SHALL reduce traffic"
+//! - "If retries amplify, THE SYSTEM SHALL cause cascading failure"
 
 use async_trait::async_trait;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::time::sleep;
 
 use crate::port::LockManager;
@@ -95,7 +106,8 @@ pub struct RetryConfig {
     pub max_backoff_ms: u64,
     pub max_attempts: u32,
     pub jitter_factor: f64,
-    circuit_breaker_threshold: Option<u32>,
+    pub cb_failure_threshold: u32,
+    pub cb_recovery_timeout_ms: u64,
 }
 
 impl RetryConfig {
@@ -106,7 +118,8 @@ impl RetryConfig {
             max_backoff_ms: u64::MAX,
             max_attempts,
             jitter_factor: 0.1,
-            circuit_breaker_threshold: None,
+            cb_failure_threshold: 5,
+            cb_recovery_timeout_ms: 30_000,
         }
     }
 
@@ -120,17 +133,14 @@ impl RetryConfig {
         self
     }
 
-    pub fn with_circuit_breaker(mut self, threshold: u32) -> Self {
-        self.circuit_breaker_threshold = Some(threshold);
+    pub fn with_cb_failure_threshold(mut self, threshold: u32) -> Self {
+        self.cb_failure_threshold = threshold;
         self
     }
 
-    pub fn circuit_breaker_enabled(&self) -> bool {
-        self.circuit_breaker_threshold.is_some()
-    }
-
-    pub fn circuit_breaker_threshold(&self) -> Option<u32> {
-        self.circuit_breaker_threshold
+    pub fn with_cb_recovery_timeout(mut self, timeout_ms: u64) -> Self {
+        self.cb_recovery_timeout_ms = timeout_ms;
+        self
     }
 
     pub fn calculate_backoff(&self, attempt: u32) -> Duration {
@@ -153,30 +163,121 @@ impl RetryConfig {
     }
 }
 
+#[derive(Debug)]
+struct RetryCircuitBreaker {
+    is_open: std::sync::atomic::AtomicBool,
+    consecutive_failures: AtomicU32,
+    last_failure_at: std::sync::Mutex<Option<Instant>>,
+}
+
+impl RetryCircuitBreaker {
+    fn new() -> Self {
+        Self {
+            is_open: std::sync::atomic::AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            last_failure_at: std::sync::Mutex::new(None),
+        }
+    }
+
+    fn record_failure(&self) {
+        let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = Some(Instant::now());
+        }
+        if count >= 5 {
+            self.is_open.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn record_success(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+    }
+
+    fn should_allow_request(&self, recovery_timeout: Duration) -> bool {
+        if !self.is_open.load(Ordering::SeqCst) {
+            return true;
+        }
+        let Ok(guard) = self.last_failure_at.lock() else {
+            return false;
+        };
+        if let Some(last_failure) = *guard {
+            if last_failure.elapsed() >= recovery_timeout {
+                self.is_open.store(false, Ordering::SeqCst);
+                return true;
+            }
+        }
+        false
+    }
+
+    fn reset(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = None;
+        }
+    }
+}
+
+impl Default for RetryCircuitBreaker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn rand_jitter(range: f64) -> f64 {
-    (rand::Rng::gen::<f64>(&mut rand::thread_rng()) * 2.0 - 1.0) * range
+    use std::hash::{Hash, Hasher};
+    use std::time::SystemTime;
+
+    let thread_id = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
+    };
+    let seed = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0)
+        ^ thread_id;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    seed.hash(&mut hasher);
+    let h = hasher.finish();
+    let normalized = (h % (1 << 30)) as f64 / (1 << 30) as f64;
+    let jitter = (normalized * 2.0 - 1.0) * range;
+    jitter.clamp(-range, range)
 }
 
 pub struct LockManagerRetryWrapper<'a, T: LockManager> {
     inner: &'a T,
     config: RetryConfig,
+    circuit: Arc<RetryCircuitBreaker>,
 }
 
 impl<'a, T: LockManager> LockManagerRetryWrapper<'a, T> {
     pub fn new(inner: &'a T, config: RetryConfig) -> Self {
-        Self { inner, config }
+        Self {
+            inner,
+            config,
+            circuit: Arc::new(RetryCircuitBreaker::new()),
+        }
     }
 }
 
 #[async_trait]
 impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'a, T> {
     async fn acquire(&self, request: LockRequest) -> LockResponse {
-        let mut circuit_breaker = match self.config.circuit_breaker_threshold {
-            Some(threshold) => RetryCircuitBreaker::new(threshold),
-            None => RetryCircuitBreaker::without_circuit_breaker(),
-        };
+        let recovery_timeout = Duration::from_millis(self.config.cb_recovery_timeout_ms);
 
-        if circuit_breaker.is_tripped() {
+        self.circuit.reset();
+
+        if !self.circuit.should_allow_request(recovery_timeout) {
+            let error_msg = format!(
+                "retry circuit breaker open: downstream failing, rejecting to reduce traffic (would exceed {} consecutive failures)",
+                self.config.cb_failure_threshold
+            );
             return LockResponse {
                 request_id: request.request_id,
                 lock_id: request.lock_id,
@@ -184,7 +285,7 @@ impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'
                 granted: false,
                 hold_token: None,
                 expires_at: None,
-                error: Some("retry circuit tripped".to_string()),
+                error: Some(error_msg),
             };
         }
 
@@ -193,10 +294,26 @@ impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'
             attempt += 1;
             let response = self.inner.acquire(request.clone()).await;
             if response.granted {
-                circuit_breaker.record_success();
+                self.circuit.record_success();
                 return response;
             }
-            circuit_breaker.record_failure();
+            self.circuit.record_failure();
+
+            if !self.circuit.should_allow_request(recovery_timeout) {
+                let error_msg = format!(
+                    "retry circuit breaker open after {} failures: downstream failing, rejecting to prevent amplification",
+                    self.config.cb_failure_threshold
+                );
+                return LockResponse {
+                    request_id: response.request_id,
+                    lock_id: response.lock_id,
+                    owner: response.owner,
+                    granted: false,
+                    hold_token: None,
+                    expires_at: None,
+                    error: Some(error_msg),
+                };
+            }
 
             if attempt >= self.config.max_attempts {
                 return LockResponse {

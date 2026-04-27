@@ -20,7 +20,7 @@ fn write_failure_user_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "failure");
     assert_eq!(written["kind"], "User");
     assert_eq!(written["message"], "bad input");
@@ -39,7 +39,7 @@ fn write_failure_system_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "System");
     assert_eq!(written["message"], "internal error");
 }
@@ -57,7 +57,7 @@ fn write_failure_timeout_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("written bytes should be valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "Timeout");
     assert_eq!(written["message"], "timed out");
 }
@@ -174,7 +174,7 @@ fn write_failure_empty_message_is_valid() {
     let result = write_failure_inner(&mut buf, TaskFailureKind::User, "", &mut is_written);
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["message"], "");
 }
 
@@ -185,7 +185,7 @@ fn write_failure_envelope_has_exactly_three_fields() {
 
     write_failure_inner(&mut buf, TaskFailureKind::User, "msg", &mut is_written).unwrap();
 
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     let obj = written.as_object().expect("should be object");
     assert_eq!(obj.len(), 3, "envelope should have status, kind, message");
     assert!(obj.contains_key("status"));
@@ -206,7 +206,7 @@ fn write_failure_unicode_message() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf).expect("valid JSON");
+    let written: Value = serde_json::from_slice(&buf[4..]).expect("valid JSON");
     assert_eq!(written["message"], "エラー発生");
 }
 

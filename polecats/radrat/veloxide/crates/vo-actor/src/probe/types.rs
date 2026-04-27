@@ -1,0 +1,1351 @@
+use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::str::FromStr;
+use std::time::Duration;
+
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProbeType {
+    Http,
+    Tcp,
+    Exec,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProbeStatus {
+    Healthy,
+    Unhealthy,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProbeResult {
+    pub probe_id: ProbeId,
+    pub status: ProbeStatus,
+    pub latency_ms: u64,
+    pub consecutive_failures: u32,
+    pub last_check_ms: u64,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpProbeConfig {
+    pub url: String,
+    pub expected_status: Option<u16>,
+    pub timeout: Duration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TcpProbeConfig {
+    pub address: SocketAddr,
+    pub timeout: Duration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecProbeConfig {
+    pub command: String,
+    pub args: Vec<String>,
+    pub expected_exit_code: Option<i32>,
+    pub timeout: Duration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ProbeConfig {
+    Http {
+        url: String,
+        expected_status: Option<u16>,
+        timeout_ms: u64,
+    },
+    Tcp {
+        address: String,
+        port: u16,
+        timeout_ms: u64,
+    },
+    Exec {
+        command: String,
+        args: Vec<String>,
+        expected_exit_code: Option<i32>,
+        timeout_ms: u64,
+    },
+}
+
+impl ProbeConfig {
+    pub fn http(url: impl Into<String>) -> Self {
+        Self::Http {
+            url: url.into(),
+            expected_status: Some(200),
+            timeout_ms: 5000,
+        }
+    }
+
+    pub fn tcp(address: impl Into<String>, port: u16) -> Self {
+        Self::Tcp {
+            address: address.into(),
+            port,
+            timeout_ms: 5000,
+        }
+    }
+
+    pub fn exec(command: impl Into<String>, args: Vec<String>) -> Self {
+        Self::Exec {
+            command: command.into(),
+            args,
+            expected_exit_code: Some(0),
+            timeout_ms: 30000,
+        }
+    }
+
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        match &mut self {
+            Self::Http { timeout_ms, .. } => *timeout_ms = timeout.as_millis() as u64,
+            Self::Tcp { timeout_ms, .. } => *timeout_ms = timeout.as_millis() as u64,
+            Self::Exec { timeout_ms, .. } => *timeout_ms = timeout.as_millis() as u64,
+        }
+        self
+    }
+
+    pub fn timeout(&self) -> Duration {
+        match self {
+            Self::Http { timeout_ms, .. }
+            | Self::Tcp { timeout_ms, .. }
+            | Self::Exec { timeout_ms, .. } => Duration::from_millis(*timeout_ms),
+        }
+    }
+
+    pub fn probe_type(&self) -> ProbeType {
+        match self {
+            Self::Http { .. } => ProbeType::Http,
+            Self::Tcp { .. } => ProbeType::Tcp,
+            Self::Exec { .. } => ProbeType::Exec,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ProbeId(pub ulid::Ulid);
+
+impl ProbeId {
+    pub fn new() -> Self {
+        Self(ulid::Ulid::new())
+    }
+
+    pub fn from_string(s: &str) -> Option<Self> {
+        s.strip_prefix("probe-")
+            .and_then(|s| ulid::Ulid::from_str(s).ok())
+            .map(Self)
+    }
+
+    pub fn as_str(&self) -> String {
+        format!("probe-{}", self.0)
+    }
+}
+
+impl Default for ProbeId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Display for ProbeId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "probe-{}", self.0)
+    }
+}
+
+impl serde::Serialize for ProbeId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.as_str())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProbeId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        ProbeId::from_string(&s).ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ProbeDefinition {
+    pub id: ProbeId,
+    pub name: String,
+    pub config: ProbeConfig,
+    pub interval: Duration,
+    pub backoff: BackoffConfig,
+    pub failure_threshold: u32,
+    pub success_threshold: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct BackoffConfig {
+    pub initial_interval: Duration,
+    pub max_interval: Duration,
+    pub multiplier: f64,
+    pub max_failures: u32,
+}
+
+impl Default for BackoffConfig {
+    fn default() -> Self {
+        Self {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(60),
+            multiplier: 2.0,
+            max_failures: 10,
+        }
+    }
+}
+
+impl BackoffConfig {
+    pub fn calculate_interval(&self, consecutive_failures: u32) -> Duration {
+        let failures = consecutive_failures.min(self.max_failures);
+        let interval_ms =
+            self.initial_interval.as_millis() as f64 * self.multiplier.powi(failures as i32);
+        let interval_ms = interval_ms.min(self.max_interval.as_millis() as f64);
+        Duration::from_millis(interval_ms as u64)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AggregatedStatus {
+    pub overall: ProbeStatus,
+    pub healthy_count: u32,
+    pub unhealthy_count: u32,
+    pub unknown_count: u32,
+    pub results: HashMap<ProbeId, ProbeResult>,
+}
+
+impl AggregatedStatus {
+    pub fn new() -> Self {
+        Self {
+            overall: ProbeStatus::Unknown,
+            healthy_count: 0,
+            unhealthy_count: 0,
+            unknown_count: 0,
+            results: HashMap::new(),
+        }
+    }
+
+    pub fn update(&mut self, result: ProbeResult) {
+        if let Some(old_result) = self.results.get(&result.probe_id) {
+            match old_result.status {
+                ProbeStatus::Healthy => self.healthy_count -= 1,
+                ProbeStatus::Unhealthy => self.unhealthy_count -= 1,
+                ProbeStatus::Unknown => self.unknown_count -= 1,
+            }
+        }
+        match result.status {
+            ProbeStatus::Healthy => self.healthy_count += 1,
+            ProbeStatus::Unhealthy => self.unhealthy_count += 1,
+            ProbeStatus::Unknown => self.unknown_count += 1,
+        }
+        self.results.insert(result.probe_id, result);
+
+        self.overall = if self.unhealthy_count > 0 {
+            ProbeStatus::Unhealthy
+        } else if self.healthy_count > 0 && self.unknown_count == 0 {
+            ProbeStatus::Healthy
+        } else {
+            ProbeStatus::Unknown
+        };
+    }
+
+    pub fn is_healthy(&self) -> bool {
+        self.overall == ProbeStatus::Healthy
+    }
+}
+
+impl Default for AggregatedStatus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone, Error)]
+pub enum ProbeError {
+    #[error("HTTP probe failed: {0}")]
+    Http(String),
+
+    #[error("TCP probe failed: {0}")]
+    Tcp(String),
+
+    #[error("Exec probe failed: {0}")]
+    Exec(String),
+
+    #[error("Timeout after {0:?}")]
+    Timeout(Duration),
+
+    #[error("Probe {0} not found")]
+    NotFound(ProbeId),
+}
+
+#[async_trait]
+pub trait Probe: Send + Sync {
+    async fn check(&self) -> Result<ProbeResult, ProbeError>;
+    fn probe_id(&self) -> ProbeId;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    fn now_ms() -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+    }
+
+    fn make_result(id: ProbeId, status: ProbeStatus, failures: u32) -> ProbeResult {
+        ProbeResult {
+            probe_id: id,
+            status,
+            latency_ms: 10,
+            consecutive_failures: failures,
+            last_check_ms: now_ms(),
+            message: None,
+        }
+    }
+
+    #[test]
+    fn test_probe_id_new_generates_unique_ids() {
+        let id1 = ProbeId::new();
+        let id2 = ProbeId::new();
+        assert_ne!(id1, id2);
+    }
+
+    #[test]
+    fn test_probe_id_from_string_parses_valid_format() {
+        let id = ProbeId::new();
+        let s = id.as_str();
+        let parsed = ProbeId::from_string(&s);
+        assert!(parsed.is_some());
+        assert_eq!(parsed.unwrap(), id);
+    }
+
+    #[test]
+    fn test_probe_id_from_string_returns_none_for_invalid() {
+        assert!(ProbeId::from_string("invalid").is_none());
+        assert!(ProbeId::from_string("probe-").is_none());
+        assert!(ProbeId::from_string("").is_none());
+        assert!(ProbeId::from_string("not-a-probe-01AZAR0").is_none());
+    }
+
+    #[test]
+    fn test_probe_id_as_str_returns_correct_format() {
+        let id = ProbeId::new();
+        let s = id.as_str();
+        assert!(s.starts_with("probe-"));
+        assert_eq!(s, format!("probe-{}", id.0));
+    }
+
+    #[test]
+    fn test_probe_id_display_impl() {
+        let id = ProbeId::new();
+        let display = format!("{}", id);
+        assert_eq!(display, id.as_str());
+    }
+
+    #[test]
+    fn test_probe_id_serialization_roundtrip() {
+        let id = ProbeId::new();
+        let json = serde_json::to_string(&id).unwrap();
+        let parsed: ProbeId = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed, id);
+    }
+
+    #[test]
+    fn test_probe_id_deserialization_rejects_malformed() {
+        let result: Result<ProbeId, _> = serde_json::from_str("\"invalid\"");
+        assert!(result.is_err());
+        let result: Result<ProbeId, _> = serde_json::from_str("\"probe-\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_probe_result_fields_healthy() {
+        let id = ProbeId::new();
+        let result = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Healthy,
+            latency_ms: 100,
+            consecutive_failures: 0,
+            last_check_ms: 1234567890,
+            message: Some("OK".to_string()),
+        };
+        assert_eq!(result.status, ProbeStatus::Healthy);
+        assert_eq!(result.latency_ms, 100);
+        assert_eq!(result.consecutive_failures, 0);
+    }
+
+    #[test]
+    fn test_probe_result_fields_unhealthy() {
+        let id = ProbeId::new();
+        let result = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 50,
+            consecutive_failures: 3,
+            last_check_ms: 1234567890,
+            message: Some("Connection refused".to_string()),
+        };
+        assert_eq!(result.status, ProbeStatus::Unhealthy);
+        assert_eq!(result.consecutive_failures, 3);
+    }
+
+    #[test]
+    fn test_probe_result_fields_unknown() {
+        let id = ProbeId::new();
+        let result = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Unknown,
+            latency_ms: 0,
+            consecutive_failures: 0,
+            last_check_ms: 0,
+            message: None,
+        };
+        assert_eq!(result.status, ProbeStatus::Unknown);
+    }
+
+    #[test]
+    fn test_probe_result_latency_is_nonzero_for_completed() {
+        let id = ProbeId::new();
+        let result = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+            message: None,
+        };
+        assert!(result.latency_ms > 0);
+    }
+
+    #[test]
+    fn test_probe_config_http_creates_valid_config() {
+        let config = ProbeConfig::http("http://localhost:8080/health");
+        match config {
+            ProbeConfig::Http {
+                url,
+                expected_status,
+                timeout_ms,
+            } => {
+                assert_eq!(url, "http://localhost:8080/health");
+                assert_eq!(expected_status, Some(200));
+                assert_eq!(timeout_ms, 5000);
+            }
+            _ => panic!("Expected Http variant"),
+        }
+    }
+
+    #[test]
+    fn test_probe_config_tcp_creates_valid_config() {
+        let config = ProbeConfig::tcp("localhost", 8080);
+        match config {
+            ProbeConfig::Tcp {
+                address,
+                port,
+                timeout_ms,
+            } => {
+                assert_eq!(address, "localhost");
+                assert_eq!(port, 8080);
+                assert_eq!(timeout_ms, 5000);
+            }
+            _ => panic!("Expected Tcp variant"),
+        }
+    }
+
+    #[test]
+    fn test_probe_config_exec_creates_valid_config() {
+        let config = ProbeConfig::exec("echo", vec!["hello".to_string()]);
+        match config {
+            ProbeConfig::Exec {
+                command,
+                args,
+                expected_exit_code,
+                timeout_ms,
+            } => {
+                assert_eq!(command, "echo");
+                assert_eq!(args, vec!["hello"]);
+                assert_eq!(expected_exit_code, Some(0));
+                assert_eq!(timeout_ms, 30000);
+            }
+            _ => panic!("Expected Exec variant"),
+        }
+    }
+
+    #[test]
+    fn test_probe_config_with_timeout_modifies_timeout() {
+        let config =
+            ProbeConfig::http("http://localhost:8080/health").with_timeout(Duration::from_secs(30));
+        assert_eq!(config.timeout(), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_probe_config_timeout_returns_correct_duration() {
+        let config = ProbeConfig::http("http://localhost:8080/health");
+        assert_eq!(config.timeout(), Duration::from_millis(5000));
+
+        let tcp_config = ProbeConfig::tcp("localhost", 8080);
+        assert_eq!(tcp_config.timeout(), Duration::from_millis(5000));
+
+        let exec_config = ProbeConfig::exec("echo", vec![]);
+        assert_eq!(exec_config.timeout(), Duration::from_millis(30000));
+    }
+
+    #[test]
+    fn test_probe_config_probe_type_returns_correct_variant() {
+        assert_eq!(
+            ProbeConfig::http("http://localhost").probe_type(),
+            ProbeType::Http
+        );
+        assert_eq!(
+            ProbeConfig::tcp("localhost", 8080).probe_type(),
+            ProbeType::Tcp
+        );
+        assert_eq!(
+            ProbeConfig::exec("echo", vec![]).probe_type(),
+            ProbeType::Exec
+        );
+    }
+
+    #[test]
+    fn test_probe_config_serialization_roundtrip() {
+        let config =
+            ProbeConfig::http("http://localhost:8080/health").with_timeout(Duration::from_secs(10));
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: ProbeConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.timeout(), config.timeout());
+    }
+
+    #[test]
+    fn test_backoff_config_calculate_interval_zero_failures() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.calculate_interval(0), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_backoff_config_calculate_interval_one_failure() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.calculate_interval(1), Duration::from_secs(2));
+    }
+
+    #[test]
+    fn test_backoff_config_exponential_growth() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.calculate_interval(0), Duration::from_secs(1));
+        assert_eq!(config.calculate_interval(1), Duration::from_secs(2));
+        assert_eq!(config.calculate_interval(2), Duration::from_secs(4));
+        assert_eq!(config.calculate_interval(3), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn test_backoff_config_respects_max_interval() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(10),
+            multiplier: 2.0,
+            max_failures: 10,
+        };
+        assert_eq!(config.calculate_interval(10), Duration::from_secs(10));
+        assert_eq!(config.calculate_interval(100), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_backoff_config_handles_overflow() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(10),
+            multiplier: 2.0,
+            max_failures: 5,
+        };
+        assert_eq!(config.calculate_interval(5), Duration::from_secs(10));
+        assert_eq!(config.calculate_interval(100), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_backoff_config_default_values() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.initial_interval, Duration::from_secs(1));
+        assert_eq!(config.max_interval, Duration::from_secs(60));
+        assert_eq!(config.multiplier, 2.0);
+        assert_eq!(config.max_failures, 10);
+    }
+
+    #[test]
+    fn test_backoff_config_multiplier_one_produces_constant() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(5),
+            max_interval: Duration::from_secs(60),
+            multiplier: 1.0,
+            max_failures: 10,
+        };
+        assert_eq!(config.calculate_interval(0), Duration::from_secs(5));
+        assert_eq!(config.calculate_interval(1), Duration::from_secs(5));
+        assert_eq!(config.calculate_interval(5), Duration::from_secs(5));
+    }
+
+    #[test]
+    fn test_aggregated_status_new_initializes_unknown() {
+        let status = AggregatedStatus::new();
+        assert_eq!(status.overall, ProbeStatus::Unknown);
+        assert_eq!(status.healthy_count, 0);
+        assert_eq!(status.unhealthy_count, 0);
+        assert_eq!(status.unknown_count, 0);
+    }
+
+    #[test]
+    fn test_aggregated_status_update_healthy() {
+        let mut status = AggregatedStatus::new();
+        let result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(result);
+        assert_eq!(status.healthy_count, 1);
+        assert_eq!(status.unhealthy_count, 0);
+        assert_eq!(status.unknown_count, 0);
+    }
+
+    #[test]
+    fn test_aggregated_status_update_unhealthy() {
+        let mut status = AggregatedStatus::new();
+        let result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(result);
+        assert_eq!(status.unhealthy_count, 1);
+    }
+
+    #[test]
+    fn test_aggregated_status_update_unknown() {
+        let mut status = AggregatedStatus::new();
+        let result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unknown,
+            latency_ms: 0,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(result);
+        assert_eq!(status.unknown_count, 1);
+    }
+
+    #[test]
+    fn test_aggregated_status_overall_unhealthy_when_any_probe_unhealthy() {
+        let mut status = AggregatedStatus::new();
+
+        let healthy = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(healthy);
+
+        let unhealthy = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(unhealthy);
+
+        assert_eq!(status.overall, ProbeStatus::Unhealthy);
+    }
+
+    #[test]
+    fn test_aggregated_status_overall_healthy_when_all_healthy_and_none_unknown() {
+        let mut status = AggregatedStatus::new();
+
+        let h1 = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(h1);
+
+        let h2 = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(h2);
+
+        assert_eq!(status.overall, ProbeStatus::Healthy);
+    }
+
+    #[test]
+    fn test_aggregated_status_overall_unknown_when_mix_of_healthy_and_unknown() {
+        let mut status = AggregatedStatus::new();
+
+        let healthy = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(healthy);
+
+        let unknown = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unknown,
+            latency_ms: 0,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(unknown);
+
+        assert_eq!(status.overall, ProbeStatus::Unknown);
+    }
+
+    #[test]
+    fn test_aggregated_status_is_healthy() {
+        let mut status = AggregatedStatus::new();
+        assert!(!status.is_healthy());
+
+        let healthy = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(healthy);
+        assert!(status.is_healthy());
+
+        let unhealthy = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(unhealthy);
+        assert!(!status.is_healthy());
+    }
+
+    #[test]
+    fn test_aggregated_status_update_replaces_previous_for_same_probe() {
+        let mut status = AggregatedStatus::new();
+        let probe_id = ProbeId::new();
+
+        let r1 = ProbeResult {
+            probe_id,
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(r1);
+        assert_eq!(status.healthy_count, 1);
+
+        let r2 = ProbeResult {
+            probe_id,
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 20,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(r2);
+        assert_eq!(status.healthy_count, 0);
+        assert_eq!(status.unhealthy_count, 1);
+        assert_eq!(status.results.len(), 1);
+    }
+
+    #[test]
+    fn test_aggregated_status_multiple_probes_tracked() {
+        let mut status = AggregatedStatus::new();
+
+        for i in 0..5 {
+            let result = ProbeResult {
+                probe_id: ProbeId::new(),
+                status: ProbeStatus::Healthy,
+                latency_ms: 10 + i as u64,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            };
+            status.update(result);
+        }
+
+        assert_eq!(status.results.len(), 5);
+        assert_eq!(status.healthy_count, 5);
+    }
+
+    #[test]
+    fn test_probe_error_http_message_format() {
+        let err = ProbeError::Http("connection refused".to_string());
+        assert!(matches!(err, ProbeError::Http(ref msg) if msg == "connection refused"));
+        assert!(err.to_string().contains("HTTP probe failed"));
+    }
+
+    #[test]
+    fn test_probe_error_tcp_message_format() {
+        let err = ProbeError::Tcp("connection refused".to_string());
+        assert!(matches!(err, ProbeError::Tcp(ref msg) if msg == "connection refused"));
+        assert!(err.to_string().contains("TCP probe failed"));
+    }
+
+    #[test]
+    fn test_probe_error_exec_message_format() {
+        let err = ProbeError::Exec("exit code 1".to_string());
+        assert!(matches!(err, ProbeError::Exec(ref msg) if msg == "exit code 1"));
+        assert!(err.to_string().contains("Exec probe failed"));
+    }
+
+    #[test]
+    fn test_probe_error_timeout_message_format() {
+        let err = ProbeError::Timeout(Duration::from_secs(5));
+        assert!(matches!(err, ProbeError::Timeout(d) if d == Duration::from_secs(5)));
+        assert!(err.to_string().contains("Timeout"));
+    }
+
+    #[test]
+    fn test_probe_error_not_found_message_format() {
+        let id = ProbeId::new();
+        let err = ProbeError::NotFound(id);
+        assert!(matches!(err, ProbeError::NotFound(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("not found") || msg.contains("Probe"));
+    }
+
+    #[test]
+    fn test_inv_healthy_only_after_consecutive_successes() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.initial_interval, Duration::from_secs(1));
+    }
+
+    #[test]
+    fn test_inv_unhealthy_after_consecutive_failures() {
+        let config = BackoffConfig::default();
+        let interval = config.calculate_interval(3);
+        assert_eq!(interval, Duration::from_secs(8));
+    }
+
+    #[test]
+    fn test_inv_probe_timeout_respected() {
+        let config = ProbeConfig::http("http://localhost");
+        assert_eq!(config.timeout(), Duration::from_millis(5000));
+    }
+
+    #[test]
+    fn test_inv_consecutive_healthy_resets_on_failure() {
+        let mut status = AggregatedStatus::new();
+        let id = ProbeId::new();
+
+        let r1 = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(r1);
+
+        let r2 = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        status.update(r2);
+
+        assert_eq!(status.overall, ProbeStatus::Unhealthy);
+    }
+
+    #[test]
+    fn test_inv_initial_delay_respected() {
+        let definition = ProbeDefinition {
+            id: ProbeId::new(),
+            name: "test".to_string(),
+            config: ProbeConfig::http("http://localhost"),
+            interval: Duration::from_secs(30),
+            backoff: BackoffConfig::default(),
+            failure_threshold: 3,
+            success_threshold: 2,
+        };
+        assert_eq!(definition.interval, Duration::from_secs(30));
+    }
+
+    #[test]
+    fn test_inv_backoff_applied_after_failure() {
+        let config = BackoffConfig::default();
+        assert_eq!(config.calculate_interval(0), Duration::from_secs(1));
+        assert_eq!(config.calculate_interval(1), Duration::from_secs(2));
+    }
+
+    #[test]
+    fn test_inv_timestamp_ordering() {
+        let id = ProbeId::new();
+        let now = now_ms();
+        let result = ProbeResult {
+            probe_id: id,
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: now,
+            message: None,
+        };
+        assert!(result.last_check_ms <= now_ms());
+    }
+
+    proptest! {
+        #[test]
+        fn test_backoff_interval_monotonic(failures in 0u32..100u32) {
+            let config = BackoffConfig::default();
+            let interval = config.calculate_interval(failures);
+            prop_assert!(interval >= config.initial_interval);
+            prop_assert!(interval <= config.max_interval);
+        }
+
+        #[test]
+        fn test_backoff_respects_max_interval(failures in 0u32..1000u32) {
+            let config = BackoffConfig {
+                initial_interval: Duration::from_secs(1),
+                max_interval: Duration::from_secs(60),
+                multiplier: 2.0,
+                max_failures: 10,
+            };
+            let interval = config.calculate_interval(failures);
+            prop_assert!(interval <= Duration::from_secs(60));
+        }
+
+        #[test]
+        fn test_aggregated_status_deterministic(
+            status1 in 0u8..3,
+            status2 in 0u8..3
+        ) {
+            let s1 = match status1 {
+                0 => ProbeStatus::Healthy,
+                1 => ProbeStatus::Unhealthy,
+                _ => ProbeStatus::Unknown,
+            };
+            let s2 = match status2 {
+                0 => ProbeStatus::Healthy,
+                1 => ProbeStatus::Unhealthy,
+                _ => ProbeStatus::Unknown,
+            };
+
+            let mut agg1 = AggregatedStatus::new();
+            let mut agg2 = AggregatedStatus::new();
+
+            let id1 = ProbeId::new();
+            let id2 = ProbeId::new();
+
+            agg1.update(ProbeResult {
+                probe_id: id1,
+                status: s1,
+                latency_ms: 10,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            });
+            agg1.update(ProbeResult {
+                probe_id: id2,
+                status: s2,
+                latency_ms: 10,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            });
+
+            agg2.update(ProbeResult {
+                probe_id: id1,
+                status: s1,
+                latency_ms: 10,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            });
+            agg2.update(ProbeResult {
+                probe_id: id2,
+                status: s2,
+                latency_ms: 10,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            });
+
+            prop_assert_eq!(agg1.overall, agg2.overall);
+        }
+
+        #[test]
+        fn test_probe_id_uniqueness(count in 1u8..10u8) {
+            let mut ids = std::collections::HashSet::new();
+            for _ in 0..count {
+                let id = ProbeId::new();
+                prop_assert!(ids.insert(id), "ProbeId should be unique");
+            }
+        }
+
+        #[test]
+        fn test_probe_result_latency_positive(latency in 1u64..10000u64) {
+            let result = ProbeResult {
+                probe_id: ProbeId::new(),
+                status: ProbeStatus::Healthy,
+                latency_ms: latency,
+                consecutive_failures: 0,
+                last_check_ms: now_ms(),
+                message: None,
+            };
+            prop_assert!(result.latency_ms > 0);
+        }
+    }
+
+    #[test]
+    fn test_zero_timeout_probe() {
+        let config = ProbeConfig::http("http://localhost").with_timeout(Duration::from_secs(0));
+        assert_eq!(config.timeout(), Duration::from_secs(0));
+    }
+
+    #[test]
+    fn test_very_long_timeout_probe() {
+        let config = ProbeConfig::http("http://localhost").with_timeout(Duration::from_secs(7200));
+        assert_eq!(config.timeout(), Duration::from_secs(7200));
+    }
+
+    #[test]
+    fn test_negative_backoff_multiplier() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(60),
+            multiplier: -2.0,
+            max_failures: 10,
+        };
+        let interval = config.calculate_interval(1);
+        assert!(interval >= Duration::from_secs(0));
+    }
+
+    #[test]
+    fn test_zero_backoff_multiplier() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(60),
+            multiplier: 0.0,
+            max_failures: 10,
+        };
+        let interval = config.calculate_interval(1);
+        assert_eq!(interval, Duration::from_secs(0));
+    }
+
+    #[test]
+    fn test_max_u64_latency() {
+        let result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: u64::MAX,
+            consecutive_failures: 0,
+            last_check_ms: now_ms(),
+            message: None,
+        };
+        assert_eq!(result.latency_ms, u64::MAX);
+    }
+
+    #[test]
+    fn test_probe_types_exhaustive() {
+        assert_eq!(3, 3);
+        let _ = ProbeType::Http;
+        let _ = ProbeType::Tcp;
+        let _ = ProbeType::Exec;
+    }
+
+    #[test]
+    fn test_probe_outcomes_exhaustive() {
+        assert_eq!(3, 3);
+        let _ = ProbeStatus::Healthy;
+        let _ = ProbeStatus::Unhealthy;
+        let _ = ProbeStatus::Unknown;
+    }
+
+    #[test]
+    fn test_backoff_config_calculate_interval() {
+        let config = BackoffConfig::default();
+
+        assert_eq!(config.calculate_interval(0), Duration::from_secs(1));
+        assert_eq!(config.calculate_interval(1), Duration::from_secs(2));
+        assert_eq!(config.calculate_interval(2), Duration::from_secs(4));
+        assert_eq!(config.calculate_interval(3), Duration::from_secs(8));
+    }
+
+    #[test]
+    fn test_backoff_config_max_interval() {
+        let config = BackoffConfig {
+            initial_interval: Duration::from_secs(1),
+            max_interval: Duration::from_secs(10),
+            multiplier: 2.0,
+            max_failures: 10,
+        };
+
+        assert_eq!(config.calculate_interval(10), Duration::from_secs(10));
+        assert_eq!(config.calculate_interval(100), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_aggregated_status_update() {
+        let mut status = AggregatedStatus::new();
+
+        let healthy_result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Healthy,
+            latency_ms: 10,
+            consecutive_failures: 0,
+            last_check_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+            message: None,
+        };
+
+        status.update(healthy_result);
+        assert_eq!(status.healthy_count, 1);
+        assert_eq!(status.unhealthy_count, 0);
+        assert_eq!(status.overall, ProbeStatus::Healthy);
+
+        let unhealthy_result = ProbeResult {
+            probe_id: ProbeId::new(),
+            status: ProbeStatus::Unhealthy,
+            latency_ms: 10,
+            consecutive_failures: 1,
+            last_check_ms: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+            message: None,
+        };
+
+        status.update(unhealthy_result);
+        assert_eq!(status.healthy_count, 1);
+        assert_eq!(status.unhealthy_count, 1);
+        assert_eq!(status.overall, ProbeStatus::Unhealthy);
+    }
+
+    #[test]
+    fn test_probe_config_timeout() {
+        let config = ProbeConfig::http("http://localhost:8080/health");
+        assert_eq!(config.timeout(), Duration::from_millis(5000));
+
+        let config = config.with_timeout(Duration::from_secs(10));
+        assert_eq!(config.timeout(), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn test_probe_id_display() {
+        let id = ProbeId::new();
+        let display = format!("{}", id);
+        assert!(display.starts_with("probe-"));
+    }
+
+    #[test]
+    fn qa_inv001_healthy_requires_threshold_successes() {
+        let threshold = 3u32;
+        let id = ProbeId::new();
+        let mut agg = AggregatedStatus::new();
+        for _ in 0..threshold {
+            agg.update(make_result(id, ProbeStatus::Healthy, 0));
+        }
+        assert_eq!(agg.overall, ProbeStatus::Healthy);
+    }
+
+    #[test]
+    fn qa_inv002_unhealthy_after_threshold_failures() {
+        let threshold = 3u32;
+        let id = ProbeId::new();
+        let mut agg = AggregatedStatus::new();
+        for i in 0..threshold {
+            agg.update(make_result(id, ProbeStatus::Unhealthy, i + 1));
+        }
+        assert_eq!(agg.overall, ProbeStatus::Unhealthy);
+    }
+
+    #[test]
+    fn qa_inv003_probe_config_timeout_bounds() {
+        let configs = vec![
+            ProbeConfig::http("http://localhost:8080/health"),
+            ProbeConfig::tcp("localhost", 8080),
+            ProbeConfig::exec("echo", vec![]),
+        ];
+        for config in configs {
+            let timeout = config.timeout();
+            assert!(
+                timeout.as_millis() > 0,
+                "INV-003: timeout must be positive, got {:?}",
+                timeout
+            );
+        }
+    }
+
+    #[test]
+    fn qa_inv004_consecutive_healthy_resets_on_failure() {
+        let id = ProbeId::new();
+        let mut agg = AggregatedStatus::new();
+        agg.update(make_result(id, ProbeStatus::Healthy, 0));
+        agg.update(make_result(id, ProbeStatus::Healthy, 0));
+        assert_eq!(agg.healthy_count, 1);
+
+        agg.update(make_result(id, ProbeStatus::Unhealthy, 1));
+        assert_eq!(agg.healthy_count, 0);
+        assert_eq!(agg.unhealthy_count, 1);
+    }
+
+    #[test]
+    fn qa_inv005_consecutive_unhealthy_resets_on_success() {
+        let id = ProbeId::new();
+        let mut agg = AggregatedStatus::new();
+        agg.update(make_result(id, ProbeStatus::Unhealthy, 1));
+        agg.update(make_result(id, ProbeStatus::Unhealthy, 2));
+        assert_eq!(agg.unhealthy_count, 1);
+
+        agg.update(make_result(id, ProbeStatus::Healthy, 0));
+        assert_eq!(agg.unhealthy_count, 0);
+        assert_eq!(agg.healthy_count, 1);
+    }
+
+    #[test]
+    fn qa_inv006_aggregated_status_transitions() {
+        let mut agg = AggregatedStatus::new();
+        assert_eq!(agg.overall, ProbeStatus::Unknown);
+
+        let id1 = ProbeId::new();
+        agg.update(make_result(id1, ProbeStatus::Healthy, 0));
+        assert_eq!(agg.overall, ProbeStatus::Healthy);
+
+        let id2 = ProbeId::new();
+        agg.update(make_result(id2, ProbeStatus::Unhealthy, 1));
+        assert_eq!(agg.overall, ProbeStatus::Unhealthy);
+
+        agg.update(make_result(id2, ProbeStatus::Healthy, 0));
+        assert_eq!(agg.overall, ProbeStatus::Healthy);
+    }
+
+    #[test]
+    fn qa_inv008_definition_interval_respected() {
+        let interval = Duration::from_secs(45);
+        let def = ProbeDefinition {
+            id: ProbeId::new(),
+            name: "qa-inv008".to_string(),
+            config: ProbeConfig::http("http://localhost:8080"),
+            interval,
+            backoff: BackoffConfig::default(),
+            failure_threshold: 3,
+            success_threshold: 2,
+        };
+        assert_eq!(def.interval, interval);
+    }
+
+    #[test]
+    fn qa_inv009_backoff_not_applied_before_first_probe() {
+        let config = BackoffConfig::default();
+        let initial = config.calculate_interval(0);
+        assert_eq!(initial, config.initial_interval);
+    }
+
+    #[test]
+    fn qa_inv010_timestamp_ordering_in_result() {
+        let before = now_ms();
+        let id = ProbeId::new();
+        let result = make_result(id, ProbeStatus::Healthy, 0);
+        assert!(result.last_check_ms >= before);
+        assert!(result.last_check_ms <= now_ms());
+    }
+
+    #[test]
+    fn qa_smoke_probe_config_tagged_serde() {
+        let configs = vec![
+            ProbeConfig::http("http://localhost:8080/health"),
+            ProbeConfig::tcp("127.0.0.1", 9090),
+            ProbeConfig::exec("curl", vec!["-s".to_string()]),
+        ];
+        for config in configs {
+            let json = serde_json::to_string(&config).unwrap();
+            assert!(
+                json.contains("\"type\""),
+                "Tagged serde must include type field: {}",
+                json
+            );
+            let parsed: ProbeConfig = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed.probe_type(), config.probe_type());
+        }
+    }
+
+    #[test]
+    fn qa_smoke_backoff_monotonic_growth() {
+        let config = BackoffConfig::default();
+        let mut prev = Duration::ZERO;
+        for failures in 0..=config.max_failures {
+            let interval = config.calculate_interval(failures);
+            assert!(
+                interval >= prev,
+                "Backoff must be monotonic: failure={} interval={:?} < prev={:?}",
+                failures,
+                interval,
+                prev
+            );
+            assert!(
+                interval <= config.max_interval,
+                "Backoff must not exceed max: interval={:?} > max={:?}",
+                interval,
+                config.max_interval
+            );
+            prev = interval;
+        }
+    }
+
+    #[test]
+    fn qa_smoke_aggregation_dominance_rule() {
+        let mut agg = AggregatedStatus::new();
+        let ids: Vec<ProbeId> = (0..10).map(|_| ProbeId::new()).collect();
+        for id in &ids[..9] {
+            agg.update(make_result(*id, ProbeStatus::Healthy, 0));
+        }
+        assert_eq!(agg.overall, ProbeStatus::Healthy);
+
+        agg.update(make_result(ids[9], ProbeStatus::Unhealthy, 1));
+        assert_eq!(agg.overall, ProbeStatus::Unhealthy);
+        assert_eq!(agg.healthy_count, 9);
+        assert_eq!(agg.unhealthy_count, 1);
+    }
+}

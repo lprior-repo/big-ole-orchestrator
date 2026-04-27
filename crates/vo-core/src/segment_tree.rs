@@ -476,8 +476,8 @@ mod tests {
             &data,
             lazy_merge,
             0,
-            lazy_apply,
-            lazy_compose,
+            |val, upd: &i64, len| val + upd * len as i64,
+            |old, new| old + new,
         );
         tree.update_point(2, 100);
         assert_eq!(tree.query(0, 5), 112);
@@ -545,9 +545,9 @@ mod tests {
                 let query_left = query_left.min(query_right);
 
                 let mut tree = LazySegmentTree::from_slice(
-                    &data, lazy_merge, 0,
-                    lazy_apply,
-                    lazy_compose,
+                    &data, |a, b| a + b, 0,
+            |val, upd: &i64, len| val + upd * len as i64,
+                    |old, new| old + new,
                 );
                 tree.update_range(range_left, range_right, update_val);
 

@@ -799,231 +799,176 @@ mod tests {
     }
 
     // ========================================================================
-    // EffectIdempotencyError Tests
+    // EffectRecord Compression — Round-Trip Correctness
     // ========================================================================
 
-    #[test]
-    fn effect_idempotency_error_empty_key_displays_correct_message() {
-        let err = EffectIdempotencyError::EmptyKey;
-        assert_eq!(err.to_string(), "Empty idempotency key not permitted");
-    }
-
-    #[test]
-    fn effect_idempotency_error_key_too_long_displays_correct_message() {
-        let err = EffectIdempotencyError::KeyTooLong {
-            max: 256,
-            actual: 512,
-        };
-        assert_eq!(
-            err.to_string(),
-            "Idempotency key exceeds maximum length of 256 characters (got 512)"
-        );
-    }
-
-    // ========================================================================
-    // EffectRecord::validate_idempotency_key Tests
-    // ========================================================================
-
-    #[test]
-    fn validate_idempotency_key_accepts_non_empty_key() {
-        assert!(EffectRecord::validate_idempotency_key("valid-key").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("a").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("key_with_123_numbers").is_ok());
-    }
-
-    #[test]
-    fn validate_idempotency_key_rejects_empty_key() {
-        let result = EffectRecord::validate_idempotency_key("");
-        assert!(matches!(
-            result,
-            Err(EffectIdempotencyError::EmptyKey)
-        ));
-    }
-
-    #[test]
-    fn validate_idempotency_key_rejects_key_exceeding_max_length() {
-        let too_long_key = "a".repeat(257);
-        let result = EffectRecord::validate_idempotency_key(&too_long_key);
-        assert!(matches!(
-            result,
-            Err(EffectIdempotencyError::KeyTooLong {
-                max: 256,
-                actual: 257
-            })
-        ));
-    }
-
-    #[test]
-    fn validate_idempotency_key_accepts_key_at_max_length_boundary() {
-        let max_key = "a".repeat(256);
-        assert!(EffectRecord::validate_idempotency_key(&max_key).is_ok());
-    }
-
-    #[test]
-    fn validate_idempotency_key_accepts_single_character_key() {
-        assert!(EffectRecord::validate_idempotency_key("x").is_ok());
-    }
-
-    #[test]
-    fn validate_idempotency_key_accepts_key_with_special_characters() {
-        assert!(EffectRecord::validate_idempotency_key("key-123_abc-def").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("KEY_UPPERCASE").is_ok());
-    }
-
-    // ========================================================================
-    // Effect Idempotency Key Uniqueness Tests (Per-Type)
-    // ========================================================================
-
-    #[test]
-    fn same_intent_id_allowed_across_different_effect_kinds() {
-        // Same intent_id should be allowed for different EffectKind variants
-        let record1 = EffectRecord::new(
-            "fx-same-id".to_string(),
+    #[rstest]
+    #[case(EffectIntent::Prepared, None)]
+    #[case(EffectIntent::Committed, Some(crate::types::TimestampMs(1000)))]
+    #[case(EffectIntent::RolledBack, Some(crate::types::TimestampMs(2000)))]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_intents(
+        #[case] status: EffectIntent,
+        #[case] committed_at: Option<crate::types::TimestampMs>,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-intent".to_string(),
             EffectKind::HttpCall,
             json!({"url": "https://api.example.com"}),
+            status,
+            committed_at,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[rstest]
+    #[case(EffectKind::HttpCall)]
+    #[case(EffectKind::SqlQuery)]
+    #[case(EffectKind::BlobWrite)]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
+        #[case] kind: EffectKind,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-kind".to_string(),
+            kind,
+            json!({"query": "SELECT * FROM table"}),
             EffectIntent::Prepared,
             None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[test]
+    fn effectrecord_compress_decompress_roundtrip_with_complex_params() {
+        let record = EffectRecord::new(
+            "fx-complex".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "headers": {"Authorization": "Bearer token123", "Content-Type": "application/json"},
+                "body": {"items": [{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]},
+                "timeout_ms": 5000
+            }),
+            EffectIntent::Committed,
+            Some(crate::types::TimestampMs(9999)),
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Ratio Verification
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_compression_reduces_size_for_text_heavy_payload() {
+        let record = EffectRecord::new(
+            "fx-large".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100)
+            }),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Compressed size ({}) should be smaller than JSON size ({})",
+            compressed.len(),
+            json_bytes.len()
         );
-        let record2 = EffectRecord::new(
-            "fx-same-id".to_string(),
+    }
+
+    #[test]
+    fn effectrecord_compression_still_smaller_for_small_records() {
+        let record = EffectRecord::new(
+            "a".to_string(),
             EffectKind::SqlQuery,
-            json!({"query": "SELECT 1"}),
+            json!({"q": "x"}),
             EffectIntent::Prepared,
             None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Even small records should compress (compressed: {}, json: {})",
+            compressed.len(),
+            json_bytes.len()
         );
-        let record3 = EffectRecord::new(
-            "fx-same-id".to_string(),
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Decompression Error Handling
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_empty_input() {
+        let result = EffectRecord::decompress(&[]);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_random_bytes() {
+        let result = EffectRecord::decompress(b"not zstd compressed data at all");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_truncated_zstd() {
+        let record = EffectRecord::new(
+            "fx-trunc".to_string(),
             EffectKind::BlobWrite,
-            json!({"bucket": "test", "key": "obj"}),
-            EffectIntent::Prepared,
-            None,
-        );
-
-        assert!(record1.is_some());
-        assert!(record2.is_some());
-        assert!(record3.is_some());
-
-        let r1 = record1.unwrap();
-        let r2 = record2.unwrap();
-        let r3 = record3.unwrap();
-
-        assert_eq!(r1.intent_id(), r2.intent_id());
-        assert_eq!(r2.intent_id(), r3.intent_id());
-        assert_ne!(r1.kind(), r2.kind());
-        assert_ne!(r2.kind(), r3.kind());
-    }
-
-    #[test]
-    fn effect_records_with_same_kind_same_id_same_params_are_equal() {
-        let kind = EffectKind::HttpCall;
-        let id = "fx-duplicate-test";
-
-        let record1 = EffectRecord::new(
-            id.to_string(),
-            kind,
-            json!({"param": "value1"}),
+            json!({"bucket": "test"}),
             EffectIntent::Prepared,
             None,
         )
         .unwrap();
-
-        let record2 = EffectRecord::new(
-            id.to_string(),
-            kind,
-            json!({"param": "value1"}),
-            EffectIntent::Prepared,
-            None,
-        )
-        .unwrap();
-
-        // Same all fields should be equal
-        assert_eq!(record1, record2);
-    }
-
-    #[test]
-    fn effect_kind_variant_has_unique_hash_for_same_intent_id() {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let id = "fx-hash-test";
-        let kind1 = EffectKind::HttpCall;
-        let kind2 = EffectKind::SqlQuery;
-
-        let record1 = EffectRecord::new(
-            id.to_string(),
-            kind1,
-            json!({}),
-            EffectIntent::Prepared,
-            None,
-        )
-        .unwrap();
-
-        let record2 = EffectRecord::new(
-            id.to_string(),
-            kind2,
-            json!({}),
-            EffectIntent::Prepared,
-            None,
-        )
-        .unwrap();
-
-        let mut h1 = DefaultHasher::new();
-        record1.hash(&mut h1);
-        let hash1 = h1.finish();
-
-        let mut h2 = DefaultHasher::new();
-        record2.hash(&mut h2);
-        let hash2 = h2.finish();
-
-        // Different effect kinds should produce different hashes even with same intent_id
-        assert_ne!(hash1, hash2);
-    }
-
-    // ========================================================================
-    // Key Exhaustion Tests
-    // ========================================================================
-
-    #[test]
-    fn idempotency_key_exhaustion_boundary_at_max_length() {
-        let max_key = "a".repeat(256);
-        assert!(EffectRecord::validate_idempotency_key(&max_key).is_ok());
-
-        let over_key = "a".repeat(257);
+        let compressed = record.compress().unwrap();
+        let truncated = &compressed[..compressed.len() / 2];
+        let result = EffectRecord::decompress(truncated);
+        assert!(result.is_err());
         assert!(matches!(
-            EffectRecord::validate_idempotency_key(&over_key),
-            Err(EffectIdempotencyError::KeyTooLong {
-                max: 256,
-                actual: 257
-            })
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
         ));
     }
 
     #[test]
-    fn idempotency_key_empty_string_validation() {
+    fn effectrecord_decompress_returns_error_for_corrupted_zstd() {
+        let mut corrupted = vec![0x28, 0xb5, 0x2f, 0xfd];
+        corrupted.extend_from_slice(b"invalid zstd frame");
+        let result = EffectRecord::decompress(&corrupted);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_valid_zstd_invalid_utf8() {
+        let valid_zstd_magic = [0x28, 0xb5, 0x2f, 0xfd];
+        let result = EffectRecord::decompress(&valid_zstd_magic);
+        assert!(result.is_err());
         assert!(matches!(
-            EffectRecord::validate_idempotency_key(""),
-            Err(EffectIdempotencyError::EmptyKey)
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
         ));
-    }
-
-    #[test]
-    fn idempotency_key_with_whitespace_is_valid() {
-        // Whitespace is allowed (not restricted by this validator)
-        assert!(EffectRecord::validate_idempotency_key("key with spaces").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("  leading").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("trailing  ").is_ok());
-    }
-
-    #[test]
-    fn idempotency_key_unicode_is_valid() {
-        // Unicode characters are allowed (not restricted by this validator)
-        assert!(EffectRecord::validate_idempotency_key("key-émoji-🎉").is_ok());
-        assert!(EffectRecord::validate_idempotency_key("日本語キー").is_ok());
-    }
-
-    #[test]
-    fn max_idempotency_key_len_constant_is_exposed() {
-        assert_eq!(EffectRecord::MAX_IDEMPOTENCY_KEY_LEN, 256);
     }
 }
 

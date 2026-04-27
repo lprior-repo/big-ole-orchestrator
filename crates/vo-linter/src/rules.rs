@@ -166,6 +166,66 @@ impl<'ast> Visit<'ast> for RandomDetector {
     }
 }
 
+pub trait Rule: Send + Sync {
+    fn id(&self) -> &'static str;
+    fn name(&self) -> &'static str;
+    fn execute(&self, node: &syn::File) -> Vec<crate::Diagnostic>;
+}
+
+pub struct RuleRegistry {
+    rules: Vec<Box<dyn Rule>>,
+}
+
+impl RuleRegistry {
+    #[must_use]
+    pub fn new() -> Self {
+        let mut registry = Self {
+            rules: Vec::new(),
+        };
+        registry.add_rule(RandomRule);
+        registry
+    }
+
+    pub fn add_rule(&mut self, rule: impl Rule + 'static) {
+        self.rules.push(Box::new(rule));
+    }
+
+    #[must_use]
+    pub fn execute_all(&self, file: &syn::File) -> Vec<crate::Diagnostic> {
+        self.rules
+            .iter()
+            .flat_map(|rule| rule.execute(file))
+            .collect()
+    }
+
+    #[must_use]
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+    }
+}
+
+impl Default for RuleRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct RandomRule;
+
+impl Rule for RandomRule {
+    fn id(&self) -> &'static str {
+        "L002"
+    }
+
+    fn name(&self) -> &'static str {
+        "NoRandom"
+    }
+
+    fn execute(&self, node: &syn::File) -> Vec<crate::Diagnostic> {
+        check_random_in_workflow(node)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

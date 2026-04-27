@@ -46,6 +46,8 @@ pub struct CircuitBreakerState {
     /// Optional callback for quarantine notifications (ADR-026).
     /// When set, this callback is invoked when a workflow is quarantined.
     pub quarantine_callback: Option<Arc<QuarantineCallback>>,
+    /// Registered operator tokens for force registration (ADR-026).
+    pub operator_tokens: DashMap<String, ()>,
 }
 
 impl CircuitBreakerState {
@@ -57,6 +59,7 @@ impl CircuitBreakerState {
             rate_limiter: DashMap::new(),
             failure_tracker: DashMap::new(),
             quarantine_callback: None,
+            operator_tokens: DashMap::new(),
         }
     }
 
@@ -70,6 +73,11 @@ impl CircuitBreakerState {
         if let Some(callback) = &self.quarantine_callback {
             callback(event);
         }
+    }
+
+    /// Register an operator token for force registration (ADR-026).
+    pub fn register_operator_token(&self, token: String) {
+        self.operator_tokens.insert(token, ());
     }
 
     // ── Safe value accessors (guards dropped before return) ─────────────
@@ -126,6 +134,7 @@ impl std::fmt::Debug for CircuitBreakerState {
             .field("rate_limiter", &self.rate_limiter.len())
             .field("failure_tracker", &self.failure_tracker.len())
             .field("quarantine_callback", &self.quarantine_callback.is_some())
+            .field("operator_tokens", &self.operator_tokens.len())
             .finish()
     }
 }

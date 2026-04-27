@@ -61,10 +61,15 @@ pub(crate) fn write_success_inner<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
-    if bytes.len() > MAX_OUTPUT_SIZE {
+    let len = bytes.len();
+    if len > MAX_OUTPUT_SIZE {
         return Err(SdkError::WriteError);
     }
 
+    let len_u32 = len as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -86,10 +91,15 @@ pub fn write_success_inner_with_state<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
-    if bytes.len() > MAX_OUTPUT_SIZE {
+    let len = bytes.len();
+    if len > MAX_OUTPUT_SIZE {
         return Err(SdkError::WriteError);
     }
 
+    let len_u32 = len as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -119,7 +129,6 @@ pub(crate) fn write_failure_inner<W: Write>(
     kind: TaskFailureKind,
     message: &str,
 ) -> Result<(), SdkError> {
-    // Message limit is enforced in bytes (see crate-level docs).
     if message.len() > MAX_MESSAGE_BYTES {
         return Err(SdkError::InvalidInput);
     }
@@ -131,6 +140,10 @@ pub(crate) fn write_failure_inner<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
+    let len_u32 = bytes.len() as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -147,7 +160,6 @@ pub fn write_failure_inner_with_state<W: Write>(
     }
     *is_written = true;
 
-    // Message limit is enforced in bytes (see crate-level docs).
     if message.len() > MAX_MESSAGE_BYTES {
         return Err(SdkError::InvalidInput);
     }
@@ -159,6 +171,10 @@ pub fn write_failure_inner_with_state<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
+    let len_u32 = bytes.len() as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 

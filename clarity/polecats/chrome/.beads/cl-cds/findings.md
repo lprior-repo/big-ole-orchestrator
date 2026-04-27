@@ -1,0 +1,138 @@
+# Findings: Clarity Improvement Plan
+
+**Bead**: cl-cds - GO-PLAN: clarity task 2
+**Date**: 2026-04-24
+** Polecat**: chrome
+
+## Executive Summary
+
+Clarity is a Dioxus desktop application for structured planning using the Double Diamond methodology. The codebase has 291 Rust files with significant architectural drift. No code changes were made as this is a planning task.
+
+---
+
+## Critical Issues
+
+### 1. Architectural Drift: Files Exceeding 300-Line Limit
+
+The architectural-drift skill enforces a strict <300 line file limit. The following files violate this guideline significantly:
+
+| File | Lines | Violation |
+|------|-------|-----------|
+| server.rs | 2,778 | 9.3x over |
+| intent/interview/answer_extraction.rs | 2,559 | 8.5x over |
+| intent/quality/effects.rs | 1,903 | 6.3x over |
+| intent/quality/improver.rs | 1,761 | 5.9x over |
+| intent/beads/templates.rs | 1,701 | 5.7x over |
+| lattice/quality.rs | 1,560 | 5.2x over |
+| intent/quality/linter.rs | 1,540 | 5.1x over |
+| intent/validation/semantic.rs | 1,535 | 5.1x over |
+| kirk/terminal_integration.rs | 1,528 | 5.1x over |
+| hooks/progressive_discover.rs | 1,509 | 5.0x over |
+| intent/interview/answer_file.rs | 1,418 | 4.7x over |
+| intent/templates/spec_templates.rs | 1,374 | 4.6x over |
+| components/discover/progressive_discover.rs | 1,370 | 4.6x over |
+| pme/infra/metrics.rs | 1,330 | 4.4x over |
+| intent/quality/analyzer.rs | 1,297 | 4.3x over |
+| pme/infra/testing.rs | 1,282 | 4.3x over |
+| intent/validation/spec_validator.rs | 1,278 | 4.3x over |
+| pme/infra/tracing.rs | 1,213 | 4.0x over |
+| pme/discover/north_star.rs | 1,200 | 4.0x over |
+| pme/define/great_reindexing.rs | 1,195 | 4.0x over |
+
+**Recommended Action**: Prioritize breaking up `server.rs` (2,778 lines) first as it is the largest violation.
+
+### 2. Clippy Violations: Zero-Panic Architecture Breach
+
+The project claims "Zero unwraps, zero panics, zero expects" in AGENTS.md, but clippy-output.txt reveals violations:
+
+- **clarity-core/db/pool.rs**: Uses `unwrap()` on `Mutex::lock()` results (lines 132, 146)
+- **clarity-core/db/sqlite_pool.rs**: Multiple `unwrap()` and `expect()` calls in test code
+
+While test code is exempted from some lint rules, the pool initialization code is not test-only and violates the zero-panic principle.
+
+**Recommended Action**: Refactor pool initialization to properly handle locking errors using `Result<T, Error>` pattern.
+
+### 3. Build Timeouts
+
+Running `cargo build` or `cargo check` times out after 120-180 seconds, indicating:
+- Possible dependency issues
+- Heavy compilation load
+- No incremental caching configured
+
+---
+
+## Improvement Recommendations
+
+### Priority 1 (Critical - Blocks Productivity)
+
+1. **Break up server.rs** into smaller modules:
+   - Extract provider-specific functions to `providers/`
+   - Extract AI integration to `ai/` module
+   - Extract database operations to `db/` module
+
+2. **Fix clippy violations in clarity-core**:
+   - Pool initialization error handling
+   - Apply zero-panic patterns consistently
+
+### Priority 2 (High - Major Quality Gains)
+
+3. **Module extraction for 20+ oversized files**:
+   - Follow same pattern as server.rs refactoring
+   - Each file >1000 lines needs to be split
+
+4. **Add incremental build caching**:
+   - Configure `.cargo/config.toml` for ccaching
+   - Profile-guided optimization setup
+
+### Priority 3 (Medium - Technical Debt)
+
+5. **Review 291 Rust files structure**:
+   - Many files suggest feature creep
+   - Consider consolidating related functionality
+
+6. **Document module boundaries**:
+   - `intent/` vs `lattice/` vs `pme/` overlap unclear
+   - Clear domain boundaries needed
+
+---
+
+## Project Structure Analysis
+
+```
+clarity-web/src/
+├── app/           # 1 file (clean)
+├── components/    # UI components (discover, quality)
+├── config/        # AI configuration
+├── domain/        # Domain types
+├── hooks/         # Dioxus hooks (progressive_discover.rs is 1509 lines!)
+├── intent/        # Interview, validation, quality, beads, plan (HEAVY)
+├── kirk/          # Terminal integration (1528 lines)
+├── lattice/      # Quality framework (1560 lines in quality.rs)
+├── pages/         # Home page
+├── pme/           # Infra & discover/define (multiple large files)
+├── providers/     # AI providers
+├── storage/       # Database layer (redb, path utilities)
+├── ui/            # Reusable UI primitives
+└── server.rs      # 2778 lines (MAIN VIOLATOR)
+```
+
+---
+
+## Next Steps (Recommended Beads)
+
+1. **cl-break-server** (epic): Break up server.rs into provider/ai/db modules
+2. **cl-fix-pool-errors**: Fix zero-panic violations in clarity-core/db
+3. **cl-break-intent**: Break up oversized intent/ modules
+4. **cl-lint-cleanup**: Fix remaining clippy violations
+
+---
+
+## Verification
+
+- **Git status**: Clean (no uncommitted changes)
+- **Build test**: Hangs/times out (needs investigation)
+- **Lint test**: 2,193 line clippy-output with errors
+
+---
+
+*Generated by clarity/polecats/chrome - 2026-04-24*

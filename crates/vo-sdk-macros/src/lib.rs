@@ -58,7 +58,28 @@ pub(crate) fn internal_task_macro(
                 #main_fn
             }
         }
-        Err(err) => error_to_compile_error(&err),
+        Err(error::Error::InvalidInputItem) => {
+            quote::quote! { compile_error!("#[task] can only be applied to functions"); }
+        }
+        Err(error::Error::UnsupportedSignature) => {
+            quote::quote! { compile_error!("task functions cannot have arguments"); }
+        }
+        Err(error::Error::ParseFailure) => {
+            quote::quote! { compile_error!("parse error"); }
+        }
+        Err(error::Error::EmptyAttribute) => {
+            quote::quote! { compile_error!("macro attribute is empty"); }
+        }
+        Err(error::Error::TooManyAttributes) => {
+            quote::quote! { compile_error!("too many macro attributes (max 255)"); }
+        }
+        Err(error::Error::IdentParsingFailed) => {
+            quote::quote! { compile_error!("failed to parse function identifier"); }
+        }
+        Err(error::Error::AsyncReturnTypeMismatch) => {
+            quote::quote! { compile_error!("async functions cannot have a return type"); }
+        }
+ 
     }
 }
 

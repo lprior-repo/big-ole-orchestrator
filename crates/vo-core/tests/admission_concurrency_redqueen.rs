@@ -34,7 +34,6 @@ impl MockAdmissionCheck {
         }
     }
 
-    #[allow(dead_code)]
     fn with_keys(mut self, keys: &[&str]) -> Self {
         for k in keys {
             self.admitted_keys.insert(k.to_string());
@@ -157,7 +156,10 @@ fn rq_admission_concurrent_dedupe_same_key_from_multiple_threads() {
         admitted, 1,
         "Only ONE admission should succeed for the same key"
     );
-    assert_eq!(duplicates, 9, "Nine duplicates should be rejected");
+    assert_eq!(
+        duplicates, 9,
+        "Nine duplicates should be rejected"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
@@ -197,13 +199,16 @@ async fn rq_admission_concurrent_async_tasks_toctou_race() {
         successful, 5,
         "Only 5 unique keys (0..5 % 5) should be admitted"
     );
-    assert_eq!(failed, 15, "15 duplicate keys should be rejected");
+    assert_eq!(
+        failed, 15,
+        "15 duplicate keys should be rejected"
+    );
 }
 
 #[test]
 fn rq_admission_controller_pressure_state_race_with_concurrent_reads() {
-    use std::sync::atomic::{AtomicU64, Ordering};
     use std::thread;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     let check = MockAdmissionCheck::new();
     let controller = Arc::new(AdmissionController::new(check, healthy_state()));
@@ -261,8 +266,7 @@ fn rq_admission_controller_pressure_state_race_with_concurrent_reads() {
         h.join().unwrap();
     }
 
-    let total =
-        admitted_healthy.load(Ordering::Relaxed) + admitted_degraded.load(Ordering::Relaxed);
+    let total = admitted_healthy.load(Ordering::Relaxed) + admitted_degraded.load(Ordering::Relaxed);
     assert!(
         total > 0,
         "Some admissions should complete despite concurrent pressure state changes"
@@ -394,10 +398,7 @@ fn rq_admission_concurrent_dedupe_keys_hash_collision_resistance() {
         let key = DedupeKey::parse(&key_str).unwrap();
         let result = controller.admit_new_workflow(&key);
         assert!(
-            matches!(
-                result,
-                Err(vo_core::admission::AdmissionError::Duplicate { .. })
-            ),
+            matches!(result, Err(vo_core::admission::AdmissionError::Duplicate { .. })),
             "Key {} should be detected as duplicate",
             i
         );

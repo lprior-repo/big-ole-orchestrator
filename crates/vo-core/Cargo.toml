@@ -5,8 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-vo-types = { path = "../vo-types" }
-vo-storage = { path = "../vo-storage" }
+vo-types.workspace = true
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true

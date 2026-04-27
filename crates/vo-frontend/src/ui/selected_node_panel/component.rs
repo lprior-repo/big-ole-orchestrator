@@ -83,7 +83,7 @@ pub fn SelectedNodePanel(
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
                                     if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
-                                        node.name = evt.value();
+                                        let _ = node.set_name(&evt.value());
                                     }
                                 }
                             }
@@ -99,7 +99,7 @@ pub fn SelectedNodePanel(
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
                                     if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
-                                        node.description = evt.value();
+                                        node.set_description(&evt.value());
                                     }
                                 }
                             }

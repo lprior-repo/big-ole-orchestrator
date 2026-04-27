@@ -5,7 +5,8 @@ mod blackhat_encryption_credentials_tests;
 mod blob;
 #[cfg(test)]
 mod blob_tests;
-mod btree;
+pub mod cartesian_tree;
+mod clique_tree;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
@@ -79,6 +80,9 @@ mod proptest_domain_types;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
+mod rope;
+pub mod search;
+
 pub mod signal;
 pub mod state;
 mod string_types;
@@ -116,7 +120,9 @@ pub use blob::{
     BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
     INLINED_MAX_BYTES,
 };
-pub use btree::{BTree, BTreeError, BTreeNode};
+pub use vo_ds::btree::{BTree, BTreeError, BTreeNode};
+pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
+pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,
@@ -176,6 +182,8 @@ pub use recovery_contract::{
     RecoveryInvariant, RecoveryPhase, RecoveryViolation,
 };
 pub use registration_status::RegistrationStatus;
+pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
+
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,

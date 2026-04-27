@@ -1,0 +1,13 @@
+error: generic functions are not supported
+ --> tests/bh_ui/pass_async_where_clause.rs:3:1
+  |
+3 | #[task]
+  | ^^^^^^^
+  |
+  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0601]: `main` function not found in crate `$CRATE`
+ --> tests/bh_ui/pass_async_where_clause.rs:4:48
+  |
+4 | async fn complex<'a, T>() where T: Send + 'a {}
+  |                                                ^ consider adding a `main` function to `$DIR/tests/bh_ui/pass_async_where_clause.rs`

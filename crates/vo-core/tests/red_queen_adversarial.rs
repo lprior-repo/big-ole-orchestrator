@@ -37,7 +37,7 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force { Some("test-operator-token".into()) } else { None },
     }
 }
 
@@ -243,10 +243,11 @@ fn attack_inv006_force_bypasses_all_three_guards_simultaneously() {
     state.failure_tracker.insert(wf.clone(), window);
 
     // Force registration should bypass all three
+    state.register_operator_token("test-operator-token".into());
     let request = RegistrationRequest {
         workflow_name: wf.clone(),
         binary_hash: make_hash("abcdef01"),
-        force: true,
+        force: Some("test-operator-token".into()),
     };
     let now = t0 + Duration::from_secs(10);
     let result = evaluate_registration(&request, &config, &state, now);
@@ -354,7 +355,8 @@ fn attack_inv008_quarantine_monotonicity_after_force_registration() {
         Ok(RegistrationOutcome::WorkflowQuarantined { .. })
     ));
 
-    // Force should bypass
+    // Force should bypass (requires valid operator token)
+    state.register_operator_token("test-operator-token".into());
     let force_request = make_request("attack-wf-08", "abcdef02", true);
     let t1 = t0 + Duration::from_secs(1);
     let result = evaluate_registration(&force_request, &config, &state, t1);
@@ -419,7 +421,7 @@ fn attack_inv009_rapid_requests_during_rate_limit_never_count() {
         let req = RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: hash_from_idx(i as usize),
-            force: false,
+            force: None,
         };
         let result = evaluate_registration(&req, &config, &state, t);
         assert!(
@@ -646,6 +648,8 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
     let config = default_config();
     let t0 = Instant::now();
 
+    state.register_operator_token("test-operator-token".into());
+
     let mut handles = vec![];
     (0..20).for_each(|i| {
         let state = Arc::clone(&state);
@@ -655,7 +659,7 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
             let request = RegistrationRequest {
                 workflow_name: WorkflowName::parse(&wf_name).unwrap(),
                 binary_hash: BinaryHash::parse(&hash).unwrap(),
-                force: i % 5 == 0, // some forced
+                force: if i % 5 == 0 { Some("test-operator-token".into()) } else { None },
             };
             let now = t0 + Duration::from_millis(i as u64 * 10);
             let _val = evaluate_registration(&request, &config, &state, now);

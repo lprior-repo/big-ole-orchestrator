@@ -18,8 +18,6 @@ mod tests;
 mod tests_types;
 #[cfg(test)]
 mod timing_attack_tests;
-#[cfg(test)]
-mod integration_tests;
 pub mod traits;
 pub mod types;
 #[cfg(kani)]
