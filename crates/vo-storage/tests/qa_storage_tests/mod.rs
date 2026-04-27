@@ -2,18 +2,6 @@
 //!
 //! All tests use real Fjall instances in temp directories. No mocks.
 
-mod fjall_persistence;
-mod event_store;
-mod snapshots;
-mod blob_store;
-mod partitions;
-mod content_address;
-mod blob_record;
-mod batch_writes;
-mod prefix_scans;
-
-// ── Shared helpers ──────────────────────────────────────────────────────────
-
 use vo_storage::blob_store::{BlobRecord, BlobStore, BlobStoreError, ContentAddress};
 use vo_storage::codec::encode_event_key;
 use vo_storage::fs_store::FsBlobStore;
@@ -71,3 +59,13 @@ fn encode_event_seq(id: &InstanceId, seq: u64) -> [u8; 24] {
     let sn = vo_types::SequenceNumber::try_from(seq).unwrap();
     encode_event_key(id, &sn).unwrap()
 }
+
+mod fjall;
+mod event_store;
+mod snapshots;
+mod blob_storage;
+mod partition_layout;
+mod content_address;
+mod blob_record;
+mod batch_writes;
+mod prefix_scans;

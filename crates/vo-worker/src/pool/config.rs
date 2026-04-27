@@ -1,6 +1,6 @@
 //! Pool configuration validation and construction.
 
-use vo_common::connection_pool::PoolConfig as VoPoolConfig;
+use vo_types::connection_pool::PoolConfig as VoPoolConfig;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoolConfig {

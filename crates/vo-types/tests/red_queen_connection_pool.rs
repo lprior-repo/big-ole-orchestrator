@@ -309,7 +309,7 @@ fn rq_pool_stats_serde_round_trip() {
 #[test]
 fn rq_connection_id_serde_round_trip() {
     let id = ConnectionId::new();
-    let json = serde_json::to_value(id).unwrap();
+    let json = serde_json::to_value(&id).unwrap();
     let restored: ConnectionId = serde_json::from_value(json).unwrap();
     assert_eq!(restored, id);
 }
@@ -584,7 +584,7 @@ fn rq_pooled_connection_future_created_at() {
     let future = TimestampMs::new_unchecked(u64::MAX);
 
     let conn = PooledConnection::new(conn_id, future);
-    assert!(conn.created_at >= conn.last_used_at);
+    assert!(conn.created_at > conn.last_used_at || conn.created_at == conn.last_used_at);
 }
 
 /// RQ-30: PooledConnection last_used_at before created_at (impossible)

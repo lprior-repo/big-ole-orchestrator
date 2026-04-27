@@ -66,9 +66,37 @@ pub use signal_messages::{
     WorkflowCancelled, WorkflowContinued,
 };
 
-pub use instance_actor_message::InstanceActorMessage;
-pub use control_actor_message::ControlActorMessage;
-pub use control_actor::ControlActor;
+/// Messages sent to the orchestrator actor.
+#[derive(Debug)]
+pub enum OrchestratorMsg {
+    /// Send a signal to a workflow instance
+    Signal {
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+}
+
+/// Error type for signal operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SignalError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("signal failed: {0}")]
+    Failed(String),
+}
+
+/// Instance snapshot for status queries.
+#[derive(Debug, Clone)]
+pub struct InstanceSnapshot {
+    pub instance_id: InstanceId,
+    pub namespace: NamespaceId,
+    pub workflow_type: String,
+    pub paradigm: WorkflowParadigm,
+    pub phase: InstancePhaseView,
+    pub events_applied: u64,
+}
 
 #[cfg(test)]
 mod signal_error_tests {

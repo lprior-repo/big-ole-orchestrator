@@ -344,6 +344,49 @@ impl IdempotencyKey {
 }
 string_newtype!(IdempotencyKey);
 
+impl WorkflowVersionHash {
+    /// Parse a `WorkflowVersionHash` from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ParseError` if the input is empty, not a valid lowercase hex, or has invalid length.
+    pub fn parse(input: &str) -> Result<Self, ParseError> {
+        const TYPE_NAME: &str = "WorkflowVersionHash";
+        const MIN_LEN: usize = 8;
+        if input.is_empty() {
+            return Err(ParseError::Empty {
+                type_name: TYPE_NAME,
+            });
+        }
+        let invalid = extract_invalid_chars(input, is_lowercase_hex);
+        if !invalid.is_empty() {
+            return Err(ParseError::InvalidCharacters {
+                type_name: TYPE_NAME,
+                invalid_chars: invalid,
+            });
+        }
+        if !input.len().is_multiple_of(2) {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: "hex string has odd length".to_string(),
+            });
+        }
+        if input.len() < MIN_LEN {
+            return Err(ParseError::InvalidFormat {
+                type_name: TYPE_NAME,
+                reason: format!("hex string must be at least {MIN_LEN} characters"),
+            });
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+string_newtype!(WorkflowVersionHash);
+
 impl SpawnId {
     /// Create a new `SpawnId` from a string.
     #[must_use]
@@ -379,6 +422,10 @@ impl SpawnId {
     }
 }
 string_newtype!(SpawnId);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct WorkflowVersionHash(pub(crate) String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]

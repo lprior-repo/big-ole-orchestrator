@@ -19,6 +19,5 @@ pub use decode::decode_event;
 pub use envelope::EventEnvelope;
 pub use error::Error;
 pub use metadata::EventMetadata;
-pub use payload::EventPayload;
-pub use payload::RoutingProjection;
+pub use payload::{EventPayload, SinkKind};
 pub use upcaster::{Upcaster, UpcasterError, VersionRegistry};

@@ -1,5 +1,6 @@
 //! EventMetadata tests for causality propagation.
 
+use crate::events::error::Error;
 use crate::events::metadata::EventMetadata;
 use crate::{CommandMetadata, IdempotencyKey, Issuer, TimestampMs};
 
@@ -137,7 +138,7 @@ fn test_eventmetadata_serializes_with_command_provenance() {
     };
 
     // When: Serialize to JSON
-    let json = metadata.to_json().unwrap();
+    let json = metadata.to_json();
 
     // Then: Verify causality fields are present in JSON
     assert_eq!(json["command_metadata"]["command_id"], "cmd-provenance");
@@ -169,7 +170,7 @@ fn test_eventmetadata_round_trips_with_annotations() {
     };
 
     // When: Round-trip through JSON
-    let json = metadata.to_json().unwrap();
+    let json = metadata.to_json();
     let round_tripped = EventMetadata::from_json(&json).unwrap();
 
     // Then: Verify all fields match

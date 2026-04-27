@@ -1,33 +1,9 @@
 //! Type definitions for vo-common.
 
-use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
-
 pub type InstanceId = String;
 pub type NamespaceId = String;
 pub type TimerId = String;
 pub type EventId = String;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct TimestampMs(pub u64);
-
-impl TimestampMs {
-    #[must_use]
-    pub const fn new_unchecked(value: u64) -> Self {
-        Self(value)
-    }
-    #[must_use]
-    pub fn as_u64(self) -> u64 {
-        self.0
-    }
-    #[must_use]
-    pub fn now() -> Self {
-        let millis = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis());
-        Self(u64::try_from(millis).map_or(u64::MAX, |value| value))
-    }
-}
 
 #[cfg(test)]
 mod tests {

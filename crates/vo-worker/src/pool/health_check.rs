@@ -1,7 +1,7 @@
 //! Health check implementation for pooled connections.
 
-use vo_common::connection_pool::HealthCheckResult;
-use vo_common::types::TimestampMs;
+use vo_types::connection_pool::HealthCheckResult;
+use vo_types::integer_types::TimestampMs;
 
 pub trait TimestampLike {
     fn timestamp_ms(self) -> u64;
@@ -55,13 +55,13 @@ impl HealthCheck {
 }
 
 pub struct HealthCheckFuture {
-    connection_id: vo_common::connection_pool::ConnectionId,
+    connection_id: vo_types::connection_pool::ConnectionId,
     started_at: TimestampMs,
     timeout_ms: u64,
 }
 
 impl HealthCheckFuture {
-    pub fn new(connection_id: vo_common::connection_pool::ConnectionId, timeout_ms: u64) -> Self {
+    pub fn new(connection_id: vo_types::connection_pool::ConnectionId, timeout_ms: u64) -> Self {
         Self {
             connection_id,
             started_at: TimestampMs::now(),
@@ -76,7 +76,7 @@ impl HealthCheckFuture {
         elapsed > self.timeout_ms
     }
 
-    pub fn connection_id(&self) -> vo_common::connection_pool::ConnectionId {
+    pub fn connection_id(&self) -> vo_types::connection_pool::ConnectionId {
         self.connection_id
     }
 }
@@ -157,7 +157,7 @@ mod health_check_tests {
 
     #[test]
     fn test_health_check_future_timeout() {
-        let conn_id = vo_common::connection_pool::ConnectionId::new();
+        let conn_id = vo_types::connection_pool::ConnectionId::new();
         let future = HealthCheckFuture::new(conn_id, 1);
         std::thread::sleep(std::time::Duration::from_millis(10));
         assert!(future.is_timed_out());
@@ -165,14 +165,14 @@ mod health_check_tests {
 
     #[test]
     fn test_health_check_future_not_timed_out_yet() {
-        let conn_id = vo_common::connection_pool::ConnectionId::new();
+        let conn_id = vo_types::connection_pool::ConnectionId::new();
         let future = HealthCheckFuture::new(conn_id, 10000);
         assert!(!future.is_timed_out());
     }
 
     #[test]
     fn test_health_check_future_connection_id() {
-        let conn_id = vo_common::connection_pool::ConnectionId::new();
+        let conn_id = vo_types::connection_pool::ConnectionId::new();
         let future = HealthCheckFuture::new(conn_id, 5000);
         assert_eq!(future.connection_id(), conn_id);
     }
@@ -263,7 +263,7 @@ mod health_check_tests {
 
     #[test]
     fn test_health_check_future_zero_timeout_triggers_on_elapsed() {
-        let conn_id = vo_common::connection_pool::ConnectionId::new();
+        let conn_id = vo_types::connection_pool::ConnectionId::new();
         let future = HealthCheckFuture::new(conn_id, 0);
         std::thread::sleep(std::time::Duration::from_millis(1));
         assert!(future.is_timed_out());
@@ -271,7 +271,7 @@ mod health_check_tests {
 
     #[test]
     fn test_health_check_future_max_timeout_never() {
-        let conn_id = vo_common::connection_pool::ConnectionId::new();
+        let conn_id = vo_types::connection_pool::ConnectionId::new();
         let future = HealthCheckFuture::new(conn_id, u64::MAX);
         assert!(!future.is_timed_out());
     }
