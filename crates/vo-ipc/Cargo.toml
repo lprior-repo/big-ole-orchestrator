@@ -73,6 +73,10 @@ name = "backpressure_tests"
 path = "tests/backpressure_tests.rs"
 
 [[test]]
+name = "bus_lifecycle_tests"
+path = "tests/bus_lifecycle_tests.rs"
+
+[[test]]
 name = "qa_ipc_tests"
 path = "tests/qa_ipc_tests.rs"
 

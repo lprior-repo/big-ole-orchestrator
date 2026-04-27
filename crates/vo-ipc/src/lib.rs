@@ -20,6 +20,7 @@
 #![cfg_attr(not(test), warn(clippy::pedantic))]
 #![cfg_attr(not(test), warn(clippy::nursery))]
 
+pub mod bus;
 pub mod config;
 pub mod envelope;
 pub mod error;
