@@ -22,6 +22,7 @@ ulid = { workspace = true }
 bytes = { workspace = true }
 reqwest = { workspace = true }
 proptest = { workspace = true, optional = true }
+dashmap = { workspace = true }
 
 [dev-dependencies]
 vo-core = { path = "../vo-core" }
