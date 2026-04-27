@@ -1,7 +1,9 @@
 //! Scheduler API operations per ADR-047 §5.
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue, SerializedPayload};
+use crate::job::ScheduledJob;
+use crate::queue::SchedulerQueue;
+use crate::types::{JobId, JobState, SchedulePolicy};
 
 pub async fn schedule_job(
     queue: &mut SchedulerQueue,
@@ -55,14 +57,16 @@ pub async fn update_job_schedule(
     let state = queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)?;
     
     match state {
-        JobState::Scheduled | JobState::Pending => {
-            if matches!(new_schedule, SchedulePolicy::Immediate) && state == JobState::Scheduled {
-                return Err(SchedulerError::InvalidTransition);
-            }
+        JobState::Scheduled | JobState::Pending | JobState::Retrying => {
             queue.update_schedule(&job_id, new_schedule)?;
+            if matches!(new_schedule, SchedulePolicy::Immediate)
+                && state == JobState::Scheduled
+            {
+                queue.update_state(&job_id, JobState::Pending)?;
+            }
             Ok(())
         }
-        JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled | JobState::Retrying => {
+        JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled => {
             Err(SchedulerError::InvalidTransition)
         }
     }

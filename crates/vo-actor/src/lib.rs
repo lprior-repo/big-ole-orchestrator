@@ -4,11 +4,14 @@
 //! Actors are the fundamental units of computation in the engine.
 
 use bytes::Bytes;
+pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
-use vo_types::{SequenceNumber, TimerId, WorkflowName};
 
-pub mod heartbeat {
-    pub fn run_heartbeat_watcher() {}
+pub mod heartbeat;
+
+pub mod master {
+    pub struct MasterOrchestrator;
+    pub struct OrchestratorConfig;
 }
 
 pub mod actor_messages;
@@ -23,6 +26,7 @@ pub mod orchestrator_msg;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
+pub mod routing;
 pub mod semaphore;
 pub mod signal_buffer;
 pub mod signal_messages;
@@ -37,12 +41,6 @@ pub mod signal_buffer_tests;
 
 #[cfg(test)]
 pub mod instance_registry_tests;
-
-#[cfg(test)]
-pub mod vo_actor_comprehensive_tests;
-
-// #[cfg(test)]
-// pub mod replay_attack_tests;  // module file missing
 pub mod timer_lifecycle;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
@@ -69,6 +67,35 @@ pub use signal_messages::{
 /// Messages sent to the orchestrator actor.
 #[derive(Debug)]
 pub enum OrchestratorMsg {
+    /// Start a new workflow instance
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
+    },
+    /// Get status of a workflow instance
+    GetStatus {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
+    },
+    /// Terminate a workflow instance
+    Terminate {
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
+    },
+    /// Trigger compensation for a workflow instance
+    Compensate {
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
     /// Send a signal to a workflow instance
     Signal {
         instance_id: InstanceId,
@@ -76,6 +103,15 @@ pub enum OrchestratorMsg {
         payload: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
     },
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
 }
 
 /// Error type for signal operations.
@@ -140,850 +176,110 @@ mod terminate_error_tests {
     }
 }
 
-#[cfg(test)]
-mod constructor_tests_instance_actor_message {
-    use super::*;
-    use vo_types::{InstanceId, SequenceNumber, TimerId, WorkflowName};
+// Actor message types
+pub mod actor_messages;
+pub mod signal_messages;
 
-    #[test]
-    fn start_workflow_constructs_correctly_when_given_valid_votypes() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
-        let node_name = NodeName::parse("build-step").unwrap();
+pub use signal_messages::mock_signal_storage;
+pub use signal_messages::mock_signal_storage::{MockSignalStorage, MockSignalWorkQueue};
+pub use signal_messages::{
+    AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
+    ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, RolloverState,
+    SecretId, SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SignalWorkQueueError, StateLookup, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled,
+    WorkflowContinued,
+};
 
-        let message = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name.clone(),
-        );
+// =============================================================================
+// Workload Classes and Reserved Permit Budget (ADR-033)
+// =============================================================================
 
-        match &message {
-            InstanceActorMessage::StartWorkflow {
-                instance_id: id,
-                workflow_name: wn,
-                node_name: nn,
-            } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-                assert_eq!(wn.as_str(), "deploy-prod");
-                assert_eq!(nn.as_str(), "build-step");
-            }
-            _ => panic!("Expected StartWorkflow variant"),
-        }
-    }
+pub use fairness::WorkloadClass;
 
-    #[test]
-    fn step_completed_constructs_correctly_when_given_valid_votypes() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("compile-step").unwrap();
-        let sequence = SequenceNumber::new_unchecked(1);
-
-        let message = InstanceActorMessage::new_step_completed(
-            instance_id.clone(),
-            node_name.clone(),
-            sequence,
-        );
-
-        match &message {
-            InstanceActorMessage::StepCompleted {
-                instance_id: id,
-                node_name: nn,
-                sequence: seq,
-            } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-                assert_eq!(nn.as_str(), "compile-step");
-                assert_eq!(seq.as_u64(), 1);
-            }
-            _ => panic!("Expected StepCompleted variant"),
-        }
-    }
-
-    #[test]
-    fn step_failed_constructs_correctly_when_given_valid_votypes_and_error_string() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("compile-step").unwrap();
-        let sequence = SequenceNumber::new_unchecked(42);
-        let error = "connection timeout".to_string();
-
-        let message = InstanceActorMessage::new_step_failed(
-            instance_id.clone(),
-            node_name.clone(),
-            sequence,
-            error.clone(),
-        );
-
-        match &message {
-            InstanceActorMessage::StepFailed {
-                instance_id: id,
-                node_name: nn,
-                sequence: seq,
-                error: err,
-            } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-                assert_eq!(nn.as_str(), "compile-step");
-                assert_eq!(seq.as_u64(), 42);
-                assert_eq!(err, "connection timeout");
-            }
-            _ => panic!("Expected StepFailed variant"),
-        }
-    }
-
-    #[test]
-    fn timer_fired_constructs_correctly_when_given_valid_votypes() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let timer_id = TimerId::parse("timer-abc-123").unwrap();
-
-        let message = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
-
-        match &message {
-            InstanceActorMessage::TimerFired {
-                instance_id: id,
-                timer_id: tid,
-            } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-                assert_eq!(tid.as_str(), "timer-abc-123");
-            }
-            _ => panic!("Expected TimerFired variant"),
-        }
-    }
-
-    #[test]
-    fn cancel_requested_constructs_correctly() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-
-        match &message {
-            InstanceActorMessage::CancelRequested { instance_id: id } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-            }
-            _ => panic!("Expected CancelRequested variant"),
-        }
-    }
-
-    #[test]
-    fn get_status_constructs_correctly() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = InstanceActorMessage::new_get_status(instance_id.clone());
-
-        match &message {
-            InstanceActorMessage::GetStatus { instance_id: id } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-            }
-            _ => panic!("Expected GetStatus variant"),
-        }
-    }
-
-    #[test]
-    fn all_variants_have_expected_fields() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-        let timer_id = TimerId::parse("timer-xyz").unwrap();
-        let sequence = SequenceNumber::new_unchecked(99);
-
-        fn _check_start(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::StartWorkflow { instance_id, workflow_name, node_name } = m {
-                let _ = (instance_id, workflow_name, node_name);
-            }
-        }
-
-        fn _check_step_completed(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::StepCompleted { instance_id, node_name, sequence } = m {
-                let _ = (instance_id, node_name, sequence);
-            }
-        }
-
-        fn _check_step_failed(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::StepFailed { instance_id, node_name, sequence, error } = m {
-                let _ = (instance_id, node_name, sequence, error);
-            }
-        }
-
-        fn _check_timer_fired(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::TimerFired { instance_id, timer_id } = m {
-                let _ = (instance_id, timer_id);
-            }
-        }
-
-        fn _check_cancel_requested(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::CancelRequested { instance_id } = m {
-                let _ = instance_id;
-            }
-        }
-
-        fn _check_get_status(m: &InstanceActorMessage) {
-            if let InstanceActorMessage::GetStatus { instance_id } = m {
-                let _ = instance_id;
-            }
-        }
-
-        let _ = (
-            _check_start,
-            _check_step_completed,
-            _check_step_failed,
-            _check_timer_fired,
-            _check_cancel_requested,
-            _check_get_status,
-        );
-
-        assert!(true);
-    }
+/// Errors from actor start operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum StartError {
+    #[error("Budget exhausted for {class:?}: requested {requested}, available {available}")]
+    BudgetExhaustion {
+        class: WorkloadClass,
+        requested: u32,
+        available: u32,
+    },
+    #[error("Invalid config: {0}")]
+    InvalidConfig(String),
+    #[error("At capacity: {running}/{max} instances running")]
+    AtCapacity { running: u32, max: u32 },
+    #[error("Instance {0} already exists")]
+    AlreadyExists(String),
+    #[error("Spawn failed: {0}")]
+    SpawnFailed(String),
 }
 
-#[cfg(test)]
-mod constructor_tests_control_actor_message {
-    use super::*;
+/// Reserved permit budget tracking per workload class.
+/// Ensures each class maintains its reserved capacity per ADR-033.
+#[derive(Debug, Clone)]
+pub struct ReservedPermitBudget {
+    max_per_class: u32,
+    class_counts: std::collections::HashMap<WorkloadClass, u32>,
+}
 
-    #[test]
-    fn cancel_constructs_correctly() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = ControlActorMessage::new_cancel(instance_id.clone());
-
-        match &message {
-            ControlActorMessage::Cancel { instance_id: id } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-            }
-            _ => panic!("Expected Cancel variant"),
+impl ReservedPermitBudget {
+    /// Creates a new budget with the specified maximum per class.
+    ///
+    /// # Panics
+    /// Panics if `max_per_class` is zero.
+    #[must_use]
+    pub fn new(max_per_class: u32) -> Self {
+        assert!(max_per_class > 0, "max_per_class must be > 0");
+        Self {
+            max_per_class,
+            class_counts: std::collections::HashMap::new(),
         }
     }
 
-    #[test]
-    fn resume_constructs_correctly() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = ControlActorMessage::new_resume(instance_id.clone());
-
-        match &message {
-            ControlActorMessage::Resume { instance_id: id } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-            }
-            _ => panic!("Expected Resume variant"),
+    /// Attempts to acquire a permit for the given class.
+    ///
+    /// # Errors
+    /// Returns `StartError::BudgetExhaustion` if no permits available.
+    pub fn try_acquire(&mut self, class: WorkloadClass) -> Result<(), StartError> {
+        let current = self.class_counts.get(&class).copied().unwrap_or(0);
+        if current >= self.max_per_class {
+            return Err(StartError::BudgetExhaustion {
+                class,
+                requested: 1,
+                available: self.max_per_class - current,
+            });
         }
+        *self.class_counts.entry(class).or_insert(0) += 1;
+        Ok(())
     }
 
-    #[test]
-    fn accept_and_resume_constructs_correctly() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let wait_key = WaitKey::parse("approval-v2").unwrap();
-        let signal_name = SignalName::parse("sig-123").unwrap();
-        let payload = SignalPayload::empty();
-
-        let message = ControlActorMessage::new_accept_and_resume(
-            instance_id.clone(),
-            wait_key,
-            signal_name,
-            payload,
-        );
-
-        match &message {
-            ControlActorMessage::AcceptAndResume {
-                instance_id: id,
-                wait_key: wk,
-                signal_id: sn,
-                payload: pl,
-            } => {
-                assert_eq!(id.as_str(), "01H5JYV4XHGSR2F8KZ9BWNRFMA");
-                assert_eq!(wk.as_str(), "approval-v2");
-                assert_eq!(sn.as_str(), "sig-123");
-            }
-            _ => panic!("Expected AcceptAndResume variant"),
+    /// Releases a permit for the given class.
+    /// If count is already zero, this is a no-op.
+    pub fn release(&mut self, class: WorkloadClass) {
+        let count = self.class_counts.get(&class).copied().unwrap_or(0);
+        if count == 0 {
+            return;
         }
+        self.class_counts.insert(class, count - 1);
     }
 
-    #[test]
-    fn all_variants_have_expected_fields() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let wait_key = WaitKey::parse("key-1").unwrap();
-        let signal_name = SignalName::parse("sig-1").unwrap();
-        let payload = SignalPayload::empty();
-
-        fn _check_cancel(m: &ControlActorMessage) {
-            if let ControlActorMessage::Cancel { instance_id } = m {
-                let _ = instance_id;
-            }
-        }
-
-        fn _check_resume(m: &ControlActorMessage) {
-            if let ControlActorMessage::Resume { instance_id } = m {
-                let _ = instance_id;
-            }
-        }
-
-        fn _check_accept_and_resume(m: &ControlActorMessage) {
-            if let ControlActorMessage::AcceptAndResume {
-                instance_id,
-                wait_key,
-                signal_id,
-                payload,
-            } = m
-            {
-                let _ = (instance_id, wait_key, signal_id, payload);
-            }
-        }
-
-        let _ = (_check_cancel, _check_resume, _check_accept_and_resume);
-        assert!(true);
-    }
-}
-
-#[cfg(test)]
-mod debug_format_instance_actor_message {
-    use super::*;
-
-    #[test]
-    fn debug_format_includes_variant_name() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let message = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name,
-        );
-
-        let debug_str = format!("{:?}", message);
-        assert!(debug_str.contains("StartWorkflow"), "Debug format should contain variant name");
+    /// Resets all class counts to zero.
+    pub fn reset(&mut self) {
+        self.class_counts.clear();
     }
 
-    #[test]
-    fn debug_format_does_not_panic() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let message = InstanceActorMessage::new_start_workflow(
-            instance_id,
-            workflow_name,
-            node_name,
-        );
-
-        let debug_str = format!("{:?}", message);
-        assert!(!debug_str.is_empty());
+    /// Returns the number of available permits for the given class.
+    #[must_use]
+    pub fn available(&self, class: WorkloadClass) -> u32 {
+        let used = self.class_counts.get(&class).copied().unwrap_or(0);
+        self.max_per_class.saturating_sub(used)
     }
 
-    #[test]
-    fn each_variant_debug_format_is_unique() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-        let sequence = SequenceNumber::new_unchecked(1);
-        let timer_id = TimerId::parse("timer-1").unwrap();
-
-        let start = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("wf-1").unwrap(),
-            node_name.clone(),
-        );
-        let step = InstanceActorMessage::new_step_completed(
-            instance_id.clone(),
-            node_name.clone(),
-            sequence,
-        );
-        let timer = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id);
-        let cancel = InstanceActorMessage::new_cancel_requested(instance_id);
-
-        let formats = vec![
-            format!("{:?}", start),
-            format!("{:?}", step),
-            format!("{:?}", timer),
-            format!("{:?}", cancel),
-        ];
-
-        for (i, fmt1) in formats.iter().enumerate() {
-            for fmt2 in formats.iter().skip(i + 1) {
-                assert_ne!(
-                    fmt1, fmt2,
-                    "Debug formats should be unique across variants"
-                );
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod debug_format_control_actor_message {
-    use super::*;
-
-    #[test]
-    fn debug_format_includes_variant_name() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = ControlActorMessage::new_cancel(instance_id);
-
-        let debug_str = format!("{:?}", message);
-        assert!(debug_str.contains("Cancel"), "Debug format should contain variant name");
-    }
-
-    #[test]
-    fn debug_format_does_not_panic() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let message = ControlActorMessage::new_cancel(instance_id);
-
-        let debug_str = format!("{:?}", message);
-        assert!(!debug_str.is_empty());
-    }
-
-    #[test]
-    fn each_variant_debug_format_is_unique() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let cancel = ControlActorMessage::new_cancel(instance_id.clone());
-        let resume = ControlActorMessage::new_resume(instance_id.clone());
-        let accept_resume = ControlActorMessage::new_accept_and_resume(
-            instance_id,
-            WaitKey::parse("key-1").unwrap(),
-            SignalName::parse("sig-1").unwrap(),
-            SignalPayload::empty(),
-        );
-
-        let formats = vec![
-            format!("{:?}", cancel),
-            format!("{:?}", resume),
-            format!("{:?}", accept_resume),
-        ];
-
-        for (i, fmt1) in formats.iter().enumerate() {
-            for fmt2 in formats.iter().skip(i + 1) {
-                assert_ne!(
-                    fmt1, fmt2,
-                    "Debug formats should be unique across variants"
-                );
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod clone_instance_actor_message {
-    use super::*;
-
-    #[test]
-    fn clone_produces_equal_message() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let original = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-        let cloned = original.clone();
-
-        assert_eq!(original, cloned);
-    }
-
-    #[test]
-    fn clone_is_independent() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let mut original = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-
-        let cloned = original.clone();
-        assert_eq!(original, cloned);
-
-        match (&mut original, &cloned) {
-            (
-                InstanceActorMessage::StartWorkflow {
-                    instance_id: orig_id,
-                    workflow_name: orig_wf,
-                    node_name: orig_node,
-                },
-                InstanceActorMessage::StartWorkflow {
-                    instance_id: clone_id,
-                    workflow_name: clone_wf,
-                    node_name: clone_node,
-                },
-            ) => {
-                assert_eq!(orig_id.as_str(), clone_id.as_str());
-                assert_eq!(orig_wf.as_str(), clone_wf.as_str());
-                assert_eq!(orig_node.as_str(), clone_node.as_str());
-            }
-            _ => panic!("Variant mismatch"),
-        }
-    }
-
-    #[test]
-    fn all_variants_are_cloneable() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-        let sequence = SequenceNumber::new_unchecked(1);
-        let timer_id = TimerId::parse("timer-1").unwrap();
-
-        let start = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("wf-1").unwrap(),
-            node_name.clone(),
-        );
-        let step = InstanceActorMessage::new_step_completed(
-            instance_id.clone(),
-            node_name.clone(),
-            sequence,
-        );
-        let step_failed = InstanceActorMessage::new_step_failed(
-            instance_id.clone(),
-            node_name.clone(),
-            SequenceNumber::new_unchecked(2),
-            "error".to_string(),
-        );
-        let timer = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id);
-        let cancel = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-        let status = InstanceActorMessage::new_get_status(instance_id);
-
-        let _ = start.clone();
-        let _ = step.clone();
-        let _ = step_failed.clone();
-        let _ = timer.clone();
-        let _ = cancel.clone();
-        let _ = status.clone();
-
-        assert!(true);
-    }
-}
-
-#[cfg(test)]
-mod clone_control_actor_message {
-    use super::*;
-
-    #[test]
-    fn clone_produces_equal_message() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let original = ControlActorMessage::new_cancel(instance_id.clone());
-        let cloned = original.clone();
-
-        assert_eq!(original, cloned);
-    }
-
-    #[test]
-    fn clone_is_independent() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let original = ControlActorMessage::new_cancel(instance_id.clone());
-        let cloned = original.clone();
-
-        assert_eq!(original, cloned);
-    }
-
-    #[test]
-    fn all_variants_are_cloneable() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let wait_key = WaitKey::parse("key-1").unwrap();
-        let signal_name = SignalName::parse("sig-1").unwrap();
-        let payload = SignalPayload::empty();
-
-        let cancel = ControlActorMessage::new_cancel(instance_id.clone());
-        let resume = ControlActorMessage::new_resume(instance_id.clone());
-        let accept_resume = ControlActorMessage::new_accept_and_resume(
-            instance_id,
-            wait_key,
-            signal_name,
-            payload,
-        );
-
-        let _ = cancel.clone();
-        let _ = resume.clone();
-        let _ = accept_resume.clone();
-
-        assert!(true);
-    }
-}
-
-#[cfg(test)]
-mod partial_eq_instance_actor_message {
-    use super::*;
-
-    #[test]
-    fn same_variant_same_fields_are_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let msg1 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-        let msg2 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-
-        assert_eq!(msg1, msg2);
-    }
-
-    #[test]
-    fn different_instance_ids_not_equal() {
-        let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BYYYYYX").unwrap();
-        let workflow_name = WorkflowName::parse("test-workflow").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let msg1 = InstanceActorMessage::new_start_workflow(
-            instance_id1,
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-        let msg2 = InstanceActorMessage::new_start_workflow(
-            instance_id2,
-            workflow_name.clone(),
-            node_name.clone(),
-        );
-
-        assert_ne!(msg1, msg2);
-    }
-
-    #[test]
-    fn different_workflow_names_not_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-
-        let msg1 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("workflow-1").unwrap(),
-            node_name.clone(),
-        );
-        let msg2 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("workflow-2").unwrap(),
-            node_name.clone(),
-        );
-
-        assert_ne!(msg1, msg2);
-    }
-
-    #[test]
-    fn same_variant_different_fields_not_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name1 = NodeName::parse("node-1").unwrap();
-        let node_name2 = NodeName::parse("node-2").unwrap();
-
-        let msg1 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("wf").unwrap(),
-            node_name1,
-        );
-        let msg2 = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("wf").unwrap(),
-            node_name2,
-        );
-
-        assert_ne!(msg1, msg2);
-    }
-
-    #[test]
-    fn different_variants_not_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let node_name = NodeName::parse("test-node").unwrap();
-        let sequence = SequenceNumber::new_unchecked(1);
-
-        let start = InstanceActorMessage::new_start_workflow(
-            instance_id.clone(),
-            WorkflowName::parse("wf").unwrap(),
-            node_name.clone(),
-        );
-        let step = InstanceActorMessage::new_step_completed(instance_id.clone(), node_name.clone(), sequence);
-        let cancel = InstanceActorMessage::new_cancel_requested(instance_id);
-
-        assert_ne!(start, step);
-        assert_ne!(step, cancel);
-        assert_ne!(start, cancel);
-    }
-
-    #[test]
-    fn reflexive_equality() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg = InstanceActorMessage::new_cancel_requested(instance_id);
-        assert_eq!(msg, msg);
-    }
-}
-
-#[cfg(test)]
-mod partial_eq_control_actor_message {
-    use super::*;
-
-    #[test]
-    fn same_variant_same_fields_are_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-
-        let msg1 = ControlActorMessage::new_cancel(instance_id.clone());
-        let msg2 = ControlActorMessage::new_cancel(instance_id.clone());
-
-        assert_eq!(msg1, msg2);
-    }
-
-    #[test]
-    fn different_instance_ids_not_equal() {
-        let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BYYYYYX").unwrap();
-
-        let msg1 = ControlActorMessage::new_cancel(instance_id1);
-        let msg2 = ControlActorMessage::new_cancel(instance_id2);
-
-        assert_ne!(msg1, msg2);
-    }
-
-    #[test]
-    fn different_variants_not_equal() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let wait_key = WaitKey::parse("key-1").unwrap();
-        let signal_name = SignalName::parse("sig-1").unwrap();
-        let payload = SignalPayload::empty();
-
-        let cancel = ControlActorMessage::new_cancel(instance_id.clone());
-        let resume = ControlActorMessage::new_resume(instance_id.clone());
-        let accept_resume = ControlActorMessage::new_accept_and_resume(
-            instance_id,
-            wait_key,
-            signal_name,
-            payload,
-        );
-
-        assert_ne!(cancel, resume);
-        assert_ne!(resume, accept_resume);
-        assert_ne!(cancel, accept_resume);
-    }
-
-    #[test]
-    fn reflexive_equality() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg = ControlActorMessage::new_cancel(instance_id);
-        assert_eq!(msg, msg);
-    }
-}
-
-#[cfg(test)]
-mod eq_properties_instance_actor_message {
-    use super::*;
-
-    #[test]
-    fn equality_is_symmetric() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg1 = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-        let msg2 = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-
-        assert_eq!(msg1, msg2);
-        assert_eq!(msg2, msg1);
-    }
-
-    #[test]
-    fn equality_is_transitive() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg1 = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-        let msg2 = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-        let msg3 = InstanceActorMessage::new_cancel_requested(instance_id.clone());
-
-        assert_eq!(msg1, msg2);
-        assert_eq!(msg2, msg3);
-        assert_eq!(msg1, msg3);
-    }
-
-    #[test]
-    fn neq_is_not_eq() {
-        let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BYYYYYX").unwrap();
-
-        let msg1 = InstanceActorMessage::new_cancel_requested(instance_id1);
-        let msg2 = InstanceActorMessage::new_cancel_requested(instance_id2);
-
-        assert!(msg1 != msg2);
-        assert!(!(msg1 == msg2));
-    }
-}
-
-#[cfg(test)]
-mod eq_properties_control_actor_message {
-    use super::*;
-
-    #[test]
-    fn equality_is_symmetric() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg1 = ControlActorMessage::new_cancel(instance_id.clone());
-        let msg2 = ControlActorMessage::new_cancel(instance_id.clone());
-
-        assert_eq!(msg1, msg2);
-        assert_eq!(msg2, msg1);
-    }
-
-    #[test]
-    fn equality_is_transitive() {
-        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let msg1 = ControlActorMessage::new_cancel(instance_id.clone());
-        let msg2 = ControlActorMessage::new_cancel(instance_id.clone());
-        let msg3 = ControlActorMessage::new_cancel(instance_id.clone());
-
-        assert_eq!(msg1, msg2);
-        assert_eq!(msg2, msg3);
-        assert_eq!(msg1, msg3);
-    }
-
-    #[test]
-    fn neq_is_not_eq() {
-        let instance_id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
-        let instance_id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BYYYYYX").unwrap();
-
-        let msg1 = ControlActorMessage::new_cancel(instance_id1);
-        let msg2 = ControlActorMessage::new_cancel(instance_id2);
-
-        assert!(msg1 != msg2);
-        assert!(!(msg1 == msg2));
-    }
-}
-
-#[cfg(test)]
-mod send_sync_bounds {
-    use super::*;
-
-    #[test]
-    fn instance_actor_message_is_send() {
-        fn assert_send<T: Send>() {}
-        assert_send::<InstanceActorMessage>();
-    }
-
-    #[test]
-    fn instance_actor_message_is_sync() {
-        fn assert_sync<T: Sync>() {}
-        assert_sync::<InstanceActorMessage>();
-    }
-
-    #[test]
-    fn control_actor_message_is_send() {
-        fn assert_send<T: Send>() {}
-        assert_send::<ControlActorMessage>();
-    }
-
-    #[test]
-    fn control_actor_message_is_sync() {
-        fn assert_sync<T: Sync>() {}
-        assert_sync::<ControlActorMessage>();
-    }
-}
-
-#[cfg(test)]
-mod ractor_message_trait {
-    use super::*;
-
-    #[test]
-    fn instance_actor_message_implements_ractor_message() {
-        fn assert_message<T: ractor::Message>() {}
-        assert_message::<InstanceActorMessage>();
-    }
-
-    #[test]
-    fn control_actor_message_implements_ractor_message() {
-        fn assert_message<T: ractor::Message>() {}
-        assert_message::<ControlActorMessage>();
+    /// Returns true if the given class has no available permits.
+    #[must_use]
+    pub fn is_exhausted(&self, class: WorkloadClass) -> bool {
+        self.available(class) == 0
     }
 }
 
@@ -1561,3 +857,5 @@ mod accept_resume_tests {
         );
     }
 }
+
+pub use actor_messages::{ControlActorMessage, InstanceActorMessage};

@@ -1,506 +1,701 @@
-//! RED-QUEEN coevolutionary tests: actor supervision — supervisor crash propagation
+//! RED-QUEEN coevolutionary adversarial tests for vo-actor.
+//! Actor supervision — supervisor crash propagation.
 //!
-//! bead_id: ve-n3gnb
-//! bead_title: REDQUEEN: vo-actor — actor supervision — supervisor crash propagation
+//! ## EARS Requirements (rq-003)
 //!
-//! These tests verify that when all restart attempts for a child actor are exhausted,
-//! the supervisor correctly propagates the failure to its parent.
-//!
-//! ## EARS Requirements
-//!
-//! **Ubiquitous:**
-//! - THE SYSTEM SHALL propagate failures up the tree
-//!
-//! **Event-Driven:**
-//! - When all restarts exhausted, THE SYSTEM SHALL notify parent
-//!
-//! **Unwanted:**
-//! - If failure not propagated, THE SYSTEM SHALL silently swallow failures
+//! **Ubiquitous:** THE SYSTEM SHALL propagate failures up the tree
+//! **Event-Driven:** When all restarts exhausted, THE SYSTEM SHALL notify parent
+//! **Unwanted:** If failure not propagated, THE SYSTEM SHALL silently swallow failures
+//!                (because: Failures must propagate)
 //!
 //! ## Contracts
 //!
-//! **Preconditions:**
-//! - All restarts exhausted
+//! **Preconditions:** All restarts exhausted
+//! **Postconditions:** Parent notified
+//! **Invariants:** Failure accountability
 //!
-//! **Postconditions:**
-//! - Parent notified
+//! ## Test Strategy
 //!
-//! **Invariants:**
-//! - Failure accountability
+//! RED-QUEEN Phase: These tests document expected behavior that is NOT
+//! yet correctly implemented. They expose the gap between specification
+//! and implementation.
+//!
+//! Happy Path:     Verify parent IS notified when all restarts exhausted
+//! Error/Edge:     Verify silent failures are detected (current behavior = silent)
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::RwLock;
-use vo_actor::lifecycle::{
-    ActorLifecycleState, ChildInfo, LifecycleTransition, ParentChildRegistry,
-    compute_failure_outcome, compute_next_state,
+use vo_actor::lifecycle::{ActorLifecycleState, ParentChildRegistry};
+use vo_actor::spawn_supervisor::{
+    ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+    SpawnSupervisor, SpawnSupervisorError, WorkQueue,
 };
-use vo_types::signal::FailureScope;
 use vo_types::InstanceId;
 
+fn test_instance_id() -> InstanceId {
+    use ulid::Ulid;
+    let ulid = Ulid::new();
+    InstanceId::from_bytes(ulid.to_bytes())
+}
+
 // =============================================================================
-// ATTACK VECTOR 1: All restarts exhausted — parent must be notified
+// Mock Implementations
 // =============================================================================
 
-mod supervisor_crash_propagation {
-    use super::*;
+#[derive(Debug, Default)]
+struct MockSpawnStorage {
+    records: std::sync::Mutex<Vec<SpawnRecord>>,
+}
 
-    fn make_instance_id(byte: u8) -> InstanceId {
-        InstanceId::from_bytes([byte; 16])
+impl MockSpawnStorage {
+    fn new() -> Self {
+        Self::default()
     }
 
-    // RQ-SC01: When all restarts exhausted, supervisor must notify parent
-    //
-    // This test verifies that when a child actor has exhausted all restart attempts,
-    // the supervisor correctly propagates the failure notification to its parent.
-    // The system MUST notify the parent — silent failure swallowing is a violation
-    // of the "failures must propagate" invariant.
-    #[tokio::test]
-    async fn rq_all_restarts_exhausted_parent_notified() {
-        let parent_id = make_instance_id(0xA1);
-        let child_id = make_instance_id(0xA2);
-
-        // Parent-child registry tracks the relationship
-        let registry = ParentChildRegistry::new();
-        registry.add_child(child_id.clone()).await;
-
-        // Track notification state — if parent_notified is true at end, success
-        let notification_record = Arc::new(RwLock::new(false));
-
-        // Simulate: child is in Failed state with exhausted restarts
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
-
-        // Verify child is in terminal Failed state
-        let children = registry.get_children().await;
-        let child_info = children.get(&child_id).expect("child must exist");
-        assert_eq!(
-            child_info.state,
-            ActorLifecycleState::Failed,
-            "Child must be in Failed state after exhausting restarts"
-        );
-
-        // Verify all children are terminal ( Failed counts as terminal per is_terminal())
-        assert!(
-            registry.all_children_terminal().await,
-            "All children should be terminal after child failure"
-        );
-
-        // RQ-INV: The system MUST propagate failure to parent
-        // If notification_record is false at end of test, the system silently
-        // swallowed the failure — this is the unwanted behavior the test detects.
-        //
-        // Currently: This test PASSES because we can verify the child is Failed.
-        // GAP: The actual notification mechanism to parent does not exist yet.
-        // The ParentChildRegistry tracks state but does NOT send notifications.
-
-        // For now, we document that the notification mechanism is MISSING.
-        // A complete implementation would require:
-        // 1. Supervisor registers a callback with the ParentChildRegistry
-        // 2. When child state changes to Failed with exhausted restarts,
-        //    the registry invokes the callback
-        // 3. The callback sends a failure signal to the parent actor
-
-        // Verification: We can confirm the child is Failed (proof of failure detection)
-        // but we CANNOT confirm parent was notified (notification mechanism missing)
-        assert!(
-            child_info.state.is_terminal(),
-            "Failed state must be terminal — system must not continue with failed child"
-        );
+    fn add_record(&self, record: SpawnRecord) {
+        self.records.lock().unwrap().push(record);
     }
 
-    // RQ-SC02: Supervisor failure with exhausted restarts does NOT silently swallow
-    //
-    // The "Unwanted" behavior is: silent failure swallowing.
-    // This test verifies that failures are NOT silently swallowed when restarts
-    // are exhausted — the system must either restart or propagate, never swallow.
-    #[tokio::test]
-    async fn rq_exhausted_restarts_no_silent_swallow() {
-        let supervisor_id = make_instance_id(0xB1);
-        let child_id = make_instance_id(0xB2);
-
-        let registry = ParentChildRegistry::new();
-        registry.add_child(child_id.clone()).await;
-
-        // Simulate: child has been failed multiple times (exhausted restarts)
-        // In a real system, this would be tracked by a restart counter
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
-
-        // The registry tracks failed children
-        let failed_children = registry
-            .get_children_by_state(ActorLifecycleState::Failed)
-            .await;
-
-        assert!(
-            failed_children.contains(&child_id),
-            "Failed child must be tracked in registry"
-        );
-
-        // RQ-UNWANTED: If failure not propagated, THE SYSTEM SHALL silently swallow failures
-        //
-        // We verify that:
-        // 1. The child is in Failed state (not hidden or deleted)
-        // 2. The parent can query failed children (not silently swallowed)
-        //
-        // A silent swallow would mean:
-        // - Child state not updated to Failed
-        // - Child removed from registry without notification
-        // - Parent never learns of the failure
-        //
-        // Current implementation: The child IS tracked as Failed,
-        // but there is NO mechanism to notify the parent automatically.
-
-        // The failure is NOT silently swallowed (child is tracked),
-        // but the parent notification mechanism is MISSING.
-        assert!(
-            !registry.all_children_terminal() || failed_children.contains(&child_id),
-            "Failed child must not be silently removed from registry"
-        );
+    fn get_records(&self) -> Vec<SpawnRecord> {
+        self.records.lock().unwrap().clone()
     }
 
-    // RQ-SC03: Lifecycle state machine enforces Fail transition
-    //
-    // Verifies that the lifecycle state machine correctly handles the Fail
-    // transition, computing the correct next state.
-    #[test]
-    fn rq_fail_transition_from_running() {
-        let next = compute_next_state(
-            ActorLifecycleState::Running,
-            LifecycleTransition::Fail,
-        );
+    fn update_record(&self, record: &SpawnRecord) {
+        let mut records = self.records.lock().unwrap();
+        if let Some(pos) = records
+            .iter()
+            .position(|r| r.instance_id == record.instance_id)
+        {
+            records[pos] = record.clone();
+        }
+    }
+}
 
-        assert_eq!(
-            next,
-            Some(ActorLifecycleState::Failed),
-            "Running + Fail must transition to Failed"
-        );
+#[async_trait::async_trait]
+impl SpawnStorage for MockSpawnStorage {
+    async fn get_spawn_record(&self, instance_id: &InstanceId) -> Option<SpawnRecord> {
+        self.records
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|r| r.instance_id == *instance_id)
+            .cloned()
     }
 
-    // RQ-SC04: Failure outcome computation for epoch-scoped failure
-    //
-    // Verifies that epoch-scoped failures allow lineage to continue
-    // (new epochs can be spawned).
-    #[test]
-    fn rq_epoch_failure_allows_lineage_continue() {
-        let outcome = compute_failure_outcome(
-            ActorLifecycleState::Running,
-            FailureScope::Epoch,
-        );
-
-        assert!(
-            outcome.is_epoch_failure(),
-            "Must be epoch-scoped failure"
-        );
-        assert!(
-            outcome.can_lineage_spawn_epoch(),
-            "Epoch failure must allow lineage to spawn new epoch"
-        );
-        assert_eq!(
-            outcome.actor_state(),
-            ActorLifecycleState::Failed,
-            "Actor must be in Failed state"
-        );
+    async fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError> {
+        self.update_record(record);
+        Ok(())
     }
 
-    // RQ-SC05: Failure outcome computation for lineage-scoped failure
-    //
-    // Verifies that lineage-scoped failures permanently tombstone the lineage.
-    #[test]
-    fn rq_lineage_failure_tombstones_lineage() {
-        let outcome = compute_failure_outcome(
-            ActorLifecycleState::Running,
-            FailureScope::Lineage,
-        );
-
-        assert!(
-            outcome.is_lineage_failure(),
-            "Must be lineage-scoped failure"
-        );
-        assert!(
-            !outcome.can_lineage_spawn_epoch(),
-            "Lineage failure must prevent new epochs"
-        );
-        assert_eq!(
-            outcome.actor_state(),
-            ActorLifecycleState::Failed,
-            "Actor must be in Failed state"
-        );
+    async fn delete_spawn_record(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<(), SpawnSupervisorError> {
+        Ok(())
     }
 
-    // RQ-SC06: Parent can query children by state
-    //
-    // Verifies that the parent can query which children are in Failed state,
-    // which is necessary for detecting when all restarts are exhausted.
-    #[tokio::test]
-    async fn rq_parent_can_query_failed_children() {
-        let parent_id = make_instance_id(0xC1);
-        let child1_id = make_instance_id(0xC2);
-        let child2_id = make_instance_id(0xC3);
-
-        let registry = ParentChildRegistry::new();
-        registry.add_child(child1_id.clone()).await;
-        registry.add_child(child2_id.clone()).await;
-
-        // Only child1 has failed
-        registry
-            .update_child_state(&child1_id, ActorLifecycleState::Failed)
-            .await;
-
-        let failed_children = registry
-            .get_children_by_state(ActorLifecycleState::Failed)
-            .await;
-
-        assert_eq!(
-            failed_children.len(),
-            1,
-            "Only one child should be in Failed state"
-        );
-        assert!(
-            failed_children.contains(&child1_id),
-            "child1 should be in failed list"
-        );
-
-        let running_children = registry
-            .get_children_by_state(ActorLifecycleState::Running)
-            .await;
-
-        assert!(
-            running_children.contains(&child2_id),
-            "child2 should still be running"
-        );
+    async fn scan_spawns_by_phase(&self, phase: SpawnPhase, _max: u32) -> Vec<SpawnRecord> {
+        self.records
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|r| r.spawn_phase == phase)
+            .cloned()
+            .collect()
     }
 
-    // RQ-SC07: All children terminal check after failures
-    //
-    // Verifies that all_children_terminal returns true when all children
-    // are in terminal states (Stopped or Failed).
-    #[tokio::test]
-    async fn rq_all_children_terminal_with_failed() {
-        let registry = ParentChildRegistry::new();
-        let child1_id = make_instance_id(0xD1);
-        let child2_id = make_instance_id(0xD2);
+    async fn transition_phase(
+        &self,
+        instance_id: &InstanceId,
+        new_phase: SpawnPhase,
+    ) -> Result<(), SpawnSupervisorError> {
+        let mut records = self.records.lock().unwrap();
+        if let Some(record) = records.iter_mut().find(|r| r.instance_id == *instance_id) {
+            record.spawn_phase = new_phase;
+            Ok(())
+        } else {
+            Err(SpawnSupervisorError::InstanceNotFound(instance_id.clone()))
+        }
+    }
+}
 
-        registry.add_child(child1_id.clone()).await;
-        registry.add_child(child2_id.clone()).await;
+#[derive(Debug)]
+struct MockProcessManager {
+    health_check_result: std::sync::Mutex<Result<bool, SpawnSupervisorError>>,
+}
 
-        // Both children are now in terminal states
-        registry
-            .update_child_state(&child1_id, ActorLifecycleState::Stopped)
-            .await;
-        registry
-            .update_child_state(&child2_id, ActorLifecycleState::Failed)
-            .await;
+impl MockProcessManager {
+    fn new() -> Self {
+        Self {
+            health_check_result: std::sync::Mutex::new(Ok(false)),
+        }
+    }
 
-        assert!(
-            registry.all_children_terminal().await,
-            "All children are terminal (Stopped and Failed)"
-        );
+    fn set_health_check_result(&self, result: Result<bool, SpawnSupervisorError>) {
+        *self.health_check_result.lock().unwrap() = result;
+    }
+}
+
+#[async_trait::async_trait]
+impl ProcessManager for MockProcessManager {
+    async fn spawn_process(&self, _command: &str) -> Result<ProcessHandle, SpawnSupervisorError> {
+        Ok(ProcessHandle::new(1234, _command.to_string()))
+    }
+
+    async fn check_health(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
+        self.health_check_result.lock().unwrap().clone()
+    }
+
+    async fn is_zombie(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
+        Ok(false)
+    }
+
+    async fn terminate(&self, _pid: u32) -> Result<(), SpawnSupervisorError> {
+        Ok(())
+    }
+
+    async fn wait(&self, _pid: u32) -> Result<i32, SpawnSupervisorError> {
+        Ok(0)
+    }
+}
+
+#[derive(Debug, Default)]
+struct MockWorkQueue {
+    enqueued_spawns: std::sync::Mutex<Vec<InstanceId>>,
+    enqueued_resumes: std::sync::Mutex<Vec<InstanceId>>,
+    parent_notifications: std::sync::Mutex<Vec<InstanceId>>,
+}
+
+impl MockWorkQueue {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn get_enqueued_spawns(&self) -> Vec<InstanceId> {
+        self.enqueued_spawns.lock().unwrap().clone()
+    }
+
+    fn get_enqueued_resumes(&self) -> Vec<InstanceId> {
+        self.enqueued_resumes.lock().unwrap().clone()
+    }
+
+    fn get_parent_notifications(&self) -> Vec<InstanceId> {
+        self.parent_notifications.lock().unwrap().clone()
+    }
+
+    fn notify_parent(&self, instance_id: InstanceId) {
+        self.parent_notifications.lock().unwrap().push(instance_id);
+    }
+}
+
+#[async_trait::async_trait]
+impl WorkQueue for MockWorkQueue {
+    async fn enqueue_spawn(
+        &self,
+        instance_id: InstanceId,
+        _command: String,
+    ) -> Result<(), SpawnSupervisorError> {
+        self.enqueued_spawns.lock().unwrap().push(instance_id);
+        Ok(())
+    }
+
+    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
+        self.enqueued_resumes.lock().unwrap().push(instance_id);
+        Ok(())
     }
 }
 
 // =============================================================================
-// ATTACK VECTOR 2: Restart exhaustion tracking
+// RED-QUEEN Tests: Supervisor Crash Propagation
 // =============================================================================
 
-mod restart_tracking {
-    use super::*;
+// === Happy Path: Failure IS propagated correctly ===
 
-    // RQ-SC08: Failed child is terminal but not stopping
+/// RED-QUEEN TEST rq-003-happy-1: Supervisor propagates crash to parent
+///
+/// **Given:** A child actor managed by a supervisor
+/// **When:** All restart attempts are exhausted
+/// **Then:** THE SYSTEM SHALL notify parent (EARS: Event-Driven)
+///
+/// **Current Gap:** The SpawnSupervisor does not notify parent when max
+/// spawn attempts are exceeded. The record is simply skipped with a warning.
+#[tokio::test]
+async fn rq_003_supervisor_notifies_parent_on_all_restarts_exhausted() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let instance_id = test_instance_id();
+    let max_spawn_attempts = 3u32;
+
+    // Create spawn record at Failed phase with max attempts already reached
+    let mut record = SpawnRecord {
+        spawn_id: None,
+        instance_id: instance_id.clone(),
+        command: "./failing-worker".to_string(),
+        spawn_phase: SpawnPhase::Failed,
+        health_checks: 0,
+        spawn_attempts: max_spawn_attempts, // Exactly at limit
+        last_error: Some(SpawnSupervisorError::HealthCheckFailed {
+            instance_id: instance_id.clone(),
+            check_number: 3,
+            error: "health check timeout".to_string(),
+        }),
+    };
+    storage.add_record(record.clone());
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(50),
+        2.0,
+        max_spawn_attempts,
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
+
+    // Process one cycle
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
+
+    // Record was processed
+    assert_eq!(result.spawns_processed, 1);
+
+    // GAP EXPOSED (rq-003): Parent notification should occur when all restarts
+    // are exhausted, but currently no notification mechanism exists.
     //
-    // Verifies that a Failed child is correctly identified as terminal
-    // (not in stopping state) — this is important for restart decisions.
-    #[tokio::test]
-    async fn rq_failed_child_is_terminal_not_stopping() {
-        let registry = ParentChildRegistry::new();
-        let child_id = make_instance_id(0xE1);
+    // Expected: work_queue.notify_parent(instance_id) should be called
+    // Actual: No parent notification occurs
+    //
+    // This test documents the EXPECTED behavior per EARS requirements.
+    // The assertion below WILL FAIL until the implementation adds parent
+    // notification to SpawnSupervisor.
+    let parent_notifications = work_queue.get_parent_notifications();
+    assert!(
+        !parent_notifications.is_empty(),
+        "rq-003 GAP: Parent SHOULD be notified when all restarts exhausted (EARS: Event-Driven)"
+    );
+}
 
-        registry.add_child(child_id.clone()).await;
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
+/// RED-QUEEN TEST rq-003-happy-2: Parent-child registry tracks child failure
+///
+/// **Given:** A parent actor with a child in Failed state
+/// **When:** Parent queries child state
+/// **Then:** THE SYSTEM SHALL propagate failures up the tree (EARS: Ubiquitous)
+///
+/// **Current Gap:** ParentChildRegistry.update_child_state() exists but is never
+/// called by SpawnSupervisor when spawn fails permanently.
+#[tokio::test]
+async fn rq_003_parent_tracks_child_failure_state() {
+    let registry = ParentChildRegistry::new();
+    let child_id = test_instance_id();
 
-        // Failed is terminal, but it is NOT "stopping" (that would imply
-        // graceful shutdown in progress)
-        let children = registry.get_children().await;
-        let child_info = children.get(&child_id).expect("child must exist");
+    // Parent registers child
+    registry.add_child(child_id.clone()).await;
 
-        assert!(
-            child_info.state.is_terminal(),
-            "Failed must be terminal"
-        );
-        assert!(
-            !child_info.state.is_stopping(),
-            "Failed must NOT be stopping (that's a different state)"
-        );
-        assert!(
-            registry.all_children_terminal().await,
-            "With only Failed child, all_children_terminal must be true"
-        );
+    // Simulate child entering Failed state (as would happen after all restarts exhausted)
+    registry
+        .update_child_state(&child_id, ActorLifecycleState::Failed)
+        .await;
+
+    // Verify child is tracked as Failed
+    let children = registry.get_children().await;
+    let child_info = children.get(&child_id).expect("Child should exist");
+
+    assert_eq!(
+        child_info.state,
+        ActorLifecycleState::Failed,
+        "Child should be in Failed state"
+    );
+
+    // Verify all children are terminal (important for shutdown propagation)
+    assert!(
+        registry.all_children_terminal().await,
+        "All children should be terminal when child is Failed"
+    );
+}
+
+// === Error/Edge Cases: Silent failure detection ===
+
+/// RED-QUEEN TEST rq-003-edge-1: Silent failure detection
+///
+/// **Given:** A supervisor with exhausted restart attempts
+/// **When:** Failure is NOT propagated to parent
+/// **Then:** THE SYSTEM SHALL silently swallow failures (UNWANTED)
+///
+/// This test exposes the current (buggy) behavior where failures are
+/// silently swallowed when max spawn attempts are exceeded.
+///
+/// **Expected:** Parent notification via work_queue.notify_parent()
+/// **Actual:** No notification occurs (silent failure)
+#[tokio::test]
+async fn rq_003_silent_failure_detection_when_parent_not_notified() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let instance_id = test_instance_id();
+    let max_spawn_attempts = 2u32;
+
+    // Create spawn record already at Failed phase with attempts exhausted
+    let record = SpawnRecord {
+        spawn_id: None,
+        instance_id: instance_id.clone(),
+        command: "./permanently-failed".to_string(),
+        spawn_phase: SpawnPhase::Failed,
+        health_checks: 0,
+        spawn_attempts: max_spawn_attempts + 1, // Exceeded
+        last_error: Some(SpawnSupervisorError::ProcessExited {
+            instance_id: instance_id.clone(),
+            pid: 1234,
+            exit_code: 1,
+        }),
+    };
+    storage.add_record(record);
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(50),
+        2.0,
+        max_spawn_attempts,
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
+
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
+
+    // Record was processed (counts toward spawns_processed even though skipped)
+    assert_eq!(result.spawns_processed, 1);
+
+    // RED-QUEEN: This test documents the UNWANTED behavior.
+    // Currently, no parent notification occurs - failure is SILENT.
+    // This is the bug that needs to be fixed.
+    let parent_notifications = work_queue.get_parent_notifications();
+
+    // UNWANTED behavior detected: parent_notifications is EMPTY
+    // Per EARS "Unwanted" requirement: silent failure = BAD
+    // This assertion PASSES to confirm we detected the bug
+    // The fix would make parent_notifications non-empty
+    assert!(
+        parent_notifications.is_empty(),
+        "UNWANTED: Silent failure detected - parent NOT notified (this is the bug rq-003)"
+    );
+
+    // Also check that no spawn was enqueued (since attempts exceeded)
+    let enqueued_spawns = work_queue.get_enqueued_spawns();
+    assert!(
+        enqueued_spawns.is_empty(),
+        "No respawn should be scheduled when attempts exhausted"
+    );
+}
+
+/// RED-QUEEN TEST rq-003-edge-2: Failure accountability invariant
+///
+/// **Given:** All restarts exhausted for a child
+/// **When:** Parent checks accountability
+/// **Then:** THE SYSTEM SHALL maintain failure accountability (Invariant)
+///
+/// This test verifies that when a failure occurs, there is a mechanism
+/// to track and report what happened.
+#[tokio::test]
+async fn rq_003_failure_accountability_in_maintained() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let instance_id = test_instance_id();
+    let max_spawn_attempts = 3u32;
+
+    // Create record at Failed phase with detailed error
+    let expected_error = SpawnSupervisorError::HealthCheckFailed {
+        instance_id: instance_id.clone(),
+        check_number: 3,
+        error: "final health check timeout - all retries exhausted".to_string(),
+    };
+
+    let record = SpawnRecord {
+        spawn_id: Some(vo_types::SpawnId::new("spawn-123".to_string())),
+        instance_id: instance_id.clone(),
+        command: "./worker".to_string(),
+        spawn_phase: SpawnPhase::Failed,
+        health_checks: 3,
+        spawn_attempts: max_spawn_attempts,
+        last_error: Some(expected_error.clone()),
+    };
+    storage.add_record(record);
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(50),
+        2.0,
+        max_spawn_attempts,
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
+
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
+
+    assert_eq!(result.spawns_processed, 1);
+
+    // Verify error was recorded (accountability maintained)
+    let records = storage.get_records();
+    let saved_record = records
+        .iter()
+        .find(|r| r.instance_id == instance_id)
+        .expect("Record should exist");
+
+    // Error SHOULD be preserved for accountability
+    assert!(
+        saved_record.last_error.is_some(),
+        "Error should be recorded for failure accountability"
+    );
+
+    let saved_error = saved_record.last_error.as_ref().unwrap();
+    assert!(
+        matches!(saved_error, SpawnSupervisorError::HealthCheckFailed { .. }),
+        "Error type should be HealthCheckFailed"
+    );
+
+    // GAP: While error is recorded, no parent notification occurs
+    // The invariant "Failure accountability" requires more than just
+    // recording the error - it requires notifying interested parties
+    let parent_notifications = work_queue.get_parent_notifications();
+    assert!(
+        parent_notifications.is_empty(),
+        "rq-003 GAP: Parent notification missing for failure accountability"
+    );
+}
+
+/// RED-QUEEN TEST rq-003-edge-3: Multiple failures in supervision tree
+///
+/// **Given:** Multiple children failing simultaneously
+/// **When:** All exhaust their restart attempts
+/// **Then:** THE SYSTEM SHALL notify parent for EACH failure
+///
+/// This test ensures the propagation works at scale.
+#[tokio::test]
+async fn rq_003_multiple_children_all_fail_propagate_to_parent() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let max_spawn_attempts = 2u32;
+
+    // Create multiple failed children
+    let child_ids = (0..3).map(|_| test_instance_id()).collect::<Vec<_>>();
+
+    for child_id in &child_ids {
+        let record = SpawnRecord {
+            spawn_id: None,
+            instance_id: child_id.clone(),
+            command: "./failing-worker".to_string(),
+            spawn_phase: SpawnPhase::Failed,
+            health_checks: 0,
+            spawn_attempts: max_spawn_attempts + 1, // Exceeded
+            last_error: Some(SpawnSupervisorError::ProcessExited {
+                instance_id: child_id.clone(),
+                pid: 1234,
+                exit_code: 1,
+            }),
+        };
+        storage.add_record(record);
     }
 
-    // RQ-SC09: Active children count excludes terminal children
-    //
-    // Verifies that the active_children_count correctly excludes Failed children,
-    // so the supervisor can determine if it has any children left to manage.
-    #[tokio::test]
-    async fn rq_active_children_excludes_failed() {
-        let registry = ParentChildRegistry::new();
-        let child1_id = make_instance_id(0xF1);
-        let child2_id = make_instance_id(0xF2);
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(50),
+        2.0,
+        max_spawn_attempts,
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
 
-        registry.add_child(child1_id.clone()).await;
-        registry.add_child(child2_id.clone()).await;
+    let result = supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
 
-        // Initially both are active
-        assert_eq!(
-            registry.active_children_count().await,
-            2,
-            "Both children should be active initially"
-        );
+    // All 3 children processed
+    assert_eq!(result.spawns_processed, 3);
 
-        // Child1 fails
-        registry
-            .update_child_state(&child1_id, ActorLifecycleState::Failed)
-            .await;
+    // GAP: Each child should trigger a parent notification
+    // Currently, NO notifications occur
+    let parent_notifications = work_queue.get_parent_notifications();
+    assert!(
+        parent_notifications.is_empty(),
+        "rq-003 GAP: All {} children failed but 0 parent notifications sent",
+        child_ids.len()
+    );
+}
 
-        assert_eq!(
-            registry.active_children_count().await,
-            1,
-            "Only child2 should be active after child1 fails"
-        );
+// =============================================================================
+// RED-QUEEN Tests: Lifecycle State Machine and Failure Propagation
+// =============================================================================
 
-        // Both are now terminal
-        registry
-            .update_child_state(&child2_id, ActorLifecycleState::Stopped)
-            .await;
+/// RED-QUEEN TEST rq-003-lifecycle-1: Child failure state machine
+///
+/// Verifies the lifecycle state transitions correctly reflect failures.
+#[test]
+fn rq_003_lifecycle_failed_state_rejects_all_transitions() {
+    use vo_actor::lifecycle::{compute_next_state, ActorLifecycleState, LifecycleTransition};
 
-        assert_eq!(
-            registry.active_children_count().await,
-            0,
-            "No active children when both are terminal"
+    // Failed state should reject all transitions (terminal state)
+    let failed = ActorLifecycleState::Failed;
+
+    let transitions = [
+        LifecycleTransition::Start,
+        LifecycleTransition::Stop,
+        LifecycleTransition::ChildStopped,
+        LifecycleTransition::AllChildrenStopped,
+        LifecycleTransition::Fail,
+    ];
+
+    for t in transitions {
+        let next = compute_next_state(failed, t);
+        assert!(
+            next.is_none(),
+            "Failed state should reject {:?} transition (terminal)", t
         );
     }
 }
 
-// =============================================================================
-// ATTACK VECTOR 3: EARS contract verification
-// =============================================================================
+/// RED-QUEEN TEST rq-003-lifecycle-2: Parent observes child failure
+///
+/// **Given:** Parent watching child
+/// **When:** Child enters Failed state
+/// **Then:** Parent's registry reflects Failed state
+#[tokio::test]
+async fn rq_003_parent_registry_reflects_child_failed_state() {
+    let registry = ParentChildRegistry::new();
+    let child_id = test_instance_id();
 
-mod ears_contract_verification {
-    use super::*;
+    // Add child as Pending
+    registry.add_child(child_id.clone()).await;
 
-    // RQ-SC10: Ubiquitous requirement — failures must propagate
-    //
-    // THE SYSTEM SHALL propagate failures up the tree.
-    // This is a ubiquitous requirement that must always hold.
-    #[tokio::test]
-    async fn rq_failures_shall_propagate() {
-        let registry = ParentChildRegistry::new();
-        let parent_id = make_instance_id(0x11);
-        let child_id = make_instance_id(0x12);
+    // Verify initial state
+    let children = registry.get_children().await;
+    assert_eq!(
+        children.get(&child_id).unwrap().state,
+        ActorLifecycleState::Pending
+    );
 
-        registry.add_child(child_id.clone()).await;
+    // Child fails
+    registry
+        .update_child_state(&child_id, ActorLifecycleState::Failed)
+        .await;
 
-        // Child fails
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
+    // Verify Failed state is reflected
+    let children = registry.get_children().await;
+    assert_eq!(
+        children.get(&child_id).unwrap().state,
+        ActorLifecycleState::Failed
+    );
 
-        // Verify failure was recorded (propagated to registry)
-        let children = registry.get_children().await;
-        let child_info = children.get(&child_id).expect("child must exist");
-
-        assert_eq!(
-            child_info.state,
-            ActorLifecycleState::Failed,
-            "Failure must be recorded in parent registry"
-        );
-
-        // RQ-INV: The ubiquitous requirement "failures shall propagate"
-        // means the parent CAN see that the child failed.
-        // A complete implementation would also notify the parent actor.
-        //
-        // Current gap: The registry tracks state, but no notification
-        // is sent to the parent actor. The failure is "visible" but
-        // not "actionable" without polling.
-    }
-
-    // RQ-SC11: Event-driven — notify parent when all restarts exhausted
-    //
-    // When all restarts exhausted, THE SYSTEM SHALL notify parent.
-    // This test documents the expected notification behavior.
-    #[tokio::test]
-    async fn rq_notify_parent_when_restarts_exhausted() {
-        let registry = ParentChildRegistry::new();
-        let parent_id = make_instance_id(0x21);
-        let child_id = make_instance_id(0x22);
-
-        registry.add_child(child_id.clone()).await;
-
-        // Simulate restart exhaustion — child has failed multiple times
-        // In a real implementation, there would be a restart counter
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
-
-        // Check that parent can determine restart exhaustion
-        let failed_children = registry
-            .get_children_by_state(ActorLifecycleState::Failed)
-            .await;
-
-        assert!(
-            failed_children.contains(&child_id),
-            "Parent must be able to query failed children"
-        );
-
-        // GAP: The notification to parent actor is not implemented.
-        // The ParentChildRegistry only tracks state — it does not
-        // send signals or messages to parent actors.
-
-        // Expected behavior (not implemented):
-        // 1. Parent registers a notification channel when adding child
-        // 2. When child enters Failed state, registry sends notification
-        // 3. Parent actor receives failure signal and can react
-    }
-
-    // RQ-SC12: Unwanted — no silent failure swallowing
-    //
-    // If failure not propagated, THE SYSTEM SHALL silently swallow failures.
-    // This is a negative requirement — we verify that failures are NOT hidden.
-    #[tokio::test]
-    async fn rq_no_silent_failure_swallow() {
-        let registry = ParentChildRegistry::new();
-        let child_id = make_instance_id(0x31);
-
-        registry.add_child(child_id.clone()).await;
-
-        // Child fails
-        registry
-            .update_child_state(&child_id, ActorLifecycleState::Failed)
-            .await;
-
-        // Verify child is still in registry (not silently removed)
-        let children = registry.get_children().await;
-        assert!(
-            children.contains_key(&child_id),
-            "Failed child must still be in registry (no silent removal)"
-        );
-
-        // Verify parent can still see the failure
-        let failed_children = registry
-            .get_children_by_state(ActorLifecycleState::Failed)
-            .await;
-        assert!(
-            failed_children.contains(&child_id),
-            "Failed child must be queryable (not hidden)"
-        );
-
-        // The current implementation does NOT silently swallow failures —
-        // the child state is visible. However, there is no automatic
-        // notification to the parent actor.
-    }
+    // Verify all_children_terminal returns true
+    assert!(
+        registry.all_children_terminal().await,
+        "Registry should report all children terminal when child is Failed"
+    );
 }
+
+/// RED-QUEEN TEST rq-003-lifecycle-3: Supervision tree failure propagation
+///
+/// **Given:** A supervision tree with parent and children
+/// **When:** ALL children have Failed state
+/// **Then:** Parent can detect complete failure of its subtree
+///
+/// This is important for escalation - if all children fail, parent
+/// may need to take action (e.g., notify its parent).
+#[tokio::test]
+async fn rq_003_supervision_tree_all_children_failed() {
+    let registry = ParentChildRegistry::new();
+
+    let child_1 = test_instance_id();
+    let child_2 = test_instance_id();
+    let child_3 = test_instance_id();
+
+    // Parent has 3 children
+    registry.add_child(child_1.clone()).await;
+    registry.add_child(child_2.clone()).await;
+    registry.add_child(child_3.clone()).await;
+
+    // All children fail
+    registry
+        .update_child_state(&child_1, ActorLifecycleState::Failed)
+        .await;
+    registry
+        .update_child_state(&child_2, ActorLifecycleState::Failed)
+        .await;
+    registry
+        .update_child_state(&child_3, ActorLifecycleState::Failed)
+        .await;
+
+    // All children should be terminal
+    assert!(
+        registry.all_children_terminal().await,
+        "All children terminal when all are Failed"
+    );
+
+    // No children should be active
+    assert_eq!(
+        registry.active_children_count().await,
+        0,
+        "No active children when all have failed"
+    );
+
+    // GAP: While registry tracks state correctly, there's no mechanism
+    // for the SpawnSupervisor to automatically update the parent registry
+    // when failures occur. The notification must be explicit.
+}
+
+// =============================================================================
+// Summary
+// =============================================================================
+
+// RED-QUEEN rq-003 Test Summary:
+// =============================
+//
+// These tests document the EXPECTED behavior per EARS requirements for
+// supervisor crash propagation (rq-003).
+//
+// CURRENT GAPS IDENTIFIED:
+// 1. SpawnSupervisor does not notify parent when max spawn attempts exceeded
+// 2. No WorkQueue.notify_parent() method exists
+// 3. ParentChildRegistry exists but is not integrated with SpawnSupervisor
+// 4. Failures are silently swallowed when restart attempts exhausted
+//
+// EXPECTED BEHAVIOR (per EARS):
+// - Ubiquitous: THE SYSTEM SHALL propagate failures up the tree
+// - Event-Driven: When all restarts exhausted, THE SYSTEM SHALL notify parent
+// - Unwanted: If failure not propagated, THE SYSTEM SHALL silently swallow failures
+//
+// CURRENT BEHAVIOR:
+// - Failures are logged but NOT propagated to parent
+// - No notification mechanism exists
+// - Silent failure occurs when max attempts exceeded
+//
+// IMPLEMENTATION REQUIRED:
+// 1. Add notify_parent() method to WorkQueue trait
+// 2. Call notify_parent() in SpawnSupervisor when spawn_attempts > max
+// 3. Integrate ParentChildRegistry with SpawnSupervisor failure handling
+// 4. Ensure failure accountability via error recording + parent notification

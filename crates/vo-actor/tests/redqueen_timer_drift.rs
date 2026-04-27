@@ -17,14 +17,6 @@ use vo_types::TimestampMs;
 
 const MAX_DRIFT_PERCENT: f64 = 10.0;
 
-fn test_instance_id() -> vo_types::InstanceId {
-    vo_types::InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()
-}
-
-fn test_timer_id() -> vo_types::TimerId {
-    vo_types::TimerId::parse("timer-rq004-001").unwrap()
-}
-
 fn calculate_drift_percent(expected_ms: u64, actual_ms: u64) -> f64 {
     if expected_ms == 0 {
         return 0.0;
@@ -64,9 +56,9 @@ async fn rq_timer_accuracy_idle() {
 #[tokio::test(flavor = "multi_thread")]
 async fn rq_timer_accuracy_under_load_single_timer() {
     let duration_ms: i64 = 200;
-    let base_ms = TimestampMs::now().as_u64();
+    let _base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
-    let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    let _fire_at_ms = compute_fire_at(_base_ms, validated).expect("valid fire_at");
 
     let counter = Arc::new(AtomicU64::new(0));
     let counter_clone = counter.clone();
@@ -88,9 +80,9 @@ async fn rq_timer_accuracy_under_load_single_timer() {
 #[tokio::test(flavor = "multi_thread")]
 async fn rq_timer_accuracy_under_load_cpu_contention() {
     let duration_ms: i64 = 150;
-    let base_ms = TimestampMs::now().as_u64();
+    let _base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
-    let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    let _fire_at_ms = compute_fire_at(_base_ms, validated).expect("valid fire_at");
 
     let _load_handles: Vec<_> = (0..4)
         .map(|_| {
@@ -122,14 +114,15 @@ async fn rq_timer_accuracy_under_load_cpu_contention() {
 #[tokio::test(flavor = "multi_thread")]
 async fn rq_timer_accuracy_under_load_async_contention() {
     let duration_ms: i64 = 100;
-    let base_ms = TimestampMs::now().as_u64();
+    let _base_ms = TimestampMs::now().as_u64();
     let validated = validate_sleep_duration(duration_ms).expect("valid duration");
-    let fire_at_ms = compute_fire_at(base_ms, validated).expect("valid fire_at");
+    let _fire_at_ms = compute_fire_at(_base_ms, validated).expect("valid fire_at");
 
-    let barrier = Arc::new(tokio::sync::Barrier::new(10));
+    let num_tasks = 9usize;
+    let barrier = Arc::new(tokio::sync::Barrier::new(num_tasks));
     let mut handles = vec![];
 
-    for _ in 0..9 {
+    for _ in 0..num_tasks {
         let barrier_clone = barrier.clone();
         handles.push(tokio::spawn(async move {
             barrier_clone.wait().await;
