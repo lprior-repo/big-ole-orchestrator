@@ -36,6 +36,9 @@ pub mod signal_buffer_tests;
 #[cfg(test)]
 pub mod instance_registry_tests;
 
+#[cfg(test)]
+pub mod vo_actor_comprehensive_tests;
+
 // #[cfg(test)]
 // pub mod replay_attack_tests;  // module file missing
 pub mod timer_lifecycle;

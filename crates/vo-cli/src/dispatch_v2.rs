@@ -363,6 +363,8 @@ mod tests {
         let cli = Cli {
             command: Command::Purge {
                 instance: "nonexistent".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             },
         };
         let result = dispatcher.dispatch(cli).await;

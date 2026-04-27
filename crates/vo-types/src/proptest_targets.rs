@@ -17,7 +17,7 @@ use crate::integer_types::{
 };
 use crate::lifecycle_superstate::LifecycleSuperstate;
 use crate::non_empty_vec::NonEmptyVec;
-use crate::state::transition::{
+use crate::state::{
     get_operational_status, get_valid_transitions, is_terminal, LifecycleState, OperationalStatus,
 };
 use crate::types::{

@@ -1,7 +1,7 @@
 //! Proptest suite for Octree.
 
 use proptest::prelude::*;
-use vo_common::structures::octree::{Bounds, Octree, Vec3};
+use vo_common::{Bounds, Octree, Vec3};
 
 proptest! {
     #[test]

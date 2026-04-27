@@ -61,6 +61,7 @@ mod serialization_bomb {
     #[test]
     fn rapid_clone_no_panic() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "clone-target".into(),
             timer_id: "clone-target".into(),
             timestamp_ms: 12345,
         };
@@ -75,12 +76,14 @@ mod serialization_bomb {
     #[test]
     fn clone_chain_amplification() {
         let mut event = WorkflowEvent::TimerFired {
+            event_id: "chain-0".into(),
             timer_id: "chain".into(),
             timestamp_ms: 1,
         };
         for i in 0..1_000 {
             let cloned = event.clone();
             event = WorkflowEvent::TimerFired {
+                event_id: format!("chain-{i}").into(),
                 timer_id: format!("{i}"),
                 timestamp_ms: i,
             };
@@ -92,6 +95,7 @@ mod serialization_bomb {
     fn large_payload_clone_pressure() {
         let big_id = "x".repeat(1_000_000);
         let event = WorkflowEvent::TimerFired {
+            event_id: "big-payload".into(),
             timer_id: big_id,
             timestamp_ms: 0,
         };
@@ -105,10 +109,12 @@ mod serialization_bomb {
     #[test]
     fn equal_check_on_mismatched_sizes() {
         let small = WorkflowEvent::TimerFired {
+            event_id: "small".into(),
             timer_id: "x".into(),
             timestamp_ms: 0,
         };
         let big = WorkflowEvent::TimerFired {
+            event_id: "big".into(),
             timer_id: "x".repeat(1_000_000),
             timestamp_ms: 0,
         };
@@ -120,6 +126,7 @@ mod serialization_bomb {
         use std::time::Instant;
         let events: Vec<WorkflowEvent> = (0..500)
             .map(|i| WorkflowEvent::TimerFired {
+                event_id: format!("evt-{i}").into(),
                 timer_id: format!("event-{i}"),
                 timestamp_ms: i,
             })
@@ -136,10 +143,12 @@ mod serialization_bomb {
     #[test]
     fn unicode_normalization_mismatch() {
         let a = WorkflowEvent::TimerFired {
+            event_id: "unicode-a".into(),
             timer_id: "caf\u{00E9}".into(),
             timestamp_ms: 0,
         };
         let b = WorkflowEvent::TimerFired {
+            event_id: "unicode-b".into(),
             timer_id: "cafe\u{0301}".into(),
             timestamp_ms: 0,
         };
@@ -149,6 +158,7 @@ mod serialization_bomb {
     #[test]
     fn rapid_serde_roundtrip_storm() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "flood-target".into(),
             timer_id: "flood-target".into(),
             timestamp_ms: 42,
         };
@@ -164,6 +174,7 @@ mod serialization_bomb {
         use std::sync::Arc;
         use std::thread;
         let event = WorkflowEvent::TimerFired {
+            event_id: "concurrent".into(),
             timer_id: "concurrent".into(),
             timestamp_ms: 999,
         };
@@ -206,6 +217,7 @@ mod serialization_bomb {
     #[test]
     fn timer_id_with_json_escape_sequences() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "json-escape".into(),
             timer_id: r#"{"injected":true}"#.into(),
             timestamp_ms: 0,
         };
@@ -222,6 +234,7 @@ mod serialization_bomb {
     fn timer_id_with_null_bytes() {
         let id_with_null = "before\0after".to_string();
         let event = WorkflowEvent::TimerFired {
+            event_id: "null-bytes".into(),
             timer_id: id_with_null.clone(),
             timestamp_ms: 0,
         };
@@ -234,6 +247,7 @@ mod serialization_bomb {
     #[test]
     fn timestamp_u64_max_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "max-ts".into(),
             timer_id: "max-ts".into(),
             timestamp_ms: u64::MAX,
         };
@@ -245,6 +259,7 @@ mod serialization_bomb {
     #[test]
     fn empty_timer_id_roundtrip() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "empty-timer".into(),
             timer_id: String::new(),
             timestamp_ms: 0,
         };
@@ -256,7 +271,7 @@ mod serialization_bomb {
     #[test]
     fn json_output_size_bounded_by_input() {
         let id = "x".repeat(100);
-        let event = WorkflowEvent::TimerFired { timer_id: id.clone(), timestamp_ms: 42 };
+        let event = WorkflowEvent::TimerFired { event_id: "json-size".into(), timer_id: id.clone(), timestamp_ms: 42 };
         let json_str = serde_json::to_string(&event).unwrap();
         assert!(json_str.len() < id.len() * 5, "JSON output too large: {} vs input {}", json_str.len(), id.len());
     }
@@ -264,12 +279,12 @@ mod serialization_bomb {
     #[test]
     fn many_events_vec_no_leak() {
         let events: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| WorkflowEvent::TimerFired { timer_id: format!("evt-{i}"), timestamp_ms: i })
+            .map(|i| WorkflowEvent::TimerFired { event_id: format!("evt-{i}").into(), timer_id: format!("evt-{i}"), timestamp_ms: i })
             .collect();
         assert_eq!(events.len(), 10_000);
         drop(events);
         let events2: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| WorkflowEvent::TimerFired { timer_id: format!("evt-{i}"), timestamp_ms: i })
+            .map(|i| WorkflowEvent::TimerFired { event_id: format!("evt2-{i}").into(), timer_id: format!("evt-{i}"), timestamp_ms: i })
             .collect();
         assert_eq!(events2.len(), 10_000);
     }
@@ -277,6 +292,7 @@ mod serialization_bomb {
     #[test]
     fn debug_format_large_event_no_panic() {
         let event = WorkflowEvent::TimerFired {
+            event_id: "large-debug".into(),
             timer_id: "x".repeat(1_000_000),
             timestamp_ms: 0,
         };
@@ -286,21 +302,21 @@ mod serialization_bomb {
 
     #[test]
     fn identical_events_are_equal() {
-        let e1 = WorkflowEvent::TimerFired { timer_id: "replay".into(), timestamp_ms: 100 };
-        let e2 = WorkflowEvent::TimerFired { timer_id: "replay".into(), timestamp_ms: 100 };
+        let e1 = WorkflowEvent::TimerFired { event_id: "replay-1".into(), timer_id: "replay".into(), timestamp_ms: 100 };
+        let e2 = WorkflowEvent::TimerFired { event_id: "replay-2".into(), timer_id: "replay".into(), timestamp_ms: 100 };
         assert_eq!(e1, e2);
     }
 
     #[test]
     fn timestamp_diff_distinguishes_replay() {
-        let e1 = WorkflowEvent::TimerFired { timer_id: "same-id".into(), timestamp_ms: 100 };
-        let e2 = WorkflowEvent::TimerFired { timer_id: "same-id".into(), timestamp_ms: 101 };
+        let e1 = WorkflowEvent::TimerFired { event_id: "same-1".into(), timer_id: "same-id".into(), timestamp_ms: 100 };
+        let e2 = WorkflowEvent::TimerFired { event_id: "same-2".into(), timer_id: "same-id".into(), timestamp_ms: 101 };
         assert_ne!(e1, e2, "replayed event with different timestamp must be distinct");
     }
 
     #[test]
     fn json_replay_deterministic() {
-        let event = WorkflowEvent::TimerFired { timer_id: "det".into(), timestamp_ms: 42 };
+        let event = WorkflowEvent::TimerFired { event_id: "det".into(), timer_id: "det".into(), timestamp_ms: 42 };
         let j1 = serde_json::to_string(&event).unwrap();
         let j2 = serde_json::to_string(&event).unwrap();
         assert_eq!(j1, j2, "same event must produce identical JSON");

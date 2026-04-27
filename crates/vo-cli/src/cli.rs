@@ -613,7 +613,9 @@ mod tests {
         assert_eq!(
             cli.command,
             Command::Purge {
-                instance: "123".to_string()
+                instance: "123".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             }
         );
     }

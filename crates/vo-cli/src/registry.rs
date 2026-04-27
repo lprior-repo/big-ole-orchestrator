@@ -542,6 +542,8 @@ mod tests {
         let cli = Cli {
             command: Command::Purge {
                 instance: "test".to_string(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             },
         };
         let handler = registry.get(&cli).expect("handler found");
