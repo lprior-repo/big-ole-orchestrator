@@ -25,6 +25,7 @@ use ulid::Ulid;
 
 use crate::command_envelope::CommandEnvelope;
 use crate::command_metadata::Issuer;
+use crate::string_types::ParseError;
 use crate::types::TimestampMs;
 use crate::workflow::{DagNode, Edge};
 
@@ -86,6 +87,12 @@ pub enum CommandHistoryError {
         #[allow(dead_code)]
         current_status: HistoryEntryStatus,
         attempted_action: String,
+    },
+
+    #[error("Invalid command metadata: {reason}")]
+    InvalidCommandMetadata {
+        #[allow(dead_code)]
+        reason: String,
     },
 }
 
@@ -457,21 +464,35 @@ impl HistoryEntry {
     /// * `snapshot_after` - State after the command
     /// * `batch_metadata` - Optional batch metadata for extension commands
     /// * `command_id` - Optional pre-generated command ID (for undo tracking)
+    ///
+    /// # Errors
+    ///
+    /// Returns `CommandHistoryError::InvalidCommandMetadata` if any IdempotencyKey
+    /// fails to parse (should never occur with valid CommandId inputs or fresh ULIDs).
     pub fn new(
         kind: CommandKind,
         snapshot_before: Option<WorkflowSnapshot>,
         snapshot_after: Option<WorkflowSnapshot>,
         batch_metadata: Option<ExtensionBatchMetadata>,
         command_id: Option<CommandId>,
-    ) -> Self {
+    ) -> Result<Self, CommandHistoryError> {
         let cmd_id = command_id.unwrap_or_default();
+        let command_id_key = crate::IdempotencyKey::parse(cmd_id.as_str())
+            .map_err(|e| CommandHistoryError::InvalidCommandMetadata {
+                reason: format!("command_id: {e}"),
+            })?;
+        let correlation_id = crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
+            .map_err(|e| CommandHistoryError::InvalidCommandMetadata {
+                reason: format!("correlation_id: {e}"),
+            })?;
+        let causation_id = crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
+            .map_err(|e| CommandHistoryError::InvalidCommandMetadata {
+                reason: format!("causation_id: {e}"),
+            })?;
         let metadata = crate::command_metadata::CommandMetadata {
-            command_id: crate::IdempotencyKey::parse(cmd_id.as_str())
-                .expect("IdempotencyKey parsing from String should succeed"),
-            correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
-            causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
+            command_id: command_id_key,
+            correlation_id,
+            causation_id,
             issuer: Issuer::Operator,
             issued_at: TimestampMs::now(),
         };
@@ -479,14 +500,14 @@ impl HistoryEntry {
             schema_version: 1,
             metadata,
         };
-        Self {
+        Ok(Self {
             envelope,
             kind,
             snapshot_before,
             snapshot_after,
             batch_metadata,
             status: HistoryEntryStatus::Committed,
-        }
+        })
     }
 }
 
@@ -615,7 +636,7 @@ impl CommandHistory {
             Some(snapshot_before),
             None,
             Some(command_id.clone()),
-        );
+        )?;
 
         if self.entries.len() >= self.capacity {
             if let Some(oldest_idx) = self
@@ -650,7 +671,7 @@ impl CommandHistory {
         let command_id = self
             .undo_stack
             .pop()
-            .expect("undo_stack pop after empty check");
+            .ok_or(CommandHistoryError::UndoStackEmpty)?;
 
         let entry = self
             .entries
@@ -699,7 +720,7 @@ impl CommandHistory {
         let command_id = self
             .redo_stack
             .pop()
-            .expect("redo_stack pop after empty check");
+            .ok_or(CommandHistoryError::RedoStackEmpty)?;
 
         // Find the entry and mark as Redone
         for entry in &mut self.entries {
