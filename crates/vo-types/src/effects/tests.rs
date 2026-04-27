@@ -1,3 +1,313 @@
+//! Managed effect types for exact-once side effects (ADR-030).
+//!
+//! Architecture: Data (EffectIntent, EffectKind, EffectRecord, CompensationPolicy)
+//!             → Calc (apply_effect_transition, is_terminal, all_variants).
+//!
+//! This module defines the type system for managed effects flowing through the Engine.
+//! No I/O, no engine integration — pure types and state machine logic.
+
+// ============================================================================
+// Data Layer: Type Definitions
+// ============================================================================
+
+/// Lifecycle state of a managed effect (ADR-030).
+///
+/// Transitions are strictly one-directional: Prepared → Committed | RolledBack.
+/// Committed and RolledBack are terminal states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum EffectIntent {
+    /// Effect has been prepared but not yet committed.
+    Prepared,
+    /// Effect has been successfully committed (terminal).
+    Committed,
+    /// Effect has been rolled back (terminal).
+    RolledBack,
+}
+
+/// Category of managed side-effect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum EffectKind {
+    /// HTTP API call (Stripe, external REST, etc.)
+    HttpCall,
+    /// SQL database query/write.
+    SqlQuery,
+    /// Blob storage write (S3, GCS, etc.)
+    BlobWrite,
+}
+
+/// Compensation policy for an effect (ADR-030 §5, ADR-034).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum CompensationPolicy {
+    /// No compensation needed or available.
+    None,
+    /// Manual compensation — requires human intervention.
+    Manual,
+    /// Automatic compensation — engine drives rollback.
+    Automatic,
+}
+
+/// Event that triggers an effect state transition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum EffectTransitionEvent {
+    /// Commit the effect — transition from Prepared to Committed.
+    Commit,
+    /// Roll back the effect — transition from Prepared to RolledBack.
+    Rollback,
+}
+
+impl EffectTransitionEvent {
+    /// Returns all transition event variants.
+    #[must_use]
+    pub const fn all_variants() -> &'static [EffectTransitionEvent] {
+        &[
+            EffectTransitionEvent::Commit,
+            EffectTransitionEvent::Rollback,
+        ]
+    }
+}
+
+/// Error returned when an effect state transition is invalid.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EffectTransitionError {
+    #[error("Cannot transition from terminal effect state")]
+    TerminalStateTransition,
+    #[error("Invalid effect state transition")]
+    InvalidTransition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EffectCompressionError {
+    #[error("Serialization failed: {0}")]
+    SerializationFailed(String),
+    #[error("Compression failed: {0}")]
+    CompressionFailed(String),
+    #[error("Decompression failed: {0}")]
+    DecompressionFailed(String),
+    #[error("Deserialization failed: {0}")]
+    DeserializationFailed(String),
+}
+
+/// Persisted record of a managed effect.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct EffectRecord {
+    intent_id: String,
+    kind: EffectKind,
+    params_json: serde_json::Value,
+    status: EffectIntent,
+    committed_at: Option<crate::types::TimestampMs>,
+}
+
+// ============================================================================
+// Calc Layer: Pure Functions
+// ============================================================================
+
+impl EffectIntent {
+    /// Check if this state is terminal (Committed or RolledBack).
+    #[must_use]
+    pub const fn is_terminal(self) -> bool {
+        matches!(self, EffectIntent::Committed | EffectIntent::RolledBack)
+    }
+
+    /// Returns all EffectIntent variants.
+    #[must_use]
+    pub const fn all_variants() -> &'static [EffectIntent] {
+        &[
+            EffectIntent::Prepared,
+            EffectIntent::Committed,
+            EffectIntent::RolledBack,
+        ]
+    }
+}
+
+impl EffectKind {
+    /// Returns all EffectKind variants.
+    #[must_use]
+    pub const fn all_variants() -> &'static [EffectKind] {
+        &[
+            EffectKind::HttpCall,
+            EffectKind::SqlQuery,
+            EffectKind::BlobWrite,
+        ]
+    }
+}
+
+impl CompensationPolicy {
+    /// Returns all CompensationPolicy variants.
+    #[must_use]
+    pub const fn all_variants() -> &'static [CompensationPolicy] {
+        &[
+            CompensationPolicy::None,
+            CompensationPolicy::Manual,
+            CompensationPolicy::Automatic,
+        ]
+    }
+}
+
+impl EffectRecord {
+    /// Construct a new EffectRecord.
+    ///
+    /// Returns `None` if `intent_id` is empty (INV-EFF-003).
+    #[must_use]
+    pub fn new(
+        intent_id: String,
+        kind: EffectKind,
+        params_json: serde_json::Value,
+        status: EffectIntent,
+        committed_at: Option<crate::types::TimestampMs>,
+    ) -> Option<Self> {
+        if intent_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            intent_id,
+            kind,
+            params_json,
+            status,
+            committed_at,
+        })
+    }
+
+    #[must_use]
+    pub fn intent_id(&self) -> &str {
+        &self.intent_id
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> EffectKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn params_json(&self) -> &serde_json::Value {
+        &self.params_json
+    }
+
+    #[must_use]
+    pub fn status(&self) -> EffectIntent {
+        self.status
+    }
+
+    #[must_use]
+    pub fn committed_at(&self) -> Option<&crate::types::TimestampMs> {
+        self.committed_at.as_ref()
+    }
+
+    pub fn compress(&self) -> Result<Vec<u8>, EffectCompressionError> {
+        let json = serde_json::to_string(self)
+            .map_err(|e| EffectCompressionError::SerializationFailed(e.to_string()))?;
+        let bytes = json.as_bytes();
+        zstd::encode_all(bytes, 0)
+            .map_err(|e| EffectCompressionError::CompressionFailed(e.to_string()))
+    }
+
+    pub fn decompress(compressed: &[u8]) -> Result<Self, EffectCompressionError> {
+        let decompressed = zstd::decode_all(compressed)
+            .map_err(|e| EffectCompressionError::DecompressionFailed(e.to_string()))?;
+        let json = String::from_utf8(decompressed)
+            .map_err(|e| EffectCompressionError::DecompressionFailed(e.to_string()))?;
+        serde_json::from_str(&json)
+            .map_err(|e| EffectCompressionError::DeserializationFailed(e.to_string()))
+    }
+}
+
+/// Apply a state transition to an EffectIntent.
+///
+/// # Errors
+///
+/// Returns `EffectTransitionError::TerminalStateTransition` if the current state
+/// is Committed or RolledBack (INV-EFF-002).
+/// Returns `EffectTransitionError::InvalidTransition` if the event is not valid
+/// for the current state.
+pub fn apply_effect_transition(
+    current: EffectIntent,
+    event: EffectTransitionEvent,
+) -> Result<EffectIntent, EffectTransitionError> {
+    match (current, event) {
+        // Valid transitions (INV-EFF-001): one-directional from Prepared
+        (EffectIntent::Prepared, EffectTransitionEvent::Commit) => Ok(EffectIntent::Committed),
+        (EffectIntent::Prepared, EffectTransitionEvent::Rollback) => Ok(EffectIntent::RolledBack),
+
+        // Terminal states reject all transitions (INV-EFF-002)
+        (EffectIntent::Committed | EffectIntent::RolledBack, _) => {
+            Err(EffectTransitionError::TerminalStateTransition)
+        }
+    }
+}
+
+// ============================================================================
+// Unit Tests
+
+// ===========================================================================
+// Receipt Type (ADR-041 §4: Receipts and Identity)
+// ===========================================================================
+
+/// Durable execution receipt for a committed managed connector effect.
+/// Write-once immutable record produced when a connector commit succeeds.
+/// Used for operator audit, replay, and exact-once deduplication.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct Receipt {
+    effect_id: String,
+    connector_type: String,
+    connector_version: String,
+    external_receipt: serde_json::Value,
+    committed_at: crate::types::TimestampMs,
+}
+
+impl Receipt {
+    /// Construct a new Receipt. Returns None if effect_id or connector_type is empty.
+    #[must_use]
+    pub fn new(
+        effect_id: String,
+        connector_type: String,
+        connector_version: String,
+        external_receipt: serde_json::Value,
+        committed_at: crate::types::TimestampMs,
+    ) -> Option<Self> {
+        if effect_id.is_empty() || connector_type.is_empty() {
+            return None;
+        }
+        Some(Self {
+            effect_id,
+            connector_type,
+            connector_version,
+            external_receipt,
+            committed_at,
+        })
+    }
+
+    #[must_use]
+    pub fn effect_id(&self) -> &str {
+        &self.effect_id
+    }
+    #[must_use]
+    pub fn connector_type(&self) -> &str {
+        &self.connector_type
+    }
+    #[must_use]
+    pub fn connector_version(&self) -> &str {
+        &self.connector_version
+    }
+    #[must_use]
+    pub fn external_receipt(&self) -> &serde_json::Value {
+        &self.external_receipt
+    }
+    #[must_use]
+    pub fn committed_at(&self) -> crate::types::TimestampMs {
+        self.committed_at
+    }
+}
+
+impl std::fmt::Display for Receipt {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "Receipt(effect={}, connector={}:{}, at={})",
+            self.effect_id, self.connector_type, self.connector_version, self.committed_at
+        )
+    }
+}
+// ============================================================================
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -331,5 +641,178 @@ mod tests {
             err.to_string(),
             "Cannot transition from terminal effect state"
         );
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Round-Trip Correctness
+    // ========================================================================
+
+    #[rstest]
+    #[case(EffectIntent::Prepared, None)]
+    #[case(EffectIntent::Committed, Some(crate::types::TimestampMs(1000)))]
+    #[case(EffectIntent::RolledBack, Some(crate::types::TimestampMs(2000)))]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_intents(
+        #[case] status: EffectIntent,
+        #[case] committed_at: Option<crate::types::TimestampMs>,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-intent".to_string(),
+            EffectKind::HttpCall,
+            json!({"url": "https://api.example.com"}),
+            status,
+            committed_at,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[rstest]
+    #[case(EffectKind::HttpCall)]
+    #[case(EffectKind::SqlQuery)]
+    #[case(EffectKind::BlobWrite)]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
+        #[case] kind: EffectKind,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-kind".to_string(),
+            kind,
+            json!({"query": "SELECT * FROM table"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[test]
+    fn effectrecord_compress_decompress_roundtrip_with_complex_params() {
+        let record = EffectRecord::new(
+            "fx-complex".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "headers": {"Authorization": "Bearer token123", "Content-Type": "application/json"},
+                "body": {"items": [{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]},
+                "timeout_ms": 5000
+            }),
+            EffectIntent::Committed,
+            Some(crate::types::TimestampMs(9999)),
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Ratio Verification
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_compression_reduces_size_for_text_heavy_payload() {
+        let record = EffectRecord::new(
+            "fx-large".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100)
+            }),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Compressed size ({}) should be smaller than JSON size ({})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    #[test]
+    fn effectrecord_compression_still_smaller_for_small_records() {
+        let record = EffectRecord::new(
+            "a".to_string(),
+            EffectKind::SqlQuery,
+            json!({"q": "x"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Even small records should compress (compressed: {}, json: {})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Decompression Error Handling
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_empty_input() {
+        let result = EffectRecord::decompress(&[]);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_random_bytes() {
+        let result = EffectRecord::decompress(b"not zstd compressed data at all");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_truncated_zstd() {
+        let record = EffectRecord::new(
+            "fx-trunc".to_string(),
+            EffectKind::BlobWrite,
+            json!({"bucket": "test"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let truncated = &compressed[..compressed.len() / 2];
+        let result = EffectRecord::decompress(truncated);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_corrupted_zstd() {
+        let mut corrupted = vec![0x28, 0xb5, 0x2f, 0xfd];
+        corrupted.extend_from_slice(b"invalid zstd frame");
+        let result = EffectRecord::decompress(&corrupted);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_valid_zstd_invalid_utf8() {
+        let valid_zstd_magic = [0x28, 0xb5, 0x2f, 0xfd];
+        let result = EffectRecord::decompress(&valid_zstd_magic);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
     }
 }

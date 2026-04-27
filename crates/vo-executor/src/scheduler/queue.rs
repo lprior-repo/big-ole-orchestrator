@@ -205,9 +205,7 @@ impl Default for SchedulerQueue {
     }
 }
 
-// Send + Sync are automatically derived: all fields (PriorityQueue<BinaryHeap<QueuedJob>>,
-// HashMap<JobId, JobState>) contain only Send+Sync types (JobId=u64, JobState=enum,
-// BinaryHeap/HashMap are Send+Sync when contents are). No unsafe impl needed.
+
 
 #[cfg(test)]
 mod tests {

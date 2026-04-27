@@ -26,6 +26,7 @@ mod v1_test;
 mod v3_test;
 
 pub use errors::*;
+pub use helpers::*;
 pub use names::*;
 pub use v1::*;
 pub use v3::*;

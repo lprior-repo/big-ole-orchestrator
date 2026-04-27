@@ -6,7 +6,8 @@
 pub mod connection_pool;
 pub mod error;
 pub mod events;
-pub mod structures;
+pub mod pool;
+mod structures;
 pub mod types;
 
 pub use error::VoError;

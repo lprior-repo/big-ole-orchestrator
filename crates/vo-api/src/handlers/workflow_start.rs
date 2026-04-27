@@ -20,10 +20,7 @@ use vo_types::events::EventMetadata;
 use vo_types::InstanceId;
 
 use crate::handlers::helpers::parse_paradigm;
-use crate::handlers::ingress::{
-    admit_ingress, IngressAdmission, IngressAdmissionError, DEFAULT_DEDUPE_TTL_MS,
-};
-use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
+use crate::types::{validate_json_payload_size, ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -103,6 +100,17 @@ pub async fn start_workflow(
         }
         None => vo_types::InstanceId::from_bytes(Ulid::new().0.to_be_bytes()),
     };
+
+    if let Some(err) = validate_json_payload_size(&req.input) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "payload_too_large",
+                format!("input payload {}", err),
+            )),
+        )
+            .into_response();
+    }
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),

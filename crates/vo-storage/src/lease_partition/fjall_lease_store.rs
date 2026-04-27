@@ -1,16 +1,30 @@
 //! Fjall-backed persistent implementation of `LeaseStore` for production use.
+//!
+//! Concurrency model: striped `parking_lot::Mutex` guards the acquire
+//! critical section per-key-shard, preventing TOCTOU races between read and
+//! insert on the same lease key while allowing independent keys to proceed
+//! in parallel.
 
 use std::sync::Arc;
 
+use parking_lot::Mutex;
 use vo_types::{FenceToken, InstanceId, LeaseRecord, StepId};
 
 use super::{LeaseEntry, LeaseStore, LeaseStoreError, LEASE_PARTITION};
 
 const FENCE_PARTITION: &str = "lease_fences";
 
+const NUM_STRIPES: usize = 64;
+
+#[expect(clippy::expect_used, clippy::cast_possible_truncation)]
+fn stripe_for_key(key_bytes: &[u8]) -> usize {
+    crc32fast::hash(key_bytes) as usize % NUM_STRIPES
+}
+
 pub struct FjallLeaseStore {
     lease_partition: Arc<fjall::Keyspace>,
     fence_partition: Arc<fjall::Keyspace>,
+    stripes: Vec<Mutex<()>>,
 }
 
 impl FjallLeaseStore {
@@ -30,9 +44,11 @@ impl FjallLeaseStore {
             .map_err(|e| LeaseStoreError::Storage {
                 reason: format!("failed to open lease_fences partition: {e}"),
             })?;
+        let stripes = (0..NUM_STRIPES).map(|_| Mutex::new(())).collect();
         Ok(Self {
             lease_partition: Arc::new(lease_partition),
             fence_partition: Arc::new(fence_partition),
+            stripes,
         })
     }
 
@@ -146,6 +162,10 @@ impl LeaseStore for FjallLeaseStore {
         if ttl_ms == 0 {
             return Err(LeaseStoreError::InvalidArgument);
         }
+
+        let key = Self::encode_lease_key(instance_id, step_id);
+        let stripe_idx = stripe_for_key(&key);
+        let _guard = self.stripes[stripe_idx].lock();
 
         #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
@@ -391,5 +411,31 @@ mod tests {
             .acquire(&sample_instance_id(), &sample_step_id(), 5_000)
             .unwrap();
         assert_eq!(second.token().inner().get(), 2);
+    }
+
+    #[test]
+    fn fjall_lease_acquire_after_expiry_reacquires_with_higher_fence_token() {
+        let (keyspace, _dir) = create_test_keyspace();
+        let store = FjallLeaseStore::open(&keyspace).unwrap();
+
+        let first = store
+            .acquire(&sample_instance_id(), &sample_step_id(), 1)
+            .unwrap();
+        assert_eq!(first.token().inner().get(), 1);
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+
+        let second = store
+            .acquire(&sample_instance_id(), &sample_step_id(), 5_000)
+            .unwrap();
+        assert_eq!(second.token().inner().get(), 2);
+
+        let is_stale = store.check_stale_fence(&sample_instance_id(), &sample_step_id(), first.token());
+        assert_eq!(is_stale.unwrap(), true);
+
+        let is_current = store.check_stale_fence(&sample_instance_id(), &sample_step_id(), second.token());
+        assert_eq!(is_current.unwrap(), false);
+
+        store.release(&second).unwrap();
     }
 }

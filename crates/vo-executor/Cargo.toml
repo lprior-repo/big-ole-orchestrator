@@ -16,7 +16,7 @@ dashmap = { workspace = true }
 chrono = { workspace = true }
 libc.workspace = true
 tracing.workspace = true
-sha2.workspace = true
+ulid = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 vo-executor = { path = ".", features = ["test-sim"] }

@@ -12,8 +12,7 @@
 //! See ADR-018 for full specification.
 
 use libc;
-use sha2::{Digest, Sha256};
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{FromRawFd, IntoRawFd, OwnedFd};
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -237,41 +236,7 @@ fn is_world_writable(path: &std::path::Path) -> bool {
     }
 }
 
-#[cfg(not(unix))]
-fn is_world_writable(_path: &std::path::Path) -> bool {
-    false
-}
-
-fn validate_executable(path: &str) -> Result<(), SubprocessError> {
-    let p = std::path::Path::new(path);
-
-    if !p.is_absolute() {
-        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
-    }
-
-    if !p.exists() {
-        return Err(SubprocessError::ExecutableNotFound(path.to_string()));
-    }
-
-    if !p.is_file() {
-        return Err(SubprocessError::ExecutableValidationFailed(
-            format!("{} is not a regular file", path)
-        ));
-    }
-
-    if is_world_writable(p) {
-        return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
-    }
-
-    Ok(())
-}
-
-struct PipePair {
-    read_fd: RawFd,
-    write_fd: RawFd,
-}
-
-fn create_pipe() -> Result<PipePair, SubprocessError> {
+fn create_pipe() -> Result<(OwnedFd, OwnedFd), SubprocessError> {
     let mut fds = [0; 2];
     let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
     if res != 0 {
@@ -279,10 +244,9 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    Ok(PipePair {
-        read_fd: fds[0],
-        write_fd: fds[1],
-    })
+    unsafe {
+        Ok((OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])))
+    }
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.
@@ -306,6 +270,9 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         });
     }
 
+    let fd3_read_raw = fd3_read.into_raw_fd();
+    let fd4_write_raw = fd4_write.into_raw_fd();
+
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
     command.env_clear();
@@ -326,10 +293,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
             if libc::setpgid(0, 0) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd3_read, 3) == -1 {
+            if libc::dup2(fd3_read_raw, 3) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd4_write, 4) == -1 {
+            if libc::dup2(fd4_write_raw, 4) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
@@ -346,13 +313,8 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         .spawn()
         .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
 
-    unsafe {
-        libc::close(fd3_read);
-        libc::close(fd4_write);
-    }
-
-    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write.into_raw_fd())) };
+    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read.into_raw_fd())) };
 
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;
@@ -488,22 +450,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let pipe = create_pipe().unwrap();
-        let r = pipe.read_fd;
-        let w = pipe.write_fd;
+        let (r, w) = create_pipe().unwrap();
+        let r_raw = r.into_raw_fd();
+        let w_raw = w.into_raw_fd();
         unsafe {
-            let flags = libc::fcntl(r, libc::F_GETFD);
+            let flags = libc::fcntl(r_raw, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "read end should have FD_CLOEXEC"
             );
-            let flags = libc::fcntl(w, libc::F_GETFD);
+            let flags = libc::fcntl(w_raw, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "write end should have FD_CLOEXEC"
             );
-            libc::close(r);
-            libc::close(w);
+            libc::close(r_raw);
+            libc::close(w_raw);
         }
     }
 

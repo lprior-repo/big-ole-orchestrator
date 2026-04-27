@@ -550,4 +550,165 @@ mod pool_tests {
         let result = pool.release(never_acquired);
         assert_eq!(result, ReleaseResult::AlreadyClosed);
     }
+
+    #[tokio::test]
+    async fn test_release_fulfills_pending_acquire() {
+        let pool_id = PoolId::new("pending-test-pool");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 1, 5000, 30000, 10000, 5).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        let result1 = pool.acquire().await;
+        let conn_id = match result1 {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available result"),
+        };
+        assert_eq!(pool.stats().checked_out_connections, 1);
+        assert_eq!(pool.stats().idle_connections, 0);
+        assert_eq!(pool.stats().pending_acquires, 0);
+
+        let pending_result = pool.acquire().await;
+        let pending_handle = match pending_result {
+            AcquireResult::Pending { wait_handle } => wait_handle,
+            _ => panic!("Expected Pending result"),
+        };
+        assert_eq!(pool.stats().pending_acquires, 1);
+
+        pool.release(conn_id);
+
+        assert_eq!(pool.stats().pending_acquires, 0);
+        assert_eq!(pool.stats().checked_out_connections, 1);
+        assert_eq!(pool.stats().idle_connections, 0);
+
+        let _ = pending_handle;
+    }
+
+    #[tokio::test]
+    async fn test_acquire_immediate_rejection_when_circuit_open() {
+        let pool_id = PoolId::new("immediate-rejection-test");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 5, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        pool.state
+            .circuit_breaker
+            .transition_to(CircuitBreakerState::Open);
+
+        let start = std::time::Instant::now();
+        let result = pool.acquire().await;
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed < std::time::Duration::from_millis(100),
+            "acquire() should fail immediately, not block"
+        );
+
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted when circuit breaker is open"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_acquire_returns_pool_exhausted_when_circuit_open() {
+        let pool_id = PoolId::new("cb-open-pool-exhausted-test");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 5, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        pool.state.circuit_breaker.record_failure();
+        pool.state.circuit_breaker.record_failure();
+        pool.state
+            .circuit_breaker
+            .transition_to(CircuitBreakerState::Open);
+
+        let result = pool.acquire().await;
+        match result {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Expected PoolExhausted variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pending_request_stays_pending_when_circuit_opens() {
+        let pool_id = PoolId::new("pending-during-open-test");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 1, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        let result1 = pool.acquire().await;
+        let _conn_id = match result1 {
+            AcquireResult::Available { connection } => connection.connection_id,
+            _ => panic!("Expected Available for first acquire"),
+        };
+        assert_eq!(pool.stats().checked_out_connections, 1);
+        assert_eq!(pool.stats().pending_acquires, 0);
+
+        let pending_result = pool.acquire().await;
+        let _pending_handle = match pending_result {
+            AcquireResult::Pending { wait_handle } => wait_handle,
+            _ => panic!("Expected Pending for second acquire"),
+        };
+        assert_eq!(pool.stats().pending_acquires, 1, "Should have 1 pending request");
+
+        pool.state
+            .circuit_breaker
+            .transition_to(CircuitBreakerState::Open);
+
+        assert_eq!(
+            pool.stats().pending_acquires, 1,
+            "Pending request should remain queued after circuit opens"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_multiple_acquires_all_fail_fast_when_circuit_open() {
+        let pool_id = PoolId::new("multi-acquire-fast-fail-test");
+        let nats_urls = vec!["nats://localhost:4222".to_string()];
+        let config = PoolConfig::new(0, 5, 5000, 30000, 10000, 10).unwrap();
+        let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
+
+        pool.state
+            .circuit_breaker
+            .transition_to(CircuitBreakerState::Open);
+
+        let result1 = pool.acquire().await;
+        let result2 = pool.acquire().await;
+        let result3 = pool.acquire().await;
+
+        match result1 {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("First acquire should return PoolExhausted when circuit is open"),
+        }
+        match result2 {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Second acquire should return PoolExhausted when circuit is open"),
+        }
+        match result3 {
+            AcquireResult::PoolExhausted { .. } => {}
+            _ => panic!("Third acquire should return PoolExhausted when circuit is open"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_open_rejects_via_should_allow_request() {
+        let mut cb = CircuitBreaker::new();
+        cb.transition_to(CircuitBreakerState::Open);
+        assert!(!cb.should_allow_request(), "Open state must reject requests");
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_open_preserves_consecutive_failures() {
+        let mut cb = CircuitBreaker::new();
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.consecutive_failures(), 3);
+        cb.transition_to(CircuitBreakerState::Open);
+        assert_eq!(
+            cb.consecutive_failures(),
+            3,
+            "Open state preserves failure count"
+        );
+    }
 }

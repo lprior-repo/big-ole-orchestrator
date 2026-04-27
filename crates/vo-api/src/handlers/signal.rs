@@ -16,8 +16,7 @@ use vo_storage::event_log::{append_event, AppendEventRequest};
 use vo_types::events::EventMetadata;
 
 use crate::handlers::helpers::split_path_id;
-use crate::handlers::ingress::{admit_signal, IngressAdmission, DEFAULT_DEDUPE_TTL_MS};
-use crate::types::{ApiError, V3SignalRequest};
+use crate::types::{validate_json_payload_size, ApiError, V3SignalRequest};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -47,59 +46,15 @@ pub async fn send_signal(
         }
     };
 
-    let actor_namespace = namespace.clone();
-    let event_instance_id = instance_id.clone();
-
-    let preflight_result = master
-        .call(
-            |tx| OrchestratorMsg::ReserveSignal {
-                namespace: actor_namespace.clone(),
-                instance_id: instance_id.clone(),
-                signal_name: req.signal_name.clone(),
-                reply: tx,
-            },
-            Some(ACTOR_CALL_TIMEOUT),
+    if let Some(err) = validate_json_payload_size(&req.payload) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiError::new(
+                "payload_too_large",
+                format!("signal payload {}", err),
+            )),
         )
-        .await;
-
-    if let Some(response) = signal_preflight_rejection(preflight_result) {
-        return response;
-    }
-
-    // ADR-028: Signal dedupe check using composite key.
-    // Uses namespace + signal_name + instance_id as the dedupe key source.
-    let signal_dedupe_source =
-        format!("{}:{}:{}", namespace, req.signal_name, instance_id.as_str());
-    match admit_signal(
-        dedupe_store.as_ref(),
-        &namespace,
-        &instance_id,
-        &req.signal_name,
-        &signal_dedupe_source,
-        DEFAULT_DEDUPE_TTL_MS,
-    ) {
-        Ok(IngressAdmission::Admitted) => {}
-        Ok(IngressAdmission::Duplicate {
-            existing_instance_id,
-        }) => {
-            return (
-                StatusCode::CONFLICT,
-                Json(ApiError::new(
-                    "duplicate_signal",
-                    format!(
-                        "signal '{}' already delivered to instance {}",
-                        req.signal_name, existing_instance_id
-                    ),
-                )),
-            )
-                .into_response();
-        }
-        Err(e) => {
-            // Log but do not block signal delivery on dedupe store errors.
-            // This follows the ADR-028 principle that dedupe failures should
-            // be visible but not block the critical path.
-            tracing::warn!(error = %e, "dedupe check failed for signal, proceeding anyway");
-        }
+            .into_response();
     }
 
     // Serialize signal payload to bytes.
