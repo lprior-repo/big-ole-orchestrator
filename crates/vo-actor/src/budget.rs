@@ -32,15 +32,19 @@ pub struct ReservedPermitBudget {
 impl ReservedPermitBudget {
     /// Creates a new budget with the specified maximum per class.
     ///
-    /// # Panics
-    /// Panics if `max_per_class` is zero.
-    #[must_use]
-    pub fn new(max_per_class: u32) -> Self {
-        assert!(max_per_class > 0, "max_per_class must be > 0");
-        Self {
+    /// # Errors
+    /// Returns `StartError::InvalidConfig` if `max_per_class` is zero.
+    #[track_caller]
+    pub fn new(max_per_class: u32) -> Result<Self, StartError> {
+        if max_per_class == 0 {
+            return Err(StartError::InvalidConfig(
+                "max_per_class must be > 0".to_string(),
+            ));
+        }
+        Ok(Self {
             max_per_class,
             class_counts: std::collections::HashMap::new(),
-        }
+        })
     }
 
     /// Attempts to acquire a permit for the given class.
@@ -206,7 +210,7 @@ mod tests {
 
         #[test]
         fn budget_creation() {
-            let budget = ReservedPermitBudget::new(5);
+            let budget = ReservedPermitBudget::new(5).unwrap();
             assert_eq!(budget.available(WorkloadClass::Recovery), 5);
             assert_eq!(budget.available(WorkloadClass::NewInstance), 5);
             assert_eq!(budget.available(WorkloadClass::Internal), 5);
@@ -214,14 +218,14 @@ mod tests {
 
         #[test]
         fn budget_acquire_decrements_available() {
-            let mut budget = ReservedPermitBudget::new(5);
+            let mut budget = ReservedPermitBudget::new(5).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             assert_eq!(budget.available(WorkloadClass::Recovery), 4);
         }
 
         #[test]
         fn budget_acquire_multiple() {
-            let mut budget = ReservedPermitBudget::new(5);
+            let mut budget = ReservedPermitBudget::new(5).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             assert_eq!(budget.available(WorkloadClass::Recovery), 3);
@@ -229,7 +233,7 @@ mod tests {
 
         #[test]
         fn budget_acquire_returns_err_when_exhausted() {
-            let mut budget = ReservedPermitBudget::new(2);
+            let mut budget = ReservedPermitBudget::new(2).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             let result = budget.try_acquire(WorkloadClass::Recovery);
@@ -245,7 +249,7 @@ mod tests {
 
         #[test]
         fn budget_release_increments_available() {
-            let mut budget = ReservedPermitBudget::new(5);
+            let mut budget = ReservedPermitBudget::new(5).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.release(WorkloadClass::Recovery);
@@ -254,14 +258,14 @@ mod tests {
 
         #[test]
         fn budget_release_on_zero_is_noop() {
-            let mut budget = ReservedPermitBudget::new(5);
+            let mut budget = ReservedPermitBudget::new(5).unwrap();
             budget.release(WorkloadClass::Recovery);
             assert_eq!(budget.available(WorkloadClass::Recovery), 5);
         }
 
         #[test]
         fn budget_reset_clears_counts() {
-            let mut budget = ReservedPermitBudget::new(5);
+            let mut budget = ReservedPermitBudget::new(5).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::NewInstance).unwrap();
             budget.reset();
@@ -271,13 +275,13 @@ mod tests {
 
         #[test]
         fn budget_is_exhausted_false_when_available() {
-            let budget = ReservedPermitBudget::new(5);
+            let budget = ReservedPermitBudget::new(5).unwrap();
             assert!(!budget.is_exhausted(WorkloadClass::Recovery));
         }
 
         #[test]
         fn budget_is_exhausted_true_when_empty() {
-            let mut budget = ReservedPermitBudget::new(2);
+            let mut budget = ReservedPermitBudget::new(2).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             assert!(budget.is_exhausted(WorkloadClass::Recovery));
@@ -285,7 +289,7 @@ mod tests {
 
         #[test]
         fn budget_classes_are_independent() {
-            let mut budget = ReservedPermitBudget::new(3);
+            let mut budget = ReservedPermitBudget::new(3).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
@@ -295,7 +299,7 @@ mod tests {
 
         #[test]
         fn budget_exhaustion_error_contains_class_and_available() {
-            let mut budget = ReservedPermitBudget::new(1);
+            let mut budget = ReservedPermitBudget::new(1).unwrap();
             budget.try_acquire(WorkloadClass::Recovery).unwrap();
             let result = budget.try_acquire(WorkloadClass::Recovery);
             match result {

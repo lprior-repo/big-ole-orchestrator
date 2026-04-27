@@ -368,7 +368,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if let Some(child) = donor_child {
             node.children[idx].children.push(child);
         }
-    }
+   }
 
     /// Insert a child back into a parent, splitting it if it exceeds max_keys.
     /// This handles the case where ensure_child_has_minimum merges two min_keys
@@ -400,7 +400,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         parent.children.insert(idx, left);
         parent.children.insert(idx + 1, right);
     }
-
 
     fn merge_nodes(
         left: BTreeNode<K, V>,
@@ -513,7 +512,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 }
                 if !root.is_leaf() {
                     for child in &root.children {
-                        if !Self::verify_node(child, self.min_keys(), self.max_keys(), h - 1) {
+                        if !Self::verify_node_for_children(child, self.min_keys(), self.max_keys(), h - 1) {
                             return false;
                         }
                     }
@@ -525,6 +524,37 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
     }
 
+    fn verify_node_for_children(
+        node: &BTreeNode<K, V>,
+        min_keys: usize,
+        max_keys: usize,
+        expected_height: usize,
+    ) -> bool {
+        if node.keys.len() > max_keys {
+            return false;
+        }
+        if !node.is_leaf() && node.keys.len() < min_keys {
+            return false;
+        }
+        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
+            return false;
+        }
+        if node.is_leaf() && expected_height != 1 {
+            return false;
+        }
+        if !node.is_leaf() && expected_height <= 1 {
+            return false;
+        }
+        if !node.is_leaf() {
+            for child in &node.children {
+                if !Self::verify_node_for_children(child, min_keys, max_keys, expected_height - 1) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
     fn verify_node(
         node: &BTreeNode<K, V>,
         min_keys: usize,
@@ -534,7 +564,7 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if node.keys.len() > max_keys {
             return false;
         }
-        if node.keys.len() < min_keys {
+        if !node.is_leaf() && node.keys.len() < min_keys {
             return false;
         }
         if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {

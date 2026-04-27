@@ -82,6 +82,7 @@ mod registration_status;
 pub mod signal;
 pub mod state;
 mod string_types;
+mod recovery_contract;
 #[cfg(test)]
 mod binary_hash_tests;
 #[cfg(test)]

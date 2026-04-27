@@ -2,9 +2,11 @@
 //!
 //! SchedulerQueue aligns to ADR-047 with HashMap<JobId, JobState> tracking.
 
-use crate::scheduler::types::{Job, JobId, JobState};
+use crate::scheduler::types::{Job, JobId, JobState, SchedulePolicy};
+use chrono::{DateTime, Utc};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 struct QueuedJob {
@@ -213,10 +215,12 @@ mod tests {
     use crate::JobPriority;
 
     fn _make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
+        let fire_at = DateTime::from_timestamp(fire_at_ms / 1000, ((fire_at_ms % 1000) * 1_000_000) as u32)
+            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap());
         let job = Job::new(
             JobId::new(id),
             format!("payload-{}", id),
-            crate::scheduler::Schedule::OneShot { fire_at_ms },
+            SchedulePolicy::At(fire_at),
         )
         .with_priority(priority);
         (job, fire_at_ms)
@@ -231,7 +235,7 @@ mod tests {
             Job::new(
                 JobId::new(1),
                 "low".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::Low),
             100,
@@ -240,7 +244,7 @@ mod tests {
             Job::new(
                 JobId::new(2),
                 "high".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::High),
             100,
@@ -249,7 +253,7 @@ mod tests {
             Job::new(
                 JobId::new(3),
                 "critical".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::Critical),
             100,
@@ -275,7 +279,7 @@ mod tests {
             Job::new(
                 JobId::new(1),
                 "job1".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             now + 200,
         );
@@ -283,7 +287,7 @@ mod tests {
             Job::new(
                 JobId::new(2),
                 "job2".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             now + 100,
         );
@@ -300,7 +304,7 @@ mod tests {
             Job::new(
                 JobId::new(1),
                 "job1".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             100,
         );
@@ -308,7 +312,7 @@ mod tests {
             Job::new(
                 JobId::new(2),
                 "job2".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             100,
         );
@@ -331,7 +335,7 @@ mod tests {
             Job::new(
                 JobId::new(1),
                 "low".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::Low),
             now - 50,
@@ -340,7 +344,7 @@ mod tests {
             Job::new(
                 JobId::new(2),
                 "high".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::High),
             now - 50,
@@ -349,7 +353,7 @@ mod tests {
             Job::new(
                 JobId::new(3),
                 "not-due".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             now + 50,
         );
@@ -357,7 +361,7 @@ mod tests {
             Job::new(
                 JobId::new(4),
                 "critical".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             )
             .with_priority(JobPriority::Critical),
             now - 50,
@@ -379,7 +383,7 @@ mod tests {
             Job::new(
                 JobId::new(1),
                 "later".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             now - 10,
         );
@@ -387,7 +391,7 @@ mod tests {
             Job::new(
                 JobId::new(2),
                 "earlier".to_string(),
-                crate::scheduler::Schedule::one_shot(std::time::Duration::from_secs(0)),
+                SchedulePolicy::Immediate,
             ),
             now - 100,
         );

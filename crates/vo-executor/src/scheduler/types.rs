@@ -58,6 +58,7 @@ pub enum SchedulePolicy {
     After(Duration),
     Cron(String),
     Immediate,
+    Interval(Duration),
 }
 
 impl SchedulePolicy {
@@ -75,6 +76,36 @@ impl SchedulePolicy {
 
     pub fn immediate() -> Self {
         Self::Immediate
+    }
+
+    pub fn interval(duration: Duration) -> Self {
+        Self::Interval(duration)
+    }
+
+    pub fn next_fire_time(&self, last_fire_ms: u64) -> Option<u64> {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis() as u64);
+        match self {
+            Self::At(dt) => {
+                let fire_ms = dt.timestamp_millis() as u64;
+                if fire_ms > now_ms {
+                    Some(fire_ms)
+                } else {
+                    Some(now_ms)
+                }
+            }
+            Self::After(delay) => Some(now_ms.saturating_add(delay.as_millis() as u64)),
+            Self::Immediate => Some(now_ms),
+            Self::Cron(_) => None,
+            Self::Interval(interval) => {
+                if last_fire_ms == 0 {
+                    Some(now_ms.saturating_add(interval.as_millis() as u64))
+                } else {
+                    Some(last_fire_ms.saturating_add(interval.as_millis() as u64))
+                }
+            }
+        }
     }
 }
 
@@ -281,14 +312,14 @@ impl Schedule {
 pub struct Job {
     pub id: JobId,
     pub payload: String,
-    pub schedule: Schedule,
+    pub schedule: SchedulePolicy,
     pub priority: JobPriority,
     pub max_retries: u32,
     pub backoff_ms: u64,
 }
 
 impl Job {
-    pub fn new(payload: String, schedule: Schedule) -> Self {
+    pub fn new(id: JobId, payload: String, schedule: SchedulePolicy) -> Self {
         Self {
             id: JobId::generate(),
             payload,
