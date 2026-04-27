@@ -1,15 +1,15 @@
-//! Dag: compile-time type-safe workflow graph construction (ADR-010).
+//! Dag: compile-time type-safe workflow graph construction (ADR-004, ADR-010).
 //!
 //! The [`Workflow`] struct provides a fluent builder API for constructing
 //! workflow graphs. After building with [`Workflow::build`], a validated
-//! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
+//! [`WorkflowSpec`](crate::graph::WorkflowSpec) is emitted.
 
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{NodeKind, NodeName, WorkflowName};
 
-use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
+use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -278,12 +278,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                retry_policy: RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
+                retry_policy: None,
             })
             .collect();
 
@@ -300,7 +295,6 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
-            dedupe_scope: DedupeScope::default(),
             guarantee_class: GuaranteeClass::default(),
         })
     }
@@ -545,7 +539,7 @@ impl Workflow {
         self.dag.connect(from, to)
     }
 
-    /// Build and return the validated [`WorkflowSpec`](crate::graph_args::WorkflowSpec).
+    /// Build and return the validated [`WorkflowSpec`](crate::graph::WorkflowSpec).
     ///
     /// # Errors
     ///

@@ -1,14 +1,39 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
     L002,
+    L003,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LintSeverity {
+    Info,
+    Warning,
+    Error,
+}
+
+impl std::fmt::Display for LintSeverity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LintSeverity::Info => write!(f, "INFO"),
+            LintSeverity::Warning => write!(f, "WARNING"),
+            LintSeverity::Error => write!(f, "ERROR"),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error, Clone)]
+pub enum LintError {
+    #[error("parse error: {0}")]
+    ParseError(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
-    #[allow(dead_code)]
-    code: LintCode,
-    message: String,
-    suggestion: Option<String>,
+    pub code: LintCode,
+    pub message: String,
+    pub suggestion: Option<String>,
+    pub severity: LintSeverity,
+    pub span: Option<(usize, usize)>,
 }
 
 impl Diagnostic {
@@ -18,12 +43,26 @@ impl Diagnostic {
             code,
             message: message.into(),
             suggestion: None,
+            severity: LintSeverity::Warning,
+            span: None,
         }
     }
 
     #[must_use]
     pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
         self.suggestion = Some(suggestion.into());
+        self
+    }
+
+    #[must_use]
+    pub fn with_severity(mut self, severity: LintSeverity) -> Self {
+        self.severity = severity;
+        self
+    }
+
+    #[must_use]
+    pub fn with_span(mut self, start: usize, end: usize) -> Self {
+        self.span = Some((start, end));
         self
     }
 

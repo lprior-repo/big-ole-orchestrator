@@ -1,20 +1,11 @@
-//! Red Queen tests: Edge Cases (boundary values, timestamps, transitions).
+#![allow(clippy::unwrap_used)]
 
-use vo_storage::instance_index::{
-    decode_instance_index_key, encode_instance_index_key, instance_index_upsert,
-    scan_all_instances, scan_by_status, InstanceStatus,
-};
+use vo_storage::instance_index::{encode_instance_index_key, scan_all_instances, scan_by_status};
 
-use crate::instance_index_red_queen::helpers::*;
-
-// ---------------------------------------------------------------------------
-// RQ-EC01: u64::MAX timestamp encode/decode round-trip
-// ---------------------------------------------------------------------------
+use super::helpers::*;
 
 #[test]
 fn rq_u64_max_timestamp_round_trips_through_encode_decode() {
-    use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
-
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(u64::MAX);
     let key = encode_instance_index_key(InstanceStatus::Failed, ts, &id).unwrap();
@@ -26,14 +17,8 @@ fn rq_u64_max_timestamp_round_trips_through_encode_decode() {
     assert_eq!(entry.instance_id, id);
 }
 
-// ---------------------------------------------------------------------------
-// RQ-EC02: Zero timestamp encode/decode round-trip
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_zero_timestamp_round_trips_through_encode_decode() {
-    use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
-
     let id = make_test_instance_id(0x42);
     let ts = make_test_timestamp(0);
     let key = encode_instance_index_key(InstanceStatus::Pending, ts, &id).unwrap();
@@ -43,10 +28,6 @@ fn rq_zero_timestamp_round_trips_through_encode_decode() {
     let entry = decode_instance_index_key(&key).unwrap();
     assert_eq!(entry.created_at, ts);
 }
-
-// ---------------------------------------------------------------------------
-// RQ-EC03: u64::MAX timestamp ordering — must sort AFTER all other timestamps
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_u64_max_timestamp_sorts_after_all_other_timestamps_in_scan() {
@@ -81,18 +62,14 @@ fn rq_u64_max_timestamp_sorts_after_all_other_timestamps_in_scan() {
     assert_eq!(entries[2].created_at, make_test_timestamp(u64::MAX));
 }
 
-// ---------------------------------------------------------------------------
-// RQ-EC04: Same timestamp, different instance IDs — deterministic ordering
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_same_timestamp_different_ids_produce_deterministic_scan_order() {
     let (_dir, database) = make_test_keyspace();
     let ts = make_test_timestamp(5000);
 
-    let id_low = vo_types::InstanceId::from_bytes([0x01; 16]);
-    let id_mid = vo_types::InstanceId::from_bytes([0x80; 16]);
-    let id_high = vo_types::InstanceId::from_bytes([0xFF; 16]);
+    let id_low = InstanceId::from_bytes([0x01; 16]);
+    let id_mid = InstanceId::from_bytes([0x80; 16]);
+    let id_high = InstanceId::from_bytes([0xFF; 16]);
 
     seed_instance(&database, &id_high, InstanceStatus::Running, ts);
     seed_instance(&database, &id_low, InstanceStatus::Running, ts);
@@ -105,10 +82,6 @@ fn rq_same_timestamp_different_ids_produce_deterministic_scan_order() {
     assert_eq!(entries[1].instance_id, id_mid);
     assert_eq!(entries[2].instance_id, id_high);
 }
-
-// ---------------------------------------------------------------------------
-// RQ-EC05: All statuses identical — single scan returns all, other scans empty
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
@@ -142,10 +115,6 @@ fn rq_all_instances_same_status_returns_all_in_status_scan_none_in_others() {
             }
         });
 }
-
-// ---------------------------------------------------------------------------
-// RQ-EC06: Circular status transitions (Pending->Running->Pending->Running)
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_circular_status_transitions_leave_exactly_one_key() {
@@ -185,23 +154,13 @@ fn rq_circular_status_transitions_leave_exactly_one_key() {
     )
     .unwrap();
     let all = collect_scan_ok(scan_all_instances(&database));
-    assert_eq!(
-        all.len(),
-        1,
-        "After circular transitions, exactly 1 key must exist"
-    );
+    assert_eq!(all.len(), 1, "After circular transitions, exactly 1 key must exist");
     assert_eq!(all[0].status, InstanceStatus::Running);
 }
 
-// ---------------------------------------------------------------------------
-// RQ-EC07: InstanceId with all 0xFF bytes
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_max_instance_id_bytes_round_trip() {
-    use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
-
-    let id = vo_types::InstanceId::from_bytes([0xFF; 16]);
+    let id = InstanceId::from_bytes([0xFF; 16]);
     let ts = make_test_timestamp(0);
     let key = encode_instance_index_key(InstanceStatus::Cancelled, ts, &id).unwrap();
 

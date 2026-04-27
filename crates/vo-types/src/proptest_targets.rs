@@ -276,30 +276,24 @@ proptest! {
         binary_name in "[a-z][a-z0-9_]*",
         hash in "[a-f0-9]{16,64}",
     ) {
-        // Invariant: Valid binary_name and hash pass validation
-        // Strategy: Generate valid binary names and hex hashes
-        // Anti-invariant: rejecting valid paths breaks discovery
         let binary_hash = BinaryHash::parse(&hash).unwrap();
         let path = DiscoveryPath::new(
             "/var/wtf/versions".to_string(),
             binary_hash,
             binary_name,
-        );
+        )
+        .unwrap();
         let result = validate_discovery_path(&path);
         prop_assert!(result.is_ok());
     }
 
     #[test]
     fn discovery_path_validation_rejects_empty_binary_name() {
-        // Invariant: Empty binary_name strings are rejected
-        // Strategy: Test empty binary_name edge case
-        // Anti-invariant: accepting empty binary_name breaks routing
-        let path = DiscoveryPath::new(
+        let result = DiscoveryPath::new(
             "/var/wtf/versions".to_string(),
             BinaryHash::parse("abcdef0123456789").unwrap(),
             String::new(),
         );
-        let result = validate_discovery_path(&path);
         prop_assert!(result.is_err());
     }
 
@@ -307,15 +301,11 @@ proptest! {
     fn discovery_path_validation_rejects_path_separators(
         binary_name in ".*/.*",
     ) {
-        // Invariant: binary_name with path separators is rejected
-        // Strategy: Generate names containing /
-        // Anti-invariant: accepting path separators allows path traversal
-        let path = DiscoveryPath::new(
+        let result = DiscoveryPath::new(
             "/var/wtf/versions".to_string(),
             BinaryHash::parse("abcdef0123456789").unwrap(),
             binary_name,
         );
-        let result = validate_discovery_path(&path);
         prop_assert!(result.is_err());
     }
 

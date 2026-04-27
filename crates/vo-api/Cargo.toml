@@ -50,3 +50,5 @@ rstest = { workspace = true }
 tempfile = { workspace = true }
 http-body-util = "0.1"
 tokio = { workspace = true }
+axum-test = "19.1"
+

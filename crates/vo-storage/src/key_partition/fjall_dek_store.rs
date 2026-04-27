@@ -13,7 +13,6 @@ const DEK_INDEX_PARTITION: &str = "dek_index";
 
 #[allow(dead_code)]
 pub struct FjallDekStore {
-    db: Arc<fjall::Database>,
     dek_partition: Arc<fjall::Keyspace>,
     index_partition: Arc<fjall::Keyspace>,
 }
@@ -34,7 +33,6 @@ impl FjallDekStore {
                 reason: format!("failed to open dek_index partition: {e}"),
             })?;
         Ok(Self {
-            db: Arc::new(db.clone()),
             dek_partition: Arc::new(dek_partition),
             index_partition: Arc::new(index_partition),
         })
@@ -230,42 +228,10 @@ impl DekStore for FjallDekStore {
             });
         };
 
-        let raw_dek = crypto::generate_dek().map_err(|e| DekStoreError::Storage {
-            reason: format!("failed to generate DEK: {e}"),
-        })?;
+        self.retire_dek_entry(&old_dek_id)?;
+        self.clear_active_dek_index(instance_id)?;
 
-        let wrapped_dek_bytes = wrap_dek(&raw_dek, kek).map_err(|e| DekStoreError::Storage {
-            reason: format!("failed to wrap DEK: {e}"),
-        })?;
-        let wrapped_dek =
-            WrappedDek::new(wrapped_dek_bytes).map_err(|e| DekStoreError::Storage {
-                reason: format!("invalid wrapped DEK from wrap_dek: {e}"),
-            })?;
-
-        let dek_id = DekId::from_bytes(Ulid::new().0.to_be_bytes());
-        let metadata = KeyMetadata::new(instance_id.clone(), CryptoAlgorithm::Aes256Gcm);
-        let entry = DekEntry::new(dek_id.clone(), instance_id.clone(), wrapped_dek, metadata)?;
-
-        let old_key = Self::encode_dek_key(&old_dek_id);
-        let new_key = Self::encode_dek_key(entry.dek_id());
-        let index_key = Self::encode_index_key(instance_id);
-        let index_value = dek_id.as_str().as_bytes();
-        let retired_entry_bytes = super::encode_dek_entry(&{
-            let mut e = entry.clone();
-            e.retire();
-            e
-        });
-        let new_entry_bytes = super::encode_dek_entry(&entry);
-
-        let mut batch = self.db.batch();
-        batch.remove(&self.dek_partition, &old_key);
-        batch.insert(&self.dek_partition, &new_key, &new_entry_bytes);
-        batch.insert(&self.index_partition, &index_key, index_value);
-        batch.commit().map_err(|e| DekStoreError::Storage {
-            reason: format!("failed to commit DEK rotation batch: {e}"),
-        })?;
-
-        Ok(dek_id)
+        self.generate_and_store_dek(instance_id, kek)
     }
 
     fn retire_dek(&self, instance_id: &InstanceId) -> Result<(), DekStoreError> {

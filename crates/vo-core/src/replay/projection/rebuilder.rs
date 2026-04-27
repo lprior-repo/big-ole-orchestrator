@@ -4,60 +4,10 @@
 //! progress and supporting cancellation.
 
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use super::{ProjectionError, ProjectionResult, Projector};
-
-pub struct RebuildContext {
-    pub projection_id: String,
-    pub from_sequence: u64,
-    pub events_total: AtomicU64,
-    pub events_processed: AtomicU64,
-    pub progress_percent: AtomicU64,
-    cancelled: AtomicBool,
-    started_at: Instant,
-}
-
-impl RebuildContext {
-    pub fn new(projection_id: String, from_sequence: u64) -> Self {
-        Self {
-            projection_id,
-            from_sequence,
-            events_total: AtomicU64::new(0),
-            events_processed: AtomicU64::new(0),
-            progress_percent: AtomicU64::new(0),
-            cancelled: AtomicBool::new(false),
-            started_at: Instant::now(),
-        }
-    }
-
-    pub fn set_total_events(&self, total: u64) {
-        self.events_total.store(total, Ordering::Relaxed);
-    }
-
-    pub fn update_progress(&self, processed: u64) {
-        self.events_processed.store(processed, Ordering::Relaxed);
-        let total = self.events_total.load(Ordering::Relaxed);
-        if total > 0 {
-            let pct = (processed as f64 / total as f64 * 100.0).min(100.0) as u64;
-            self.progress_percent.store(pct, Ordering::Relaxed);
-        }
-    }
-
-    pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Relaxed)
-    }
-
-    pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::Relaxed);
-    }
-
-    pub fn elapsed_ms(&self) -> u64 {
-        self.started_at.elapsed().as_millis() as u64
-    }
-}
+use super::{ProjectionError, ProjectionResult, Projector, RebuildContext};
 
 // =====================================================================
 #[allow(dead_code)]

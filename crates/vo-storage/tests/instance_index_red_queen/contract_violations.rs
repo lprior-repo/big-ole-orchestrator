@@ -1,25 +1,14 @@
-//! Red Queen tests: Contract Violation Attempts.
-//!
-//! Tests that the instance index rejects invalid inputs at the key decoding layer.
+#![allow(clippy::unwrap_used)]
 
 use vo_storage::codec::StorageError;
-use vo_storage::instance_index::{
-    decode_instance_index_key, encode_instance_index_key, instance_index_upsert, scan_all_instances,
-    InstanceStatus,
-};
+use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
 
-use crate::instance_index_red_queen::helpers::*;
-
-// ---------------------------------------------------------------------------
-// RQ-CV01: Decode rejects every invalid status byte in [0x00, 0x07..=0xFF]
-// ---------------------------------------------------------------------------
+use super::helpers::*;
 
 #[test]
 fn rq_decode_rejects_every_invalid_status_byte_exhaustively() {
-    use vo_storage::instance_index::decode_instance_index_key;
-
     (0u8..=0xFF).into_iter().for_each(|byte| {
-        let mut key = [0x01u8; 25]; // valid 25-byte key template
+        let mut key = [0x01u8; 25];
         key[0] = byte;
         let result = decode_instance_index_key(&key);
         if (0x01..=0x06).contains(&byte) {
@@ -36,14 +25,8 @@ fn rq_decode_rejects_every_invalid_status_byte_exhaustively() {
     });
 }
 
-// ---------------------------------------------------------------------------
-// RQ-CV02: Decode rejects every invalid length from 0..=50 (except 25)
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_decode_rejects_every_invalid_length_from_0_to_50() {
-    use vo_storage::instance_index::decode_instance_index_key;
-
     (0usize..=50).into_iter().for_each(|len| {
         let key = vec![0x01u8; len];
         let result = decode_instance_index_key(&key);
@@ -61,13 +44,9 @@ fn rq_decode_rejects_every_invalid_length_from_0_to_50() {
     });
 }
 
-// ---------------------------------------------------------------------------
-// RQ-CV03: Nil UUID (all-zero bytes) round-trip through encode/decode
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_nil_uuid_encode_decode_behavior_is_consistent() {
-    let nil_id = vo_types::InstanceId::from_bytes([0x00; 16]);
+    let nil_id = InstanceId::from_bytes([0x00; 16]);
     let ts = make_test_timestamp(1000);
 
     let encode_result = encode_instance_index_key(InstanceStatus::Pending, ts, &nil_id);
@@ -82,23 +61,17 @@ fn rq_nil_uuid_encode_decode_behavior_is_consistent() {
             assert_eq!(key.len(), 25);
             assert_eq!(&key[9..25], &[0x00u8; 16]);
         }
-        Err(StorageError::CorruptKey) => {
-            // Acceptable: type system rejects nil ULID during to_bytes()
-        }
+        Err(StorageError::CorruptKey) => {}
         Err(other) => {
             panic!("Unexpected error variant for nil UUID: {other:?}");
         }
     }
 }
 
-// ---------------------------------------------------------------------------
-// RQ-CV04: Nil UUID upsert behavior (if encoding succeeds)
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_nil_uuid_upsert_either_succeeds_consistently_or_fails_with_corrupt_key() {
     let (_dir, database) = make_test_keyspace();
-    let nil_id = vo_types::InstanceId::from_bytes([0x00; 16]);
+    let nil_id = InstanceId::from_bytes([0x00; 16]);
     let ts = make_test_timestamp(500);
 
     let result = instance_index_upsert(&database, &nil_id, InstanceStatus::Pending, ts, None);

@@ -25,11 +25,14 @@
 //! exactly once even across system failures.
 
 pub mod admission;
+pub mod atomic_transition_committer;
+pub mod calc;
 pub mod circuit_breaker;
+pub mod command_dedup;
 pub mod compensation_order;
 pub mod config_hot_reload;
 pub mod connector;
-mod db_writer_message;
+pub mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
@@ -41,21 +44,21 @@ pub mod resource_quota;
 pub mod segment_tree;
 pub mod shedding;
 pub mod snapshot_compat;
-pub mod storage_watchdog;
+pub mod transaction;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;
 pub mod workflow_version;
+pub mod workload_budget;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
 
+pub use command_dedup::{check_command_duplicate, is_command_duplicate, CommandDedupError, CommandDedupResult, dedupe_key_from_envelope};
 pub use validation::{
-    validate_dedupe_policy, validate_effect_kinds, validate_managed_effect_sinks,
-    validate_no_unsafe_in_exact_workflow, validate_unsafe_nodes, validate_workflow_effects,
-    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafeNodeInExactWorkflow,
-    UnsafePublishError, UnsupportedConnectorSink, UnsupportedSinkError, WorkflowPublishSpec,
-    WorkflowSinkValidator,
+    validate_effect_kinds, validate_exact_workflow_node_kinds, validate_workflow_effects,
+    validate_workflow_sinks, KnownSinks, NodeDescriptor, UnsafeNodeError,
+    UnsupportedSinkError, WorkflowSinkValidator,
 };
 
 #[cfg(kani)]
@@ -64,4 +67,4 @@ pub mod shedding_verification;
 pub mod write_class_verification;
 
 #[cfg(test)]
-mod invalid_business_data_tests;
+mod invalid_business_data;

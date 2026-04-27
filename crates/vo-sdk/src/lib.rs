@@ -4,8 +4,7 @@
 //!
 //! ## Modules
 //!
-//! - [`runtime`] - Async task execution with current-thread Tokio runtime (ADR-011)
-//! - [`io`] - I/O helpers: `read_input`, `write_success`, `write_failure` with single-write guard
+//! - [`io`] - I/O helpers: `read_input`, `write_success`, `write_failure`, `secret` with single-write guard
 //! - [`graph`] - Graph emission: `--graph` CLI argument handling and workflow specification types
 //! - [`dag`] - DAG construction with compile-time type-safe workflow graph builder
 //! - [`node_handle`] - Typed node handles for workflow connections
@@ -18,6 +17,10 @@
 //! `write_success` / `write_failure` may be called at most once per process lifetime.
 //! The guard is set *before* any I/O attempt — even if the write fails, subsequent
 //! calls are rejected with `SdkError::AlreadyWritten`.
+//!
+//! ## Secret access (ADR-014)
+//! Secrets are passed in-memory over FD3 (never as environment variables).
+//! Use `vo_sdk::secret("KEY")` to read a secret, or `read_input()` for full access.
 //!
 //! ## Message limit
 //! The failure message limit (1024) is enforced in **bytes**, not characters.

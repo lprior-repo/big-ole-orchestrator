@@ -93,7 +93,9 @@ fn parse_strict_numeric_valid_numbers() {
 #[test]
 fn parse_strict_numeric_negative() {
     let result = parse_strict_numeric("-1");
-    assert!(matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("negative")));
+    assert!(
+        matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("negative"))
+    );
 }
 
 #[test]
@@ -111,13 +113,17 @@ fn parse_strict_numeric_empty() {
 #[test]
 fn parse_strict_numeric_letters() {
     let result = parse_strict_numeric("abc");
-    assert!(matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("invalid")));
+    assert!(
+        matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("invalid"))
+    );
 }
 
 #[test]
 fn parse_strict_numeric_overflow() {
     let result = parse_strict_numeric("18446744073709551616");
-    assert!(matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("overflow")));
+    assert!(
+        matches!(result, Err(vo_cli::CliError::InvalidNumeric(msg)) if msg.contains("overflow"))
+    );
 }
 
 #[test]
@@ -132,7 +138,10 @@ fn init_config_default() {
 fn gc_config_default() {
     let config = GcConfig::default();
     assert_eq!(config.engine_url, "http://localhost:3000");
-    assert_eq!(config.versions_dir, std::path::PathBuf::from("/var/wtf/versions"));
+    assert_eq!(
+        config.versions_dir,
+        std::path::PathBuf::from("/var/wtf/versions")
+    );
     assert!(!config.dry_run);
 }
 

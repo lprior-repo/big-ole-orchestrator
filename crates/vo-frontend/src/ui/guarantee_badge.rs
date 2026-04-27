@@ -47,8 +47,8 @@ pub fn NodeGuaranteeBadge(
 ) -> Element {
     let extra_class = class.unwrap_or_default();
 
-    let is_conflict =
-        matches!(node_kind, NodeKind::Unsafe) && !workflow_guarantee.permits_unsafe_nodes();
+    let is_conflict = matches!(node_kind, NodeKind::Unsafe)
+        && !workflow_guarantee.permits_unsafe_nodes();
 
     if is_conflict {
         rsx! {
@@ -90,18 +90,9 @@ mod tests {
             );
         }
 
-        assert_ne!(
-            GuaranteeClass::ExactOnce.icon(),
-            GuaranteeClass::AtLeastOnce.icon()
-        );
-        assert_ne!(
-            GuaranteeClass::ExactOnce.icon(),
-            GuaranteeClass::BestEffort.icon()
-        );
-        assert_ne!(
-            GuaranteeClass::AtLeastOnce.icon(),
-            GuaranteeClass::BestEffort.icon()
-        );
+        assert_ne!(GuaranteeClass::ExactOnce.icon(), GuaranteeClass::AtLeastOnce.icon());
+        assert_ne!(GuaranteeClass::ExactOnce.icon(), GuaranteeClass::BestEffort.icon());
+        assert_ne!(GuaranteeClass::AtLeastOnce.icon(), GuaranteeClass::BestEffort.icon());
     }
 
     #[test]

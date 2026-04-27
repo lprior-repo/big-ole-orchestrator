@@ -1,7 +1,8 @@
 //! Tests for graph_args module (--graph CLI argument handling per ADR-004, ADR-009).
 
 use crate::graph::{
-    parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind, NodeSpec, WorkflowSpec,
+    default_retry_policy, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind,
+    NodeSpec, WorkflowSpec,
 };
 use vo_types::{NodeName, WorkflowName};
 
@@ -41,13 +42,7 @@ fn node_spec_serializes_to_snake_case_json() {
     let node = NodeSpec {
         name: NodeName::parse("validate_cart").expect("valid name"),
         kind: NodeKind::Pure,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     };
     let json = serde_json::to_string(&node).expect("serialize");
     assert!(
@@ -68,32 +63,20 @@ fn graph_workflow_spec_round_trips_via_serde() {
             NodeSpec {
                 name: NodeName::parse("validate").expect("valid"),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("charge").expect("valid"),
                 kind: NodeKind::ManagedEffect,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("validate").expect("valid"),
             to: NodeName::parse("charge").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string_pretty(&spec).expect("serialize");
     let restored: crate::graph::WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -193,13 +176,7 @@ fn node_spec_all_kinds_serialize() {
         let node = NodeSpec {
             name: NodeName::parse("test-node").expect("valid"),
             kind,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         };
         let json = serde_json::to_string(&node).expect("serialize");
         let restored: NodeSpec = serde_json::from_str(&json).expect("deserialize");
@@ -214,20 +191,14 @@ fn workflow_spec_to_json_bytes_produces_valid_json() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("step-a").expect("valid"),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![EdgeSpec {
             from: NodeName::parse("step-a").expect("valid"),
             to: NodeName::parse("step-a").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes = spec.to_json_bytes();
     let parsed: serde_json::Value =
@@ -243,8 +214,8 @@ fn workflow_spec_with_empty_nodes_and_edges() {
         workflow_name: WorkflowName::parse("empty").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");

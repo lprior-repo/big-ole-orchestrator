@@ -6,12 +6,12 @@
 //!
 //! ## Key Formats
 //!
-//! - **Events**: `[instance_id_len_u16_be][instance_id_bytes(16)][sequence_u64_be]` (26 bytes)
-//! - **Timers**: `[timestamp_u64_be][instance_id_len_u16_be][instance_id_bytes]` (26 bytes for ULID)
-//! - **Leases**: `[instance_id(16)][step_id_len_u16_be][step_id_bytes]`
-//! - **Instances**: `[status_byte][created_at_u64_be][instance_id(16)]`
-//! - **Dedupe**: `[idempotency_key_len_u16_be][idempotency_key_bytes]`
-//! - **Effects**: `[instance_id_len_u16_be][instance_id_bytes(16)][sequence_u64_be][effect_marker]` (27 bytes)
+//! - **Events**: `[instance_id_len_u16_be(2)][instance_id_bytes(16)][sequence_u64_be(8)]` (26 bytes)
+//! - **Timers**: `[timestamp_u64_be(8)][instance_id_len_u16_be(2)][instance_id_bytes(16)]` (26 bytes)
+//! - **Leases**: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]` (18+ bytes)
+//! - **Instances**: `[status_byte(1)][created_at_u64_be(8)][instance_id_bytes(16)]` (25 bytes)
+//! - **Dedupe**: `[idempotency_key_len_u16_be(2)][idempotency_key_bytes]` (4+ bytes)
+//! - **Effects**: `[instance_id_len_u16_be(2)][instance_id_bytes(16)][sequence_u64_be(8)][effect_marker(1)]` (27 bytes)
 
 use vo_types::{InstanceId, ParseError, SequenceNumber, StepId};
 
@@ -40,6 +40,8 @@ pub enum KeyEncodingError {
     InvalidLength { expected: usize, actual: usize },
     #[error("field cannot be empty")]
     EmptyField,
+    #[error("key component too long: max {max} bytes, got {actual} bytes")]
+    KeyComponentTooLong { max: usize, actual: usize },
 }
 
 impl From<std::str::Utf8Error> for KeyEncodingError {
@@ -110,13 +112,21 @@ pub fn decode_u16_be(bytes: &[u8]) -> Result<u16, KeyEncodingError> {
     Ok(u16::from_be_bytes(arr))
 }
 
-#[must_use]
-pub fn encode_length_prefixed(value: &[u8]) -> Vec<u8> {
-    let len = u16::try_from(value.len()).unwrap_or(u16::MAX);
+/// Encode a byte slice as length-prefixed (u16 big-endian length + data).
+///
+/// # Errors
+///
+/// Returns `KeyEncodingError::KeyComponentTooLong` if `value.len() > u16::MAX` (65535 bytes).
+/// Overflow must be explicit; no truncation.
+pub fn encode_length_prefixed(value: &[u8]) -> Result<Vec<u8>, KeyEncodingError> {
+    let len = u16::try_from(value.len()).map_err(|_| KeyEncodingError::KeyComponentTooLong {
+        max: u16::MAX as usize,
+        actual: value.len(),
+    })?;
     let mut result = Vec::with_capacity(2 + value.len());
     result.extend_from_slice(&len.to_be_bytes());
     result.extend_from_slice(value);
-    result
+    Ok(result)
 }
 
 /// Decode a length-prefixed byte slice.
@@ -167,11 +177,10 @@ pub fn decode_instance_id(bytes: &[u8]) -> Result<InstanceId, KeyEncodingError> 
 
 /// Encode a `StepId` as a length-prefixed byte string.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if the step ID exceeds 65535 bytes.
-#[must_use]
-pub fn encode_step_id(step_id: &StepId) -> Vec<u8> {
+/// Returns `KeyEncodingError::KeyComponentTooLong` if the step ID exceeds 65535 bytes.
+pub fn encode_step_id(step_id: &StepId) -> Result<Vec<u8>, KeyEncodingError> {
     encode_length_prefixed(step_id.as_str().as_bytes())
 }
 
@@ -229,7 +238,7 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
     let len_prefix = encode_u16_be(iid_bytes.len() as u16);
     let seq_bytes = encode_sequence_number(sequence);
     let mut key = Vec::with_capacity(2 + 16 + 8);
-    key.extend_from_slice(&len_prefix);
+    key.extend_from_slice(&encode_u16_be(iid_bytes.len() as u16));
     key.extend_from_slice(&iid_bytes);
     key.extend_from_slice(&seq_bytes);
     key
@@ -237,37 +246,23 @@ pub fn encode_event_key(instance_id: &InstanceId, sequence: SequenceNumber) -> V
 
 /// Decode an event key into instance ID and sequence number.
 ///
+/// Expected format: `[instance_id_len_u16_be(2)][instance_id_bytes(16)][sequence_u64_be(8)]`
+///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 26 bytes
-/// (2-byte length prefix + 16-byte instance ID + 8-byte sequence number).
+/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 26 bytes.
 pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
-    if bytes.len() < 20 {
+    if bytes.len() != 26 {
         return Err(KeyEncodingError::InvalidLength {
             expected: 26,
             actual: bytes.len(),
         });
     }
-    let id_len = decode_u16_be(&bytes[..2])? as usize;
-    if bytes.len() < 2 + id_len + 8 {
-        return Err(KeyEncodingError::InvalidLength {
-            expected: 2 + id_len + 8,
-            actual: bytes.len(),
-        });
-    }
-    let iid_bytes: [u8; 16] =
-        bytes[2..2 + id_len]
-            .try_into()
-            .map_err(|_| KeyEncodingError::InvalidLength {
-                expected: 2 + id_len,
-                actual: bytes.len(),
-            })?;
-    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| {
-        KeyEncodingError::InvalidLength {
-            expected: 2 + id_len + 8,
-            actual: bytes.len(),
-        }
-    })?;
+    let _len = decode_u16_be(&bytes[..2])?;
+    #[expect(clippy::unwrap_used)]
+    let iid_bytes: [u8; 16] = bytes[2..18].try_into().unwrap();
+    #[expect(clippy::unwrap_used)]
+    let seq_bytes: [u8; 8] = bytes[18..26].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
         .map_err(KeyEncodingError::InstanceId)?;
@@ -281,21 +276,20 @@ pub fn decode_event_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), Ke
 #[must_use]
 pub fn encode_timer_key(fire_at_ms: u64, instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
-    let iid_len = iid_bytes.len() as u16;
     let mut key = Vec::with_capacity(8 + 2 + iid_bytes.len());
     key.extend_from_slice(&fire_at_ms.to_be_bytes());
-    key.extend_from_slice(&iid_len.to_be_bytes());
+    key.extend_from_slice(&encode_u16_be(iid_bytes.len() as u16));
     key.extend_from_slice(&iid_bytes);
     key
 }
 
 /// Decode a timer key into fire-at timestamp and instance ID.
 ///
-/// Format: `[timestamp_u64_be][instance_id_len_u16_be][instance_id_bytes]`
+/// Expected format: `[timestamp_u64_be(8)][instance_id_len_u16_be(2)][instance_id_bytes]`
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the key is too short.
+/// Returns `KeyEncodingError::InvalidLength` if the key is too short for the declared length.
 pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingError> {
     if bytes.len() < 10 {
         return Err(KeyEncodingError::InvalidLength {
@@ -309,53 +303,48 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
             expected: 8,
             actual: bytes.len(),
         })?;
-    let ts = u64::from_be_bytes(ts_bytes);
-    let iid_len = u16::from_be_bytes(bytes[8..10].try_into().map_err(|_| {
-        KeyEncodingError::InvalidLength {
-            expected: 10,
-            actual: bytes.len(),
-        }
-    })?) as usize;
-    if bytes.len() < 10 + iid_len {
+    let iid_len = decode_u16_be(&bytes[8..10])? as usize;
+    let required = 10 + iid_len;
+    if bytes.len() < required {
         return Err(KeyEncodingError::InvalidLength {
-            expected: 10 + iid_len,
+            expected: required,
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] =
-        bytes[10..10 + iid_len]
-            .try_into()
-            .map_err(|_| KeyEncodingError::InvalidLength {
-                expected: 10 + iid_len,
-                actual: bytes.len(),
-            })?;
-    Ok((ts, InstanceId::from_bytes(iid_bytes)))
+    let iid_bytes: [u8; 16] = bytes[10..10 + iid_len]
+        .try_into()
+        .map_err(|_| KeyEncodingError::InvalidLength {
+            expected: 16,
+            actual: iid_len,
+        })?;
+    Ok((
+        u64::from_be_bytes(ts_bytes),
+        InstanceId::from_bytes(iid_bytes),
+    ))
 }
 
 /// Encode a lease key from instance ID and step ID.
 ///
-/// Format: `[instance_id(16 bytes)][step_id_len_u16_be][step_id_bytes]`
+/// Format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
-    let sid_str = step_id.as_str();
-    let sid_bytes = sid_str.as_bytes();
-    let sid_len = u16::try_from(sid_bytes.len()).unwrap_or(u16::MAX);
-    let mut key = Vec::with_capacity(16 + 2 + sid_bytes.len());
+    let step_bytes = step_id.as_str().as_bytes();
+    let mut key = Vec::with_capacity(16 + 2 + step_bytes.len());
     key.extend_from_slice(&iid_bytes);
-    key.extend_from_slice(&sid_len.to_be_bytes());
-    key.extend_from_slice(sid_bytes);
+    key.extend_from_slice(&encode_u16_be(step_bytes.len() as u16));
+    key.extend_from_slice(step_bytes);
     key
 }
 
 /// Decode a lease key into instance ID and step ID.
 ///
-/// Format: `[instance_id(16 bytes)][step_id_len_u16_be][step_id_bytes]`
+/// Expected format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
 ///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the key is too short.
-/// Returns `KeyEncodingError::StepId` if the step ID is not valid UTF-8.
+/// Returns `KeyEncodingError::InvalidLength` if the key is too short, or if the step ID
+/// component is invalid.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodingError> {
     if bytes.len() < 18 {
         return Err(KeyEncodingError::InvalidLength {
@@ -363,40 +352,19 @@ pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), KeyEncodin
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] =
-        bytes[..16]
-            .try_into()
-            .map_err(|_| KeyEncodingError::InvalidLength {
-                expected: 16,
-                actual: bytes.len(),
-            })?;
+    #[expect(clippy::unwrap_used)]
+    let iid_bytes: [u8; 16] = bytes[..16].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
-    let sid_len = u16::from_be_bytes(bytes[16..18].try_into().map_err(|_| {
-        KeyEncodingError::InvalidLength {
-            expected: 2,
-            actual: bytes.len() - 16,
-        }
-    })?) as usize;
-    if bytes.len() < 18 + sid_len {
-        return Err(KeyEncodingError::InvalidLength {
-            expected: 18 + sid_len,
-            actual: bytes.len(),
-        });
-    }
-    let sid_bytes = &bytes[18..18 + sid_len];
-    let sid_str = std::str::from_utf8(sid_bytes).map_err(|e| {
-        KeyEncodingError::StepId(ParseError::InvalidFormat {
-            type_name: "StepId",
-            reason: e.to_string(),
-        })
-    })?;
-    let step_id = StepId::parse(sid_str).map_err(KeyEncodingError::from)?;
+    let step_id = decode_step_id(&bytes[16..])?;
     Ok((instance_id, step_id))
 }
 
 /// Encode a dedupe key as length-prefixed bytes.
-#[must_use]
-pub fn encode_dedupe_key(idempotency_key: &str) -> Vec<u8> {
+///
+/// # Errors
+///
+/// Returns `KeyEncodingError::KeyComponentTooLong` if the idempotency key exceeds 65535 bytes.
+pub fn encode_dedupe_key(idempotency_key: &str) -> Result<Vec<u8>, KeyEncodingError> {
     encode_length_prefixed(idempotency_key.as_bytes())
 }
 
@@ -433,14 +401,14 @@ pub fn encode_instance_index_key_for_status(
 
 /// Encode an effect key from instance ID and sequence number with effect marker.
 ///
-/// Format: `[instance_id_len_u16_be][instance_id_bytes(16)][sequence_u64_be][0xFF]` (27 bytes)
+/// Format: `[instance_id_len_u16_be(2)][instance_id_bytes(16)][sequence_u64_be(8)][effect_marker(1)]`
 #[must_use]
 pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
     let len_prefix = encode_u16_be(iid_bytes.len() as u16);
     let seq_bytes = encode_sequence_number(sequence);
     let mut key = Vec::with_capacity(2 + 16 + 8 + 1);
-    key.extend_from_slice(&len_prefix);
+    key.extend_from_slice(&encode_u16_be(iid_bytes.len() as u16));
     key.extend_from_slice(&iid_bytes);
     key.extend_from_slice(&seq_bytes);
     key.push(0xFF);
@@ -449,43 +417,29 @@ pub fn encode_effect_key(instance_id: &InstanceId, sequence: SequenceNumber) -> 
 
 /// Decode an effect key into instance ID and sequence number.
 ///
+/// Expected format: `[instance_id_len_u16_be(2)][instance_id_bytes(16)][sequence_u64_be(8)][effect_marker(1)]`
+///
 /// # Errors
 ///
-/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 27 bytes
-/// (2-byte length prefix + 16-byte instance ID + 8-byte sequence number + 0xFF marker).
+/// Returns `KeyEncodingError::InvalidLength` if the key is not exactly 27 bytes or missing the 0xFF marker.
 pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), KeyEncodingError> {
-    if bytes.len() < 21 {
+    if bytes.len() != 27 {
         return Err(KeyEncodingError::InvalidLength {
             expected: 27,
             actual: bytes.len(),
         });
     }
-    if bytes[bytes.len() - 1] != 0xFF {
+    if bytes[26] != 0xFF {
         return Err(KeyEncodingError::InvalidLength {
             expected: 27,
             actual: bytes.len(),
         });
     }
-    let id_len = decode_u16_be(&bytes[..2])? as usize;
-    if bytes.len() < 2 + id_len + 8 + 1 {
-        return Err(KeyEncodingError::InvalidLength {
-            expected: 2 + id_len + 8 + 1,
-            actual: bytes.len(),
-        });
-    }
-    let iid_bytes: [u8; 16] =
-        bytes[2..2 + id_len]
-            .try_into()
-            .map_err(|_| KeyEncodingError::InvalidLength {
-                expected: 2 + id_len,
-                actual: bytes.len(),
-            })?;
-    let seq_bytes: [u8; 8] = bytes[2 + id_len..2 + id_len + 8].try_into().map_err(|_| {
-        KeyEncodingError::InvalidLength {
-            expected: 2 + id_len + 8,
-            actual: bytes.len(),
-        }
-    })?;
+    let _len = decode_u16_be(&bytes[..2])?;
+    #[expect(clippy::unwrap_used)]
+    let iid_bytes: [u8; 16] = bytes[2..18].try_into().unwrap();
+    #[expect(clippy::unwrap_used)]
+    let seq_bytes: [u8; 8] = bytes[18..26].try_into().unwrap();
     let instance_id = InstanceId::from_bytes(iid_bytes);
     let sequence = SequenceNumber::try_from(u64::from_be_bytes(seq_bytes))
         .map_err(KeyEncodingError::InstanceId)?;
@@ -494,13 +448,13 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<(InstanceId, SequenceNumber), K
 
 /// Get the key prefix for all events of a given instance.
 ///
-/// Returns the 18-byte prefix: 2-byte length prefix + 16-byte instance ID.
+/// Returns the first 16 bytes of the encoded event key (length-prefixed instance ID +
+/// instance ID bytes), sufficient for range scans.
 #[must_use]
 pub fn get_event_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
-    let len_prefix = encode_u16_be(iid_bytes.len() as u16);
-    let mut prefix = Vec::with_capacity(2 + 16);
-    prefix.extend_from_slice(&len_prefix);
+    let mut prefix = Vec::with_capacity(16);
+    prefix.extend_from_slice(&encode_u16_be(iid_bytes.len() as u16));
     prefix.extend_from_slice(&iid_bytes);
     prefix
 }
@@ -513,15 +467,19 @@ pub fn get_timer_key_prefix_for_time(fire_at_ms: u64) -> Vec<u8> {
 
 /// Get the key prefix for all lease entries of a given instance.
 ///
-/// Returns the 16-byte instance ID prefix (no `step_id` component).
+/// Returns the first 16 bytes of the encoded lease key (raw instance ID bytes),
+/// sufficient for range scans of all leases for a given instance.
 #[must_use]
 pub fn get_lease_key_prefix_for_instance(instance_id: &InstanceId) -> Vec<u8> {
     instance_id.to_bytes().unwrap_or([0u8; 16]).to_vec()
 }
 
 /// Get the key prefix for a dedupe key.
-#[must_use]
-pub fn get_dedupe_key_prefix(idempotency_key: &str) -> Vec<u8> {
+///
+/// # Errors
+///
+/// Returns `KeyEncodingError::KeyComponentTooLong` if the idempotency key exceeds 65535 bytes.
+pub fn get_dedupe_key_prefix(idempotency_key: &str) -> Result<Vec<u8>, KeyEncodingError> {
     encode_length_prefixed(idempotency_key.as_bytes())
 }
 

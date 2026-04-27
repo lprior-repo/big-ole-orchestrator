@@ -113,11 +113,7 @@ impl VersionPinnedInstance {
         if hash.as_str().len() < 64 {
             return Err(WorkflowVersionError::HashTooShort);
         }
-        let binary_path = format!(
-            "/var/wtf/versions/{}/{}",
-            hash.as_str(),
-            workflow_name.as_str()
-        );
+        let binary_path = format!("/var/wtf/versions/{}/{}", hash.as_str(), workflow_name.as_str());
         Ok(Self {
             instance_id,
             workflow_name,
@@ -215,15 +211,20 @@ impl WorkflowVersionRegistry {
         workflow_name: &WorkflowName,
         created_at: TimestampMs,
     ) -> Result<VersionPinnedInstance, VersionPinError> {
-        let hash =
-            self.active_versions
-                .get(workflow_name)
-                .ok_or(VersionPinError::NoActiveVersion {
-                    workflow_name: workflow_name.as_str().to_string(),
-                })?;
+        let hash = self
+            .active_versions
+            .get(workflow_name)
+            .ok_or(VersionPinError::NoActiveVersion {
+                workflow_name: workflow_name.as_str().to_string(),
+            })?;
 
-        VersionPinnedInstance::new(instance_id, workflow_name.clone(), hash.clone(), created_at)
-            .map_err(|_| VersionPinError::HashTooShort)
+        VersionPinnedInstance::new(
+            instance_id,
+            workflow_name.clone(),
+            hash.clone(),
+            created_at,
+        )
+        .map_err(|_| VersionPinError::HashTooShort)
     }
 
     /// Returns true if the workflow has an active version registered.
@@ -237,7 +238,9 @@ impl WorkflowVersionRegistry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VersionPinError {
     /// Workflow has no active version registered.
-    NoActiveVersion { workflow_name: String },
+    NoActiveVersion {
+        workflow_name: String,
+    },
     /// Hash is shorter than 64 hex characters.
     HashTooShort,
 }

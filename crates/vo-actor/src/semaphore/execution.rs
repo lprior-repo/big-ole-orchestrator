@@ -207,10 +207,59 @@ mod tests {
         let num_waiters = 10;
         let mut handles = Vec::with_capacity(num_waiters);
 
-        for _ in 0..num_waiters {
-            let sem = Arc::clone(&sem);
-            let handle = tokio::spawn(async move { sem.acquire().await });
-            handles.push(handle);
+            for _ in 0..num_waiters {
+                let sem = Arc::clone(&sem);
+                let handle = tokio::spawn(async move { sem.acquire().await });
+                handles.push(handle);
+            }
+
+            // Yield to let spawned tasks enter acquire() and increment waiting_count
+            tokio::task::yield_now().await;
+
+            // Verify waiters are tracked (bounded)
+            let waiting = sem.waiting_count();
+            assert_eq!(waiting, num_waiters, "All {num_waiters} waiters must be tracked");
+
+            // Give waiters a moment to enter the async sleep state
+            tokio::time::sleep(Duration::from_millis(50)).await;
+
+            // Release permit → first waiter acquires → releases → chain completes
+            drop(_permit);
+
+            // All waiters must complete within a bounded time window.
+            // If acquire() busy-looped, it would consume CPU and likely hit
+            // the acquire_timeout before the permit could be released.
+            let result = tokio::time::timeout(
+                Duration::from_secs(5),
+                futures::future::join_all(handles),
+            )
+            .await;
+
+            // Verify all waiters finished (no timeout = async suspend, not spin)
+            assert!(
+                result.is_ok(),
+                "Waiters timed out — acquire() may be busy-spinning instead of suspending"
+            );
+
+            let decisions: Vec<_> = result.unwrap()
+                .into_iter()
+                .map(|r| r.expect("waiter task panicked"))
+                .collect();
+            let admitted_count = decisions
+                .into_iter()
+                .filter(|d| matches!(d, AdmissionDecision::Admitted))
+                .count();
+            assert_eq!(
+                admitted_count, num_waiters,
+                "All waiters must be admitted"
+            );
+
+            // Verify waiters returned to zero (all acquired and moved past the wait)
+            assert_eq!(
+                sem.waiting_count(),
+                0,
+                "Waiting count should return to zero after all permits acquired"
+            );
         }
 
         // Verify waiters are tracked (bounded)

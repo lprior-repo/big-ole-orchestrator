@@ -7,17 +7,14 @@ use vo_types::{InstanceId, SignalName, TimestampMs};
 /// A signal that has been buffered for later delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BufferedSignal {
-    pub signal_id: SignalName,
+    pub signal_id: String,
     pub payload: crate::SignalPayload,
     pub buffered_at: TimestampMs,
 }
 
 impl BufferedSignal {
-    pub fn new(
-        signal_id: SignalName,
-        payload: crate::SignalPayload,
-        buffered_at: TimestampMs,
-    ) -> Self {
+    #[must_use]
+    pub fn new(signal_id: String, payload: crate::SignalPayload, buffered_at: TimestampMs) -> Self {
         Self {
             signal_id: signal_id.into(),
             payload,
@@ -294,7 +291,7 @@ mod signal_buffer_entry_tests {
     #[test]
     fn signal_buffer_entry_single_len_is_one() {
         let signal = BufferedSignal::new(
-            SignalName::parse("sig1").unwrap(),
+            "sig-1".to_string(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );
@@ -304,12 +301,12 @@ mod signal_buffer_entry_tests {
     #[test]
     fn signal_buffer_entry_many_len_is_queue_len() {
         let signal1 = BufferedSignal::new(
-            SignalName::parse("sig1").unwrap(),
+            "sig-1".to_string(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );
         let signal2 = BufferedSignal::new(
-            SignalName::parse("sig2").unwrap(),
+            "sig-2".to_string(),
             crate::SignalPayload::empty(),
             TimestampMs::now(),
         );

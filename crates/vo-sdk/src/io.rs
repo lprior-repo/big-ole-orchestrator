@@ -272,6 +272,27 @@ pub fn read_input_inner_with_atomic_guard<R: Read>(
 }
 
 // ============================================================================
+// Secret Access (ADR-014: In-Memory Secret Vault)
+// ============================================================================
+
+/// Read a secret from the FD3 payload by key.
+///
+/// This is a convenience wrapper around `read_input()` that directly returns
+/// the secret value for the given key. Secrets are never passed as environment
+/// variables — they travel only through the in-memory FD3 pipe (ADR-014).
+///
+/// # Errors
+/// Returns `SdkError` if FD3 is not open, already read, input is invalid,
+/// or the key is not present in the secrets map.
+pub fn secret(key: &str) -> Result<String, SdkError> {
+    let input = read_input()?;
+    input
+        .secret(key)
+        .cloned()
+        .ok_or(SdkError::InvalidInput)
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -292,7 +313,7 @@ fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
 /// let input = vo_sdk::read_input()?;
 /// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
 /// ```
-pub fn secret<'a>(input: &'a vo_types::TaskInput, key: &str) -> Option<&'a str> {
+pub fn secret<'a>(input: &'a vo_types::TaskInput, key: &'a str) -> Option<&'a str> {
     input.secret(key)
 }
 

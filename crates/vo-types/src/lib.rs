@@ -38,7 +38,31 @@ mod identity;
 mod instance_status;
 pub mod integer_types;
 #[cfg(test)]
-mod integer_types_tests;
+mod attempt_number_tests;
+#[cfg(test)]
+mod duration_ms_tests;
+#[cfg(test)]
+mod event_version_tests;
+#[cfg(test)]
+mod fence_token_tests;
+#[cfg(test)]
+mod fire_at_ms_tests;
+#[cfg(test)]
+mod integer_types_kani_proofs;
+#[cfg(test)]
+mod integer_types_proptests;
+#[cfg(test)]
+mod integer_types_serde_tests;
+#[cfg(test)]
+mod integer_types_try_from_tests;
+#[cfg(test)]
+mod max_attempts_tests;
+#[cfg(test)]
+mod sequence_number_tests;
+#[cfg(test)]
+mod timestamp_ms_tests;
+#[cfg(test)]
+mod timeout_ms_tests;
 mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
@@ -65,9 +89,25 @@ mod spqr_tree;
 pub mod state;
 pub mod string_types;
 #[cfg(test)]
-mod string_types_tests;
-mod task_failure_kind;
-mod task_input;
+mod binary_hash_tests;
+#[cfg(test)]
+mod idempotency_key_tests;
+#[cfg(test)]
+mod instance_id_tests;
+#[cfg(test)]
+mod node_name_tests;
+#[cfg(test)]
+mod step_id_tests;
+#[cfg(test)]
+mod string_types_contract_tests;
+#[cfg(test)]
+mod string_types_proptests;
+#[cfg(test)]
+mod string_types_serde_tests;
+#[cfg(test)]
+mod timer_id_tests;
+#[cfg(test)]
+mod workflow_name_tests;
 mod topology;
 mod tx_coordinator;
 mod types;

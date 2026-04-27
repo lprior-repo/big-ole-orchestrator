@@ -1,87 +1,62 @@
-//! Red Queen tests: Key Encoding Attacks (prefix scan confusion, boundary leaks).
+#![allow(clippy::unwrap_used)]
 
-use vo_storage::instance_index::{scan_by_status, InstanceStatus};
+use vo_storage::codec::StorageError;
+use vo_storage::instance_index::{scan_all_instances, scan_by_status};
 
-use crate::instance_index_red_queen::helpers::*;
-
-// ---------------------------------------------------------------------------
-// RQ-KE01: Max Pending key must NOT appear in Running scan
-// ---------------------------------------------------------------------------
+use super::helpers::*;
 
 #[test]
 fn rq_max_pending_key_does_not_leak_into_running_scan() {
     let (_dir, database) = make_test_keyspace();
 
-    let id_max = vo_types::InstanceId::from_bytes([0xFF; 16]);
+    let id_max = InstanceId::from_bytes([0xFF; 16]);
     let ts_max = make_test_timestamp(u64::MAX);
 
     seed_instance(&database, &id_max, InstanceStatus::Pending, ts_max);
 
     let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
-    assert_eq!(
-        running.len(),
-        0,
-        "Max Pending key must NOT appear in Running scan"
-    );
+    assert_eq!(running.len(), 0, "Max Pending key must NOT appear in Running scan");
 
     let pending = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
-    assert_eq!(
-        pending.len(),
-        1,
-        "Max Pending key must appear in Pending scan"
-    );
+    assert_eq!(pending.len(), 1, "Max Pending key must appear in Pending scan");
 }
-
-// ---------------------------------------------------------------------------
-// RQ-KE02: Min Running key must NOT appear in Pending scan
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_min_running_key_does_not_leak_into_pending_scan() {
     let (_dir, database) = make_test_keyspace();
 
-    let id_min = vo_types::InstanceId::from_bytes([0x01; 16]);
+    let id_min = InstanceId::from_bytes([0x01; 16]);
     let ts_zero = make_test_timestamp(0);
 
     seed_instance(&database, &id_min, InstanceStatus::Running, ts_zero);
 
     let pending = collect_scan_ok(scan_by_status(&database, InstanceStatus::Pending));
-    assert_eq!(
-        pending.len(),
-        0,
-        "Min Running key must NOT appear in Pending scan"
-    );
+    assert_eq!(pending.len(), 0, "Min Running key must NOT appear in Pending scan");
 
     let running = collect_scan_ok(scan_by_status(&database, InstanceStatus::Running));
-    assert_eq!(
-        running.len(),
-        1,
-        "Min Running key must appear in Running scan"
-    );
+    assert_eq!(running.len(), 1, "Min Running key must appear in Running scan");
 }
-
-// ---------------------------------------------------------------------------
-// RQ-KE03: Adjacent status boundaries — max of each bucket vs min of next
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
     let (_dir, database) = make_test_keyspace();
-
+    let _id = InstanceId::from_bytes([0xFF; 16]);
     let ts_max = make_test_timestamp(u64::MAX);
     let ts_zero = make_test_timestamp(0);
+    let _id_min = InstanceId::from_bytes([0x01; 16]);
+
     let statuses = InstanceStatus::all_variants();
 
     (0..statuses.len() - 1).into_iter().for_each(|i| {
         let current = statuses[i];
         let next = statuses[i + 1];
 
-        let max_id = vo_types::InstanceId::from_bytes({
+        let max_id = InstanceId::from_bytes({
             let mut b = [0xFF; 16];
             b[0] = (i as u8) * 2 + 1;
             b
         });
-        let min_id = vo_types::InstanceId::from_bytes({
+        let min_id = InstanceId::from_bytes({
             let mut b = [0x01; 16];
             b[0] = (i as u8) * 2 + 2;
             b
@@ -104,10 +79,6 @@ fn rq_adjacent_status_boundaries_do_not_cross_contaminate() {
             });
         });
 }
-
-// ---------------------------------------------------------------------------
-// RQ-KE04: Manually injected key at boundary 0x01FF...FF does not bleed
-// ---------------------------------------------------------------------------
 
 #[test]
 fn rq_manually_injected_boundary_key_stays_in_correct_prefix_range() {
@@ -138,14 +109,8 @@ fn rq_manually_injected_boundary_key_stays_in_correct_prefix_range() {
     assert_eq!(running.len(), 1, "Running scan should find exactly 1 entry");
 }
 
-// ---------------------------------------------------------------------------
-// RQ-KE05: Key with status byte 0x00 (below valid range) not in any status scan
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_key_with_zero_status_byte_not_returned_by_any_valid_status_scan() {
-    use vo_storage::instance_index::scan_all_instances;
-
     let (_dir, database) = make_test_keyspace();
     let partition = database
         .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
@@ -170,19 +135,13 @@ fn rq_key_with_zero_status_byte_not_returned_by_any_valid_status_scan() {
     assert_eq!(all.len(), 1);
     assert_eq!(
         all[0],
-        Err(vo_storage::codec::StorageError::CorruptKey),
+        Err(StorageError::CorruptKey),
         "scan_all should yield CorruptKey for 0x00 status byte"
     );
 }
 
-// ---------------------------------------------------------------------------
-// RQ-KE06: Key with status byte 0x07 (above valid range) not in Cancelled scan
-// ---------------------------------------------------------------------------
-
 #[test]
 fn rq_key_with_0x07_status_byte_not_returned_by_cancelled_scan() {
-    use vo_storage::instance_index::scan_all_instances;
-
     let (_dir, database) = make_test_keyspace();
     let partition = database
         .keyspace("instances", || fjall::KeyspaceCreateOptions::default())
@@ -201,5 +160,5 @@ fn rq_key_with_0x07_status_byte_not_returned_by_cancelled_scan() {
 
     let all: Vec<_> = scan_all_instances(&database).collect();
     assert_eq!(all.len(), 1);
-    assert_eq!(all[0], Err(vo_storage::codec::StorageError::CorruptKey));
+    assert_eq!(all[0], Err(StorageError::CorruptKey));
 }

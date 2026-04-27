@@ -160,32 +160,20 @@ fn given_workflow_with_multiple_nodes_when_displaying_all_badges_then_all_catego
 #[test]
 fn given_exact_once_when_badge_class_then_uses_emerald_green() {
     let cls = GuaranteeClass::ExactOnce.badge_class();
-    assert!(
-        cls.contains("emerald"),
-        "exact-once badge must use emerald, got: {cls}"
-    );
-    assert!(
-        cls.contains("border-"),
-        "badge class must include border, got: {cls}"
-    );
+    assert!(cls.contains("emerald"), "exact-once badge must use emerald, got: {cls}");
+    assert!(cls.contains("border-"), "badge class must include border, got: {cls}");
 }
 
 #[test]
 fn given_at_least_once_when_badge_class_then_uses_amber() {
     let cls = GuaranteeClass::AtLeastOnce.badge_class();
-    assert!(
-        cls.contains("amber"),
-        "at-least-once badge must use amber, got: {cls}"
-    );
+    assert!(cls.contains("amber"), "at-least-once badge must use amber, got: {cls}");
 }
 
 #[test]
 fn given_best_effort_when_badge_class_then_uses_red() {
     let cls = GuaranteeClass::BestEffort.badge_class();
-    assert!(
-        cls.contains("red"),
-        "best-effort badge must use red, got: {cls}"
-    );
+    assert!(cls.contains("red"), "best-effort badge must use red, got: {cls}");
 }
 
 #[test]
@@ -194,15 +182,9 @@ fn guarantee_badge_classes_are_all_distinct() {
     let atleast = GuaranteeClass::AtLeastOnce.badge_class();
     let best = GuaranteeClass::BestEffort.badge_class();
 
-    assert_ne!(
-        exact, atleast,
-        "exact-once and at-least-once badges must differ"
-    );
+    assert_ne!(exact, atleast, "exact-once and at-least-once badges must differ");
     assert_ne!(exact, best, "exact-once and best-effort badges must differ");
-    assert_ne!(
-        atleast, best,
-        "at-least-once and best-effort badges must differ"
-    );
+    assert_ne!(atleast, best, "at-least-once and best-effort badges must differ");
 }
 
 #[test]
@@ -211,10 +193,7 @@ fn guarantee_icons_are_all_distinct_shield_variants() {
     let atleast = GuaranteeClass::AtLeastOnce.icon();
     let best = GuaranteeClass::BestEffort.icon();
 
-    assert!(
-        exact.contains("shield"),
-        "icon must be shield variant, got: {exact}"
-    );
+    assert!(exact.contains("shield"), "icon must be shield variant, got: {exact}");
     assert_ne!(exact, atleast);
     assert_ne!(exact, best);
     assert_ne!(atleast, best);

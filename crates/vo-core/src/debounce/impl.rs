@@ -1,13 +1,28 @@
-use super::*;
-use std::cmp;
+use std::collections::HashMap;
+use std::time::Duration;
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::time::{sleep_until, Instant};
+
+use super::types::{Error, FileEvent};
+
+#[derive(Debug)]
+pub struct Debouncer {
+    pub duration: Duration,
+    ready_rx: Receiver<Result<std::path::PathBuf, Error>>,
+}
+
+impl PartialEq for Debouncer {
+    fn eq(&self, other: &Self) -> bool {
+        self.duration == other.duration
+    }
+}
 
 impl Debouncer {
-    /// Creates a new debouncer.
-    ///
-    /// # Errors
-    /// Returns `Error::InvalidDebounceDuration` if the duration is 0.
-    /// Returns `Error::WatcherChannelClosed` if the event receiver is already closed.
-    pub fn new(duration: Duration, mut event_rx: Receiver<FileEvent>) -> Result<Self, Error> {
+    pub fn new(
+        duration: Duration,
+        mut event_rx: Receiver<FileEvent>,
+    ) -> Result<Self, Error> {
         if duration.as_nanos() == 0 {
             return Err(Error::InvalidDebounceDuration);
         }
@@ -32,15 +47,13 @@ impl Debouncer {
             initial_event,
         ));
 
-        Ok(Self { duration, ready_rx })
+        Ok(Self {
+            duration,
+            ready_rx,
+        })
     }
 
-    /// Waits for the next debounced file event.
-    ///
-    /// # Errors
-    /// Returns `Error::WatcherChannelClosed` if the underlying watcher drops and all events are yielded.
-    /// Returns `Error::DebouncerInternal` if an internal error occurs (e.g., timer overflow).
-    pub async fn next_debounced_event(&mut self) -> Result<PathBuf, Error> {
+    pub async fn next_debounced_event(&mut self) -> Result<std::path::PathBuf, Error> {
         self.ready_rx
             .recv()
             .await
@@ -50,10 +63,10 @@ impl Debouncer {
     async fn background_task(
         duration: Duration,
         mut event_rx: Receiver<FileEvent>,
-        ready_tx: Sender<Result<PathBuf, Error>>,
+        ready_tx: Sender<Result<std::path::PathBuf, Error>>,
         initial_event: Option<FileEvent>,
     ) {
-        let mut pending: HashMap<PathBuf, Instant> = HashMap::new();
+        let mut pending: HashMap<std::path::PathBuf, Instant> = HashMap::new();
         let mut channel_closed = false;
 
         if let Some(event) = initial_event {
@@ -116,7 +129,7 @@ impl Debouncer {
     }
 
     fn process_single_event_sync(
-        pending: &mut HashMap<PathBuf, Instant>,
+        pending: &mut HashMap<std::path::PathBuf, Instant>,
         duration: Duration,
         event: FileEvent,
         now: Instant,
@@ -134,10 +147,10 @@ impl Debouncer {
     }
 
     async fn handle_event_or_fail(
-        pending: &mut HashMap<PathBuf, Instant>,
+        pending: &mut HashMap<std::path::PathBuf, Instant>,
         duration: Duration,
         event: FileEvent,
-        ready_tx: &Sender<Result<PathBuf, Error>>,
+        ready_tx: &Sender<Result<std::path::PathBuf, Error>>,
     ) -> Result<(), ()> {
         if Self::process_single_event_sync(pending, duration, event, Instant::now()).is_err() {
             if ready_tx.send(Err(Error::DebouncerInternal)).await.is_err() {
@@ -150,8 +163,8 @@ impl Debouncer {
     }
 
     fn calculate_deadlines(
-        pending: &mut HashMap<PathBuf, Instant>,
-    ) -> (Vec<PathBuf>, Option<Instant>) {
+        pending: &mut HashMap<std::path::PathBuf, Instant>,
+    ) -> (Vec<std::path::PathBuf>, Option<Instant>) {
         let now = Instant::now();
         let mut next_deadline = None;
         let mut expired = Vec::new();
@@ -161,7 +174,7 @@ impl Debouncer {
                 expired.push(path.clone());
             } else {
                 next_deadline = Some(match next_deadline {
-                    Some(d) => cmp::min(d, deadline),
+                    Some(d) => std::cmp::min(d, deadline),
                     None => deadline,
                 });
             }
@@ -173,9 +186,9 @@ impl Debouncer {
 
     async fn drain_channel(
         event_rx: &mut Receiver<FileEvent>,
-        pending: &mut HashMap<PathBuf, Instant>,
+        pending: &mut HashMap<std::path::PathBuf, Instant>,
         duration: Duration,
-        ready_tx: &Sender<Result<PathBuf, Error>>,
+        ready_tx: &Sender<Result<std::path::PathBuf, Error>>,
         channel_closed: &mut bool,
     ) -> Result<(), ()> {
         if *channel_closed {
@@ -198,9 +211,9 @@ impl Debouncer {
 
     async fn wait_for_events(
         event_rx: &mut Receiver<FileEvent>,
-        pending: &mut HashMap<PathBuf, Instant>,
+        pending: &mut HashMap<std::path::PathBuf, Instant>,
         duration: Duration,
-        ready_tx: &Sender<Result<PathBuf, Error>>,
+        ready_tx: &Sender<Result<std::path::PathBuf, Error>>,
         channel_closed: &mut bool,
         next_deadline: Option<Instant>,
     ) -> Result<(), ()> {

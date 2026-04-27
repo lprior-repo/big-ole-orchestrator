@@ -25,7 +25,7 @@
 mod diagnostic;
 pub mod rules;
 
-pub use diagnostic::{Diagnostic, LintCode};
+pub use diagnostic::{Diagnostic, LintCode, LintError, LintSeverity};
 pub use rules::Rule;
 
 #[cfg(test)]

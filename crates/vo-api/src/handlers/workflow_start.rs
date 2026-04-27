@@ -15,9 +15,7 @@ use vo_common::NamespaceId;
 use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
-use vo_storage::event_log::{append_event, replay_events_in_namespace, AppendEventRequest};
-use vo_types::events::EventMetadata;
-use vo_types::InstanceId;
+use vo_types::CommandEnvelope;
 
 use crate::handlers::helpers::parse_paradigm;
 use crate::types::{validate_json_payload_size, ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
@@ -27,12 +25,11 @@ const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 /// POST /api/v1/workflows — start a new workflow instance (bead vo-7mif).
 ///
 /// Per ADR-028, this handler enforces exactly-once ingress:
-/// 1. Validates that a `dedupe_key` is present for exact workflow ingress.
-/// 2. Checks writer pressure — if overloaded, returns 429 + Retry-After with NO dedupe records.
+/// 1. Validates that a `command_envelope` is present with identity metadata (ADR-036).
+/// 2. Validates that a `dedupe_key` is present for exact workflow ingress.
 /// 3. Calls `admit_ingress` to atomically check-and-insert into the dedupe store.
 /// 4. If duplicate, returns 409 Conflict with the existing instance ID.
-/// 5. Checks quarantine status — if quarantined, returns 403 Forbidden.
-/// 6. If new, proceeds to start the workflow via the orchestrator actor.
+/// 5. If new, proceeds to start the workflow via the orchestrator actor.
 #[tracing::instrument(skip_all)]
 pub async fn start_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
@@ -42,7 +39,39 @@ pub async fn start_workflow(
     Extension(event_db): Extension<Arc<fjall::Database>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
-    // Step 1: Validate dedupe key presence (ADR-028 Section 2).
+    // Step 1: Validate CommandEnvelope presence (ADR-036).
+    let command_envelope = match req.command_envelope {
+        Some(ref env_json) => {
+            let json_str = serde_json::to_string(env_json).unwrap_or_default();
+            match CommandEnvelope::from_str(&json_str) {
+                Ok(env) => env,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(ApiError::new(
+                            "invalid_command_envelope",
+                            format!("command_envelope is required (ADR-036): {e}"),
+                        )),
+                    )
+                        .into_response();
+                }
+            }
+        }
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiError::new(
+                    "missing_command_envelope",
+                    "command_envelope is required (ADR-036) with command_id, correlation_id, causation_id, issuer, and issued_at",
+                )),
+            )
+                .into_response();
+        }
+    };
+
+    let _command_envelope = command_envelope;
+
+    // Step 2: Validate dedupe key presence (ADR-028 Section 2).
     let dedupe_key = match req.dedupe_key {
         Some(ref key) if !key.is_empty() => key.clone(),
         _ => {
@@ -277,193 +306,238 @@ pub async fn start_workflow(
     }
 }
 
-fn persist_workflow_start_rejected_event(
-    db: &fjall::Database,
-    namespace: &str,
-    instance_id: &InstanceId,
-) -> Result<(), vo_storage::codec::StorageError> {
-    let payload = serde_json::json!({
-        "type": "WorkflowTerminated",
-        "namespace": namespace,
-        "reason": "start-commit-failed",
-    });
-    let annotations = HashMap::from([("namespace".to_string(), serde_json::json!(namespace))]);
-    append_event(
-        db,
-        AppendEventRequest {
-            namespace: namespace.to_string(),
-            instance_id: instance_id.clone(),
-            timestamp_ms: now_ms(),
-            payload,
-            metadata: EventMetadata {
-                command_metadata: None,
-                annotations,
-            },
-        },
-    )
-    .map(|_| ())
-}
+// ─── BDD Test: Production orchestrator receives StartWorkflow ─────────────────
 
-fn start_error_response(
-    call_result: Result<CallResult<Result<(), StartError>>, ractor::MessagingErr<OrchestratorMsg>>,
-) -> Option<axum::response::Response> {
-    match call_result {
-        Err(e) => Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiError::new("actor_unavailable", e.to_string())),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Timeout) => Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiError::new(
-                    "actor_timeout",
-                    "orchestrator did not respond in time",
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::SenderError) => Some(
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new(
-                    "actor_error",
-                    "orchestrator dropped the reply",
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(StartError::AtCapacity { running, max }))) => Some(
-            (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(ApiError::new(
-                    "at_capacity",
-                    format!("engine at capacity: {running}/{max} instances running"),
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(StartError::AlreadyExists(id)))) => Some(
-            (
-                StatusCode::CONFLICT,
-                Json(ApiError::new(
-                    "already_exists",
-                    format!("instance {id} already exists"),
-                )),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(StartError::SpawnFailed(msg)))) => Some(
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("spawn_failed", msg)),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(StartError::InvalidConfig(msg)))) => Some(
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("invalid_config", msg)),
-            )
-                .into_response(),
-        ),
-        Ok(CallResult::Success(Err(StartError::BudgetExhaustion {
-            class,
-            requested,
-            available,
-        }))) => {
-            let rejection = WorkloadRejectionError::BudgetExhausted {
-                class: class.to_string(),
-                requested,
-                available,
-            };
-            Some(
-                (
-                    match StatusCode::from_u16(rejection.status_code()) {
-                        Ok(status) => status,
-                        Err(_) => StatusCode::TOO_MANY_REQUESTS,
-                    },
-                    Json(ApiError::new(rejection.error_code(), rejection.to_string())),
-                )
-                    .into_response(),
-            )
+#[cfg(test)]
+mod production_orchestrator_bdd_tests {
+    use super::*;
+    use axum::http::Request;
+    use axum::router::Router;
+    use axum_test::TestClient;
+    use http_body_util::BodyExt;
+    use ractor::{Actor, ActorProcessingErr, ActorRef};
+    use serde_json::json;
+    use std::sync::Arc;
+    use tempfile::TempDir;
+    use vo_types::workspace::WorkspaceIndex;
+
+    /// Test actor that receives OrchestratorMsg and responds to StartWorkflow.
+    struct TestOrchestrator;
+
+    #[ractor::async_trait]
+    impl Actor for TestOrchestrator {
+        type Msg = OrchestratorMsg;
+        type State = ();
+        type Arguments = ();
+
+        async fn pre_start(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            _args: Self::Arguments,
+        ) -> Result<Self::State, ActorProcessingErr> {
+            Ok(())
         }
-        Ok(CallResult::Success(Ok(()))) => None,
-    }
-}
 
-fn request_namespace(namespace: &str) -> Result<NamespaceId, String> {
-    if namespace.is_empty() {
-        return Err("namespace must not be empty".to_string());
+        async fn handle(
+            &self,
+            _myself: ActorRef<Self::Msg>,
+            message: Self::Msg,
+            _state: &mut Self::State,
+        ) -> Result<(), ActorProcessingErr> {
+            match message {
+                OrchestratorMsg::StartWorkflow { reply, .. } => {
+                    let _ = reply.send(Ok(()));
+                }
+                OrchestratorMsg::GetStatus { reply, .. } => {
+                    let _ = reply.send(None);
+                }
+                OrchestratorMsg::Terminate { reply, .. } => {
+                    let _ = reply.send(Err(TerminateError::NotFound("test".to_string())));
+                }
+                OrchestratorMsg::ListActive { reply, .. } => {
+                    let _ = reply.send(vec![]);
+                }
+                OrchestratorMsg::Compensate { reply, .. } => {
+                    let _ = reply.send(Err(CompensateError::NotFound("test".to_string())));
+                }
+                OrchestratorMsg::Signal { reply, .. } => {
+                    let _ = reply.send(Err(SignalError::Failed("test".to_string())));
+                }
+            }
+            Ok(())
+        }
     }
-    if namespace.contains('/') || namespace.as_bytes().contains(&b'\0') {
-        return Err("namespace must not contain '/' or NUL".to_string());
-    }
-    Ok(NamespaceId::from(namespace.to_string()))
-}
 
-fn persist_workflow_started_event(
-    db: &fjall::Database,
-    namespace: &str,
-    instance_id: &InstanceId,
-    workflow_type: &str,
-    paradigm: &str,
-    top_level_binary_hash: Option<&str>,
-    input: &serde_json::Value,
-    dedupe_key: &str,
-) -> Result<(), vo_storage::codec::StorageError> {
-    let binary_hash = workflow_binary_hash(top_level_binary_hash, input);
-    let payload = serde_json::json!({
-        "type": "WorkflowStarted",
-        "workflow_id": instance_id.to_string(),
-        "workflow_type": workflow_type,
-        "paradigm": paradigm,
-        "namespace": namespace,
-        "binary_hash": binary_hash,
-        "workflow_version_hash": binary_hash,
-        "dedupe_key_hash": dedupe_key,
-    });
-    let mut annotations = HashMap::new();
-    annotations.insert("namespace".to_string(), serde_json::json!(namespace));
-
-    append_event(
-        db,
-        AppendEventRequest {
-            namespace: namespace.to_string(),
-            instance_id: instance_id.clone(),
-            timestamp_ms: now_ms(),
-            payload,
-            metadata: EventMetadata {
-                command_metadata: None,
-                annotations,
+    fn build_test_state(actor_ref: ActorRef<OrchestratorMsg>, tmp_dir: &TempDir) -> AppState {
+        let db = fjall::Database::open(tmp_dir.path().to_owned()).unwrap();
+        let workspace_index = Arc::new(std::sync::RwLock::new(WorkspaceIndex::default()));
+        AppState {
+            query: QueryState {
+                db: Arc::new(db),
+                workspace_index,
             },
-        },
-    )
-    .map(|_| ())
-}
-
-fn workflow_binary_hash(top_level_binary_hash: Option<&str>, input: &serde_json::Value) -> String {
-    match top_level_binary_hash.filter(|value| !value.is_empty()) {
-        Some(value) => value.to_string(),
-        None => input_binary_hash(input),
+            sse: SseState::new(),
+            ws: WsState::new(),
+            master: Arc::new(actor_ref),
+            circuit_breaker: Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new()),
+        }
     }
-}
 
-fn input_binary_hash(input: &serde_json::Value) -> String {
-    match input
-        .get("workflow_binary_hash")
-        .and_then(serde_json::Value::as_str)
+    #[tokio::test]
+    async fn given_start_request_when_handler_runs_then_production_orchestrator_receives_start()
     {
-        Some(value) if !value.is_empty() => value.to_string(),
-        _ => "unknown".to_string(),
-    }
-}
+        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
 
-fn now_ms() -> u64 {
-    match SystemTime::now().duration_since(UNIX_EPOCH) {
-        Ok(duration) => u64::try_from(duration.as_millis()).map_or(u64::MAX, |value| value),
-        Err(_) => 0,
+        // Spawn the test orchestrator actor
+        let (actor_ref, _actor_handle) =
+            Actor::spawn_linked(None, TestOrchestrator, (), None)
+                .await
+                .expect("failed to spawn test orchestrator");
+
+        // Build the router with the test actor as the extension
+        let state = build_test_state(actor_ref, &tmp_dir);
+        let router: Router = Router::new()
+            .route("/api/v1/workflows", post(start_workflow))
+            .layer(Extension(state.master.clone()));
+
+        // Build the start request JSON (minimal valid request)
+        let request_json = json!({
+            "namespace": "payments",
+            "workflow_type": "checkout",
+            "paradigm": "fsm",
+            "input": {"order_id": "ord_123"}
+        });
+
+        // Send the request via TestClient (production path exercised)
+        let client = TestClient::new(router);
+        let response = client
+            .post("/api/v1/workflows")
+            .json(&request_json)
+            .send()
+            .await;
+
+        // Verify: handler forwarded to orchestrator and returned 201 Created
+        let status = response.status();
+        assert_eq!(
+            status,
+            StatusCode::CREATED,
+            "Expected 201 Created when orchestrator accepts StartWorkflow, got: {status}"
+        );
+
+        let body: serde_json::Value = response.json().await;
+        assert_eq!(body["namespace"], "payments");
+        assert_eq!(body["workflow_type"], "checkout");
+    }
+
+    /// Verify that missing dedupe_key produces 400 Bad Request before calling orchestrator.
+    #[tokio::test]
+    async fn given_missing_dedupe_key_when_handler_runs_then_returns_bad_request() {
+        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
+
+        let (actor_ref, _actor_handle) =
+            Actor::spawn_linked(None, TestOrchestrator, (), None)
+                .await
+                .expect("failed to spawn test orchestrator");
+
+        let state = build_test_state(actor_ref, &tmp_dir);
+        let router: Router = Router::new()
+            .route("/api/v1/workflows", post(start_workflow))
+            .layer(Extension(state.master.clone()));
+
+        let request_json = json!({
+            "namespace": "payments",
+            "workflow_type": "checkout",
+            "paradigm": "fsm",
+            "input": {"order_id": "ord_123"}
+        });
+
+        let client = TestClient::new(router);
+        let response = client
+            .post("/api/v1/workflows")
+            .json(&request_json)
+            .send()
+            .await;
+
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "Expected 400 Bad Request for missing dedupe_key"
+        );
+        let body: serde_json::Value = response.json().await;
+        assert_eq!(body["error_code"], "missing_dedupe_key");
+    }
+
+    /// Verify that invalid paradigm produces 400 Bad Request before calling orchestrator.
+    #[tokio::test]
+    async fn given_invalid_paradigm_when_handler_runs_then_returns_bad_request() {
+        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
+
+        let (actor_ref, _actor_handle) =
+            Actor::spawn_linked(None, TestOrchestrator, (), None)
+                .await
+                .expect("failed to spawn test orchestrator");
+
+        let state = build_test_state(actor_ref, &tmp_dir);
+        let router: Router = Router::new()
+            .route("/api/v1/workflows", post(start_workflow))
+            .layer(Extension(state.master.clone()));
+
+        let request_json = json!({
+            "namespace": "payments",
+            "workflow_type": "checkout",
+            "paradigm": "invalid_paradigm",
+            "input": {"order_id": "ord_123"}
+        });
+
+        let client = TestClient::new(router);
+        let response = client
+            .post("/api/v1/workflows")
+            .json(&request_json)
+            .send()
+            .await;
+
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "Expected 400 Bad Request for invalid paradigm"
+        );
+        let body: serde_json::Value = response.json().await;
+        assert_eq!(body["error_code"], "invalid_paradigm");
+    }
+
+    /// Verify that instance_id defaults to ULID when not provided.
+    #[tokio::test]
+    async fn given_no_instance_id_when_handler_runs_then_returns_ulid_in_response() {
+        let tmp_dir = tempfile::tempdir().expect("failed to create temp dir");
+
+        let (actor_ref, _actor_handle) =
+            Actor::spawn_linked(None, TestOrchestrator, (), None)
+                .await
+                .expect("failed to spawn test orchestrator");
+
+        let state = build_test_state(actor_ref, &tmp_dir);
+        let router: Router = Router::new()
+            .route("/api/v1/workflows", post(start_workflow))
+            .layer(Extension(state.master.clone()));
+
+        let request_json = json!({
+            "namespace": "payments",
+            "workflow_type": "checkout",
+            "paradigm": "fsm",
+            "input": {"order_id": "ord_123"}
+        });
+
+        let client = TestClient::new(router);
+        let response = client
+            .post("/api/v1/workflows")
+            .json(&request_json)
+            .send()
+            .await;
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let body: serde_json::Value = response.json().await;
+        let instance_id = body["instance_id"].as_str().unwrap();
+        // ULID format: 26 characters, Base32 encoded
+        assert_eq!(instance_id.len(), 26, "ULID should be 26 characters");
     }
 }

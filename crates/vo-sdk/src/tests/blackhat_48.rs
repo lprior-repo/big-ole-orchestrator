@@ -18,7 +18,8 @@ use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
 use crate::graph::{
-    emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgsError, NodeSpec, WorkflowSpec,
+    default_retry_policy, parse_graph_args, emit_graph_if_requested, EdgeSpec, GraphArgsError,
+    NodeSpec, WorkflowSpec,
 };
 use crate::io::{
     read_input_inner_with_atomic_guard, read_input_inner_with_state,
@@ -205,8 +206,8 @@ fn bh48_validate_empty_nodes_skips_entry_point_check() {
         workflow_name: WorkflowName::parse("empty-nodes").unwrap(),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let result = spec.validate();
     assert!(
@@ -223,24 +224,12 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![
@@ -253,8 +242,8 @@ fn bh48_validate_all_nodes_have_incoming_edges_rejects() {
                 to: NodeName::parse("a").unwrap(),
             },
         ],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let result = spec.validate();
     assert!(
@@ -270,17 +259,11 @@ fn bh48_validate_single_node_no_edges_has_entry_point() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("solo").unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     assert!(
         spec.validate().is_ok(),
@@ -296,35 +279,17 @@ fn bh48_validate_chain_has_entry_point() {
             NodeSpec {
                 name: NodeName::parse("a").unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("b").unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("c").unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![
@@ -337,8 +302,8 @@ fn bh48_validate_chain_has_entry_point() {
                 to: NodeName::parse("c").unwrap(),
             },
         ],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     assert!(spec.validate().is_ok(), "linear chain should be valid");
 }
@@ -541,17 +506,11 @@ fn bh48_emit_graph_returns_ok_when_no_graph_flag() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let result = emit_graph_if_requested(&args, &spec);
@@ -570,17 +529,11 @@ fn bh48_emit_graph_returns_err_for_unrecognized_args() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let result = emit_graph_if_requested(&args, &spec);
@@ -599,13 +552,7 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
             .map(|i| NodeSpec {
                 name: NodeName::parse(&format!("node-{}", i)).unwrap(),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             })
             .collect(),
         edges: (0..99)
@@ -614,8 +561,8 @@ fn bh48_to_json_bytes_never_panics_on_complex_nested_output() {
                 to: NodeName::parse(&format!("node-{}", i + 1)).unwrap(),
             })
             .collect(),
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty());
@@ -1144,13 +1091,7 @@ fn bh48_workflow_spec_500_node_stress() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         })
         .collect();
 
@@ -1165,8 +1106,8 @@ fn bh48_workflow_spec_500_node_stress() {
         workflow_name: WorkflowName::parse("stress").unwrap(),
         nodes,
         edges,
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     assert!(spec.validate().is_ok());
@@ -1182,25 +1123,13 @@ fn bh48_workflow_spec_fan_out_100_stress() {
     let mut nodes = vec![NodeSpec {
         name: NodeName::parse("root").unwrap(),
         kind: NodeKind::Pure,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     }];
     for i in 0..100 {
         nodes.push(NodeSpec {
             name: NodeName::parse(&format!("leaf{}", i)).unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         });
     }
 
@@ -1215,8 +1144,8 @@ fn bh48_workflow_spec_fan_out_100_stress() {
         workflow_name: WorkflowName::parse("fan100").unwrap(),
         nodes,
         edges,
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     assert!(spec.validate().is_ok());

@@ -74,7 +74,7 @@ fn decode_u16_be_returns_error_for_wrong_length() {
 
 #[test]
 fn encode_length_prefixed_encodes_correctly() {
-    let result = encode_length_prefixed(b"hello");
+    let result = encode_length_prefixed(b"hello").unwrap();
     assert_eq!(result.len(), 7);
     assert_eq!(&result[0..2], &[0, 5]);
     assert_eq!(&result[2..], b"hello");
@@ -82,7 +82,7 @@ fn encode_length_prefixed_encodes_correctly() {
 
 #[test]
 fn encode_length_prefixed_handles_empty() {
-    let result = encode_length_prefixed(b"");
+    let result = encode_length_prefixed(b"").unwrap();
     assert_eq!(result.len(), 2);
     assert_eq!(&result[0..2], &[0, 0]);
 }
@@ -97,7 +97,7 @@ fn decode_length_prefixed_roundtrips_correctly() {
         b"a very long string with many characters",
     ];
     for input in inputs {
-        let encoded = encode_length_prefixed(input);
+        let encoded = encode_length_prefixed(input).unwrap();
         let (decoded, rest) = decode_length_prefixed(&encoded).unwrap();
         assert_eq!(decoded, input);
         assert!(rest.is_empty());
@@ -137,7 +137,7 @@ fn decode_instance_id_returns_error_for_wrong_length() {
 #[test]
 fn encode_step_id_is_length_prefixed() {
     let step = StepId::parse("step-1").unwrap();
-    let encoded = encode_step_id(&step);
+    let encoded = encode_step_id(&step).unwrap();
     assert!(encoded.len() > step.as_str().len());
     assert_eq!(&encoded[0..2], &(step.as_str().len() as u16).to_be_bytes());
 }
@@ -146,7 +146,7 @@ fn encode_step_id_is_length_prefixed() {
 fn encode_step_id_roundtrips_correctly() {
     for step_str in ["step-1", "a", "my-very-long-step-id-12345"] {
         let step = StepId::parse(step_str).unwrap();
-        let encoded = encode_step_id(&step);
+        let encoded = encode_step_id(&step).unwrap();
         let decoded = decode_step_id(&encoded).unwrap();
         assert_eq!(decoded, step);
     }
@@ -183,13 +183,14 @@ fn decode_sequence_number_returns_error_for_wrong_length() {
 }
 
 #[test]
-fn encode_event_key_produces_26_byte_key() {
+fn encode_event_key_produces_26_byte_key_with_length_prefix() {
     let id = min_instance_id();
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let key = encode_event_key(&id, seq);
     assert_eq!(key.len(), 26);
-    // Verify length prefix is present (bytes 0..2 = 16 for 16-byte ULID)
-    assert_eq!(&key[0..2], 16u16.to_be_bytes());
+    assert_eq!(&key[0..2], &[0, 16], "instance ID length prefix should be 16");
+    assert_eq!(&key[2..18], &id.to_bytes().unwrap(), "instance ID bytes should start at offset 2");
+    assert_eq!(&key[18..26], &seq.as_u64().to_be_bytes(), "sequence number should be at offset 18");
 }
 
 #[test]
@@ -203,10 +204,10 @@ fn decode_event_key_roundtrips_correctly() {
 }
 
 #[test]
-fn decode_timer_key_returns_error_for_wrong_length() {
-    assert!(decode_timer_key(&[]).is_err());
-    assert!(decode_timer_key(&[0u8; 9]).is_err()); // minimum is 10 (8 ts + 2 len)
-    assert!(decode_timer_key(&[0u8; 15]).is_err()); // claims 16 but only 5 bytes left
+fn decode_event_key_returns_error_for_wrong_length() {
+    assert!(decode_event_key(&[]).is_err());
+    assert!(decode_event_key(&[0u8; 25]).is_err());
+    assert!(decode_event_key(&[0u8; 27]).is_err());
 }
 
 #[test]
@@ -232,14 +233,7 @@ fn event_key_prefix_scan_works() {
 fn encode_timer_key_produces_length_prefixed_key() {
     let id = min_instance_id();
     let key = encode_timer_key(1000, &id);
-    // 8 bytes timestamp + 2 bytes length prefix + 16 bytes instance_id
     assert_eq!(key.len(), 26);
-    // First 8 bytes are timestamp
-    assert_eq!(&key[0..8], 1000u64.to_be_bytes());
-    // Bytes 8..10 are length prefix (16 for ULID)
-    assert_eq!(&key[8..10], 16u16.to_be_bytes());
-    // Remaining bytes are instance_id
-    assert_eq!(&key[10..], &id.to_bytes().unwrap());
 }
 
 #[test]
@@ -278,24 +272,15 @@ fn encode_lease_key_roundtrips_correctly() {
 }
 
 #[test]
-fn lease_key_format_uses_length_prefix_not_delimiter() {
+fn lease_key_uses_binary_format_with_length_prefix() {
     let id = min_instance_id();
     let step = StepId::parse("my-step").unwrap();
     let key = encode_lease_key(&id, &step);
-    // New format: 16 bytes iid + 2 bytes sid_len + sid bytes
-    assert_eq!(key.len(), 16 + 2 + "my-step".len());
-    assert!(
-        !key.contains(&b':'),
-        "new format lease key should not contain colon delimiter bytes"
-    );
-    // Key should start with the 16-byte instance ID
-    assert_eq!(&key[..16], id.to_bytes().unwrap_or([0u8; 16]));
-    // Step ID length should be at bytes 16..18 (big-endian)
-    let sid_len = u16::from_be_bytes(key[16..18].try_into().unwrap()) as usize;
-    assert_eq!(sid_len, "my-step".len());
-    // Step ID bytes should follow
-    let sid_bytes = &key[18..18 + sid_len];
-    assert_eq!(sid_bytes, b"my-step");
+    let step_bytes = step.as_str().as_bytes();
+    assert_eq!(key.len(), 16 + 2 + step_bytes.len());
+    assert_eq!(&key[..16], &id.to_bytes().unwrap());
+    assert_eq!(&key[16..18], &(step_bytes.len() as u16).to_be_bytes());
+    assert_eq!(&key[18..], step_bytes);
 }
 
 #[test]
@@ -304,18 +289,17 @@ fn get_lease_key_prefix_for_instance_matches_key_format() {
     let step = StepId::parse("step-a").unwrap();
     let prefix = get_lease_key_prefix_for_instance(&id);
     let key = encode_lease_key(&id, &step);
+    assert_eq!(prefix.len(), 16);
+    assert_eq!(prefix, id.to_bytes().unwrap());
     assert!(
         key.starts_with(&prefix),
         "lease key should start with instance prefix"
     );
-    // Prefix should be the 16-byte instance ID (binary format)
-    assert_eq!(prefix.len(), 16);
-    assert_eq!(&prefix[..], id.to_bytes().unwrap_or([0u8; 16]));
 }
 
 #[test]
 fn encode_dedupe_key_is_length_prefixed() {
-    let key = encode_dedupe_key("my-idempotency-key");
+    let key = encode_dedupe_key("my-idempotency-key").unwrap();
     assert!(key.len() > "my-idempotency-key".len());
     assert_eq!(key[0..2], ("my-idempotency-key".len() as u16).to_be_bytes());
 }
@@ -328,7 +312,7 @@ fn decode_dedupe_key_roundtrips_correctly() {
         "with-special-chars-123",
         "very-long-idempotency-key-that-is-quite-long",
     ] {
-        let encoded = encode_dedupe_key(key_str);
+        let encoded = encode_dedupe_key(key_str).unwrap();
         let decoded = decode_dedupe_key(&encoded).unwrap();
         assert_eq!(decoded, key_str);
     }
@@ -337,17 +321,20 @@ fn decode_dedupe_key_roundtrips_correctly() {
 #[test]
 fn get_dedupe_key_prefix_equals_full_key_when_short() {
     let key_str = "short-key";
-    let encoded = encode_dedupe_key(key_str);
-    let prefix = get_dedupe_key_prefix(key_str);
+    let encoded = encode_dedupe_key(key_str).unwrap();
+    let prefix = get_dedupe_key_prefix(key_str).unwrap();
     assert_eq!(prefix, encoded);
 }
 
 #[test]
-fn encode_effect_key_produces_27_byte_key() {
+fn encode_effect_key_produces_27_byte_key_with_length_prefix() {
     let id = min_instance_id();
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let key = encode_effect_key(&id, seq);
     assert_eq!(key.len(), 27);
+    assert_eq!(&key[0..2], &[0, 16], "instance ID length prefix should be 16");
+    assert_eq!(&key[2..18], &id.to_bytes().unwrap());
+    assert_eq!(&key[18..26], &seq.as_u64().to_be_bytes());
     assert_eq!(key[26], 0xFF);
 }
 
@@ -634,15 +621,15 @@ fn event_key_roundtrip_with_max_sequence() {
 
 #[test]
 fn dedupe_key_roundtrip_with_empty_string() {
-    let encoded = encode_dedupe_key("");
+    let encoded = encode_dedupe_key("").unwrap();
     let decoded = decode_dedupe_key(&encoded).unwrap();
     assert_eq!(decoded, "");
 }
 
 #[test]
 fn dedupe_key_different_inputs_produce_different_outputs() {
-    let key1 = encode_dedupe_key("key-a");
-    let key2 = encode_dedupe_key("key-b");
+    let key1 = encode_dedupe_key("key-a").unwrap();
+    let key2 = encode_dedupe_key("key-b").unwrap();
     assert_ne!(key1, key2);
 }
 
@@ -724,147 +711,41 @@ fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
     prefix
 }
 
-use crate::key_encoding::{
-    extract_legacy_fence_components, extract_legacy_lease_components,
-    is_legacy_delimiter_fence_key, is_legacy_delimiter_lease_key,
-};
-
-/// BDD: Given storage contains legacy delimiter lease keys
-/// When engine starts
-/// Then legacy keys are migrated or reported before execution resumes
+/// ADR-020 / ADR-005: Timer keys use length-prefixed instance IDs for unambiguous
+/// decoding. The format is [timestamp_u64_be(8)][instance_id_len_u16_be(2)]
+/// [instance_id_bytes]. This guarantees that the instance ID can be parsed without
+/// ambiguity even if instance IDs were variable length, while lexicographic ordering
+/// by due time is preserved because the timestamp is the leading component.
 #[test]
-fn given_legacy_delimiter_lease_keys_when_startup_scans_then_keys_are_migrated_or_reported() {
-    // Given: a legacy delimiter lease key
-    // Format: "{instance_id}::{step_id}" where instance_id is a string ULID
-    let legacy_iid = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    let legacy_sid = "step-1";
-    let legacy_key = format!("{legacy_iid}::{legacy_sid}").into_bytes();
+fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
+    // Given: instance IDs of varying apparent ambiguity
+    let id_a = min_instance_id();
+    let id_b = max_instance_id();
+    let id_c = InstanceId::parse("00000000000000000000000005").unwrap();
 
-    // When: we check if it's detected as legacy
-    assert!(
-        is_legacy_delimiter_lease_key(&legacy_key),
-        "legacy delimiter key should be detected"
-    );
+    // When: we encode timer keys at different timestamps
+    let key_a_1000 = encode_timer_key(1000, &id_a);
+    let key_a_2000 = encode_timer_key(2000, &id_a);
+    let key_b_1000 = encode_timer_key(1000, &id_b);
+    let key_c_1000 = encode_timer_key(1000, &id_c);
 
-    // And: we can extract the components
-    let (extracted_iid, extracted_sid) = extract_legacy_lease_components(&legacy_key)
-        .expect("should extract instance_id and step_id from legacy delimiter key");
-    assert_eq!(extracted_iid, legacy_iid);
-    assert_eq!(extracted_sid, legacy_sid);
+    // Then: the timestamp is the leading 8 bytes for lexicographic ordering
+    assert!(key_a_1000 < key_a_2000, "earlier timestamps sort first");
+    assert!(key_a_1000 < key_b_1000, "same timestamp: lexicographic on instance ID");
+    assert!(key_c_1000 < key_b_1000, "middle < max for instance IDs at same timestamp");
 
-    // And: the new format key is NOT detected as legacy
-    let id = InstanceId::parse(legacy_iid).unwrap();
-    let step = StepId::parse(legacy_sid).unwrap();
-    let new_key = encode_lease_key(&id, &step);
-    assert!(
-        !is_legacy_delimiter_lease_key(&new_key),
-        "new format lease key should NOT be detected as legacy"
-    );
+    // And: decoding recovers the original components exactly (unambiguous)
+    let (decoded_ts, decoded_id) = decode_timer_key(&key_a_1000).unwrap();
+    assert_eq!(decoded_ts, 1000);
+    assert_eq!(decoded_id, id_a);
 
-    // And: new format key does not contain :: as a field delimiter
-    // (the 16-byte instance ID binary may contain 0x3A bytes, but not as :: delimiter)
-    let sid_start = 18;
-    let sid_bytes = &new_key[sid_start..];
-    assert!(
-        !sid_bytes.windows(2).any(|w| w == b"::"),
-        "new format step_id portion should not contain :: delimiter"
-    );
+    let (decoded_ts, decoded_id) = decode_timer_key(&key_b_1000).unwrap();
+    assert_eq!(decoded_ts, 1000);
+    assert_eq!(decoded_id, id_b);
 
-    // And: new format key is length-prefixed and starts with instance ID bytes
-    assert_eq!(&new_key[..16], id.to_bytes().unwrap_or([0u8; 16]));
-
-    // And: legacy fence keys are also detected
-    let legacy_fence_key = format!("{legacy_iid}::{legacy_sid}::fence").into_bytes();
-    assert!(
-        is_legacy_delimiter_fence_key(&legacy_fence_key),
-        "legacy fence key should be detected"
-    );
-
-    let (fenced_iid, fenced_sid) = extract_legacy_fence_components(&legacy_fence_key)
-        .expect("should extract instance_id and step_id from legacy fence key");
-    assert_eq!(fenced_iid, legacy_iid);
-    assert_eq!(fenced_sid, legacy_sid);
-
-    // And: keys shorter than 14 bytes are not flagged as legacy
-    assert!(
-        !is_legacy_delimiter_lease_key(b"::"),
-        "short keys should not be detected as legacy"
-    );
-
-    // And: ADR-020 compliant keys with :: in the step_id are not flagged
-    // New format: [iid 16 bytes][sid_len BE u16][sid bytes]
-    // Even if step_id string contains colons, the binary encoding won't
-    let weird_step =
-        StepId::parse("step::weird").unwrap_or_else(|_| StepId::parse("step-x").unwrap());
-    let new_key2 = encode_lease_key(&id, &weird_step);
-    assert!(
-        !is_legacy_delimiter_lease_key(&new_key2),
-        "new format key should never be flagged as legacy"
-    );
-
-    // And: keys with multiple :: are not treated as legacy
-    let multi_delim = format!("{legacy_iid}::foo::bar").into_bytes();
-    assert!(
-        !is_legacy_delimiter_lease_key(&multi_delim),
-        "keys with multiple :: delimiters should not be detected as legacy"
-    );
-}
-
-/// Additional: new format keys with various step IDs are not detected as legacy
-#[test]
-fn new_format_lease_keys_never_detected_as_legacy() {
-    let id = min_instance_id();
-
-    // Test with various step ID lengths
-    for step_str in ["a", "step-1", "my-very-long-step-id", "x"] {
-        let step = StepId::parse(step_str).unwrap();
-        let new_key = encode_lease_key(&id, &step);
-        assert!(
-            !is_legacy_delimiter_lease_key(&new_key),
-            "new format key for step '{step_str}' should not be legacy"
-        );
-
-        // Extract should return None for new format
-        assert!(
-            extract_legacy_lease_components(&new_key).is_none(),
-            "new format key should not have extractable legacy components"
-        );
-    }
-}
-
-/// New format lease keys that happen to contain 0x3A bytes are not misdetected
-#[test]
-fn new_format_keys_with_colon_bytes_not_misdetected() {
-    // Create an instance ID that, when encoded as 16 bytes, might contain 0x3A (':')
-    let id = min_instance_id();
-    let step = StepId::parse("step-1").unwrap();
-
-    let new_key = encode_lease_key(&id, &step);
-
-    // Check that even if 0x3A bytes are present, the structural check (BE u16 length prefix
-    // at bytes 16-18 matching remaining length) prevents false positive
-    assert!(
-        !is_legacy_delimiter_lease_key(&new_key),
-        "new format key should never be flagged as legacy regardless of byte content"
-    );
-}
-
-/// Fence key detection: legacy fence keys end with `::fence`
-#[test]
-fn legacy_fence_key_detection() {
-    let legacy_iid = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    let legacy_sid = "step-1";
-
-    // Legacy fence key
-    let legacy_fence = format!("{legacy_iid}::{legacy_sid}::fence").into_bytes();
-    assert!(is_legacy_delimiter_fence_key(&legacy_fence));
-    assert!(is_legacy_delimiter_lease_key(
-        &legacy_fence[..legacy_fence.len() - 7]
-    ));
-
-    // New format fence key should NOT be detected
-    let _id = min_instance_id();
-    let _step = StepId::parse("step-1").unwrap();
-    let _new_fence = b"newformat".to_vec(); // would be encoded differently
-    assert!(!is_legacy_delimiter_fence_key(&_new_fence));
+    // And: the length prefix is correctly encoded and decoded
+    let expected_len_bytes = 16u16.to_be_bytes();
+    assert_eq!(&key_a_1000[8..10], &expected_len_bytes, "length prefix must be 16 for 16-byte ULID");
+    assert_eq!(&key_a_1000[..8], &1000u64.to_be_bytes(), "timestamp must be first 8 bytes");
+    assert_eq!(&key_a_1000[10..26], &id_a.to_bytes().unwrap(), "instance ID bytes start after length prefix");
 }

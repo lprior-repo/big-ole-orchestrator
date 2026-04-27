@@ -12,6 +12,7 @@ use vo_sdk::node_handle::NodeHandle;
 use vo_sdk::Workflow;
 use vo_types::NodeKind;
 use vo_types::NodeName;
+use vo_types::RetryPolicy;
 
 #[test]
 fn rq_builder_two_node_chain_no_connect_produces_zero_edges() {
@@ -123,13 +124,12 @@ fn rq_serde_nodespec_roundtrip_preserves_kind() {
         let ns = NodeSpec {
             name: NodeName::parse("n").unwrap(),
             kind,
-            retry_policy: vo_types::RetryPolicy {
+            retry_policy: RetryPolicy {
                 max_attempts: 1,
                 backoff_ms: 0,
                 backoff_multiplier: 1.0,
                 max_backoff_ms: u64::MAX,
             },
-            signal_meta: None,
         };
         let j = serde_json::to_string(&ns).unwrap();
         let back: NodeSpec = serde_json::from_str(&j).unwrap();

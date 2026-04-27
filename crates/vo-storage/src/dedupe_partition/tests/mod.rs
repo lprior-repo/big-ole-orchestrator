@@ -15,6 +15,7 @@ pub(super) use super::*;
 mod tests_concurrent;
 mod tests_encoding;
 mod tests_entry_construction;
+mod tests_in_memory_dedupe;
 mod tests_mutation_killers;
 mod tests_purge;
 mod tests_store_operations;

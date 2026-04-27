@@ -12,7 +12,10 @@ use std::thread;
 use serde_json::{json, Value};
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph::{parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec, WorkflowSpec};
+use crate::graph::{
+    default_retry_policy, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
+    WorkflowSpec,
+};
 use crate::node_handle::NodeHandle;
 use crate::tests::{
     read_input_inner_with_atomic_guard as read_input_inner_atomic,
@@ -678,17 +681,11 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes = spec.to_json_bytes();
     let json_str = String::from_utf8(bytes).unwrap();
@@ -706,13 +703,7 @@ fn workflow_spec_large_graph_roundtrip() {
         .map(|i| NodeSpec {
             name: NodeName::parse(&format!("node{}", i)).unwrap(),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         })
         .collect();
 
@@ -734,8 +725,8 @@ fn workflow_spec_large_graph_roundtrip() {
         workflow_name: WorkflowName::parse("large_graph").unwrap(),
         nodes: nodes.clone(),
         edges: edges.clone(),
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let json = serde_json::to_string(&spec).unwrap();
@@ -752,8 +743,8 @@ fn workflow_spec_to_json_bytes_never_panics() {
         workflow_name: WorkflowName::parse("empty").unwrap(),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes = spec.to_json_bytes();
     assert!(!bytes.is_empty(), "should produce non-empty JSON");

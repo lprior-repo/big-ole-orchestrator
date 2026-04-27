@@ -53,11 +53,24 @@ impl FjallLeaseStore {
     }
 
     fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-        format!("{instance_id}::{step_id}").into_bytes()
+        let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+        let step_bytes = step_id.as_str().as_bytes();
+        let mut key = Vec::with_capacity(16 + 2 + step_bytes.len());
+        key.extend_from_slice(&iid_bytes);
+        key.extend_from_slice(&(step_bytes.len() as u16).to_be_bytes());
+        key.extend_from_slice(step_bytes);
+        key
     }
 
     fn encode_fence_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-        format!("{instance_id}::{step_id}::fence").into_bytes()
+        let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+        let step_bytes = step_id.as_str().as_bytes();
+        let mut key = Vec::with_capacity(16 + 2 + step_bytes.len() + 1);
+        key.extend_from_slice(&iid_bytes);
+        key.extend_from_slice(&(step_bytes.len() as u16).to_be_bytes());
+        key.extend_from_slice(step_bytes);
+        key.push(0xFF);
+        key
     }
 
     fn get_current_lease(

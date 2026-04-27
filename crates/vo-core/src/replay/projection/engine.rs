@@ -7,14 +7,16 @@
 //! - `RebuildContext` — tracks individual rebuild operations
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::Instant;
 
-use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
-use super::{ProjectionError, ProjectionRecord, RebuildContext, StaleReason};
 use crate::upcaster::UpcasterRegistry;
+use super::{ProjectionError, ProjectionRecord, ProjectionState, RebuildContext, StaleReason};
+use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
 
 // =====================================================================
+
 pub struct ProjectionEngineBuilder {
     max_supported_version: u8,
     throttle_config: RebuildThrottleConfig,
@@ -57,6 +59,7 @@ impl ProjectionEngineBuilder {
 }
 
 // =====================================================================
+
 pub struct ProjectionEngine {
     upcaster_registry: Option<Box<dyn UpcasterRegistry>>,
     max_supported_version: u8,

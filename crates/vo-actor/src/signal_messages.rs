@@ -148,9 +148,6 @@ impl SignalPayload {
                 bytes.len()
             ));
         }
-        if bytes.contains(&0) {
-            return Err("SignalPayload contains null byte".to_string());
-        }
         Ok(Self(bytes))
     }
 
@@ -175,82 +172,11 @@ impl SignalPayload {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SignalName(String);
-
-impl SignalName {
-    pub fn parse(input: &str) -> Result<Self, String> {
-        const MAX_LEN: usize = 256;
-        if input.is_empty() {
-            return Err("SignalName cannot be empty".to_string());
-        }
-        if input.len() > MAX_LEN {
-            return Err(format!(
-                "SignalName exceeds {} characters: {}",
-                MAX_LEN,
-                input.len()
-            ));
-        }
-        if input.contains('\0') {
-            return Err("SignalName contains null byte".to_string());
-        }
-        let invalid = input
-            .chars()
-            .filter(|c| !c.is_alphanumeric() && *c != '-' && *c != '_' && *c != '.')
-            .collect::<String>();
-        if !invalid.is_empty() {
-            return Err(format!(
-                "SignalName contains invalid characters: {}",
-                invalid
-            ));
-        }
-        Ok(Self(input.to_string()))
-    }
-
-    pub fn new_unchecked(s: impl Into<String>) -> Self {
-        Self(s.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<&str> for SignalName {
-    fn from(value: &str) -> Self {
-        Self(value.to_string())
-    }
-}
-
-impl From<String> for SignalName {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&String> for SignalName {
-    fn from(value: &String) -> Self {
-        Self(value.clone())
-    }
-}
-
-impl PartialEq<String> for SignalName {
-    fn eq(&self, other: &String) -> bool {
-        self.as_str() == other
-    }
-}
-
-impl PartialEq<&str> for SignalName {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignalAccepted {
     pub instance_id: InstanceId,
     pub wait_key: WaitKey,
-    pub signal_id: SignalName,
+    pub signal_id: String,
     pub payload: SignalPayload,
     pub accepted_at: TimestampMs,
 }
@@ -586,8 +512,7 @@ pub mod mock_signal_storage {
                 });
             }
             let mut persisted = self.persisted.lock().unwrap();
-            persisted
-                .retain(|s| !(s.instance_id == *instance_id && s.signal_id.as_str() == signal_id));
+            persisted.retain(|s| !(s.instance_id == *instance_id && s.signal_id == signal_id));
             Ok(())
         }
     }

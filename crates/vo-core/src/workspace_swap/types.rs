@@ -1,4 +1,12 @@
-//! Atomic workspace swap types: phases, statuses, errors, and recovery outcomes.
+//! Atomic workspace swap for branch switches.
+//!
+//! Stages new state in a shadow directory, fsyncs to ensure durability,
+//! then performs an atomic rename to swap the workspace. A journal file
+//! tracks the swap state so that crash recovery can always reach a
+//! consistent state regardless of when the process dies.
+
+use std::io;
+use std::path::PathBuf;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SwapPhase {
@@ -6,6 +14,13 @@ pub enum SwapPhase {
     Staging,
     Staged,
     Swapping,
+    Complete,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SwapStatus {
+    NoPriorSwap,
+    Incomplete(SwapPhase),
     Complete,
 }
 
@@ -31,52 +46,45 @@ impl SwapPhase {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub enum SwapStatus {
-    NoPriorSwap,
-    Incomplete(SwapPhase),
-    Complete,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum SwapError {
     #[error("workspace path is not a directory: {0}")]
-    NotADirectory(std::path::PathBuf),
+    NotADirectory(PathBuf),
 
     #[error("workspace does not exist: {0}")]
-    WorkspaceNotFound(std::path::PathBuf),
+    WorkspaceNotFound(PathBuf),
 
     #[error("shadow directory already exists: {0}")]
-    ShadowExists(std::path::PathBuf),
+    ShadowExists(PathBuf),
 
     #[error("failed to create shadow directory: {path}: {source}")]
-    ShadowCreate { path: std::path::PathBuf, source: std::io::Error },
+    ShadowCreate { path: PathBuf, source: io::Error },
 
     #[error("failed to copy file to shadow: {source}: {from} -> {to}")]
     CopyFailed {
-        from: std::path::PathBuf,
-        to: std::path::PathBuf,
-        source: std::io::Error,
+        from: PathBuf,
+        to: PathBuf,
+        source: io::Error,
     },
 
     #[error("failed to sync directory: {path}: {source}")]
-    SyncFailed { path: std::path::PathBuf, source: std::io::Error },
+    SyncFailed { path: PathBuf, source: io::Error },
 
     #[error("failed to write journal: {path}: {source}")]
-    JournalWrite { path: std::path::PathBuf, source: std::io::Error },
+    JournalWrite { path: PathBuf, source: io::Error },
 
     #[error("failed to read journal: {path}: {source}")]
-    JournalRead { path: std::path::PathBuf, source: std::io::Error },
+    JournalRead { path: PathBuf, source: io::Error },
 
     #[error("failed to atomic rename: {from} -> {to}: {source}")]
     RenameFailed {
-        from: std::path::PathBuf,
-        to: std::path::PathBuf,
-        source: std::io::Error,
+        from: PathBuf,
+        to: PathBuf,
+        source: io::Error,
     },
 
     #[error("failed to remove directory: {path}: {source}")]
-    RemoveFailed { path: std::path::PathBuf, source: std::io::Error },
+    RemoveFailed { path: PathBuf, source: io::Error },
 
     #[error("swap not staged; call stage() first")]
     NotStaged,

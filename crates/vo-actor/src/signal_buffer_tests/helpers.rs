@@ -24,7 +24,7 @@ pub(crate) fn wait_key_notif() -> WaitKey {
 
 pub(crate) fn make_signal(signal_id: &str) -> BufferedSignal {
     BufferedSignal::new(
-        SignalName::parse(signal_id).unwrap(),
+        signal_id.to_string(),
         crate::SignalPayload::empty(),
         vo_types::TimestampMs::now(),
     )

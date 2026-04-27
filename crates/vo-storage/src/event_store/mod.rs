@@ -28,9 +28,11 @@ pub enum EventStoreError {
 impl From<EventStoreError> for vo_types::events::Error {
     fn from(e: EventStoreError) -> Self {
         match e {
-            EventStoreError::OccConflict { .. } => Self::PayloadDecodeSkipped,
-            EventStoreError::Storage { .. } => Self::PayloadDecodeFailed {
-                source: Box::new(Self::InvalidEnvelopeFormat),
+            EventStoreError::OccConflict { .. } => {
+                vo_types::events::Error::PayloadDecodeSkipped
+            }
+            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed {
+                source: Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
             },
             EventStoreError::InvalidArgument { .. } => {
                 Self::InvalidEnvelopeFormat
@@ -102,6 +104,11 @@ impl EventStore for InMemoryEventStore {
             });
         }
 
+        let expected_sequence = {
+            let sequences = self.sequences.read().unwrap();
+            sequences.get(instance_id).copied().unwrap_or(0)
+        };
+
         let first_sequence = events
             .first()
             .ok_or(EventStoreError::InvalidArgument {
@@ -109,19 +116,15 @@ impl EventStore for InMemoryEventStore {
             })?
             .sequence;
 
-        let final_sequence = events.last().expect("non-empty checked above").sequence;
-
-        let expected_sequence = self
-            .sequences
-            .get(instance_id)
-            .map_or(0, |r| *r);
-
         if first_sequence != expected_sequence + 1 {
-            let actual_sequence = self
-                .events
-                .get(instance_id)
-                .and_then(|e| e.last().map(|ev| ev.sequence))
-                .unwrap_or(0);
+            let actual_sequence = {
+                let events_store = self.events.read().unwrap();
+                events_store
+                    .get(instance_id)
+                    .and_then(|e| e.last())
+                    .map(|e| e.sequence)
+                    .unwrap_or(0)
+            };
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
                 expected_sequence: expected_sequence + 1,
@@ -142,11 +145,19 @@ impl EventStore for InMemoryEventStore {
             }
         }
 
-        self.sequences.insert(instance_id.clone(), final_sequence);
-        self.events
-            .entry(instance_id.clone())
-            .or_default()
-            .extend(events);
+        let final_sequence = events.last().unwrap().sequence;
+
+        {
+            let mut sequences = self.sequences.write().unwrap();
+            let mut events_store = self.events.write().unwrap();
+            sequences.insert(instance_id.clone(), final_sequence);
+            events_store
+                .entry(instance_id.clone())
+                .or_insert_with(Vec::new);
+            if let Some(existing) = events_store.get_mut(instance_id) {
+                existing.extend(events);
+            }
+        }
 
         Ok(final_sequence)
     }

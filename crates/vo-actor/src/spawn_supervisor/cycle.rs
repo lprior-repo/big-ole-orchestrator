@@ -6,6 +6,7 @@
 use super::pure::{calculate_backoff_delay, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
+use crate::semaphore::types::AdmissionDecision;
 
 impl Actor {
     /// Processes one spawn cycle.
@@ -38,6 +39,21 @@ impl Actor {
                     attempts = record.spawn_attempts,
                     max_attempts = self.max_spawn_attempts,
                     "Max spawn attempts exceeded"
+                );
+                continue;
+            }
+
+            let backoff_delay = Self::calc_backoff_delay(self, record.spawn_attempts);
+
+            // Gate spawn on global execution semaphore permit
+            let admission = self.execution_semaphore.acquire().await;
+            if let AdmissionDecision::Rejected { reason, .. } = admission {
+                self.metrics.spawns_failed.incr();
+                errors += 1;
+                tracing::warn!(
+                    instance_id = %record.instance_id,
+                    reason = ?reason,
+                    "Spawn rejected by execution semaphore"
                 );
                 continue;
             }

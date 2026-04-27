@@ -159,89 +159,57 @@ impl LeaseEntry {
 /// Partition name for the lease store.
 pub const LEASE_PARTITION: &str = "leases";
 
-/// Encode a lease key as `<iid_len_le><iid_bytes><sid_len_le><sid_bytes>`.
+/// Encode a lease key from instance ID and step ID.
 ///
-/// Uses 4-byte little-endian length prefixes for both components, avoiding
-/// delimiter ambiguity when `instance_id` or `step_id` contain `::` bytes.
+/// Format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
+///
+/// This length-prefix format avoids delimiter ambiguity: instance IDs and
+/// step IDs are encoded as raw binary without any `::` separator.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-    let iid_bytes = instance_id.to_string().into_bytes();
-    let sid_bytes = step_id.to_string().into_bytes();
-    let iid_len = u32::to_le_bytes(iid_bytes.len() as u32);
-    let sid_len = u32::to_le_bytes(sid_bytes.len() as u32);
-    [
-        iid_len.as_slice(),
-        iid_bytes.as_slice(),
-        sid_len.as_slice(),
-        sid_bytes.as_slice(),
-    ]
-    .concat()
+    let iid_bytes = instance_id.to_bytes().unwrap_or([0u8; 16]);
+    let step_bytes = step_id.as_str().as_bytes();
+    let mut key = Vec::with_capacity(16 + 2 + step_bytes.len());
+    key.extend_from_slice(&iid_bytes);
+    key.extend_from_slice(&(step_bytes.len() as u16).to_be_bytes());
+    key.extend_from_slice(step_bytes);
+    key
 }
 
-/// Decode length-prefixed bytes into an `instance_id` and `step_id`.
+/// Decode a lease key into instance ID and step ID.
 ///
-/// Expects format: 4-byte u32 LE `iid_len`, `iid_len` bytes, 4-byte u32 LE `sid_len`, `sid_len` bytes.
+/// Expected format: `[instance_id_bytes(16)][step_id_len_u16_be(2)][step_id_bytes]`
 ///
 /// # Errors
 ///
-/// Returns `LeaseStoreError::Codec` if there are insufficient bytes for the length prefixes
-/// or the component lengths exceed available data.
+/// Returns `LeaseStoreError::Codec` if the key is too short or the step ID
+/// component cannot be parsed.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), LeaseStoreError> {
-    if bytes.len() < 4 {
+    if bytes.len() < 18 {
         return Err(LeaseStoreError::Codec {
-            reason: "insufficient bytes for iid length prefix".to_string(),
+            reason: "lease key too short, expected at least 18 bytes".to_string(),
         });
     }
-    let (iid_len_bytes, rest) = bytes.split_at(4);
-    let iid_len =
-        u32::from_le_bytes(
-            iid_len_bytes
-                .try_into()
-                .map_err(|_| LeaseStoreError::Codec {
-                    reason: "failed to read iid length prefix".to_string(),
-                })?,
-        ) as usize;
-
-    if rest.len() < iid_len {
-        return Err(LeaseStoreError::Codec {
-            reason: format!("insufficient bytes for iid data (need {iid_len})"),
-        });
-    }
-    let (iid_bytes, rest) = rest.split_at(iid_len);
-    let iid_str = String::from_utf8(iid_bytes.to_vec()).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("iid data is not valid UTF-8: {e}"),
+    let iid_bytes: [u8; 16] = bytes[..16].try_into().map_err(|_| LeaseStoreError::Codec {
+        reason: "lease key instance ID slice has wrong length".to_string(),
     })?;
-
-    if rest.len() < 4 {
+    let instance_id = InstanceId::from_bytes(iid_bytes);
+    let step_id_len =
+        u16::from_be_bytes([bytes[16], bytes[17]]) as usize;
+    if bytes.len() < 18 + step_id_len {
         return Err(LeaseStoreError::Codec {
-            reason: "insufficient bytes for sid length prefix".to_string(),
+            reason: format!(
+                "lease key truncated: expected {} total bytes, got {}",
+                18 + step_id_len,
+                bytes.len()
+            ),
         });
     }
-    let (sid_len_bytes, sid_bytes) = rest.split_at(4);
-    let sid_len =
-        u32::from_le_bytes(
-            sid_len_bytes
-                .try_into()
-                .map_err(|_| LeaseStoreError::Codec {
-                    reason: "failed to read sid length prefix".to_string(),
-                })?,
-        ) as usize;
-
-    if sid_bytes.len() < sid_len {
-        return Err(LeaseStoreError::Codec {
-            reason: format!("insufficient bytes for step_id data (need {sid_len})"),
-        });
-    }
-    let (step_id_bytes, _extra) = sid_bytes.split_at(sid_len);
-    let step_id_str =
-        String::from_utf8(step_id_bytes.to_vec()).map_err(|e| LeaseStoreError::Codec {
-            reason: format!("step_id data is not valid UTF-8: {e}"),
-        })?;
-
-    let instance_id = InstanceId::parse(&iid_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid instance_id: {e}"),
+    let step_bytes = &bytes[18..18 + step_id_len];
+    let step_str = std::str::from_utf8(step_bytes).map_err(|e| LeaseStoreError::Codec {
+        reason: format!("step_id bytes are not valid UTF-8: {e}"),
     })?;
-    let step_id = StepId::parse(&step_id_str).map_err(|e| LeaseStoreError::Codec {
+    let step_id = StepId::parse(step_str).map_err(|e| LeaseStoreError::Codec {
         reason: format!("invalid step_id: {e}"),
     })?;
     Ok((instance_id, step_id))

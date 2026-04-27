@@ -311,7 +311,10 @@ pub fn select_next_step(
     }
 
     // Select first node in definition order (deterministic tiebreaker)
-    let selected = ready_nodes.into_iter().next().unwrap();
+    let selected = ready_nodes
+        .first()
+        .cloned()
+        .expect("ready_nodes is non-empty due to is_empty check above");
 
     // Compute attempt and fence from history if provided
     let (attempt, fence) = history

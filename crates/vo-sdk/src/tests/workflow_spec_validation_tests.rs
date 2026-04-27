@@ -10,6 +10,7 @@
 //!   5. Node kind constraints — each kind's specific behavioral contracts
 
 use crate::dag::{Dag, DagError, Workflow};
+use crate::graph::default_retry_policy;
 use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
@@ -303,8 +304,8 @@ fn sdk_workflow_spec_has_no_version_field() {
         workflow_name: WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
@@ -321,32 +322,20 @@ fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
             NodeSpec {
                 name: NodeName::parse("a").expect("valid"),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("a").expect("valid"),
             to: NodeName::parse("b").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
 
     let json1 = serde_json::to_string(&spec).expect("serialize");
@@ -562,17 +551,11 @@ fn all_node_kinds_survive_serde_round_trip_individually() {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: *kind,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             }],
             edges: vec![],
-            dedupe_scope: vo_types::DedupeScope::default(),
-            guarantee_class: vo_types::GuaranteeClass::default(),
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
         };
         let json = serde_json::to_string(&spec).expect("serialize");
         let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -833,13 +816,7 @@ fn node_spec_round_trips_all_kinds() {
         let node = NodeSpec {
             name: NodeName::parse("test-node").expect("valid"),
             kind: *kind,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         };
         let json = serde_json::to_string(&node).expect("serialize");
         let restored: NodeSpec = serde_json::from_str(&json).expect("deserialize");
@@ -864,35 +841,17 @@ fn node_spec_equality_works() {
     let a = NodeSpec {
         name: NodeName::parse("a").expect("valid"),
         kind: NodeKind::Pure,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     };
     let b = NodeSpec {
         name: NodeName::parse("a").expect("valid"),
         kind: NodeKind::Pure,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     };
     let c = NodeSpec {
         name: NodeName::parse("a").expect("valid"),
         kind: NodeKind::ManagedEffect,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     };
     assert_eq!(a, b);
     assert_ne!(a, c);
@@ -923,17 +882,11 @@ fn to_json_bytes_produces_deterministic_output() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").expect("valid"),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes1 = spec.to_json_bytes();
     let bytes2 = spec.to_json_bytes();
@@ -947,20 +900,14 @@ fn workflow_spec_clone_is_equal() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").expect("valid"),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![EdgeSpec {
             from: NodeName::parse("a").expect("valid"),
             to: NodeName::parse("a").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let cloned = spec.clone();
     assert_eq!(spec, cloned);
@@ -972,8 +919,8 @@ fn workflow_spec_debug_format_includes_fields() {
         workflow_name: WorkflowName::parse("debug-test").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let debug = format!("{:?}", spec);
     assert!(

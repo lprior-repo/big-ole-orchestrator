@@ -1,7 +1,10 @@
-use std::io::Error;
+use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::types::*;
+use crate::workspace_swap::fs::{sync_dir, write_journal_at};
+use crate::workspace_swap::types::{
+    RecoveryOutcome, SwapError, SwapPhase, SwapStatus,
+};
 
 pub struct AtomicSwap {
     workspace: PathBuf,
@@ -75,15 +78,13 @@ impl AtomicSwap {
             return Ok(SwapStatus::NoPriorSwap);
         }
 
-        let content =
-            std::fs::read_to_string(&journal)
-                .map_err(|e| SwapError::JournalRead {
-                    path: journal.clone(),
-                    source: e,
-                })?;
+        let content = fs::read_to_string(&journal).map_err(|e| SwapError::JournalRead {
+            path: journal.clone(),
+            source: e,
+        })?;
 
-        let phase = SwapPhase::from_str_lossy(&content)
-            .ok_or_else(|| SwapError::InvalidJournal(content.clone()))?;
+        let phase =
+            SwapPhase::from_str_lossy(&content).ok_or_else(|| SwapError::InvalidJournal(content.clone()))?;
 
         match phase {
             SwapPhase::Complete => Ok(SwapStatus::Complete),
@@ -99,19 +100,19 @@ impl AtomicSwap {
             return Err(SwapError::ShadowExists(shadow));
         }
 
-        self.write_journal(SwapPhase::Staging)?;
+        write_journal_at(&self.journal_path(), SwapPhase::Staging)?;
 
-        std::fs::create_dir_all(&shadow).map_err(|e| SwapError::ShadowCreate {
+        fs::create_dir_all(&shadow).map_err(|e| SwapError::ShadowCreate {
             path: shadow.clone(),
             source: e,
         })?;
 
-        copy_dir_recursive(&self.workspace, &shadow)?;
+        crate::workspace_swap::fs::copy_dir_recursive(&self.workspace, &shadow)?;
 
         sync_dir(&shadow)?;
         sync_dir(&self.workspace)?;
 
-        self.write_journal(SwapPhase::Staged)?;
+        write_journal_at(&self.journal_path(), SwapPhase::Staged)?;
 
         Ok(SwapPhase::Staged)
     }
@@ -123,19 +124,19 @@ impl AtomicSwap {
             SwapStatus::Incomplete(_) => {}
         }
 
-        self.write_journal(SwapPhase::Swapping)?;
+        write_journal_at(&self.journal_path(), SwapPhase::Swapping)?;
 
         let shadow = self.shadow_path();
         let backup = self.backup_path();
 
         if backup.exists() {
-            std::fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
+            fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
                 path: backup.clone(),
                 source: e,
             })?;
         }
 
-        std::fs::rename(&self.workspace, &backup).map_err(|e| SwapError::RenameFailed {
+        fs::rename(&self.workspace, &backup).map_err(|e| SwapError::RenameFailed {
             from: self.workspace.clone(),
             to: backup.clone(),
             source: e,
@@ -143,7 +144,7 @@ impl AtomicSwap {
 
         sync_dir(self.workspace.parent().unwrap_or(Path::new(".")))?;
 
-        std::fs::rename(&shadow, &self.workspace).map_err(|e| SwapError::RenameFailed {
+        fs::rename(&shadow, &self.workspace).map_err(|e| SwapError::RenameFailed {
             from: shadow.clone(),
             to: self.workspace.clone(),
             source: e,
@@ -151,10 +152,10 @@ impl AtomicSwap {
 
         sync_dir(self.workspace.parent().unwrap_or(Path::new(".")))?;
 
-        self.write_journal(SwapPhase::Complete)?;
+        write_journal_at(&self.journal_path(), SwapPhase::Complete)?;
 
         if backup.exists() {
-            std::fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
+            fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
                 path: backup,
                 source: e,
             })?;
@@ -162,7 +163,7 @@ impl AtomicSwap {
 
         let journal = self.journal_path();
         if journal.exists() {
-            std::fs::remove_file(&journal).map_err(|e| SwapError::RemoveFailed {
+            fs::remove_file(&journal).map_err(|e| SwapError::RemoveFailed {
                 path: journal,
                 source: e,
             })?;
@@ -187,7 +188,7 @@ impl AtomicSwap {
                 match phase {
                     SwapPhase::Staging | SwapPhase::Staged => {
                         if shadow.exists() {
-                            std::fs::remove_dir_all(&shadow).map_err(|e| SwapError::RemoveFailed {
+                            fs::remove_dir_all(&shadow).map_err(|e| SwapError::RemoveFailed {
                                 path: shadow.clone(),
                                 source: e,
                             })?;
@@ -197,23 +198,21 @@ impl AtomicSwap {
                     }
                     SwapPhase::Swapping => {
                         if backup.exists() && !self.workspace.exists() {
-                            std::fs::rename(&backup, &self.workspace).map_err(|e| {
-                                SwapError::RenameFailed {
-                                    from: backup.clone(),
-                                    to: self.workspace.clone(),
-                                    source: e,
-                                }
+                            fs::rename(&backup, &self.workspace).map_err(|e| SwapError::RenameFailed {
+                                from: backup.clone(),
+                                to: self.workspace.clone(),
+                                source: e,
                             })?;
                             sync_dir(self.workspace.parent().unwrap_or(Path::new(".")))?;
                         } else if backup.exists() && self.workspace.exists() {
-                            std::fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
+                            fs::remove_dir_all(&backup).map_err(|e| SwapError::RemoveFailed {
                                 path: backup.clone(),
                                 source: e,
                             })?;
                         }
 
                         if shadow.exists() {
-                            std::fs::remove_dir_all(&shadow).map_err(|e| SwapError::RemoveFailed {
+                            fs::remove_dir_all(&shadow).map_err(|e| SwapError::RemoveFailed {
                                 path: shadow.clone(),
                                 source: e,
                             })?;
@@ -228,24 +227,10 @@ impl AtomicSwap {
         }
     }
 
-    fn write_journal(&self, phase: SwapPhase) -> Result<(), SwapError> {
-        let journal = self.journal_path();
-        let content = phase.as_str();
-
-        std::fs::write(&journal, content).map_err(|e| SwapError::JournalWrite {
-            path: journal.clone(),
-            source: e,
-        })?;
-
-        sync_dir(journal.parent().unwrap_or(Path::new(".")))?;
-
-        Ok(())
-    }
-
     fn cleanup_journal(&self) -> Result<(), SwapError> {
         let journal = self.journal_path();
         if journal.exists() {
-            std::fs::remove_file(&journal).map_err(|e| SwapError::RemoveFailed {
+            fs::remove_file(&journal).map_err(|e| SwapError::RemoveFailed {
                 path: journal,
                 source: e,
             })?;
@@ -262,44 +247,4 @@ impl AtomicSwap {
     pub fn shadow_dir(&self) -> PathBuf {
         self.shadow_path()
     }
-}
-
-fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), SwapError> {
-    std::fs::create_dir_all(dst).map_err(|e| SwapError::ShadowCreate {
-        path: dst.to_path_buf(),
-        source: e,
-    })?;
-
-    for entry in std::fs::read_dir(src).map_err(|e| SwapError::CopyFailed {
-        from: src.to_path_buf(),
-        to: dst.to_path_buf(),
-        source: e,
-    })? {
-        let entry = entry.map_err(|e| SwapError::CopyFailed {
-            from: src.to_path_buf(),
-            to: dst.to_path_buf(),
-            source: e,
-        })?;
-
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-
-        let file_type = entry.file_type().map_err(|e| SwapError::CopyFailed {
-            from: src_path.clone(),
-            to: dst_path.clone(),
-            source: e,
-        })?;
-
-        if file_type.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else if file_type.is_file() {
-            std::fs::copy(&src_path, &dst_path).map_err(|e| SwapError::CopyFailed {
-                from: src_path.clone(),
-                to: dst_path.clone(),
-                source: e,
-            })?;
-        }
-    }
-
-    Ok(())
 }

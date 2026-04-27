@@ -5,7 +5,7 @@
 use vo_types::NodeKind;
 
 use crate::dag::{Dag, DagError, Workflow};
-use crate::graph::WorkflowSpec;
+use crate::graph::{DedupeScope, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 #[test]
@@ -104,8 +104,7 @@ fn emit_graph_if_requested_does_nothing_without_graph_flag() {
         workflow_name: vo_types::WorkflowName::parse("test").unwrap(),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: DedupeScope::default(),
     };
 
     let args = vec!["binary".to_string()];

@@ -128,7 +128,9 @@ pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> 
         // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
         let hash = path
             .strip_prefix(VERSION_BASE_PATH)
-            .map(|p| p.split('/').next().unwrap_or(""))
+            .unwrap_or("")
+            .split('/')
+            .next()
             .unwrap_or("")
             .to_string();
         Ok(PinnedBinary {
@@ -221,98 +223,9 @@ pub enum SubprocessError {
     ExecutableValidationFailed(String),
 }
 
-#[cfg(unix)]
-fn is_world_writable(path: &std::path::Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let mode = metadata.permissions().mode();
-        (mode & 0o777) & libc::S_IWOTH != 0
-    } else {
-        false
-    }
-}
+const BOUNDED_BUFFER_SIZE: usize = 65536;
 
-#[cfg(not(unix))]
-fn is_world_writable(_path: &std::path::Path) -> bool {
-    false
-}
-
-fn validate_executable(path: &str) -> Result<(), SubprocessError> {
-    let p = std::path::Path::new(path);
-
-    if !p.is_absolute() {
-        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
-    }
-
-    if !p.exists() {
-        return Err(SubprocessError::ExecutableNotFound(path.to_string()));
-    }
-
-    if !p.is_file() {
-        return Err(SubprocessError::ExecutableValidationFailed(
-            format!("{} is not a regular file", path)
-        ));
-    }
-
-    if is_world_writable(p) {
-        return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
-    }
-
-    Ok(())
-}
-
-#[cfg(unix)]
-fn is_world_writable(path: &std::path::Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let mode = metadata.permissions().mode();
-        (mode & 0o777) & libc::S_IWOTH != 0
-    } else {
-        false
-    }
-}
-
-#[cfg(not(unix))]
-fn is_world_writable(_path: &std::path::Path) -> bool {
-    false
-}
-
-fn validate_executable(path: &str) -> Result<(), SubprocessError> {
-    let p = std::path::Path::new(path);
-
-    if !p.is_absolute() {
-        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
-    }
-
-    if !p.exists() {
-        return Err(SubprocessError::ExecutableNotFound(path.to_string()));
-    }
-
-    if !p.is_file() {
-        return Err(SubprocessError::ExecutableValidationFailed(
-            format!("{} is not a regular file", path)
-        ));
-    }
-
-    if is_world_writable(p) {
-        return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
-    }
-
-    Ok(())
-}
-
-#[cfg(unix)]
-fn is_world_writable(path: &std::path::Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let mode = metadata.permissions().mode();
-        (mode & 0o777) & libc::S_IWOTH != 0
-    } else {
-        false
-    }
-}
-
-fn create_pipe() -> Result<(OwnedFd, OwnedFd), SubprocessError> {
+fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
     let mut fds = [0; 2];
     let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
     if res != 0 {
@@ -320,9 +233,7 @@ fn create_pipe() -> Result<(OwnedFd, OwnedFd), SubprocessError> {
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    unsafe {
-        Ok((OwnedFd::from_raw_fd(fds[0]), OwnedFd::from_raw_fd(fds[1])))
-    }
+    Ok((fds[0], fds[1]))
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.

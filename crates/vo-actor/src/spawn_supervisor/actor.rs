@@ -7,9 +7,10 @@ use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
-use super::traits::ProcessManager;
-use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, SpawnSupervisorMetrics, WorkQueue};
+use super::types::{SpawnSupervisorError, SpawnSupervisorState};
+use super::{SpawnStorage, SpawnSupervisorMetrics};
+use super::{ProcessManager, WorkQueue};
+use crate::semaphore::ExecutionSemaphore;
 
 // =============================================================================
 // `SpawnSupervisor` - Async actor that manages spawn lifecycle
@@ -35,6 +36,8 @@ pub struct SpawnSupervisor {
     pub work_queue: Arc<dyn WorkQueue>,
     /// Metrics.
     pub metrics: SpawnSupervisorMetrics,
+    /// Global execution semaphore for limiting concurrent spawns.
+    pub execution_semaphore: Arc<ExecutionSemaphore>,
 }
 
 impl std::fmt::Debug for SpawnSupervisor {
@@ -45,6 +48,7 @@ impl std::fmt::Debug for SpawnSupervisor {
             .field("initial_backoff", &self.initial_backoff)
             .field("backoff_multiplier", &self.backoff_multiplier)
             .field("max_spawn_attempts", &self.max_spawn_attempts)
+            .field("execution_semaphore", &self.execution_semaphore)
             .finish_non_exhaustive()
     }
 }
@@ -64,6 +68,7 @@ impl SpawnSupervisor {
         storage: Arc<dyn SpawnStorage>,
         process_manager: Arc<dyn ProcessManager>,
         work_queue: Arc<dyn WorkQueue>,
+        execution_semaphore: Arc<ExecutionSemaphore>,
     ) -> Result<Self, SpawnSupervisorError> {
         if health_check_interval.is_zero() {
             return Err(SpawnSupervisorError::InvalidConfig(
@@ -99,6 +104,7 @@ impl SpawnSupervisor {
             process_manager,
             work_queue,
             metrics: SpawnSupervisorMetrics::default(),
+            execution_semaphore,
         })
     }
 

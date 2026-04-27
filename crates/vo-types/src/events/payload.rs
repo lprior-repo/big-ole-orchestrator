@@ -7,25 +7,8 @@ use crate::payload_parser::{
 };
 use crate::WorkflowVersionHash;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum SinkKind {
-    HttpCall,
-    SqlQuery,
-    BlobWrite,
-}
-
-impl SinkKind {
-    pub fn from_str(s: &str) -> Result<Self, Error> {
-        match s {
-            "HttpCall" => Ok(SinkKind::HttpCall),
-            "SqlQuery" => Ok(SinkKind::SqlQuery),
-            "BlobWrite" => Ok(SinkKind::BlobWrite),
-            other => Err(Error::InvalidPayloadField(format!(
-                "invalid sink_kind: {other}"
-            ))),
-        }
-    }
-}
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct RoutingProjection {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
@@ -98,14 +81,26 @@ pub enum EventPayload {
         timer_id: String,
         fire_at_ms: u64,
     },
+    TimerScheduled {
+        workflow_id: String,
+        timer_id: String,
+        fire_at_ms: u64,
+        instance_id: String,
+    },
     TimerFired {
         workflow_id: String,
         timer_id: String,
         fired_at_ms: u64,
     },
-    CancelRequested {
+   CancelRequested {
         workflow_id: String,
         requested_by: String,
+    },
+    SignalAwaiting {
+        workflow_id: String,
+        signal_name: String,
+        instance_id: String,
+        awaited_at_ms: u64,
     },
     InstanceResumed {
         workflow_id: String,
@@ -236,6 +231,12 @@ impl EventPayload {
                 timer_id: require_string(obj, "timer_id")?,
                 fire_at_ms: require_u64(obj, "fire_at_ms")?,
             }),
+            "TimerScheduled" => Ok(EventPayload::TimerScheduled {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                timer_id: require_string(obj, "timer_id")?,
+                fire_at_ms: require_u64(obj, "fire_at_ms")?,
+                instance_id: require_string(obj, "instance_id")?,
+            }),
             "TimerFired" => Ok(EventPayload::TimerFired {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 timer_id: require_string(obj, "timer_id")?,
@@ -244,6 +245,12 @@ impl EventPayload {
             "CancelRequested" => Ok(EventPayload::CancelRequested {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 requested_by: require_string(obj, "requested_by")?,
+            }),
+            "SignalAwaiting" => Ok(EventPayload::SignalAwaiting {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                signal_name: require_string(obj, "signal_name")?,
+                instance_id: require_string(obj, "instance_id")?,
+                awaited_at_ms: require_u64(obj, "awaited_at_ms")?,
             }),
             "InstanceResumed" => Ok(EventPayload::InstanceResumed {
                 workflow_id: require_string_field(obj, "workflow_id")?,

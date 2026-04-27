@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+pub(crate) const DEFAULT_ORDER: usize = 4;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BTreeNode<K, V> {
     pub keys: Vec<K>,
@@ -29,16 +31,4 @@ impl<K, V> BTreeNode<K, V> {
             .position(|k| k >= key)
             .unwrap_or(self.keys.len())
     }
-}
-
-pub(crate) enum InsertResult<K, V> {
-    Done(BTreeNode<K, V>),
-    Updated(BTreeNode<K, V>),
-    Split(BTreeNode<K, V>, K, V, BTreeNode<K, V>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum BTreeError {
-    #[error("key not found")]
-    KeyNotFound,
 }

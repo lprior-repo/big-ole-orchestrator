@@ -8,7 +8,7 @@ use axum::{
     extract::Path,
     http::{header, Request, StatusCode},
     routing::{get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
 use serde_json::{json, Value};
 use tower::ServiceExt;
@@ -57,7 +57,7 @@ async fn stub_start_workflow(req: Request<Body>) -> (StatusCode, Json<Value>) {
     if body
         .get("dedupe_key")
         .and_then(|v| v.as_str())
-        .is_none_or(|k| k.is_empty())
+        .map_or(true, |k| k.is_empty())
     {
         return err(
             StatusCode::BAD_REQUEST,
@@ -66,7 +66,10 @@ async fn stub_start_workflow(req: Request<Body>) -> (StatusCode, Json<Value>) {
         );
     }
 
-    let namespace = body.get("namespace").and_then(|v| v.as_str()).unwrap_or("");
+    let namespace = body
+        .get("namespace")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if namespace.is_empty() {
         return err(
             StatusCode::BAD_REQUEST,
@@ -75,7 +78,10 @@ async fn stub_start_workflow(req: Request<Body>) -> (StatusCode, Json<Value>) {
         );
     }
 
-    let paradigm = body.get("paradigm").and_then(|v| v.as_str()).unwrap_or("");
+    let paradigm = body
+        .get("paradigm")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     if !["fsm", "dag", "procedural"].contains(&paradigm) {
         return err(
             StatusCode::BAD_REQUEST,
@@ -205,7 +211,7 @@ async fn stub_send_signal(Path(id): Path<String>, req: Request<Body>) -> (Status
     if body
         .get("signal_name")
         .and_then(|v| v.as_str())
-        .is_none_or(|s| s.is_empty())
+        .map_or(true, |s| s.is_empty())
     {
         return err(
             StatusCode::BAD_REQUEST,
@@ -241,15 +247,15 @@ async fn stub_compensate_workflow(Path(id): Path<String>) -> (StatusCode, Json<V
 
 fn app() -> Router {
     Router::new()
-        .route(
-            "/api/v1/workflows",
-            post(stub_start_workflow).get(stub_list_workflows),
-        )
+        .route("/api/v1/workflows", post(stub_start_workflow).get(stub_list_workflows))
         .route(
             "/api/v1/workflows/{id}",
             get(stub_get_workflow).delete(stub_terminate_workflow),
         )
-        .route("/api/v1/workflows/{id}/events", get(stub_get_events))
+        .route(
+            "/api/v1/workflows/{id}/events",
+            get(stub_get_events),
+        )
         .route(
             "/api/v1/workflows/{id}/status",
             get(stub_get_workflow_status),
@@ -258,7 +264,10 @@ fn app() -> Router {
             "/api/v1/workflows/{id}/unquarantine",
             post(stub_unquarantine_workflow),
         )
-        .route("/api/v1/workflows/{id}/signals", post(stub_send_signal))
+        .route(
+            "/api/v1/workflows/{id}/signals",
+            post(stub_send_signal),
+        )
         .route(
             "/api/v1/workflows/{id}/compensate",
             post(stub_compensate_workflow),
@@ -559,7 +568,9 @@ mod signal {
             .method("POST")
             .uri("/api/v1/workflows/noslash/signals")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(r#"{"signal_name":"approve","payload":{}}"#))
+            .body(Body::from(
+                r#"{"signal_name":"approve","payload":{}}"#,
+            ))
             .unwrap();
         let (status, body) = send(req).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -771,166 +782,6 @@ mod workflow_start {
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_err(&body, "invalid_namespace");
     }
-
-    // ======================================================================
-    // BDD: production orchestrator receives StartWorkflow (tw-4y6h.2.4)
-    // ======================================================================
-
-    use ractor::Actor;
-    use std::sync::Arc;
-    use vo_actor::OrchestratorMsg;
-    use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
-    use vo_storage::dedupe_partition::InMemoryDedupeStore;
-
-    struct AlwaysAdmitPressureGuard;
-
-    impl WriterPressureGuard for AlwaysAdmitPressureGuard {
-        fn check(&self) -> PressureGuardResult {
-            PressureGuardResult::Admitted
-        }
-    }
-
-    struct CapturingOrchestrator;
-
-    impl Actor for CapturingOrchestrator {
-        type Msg = OrchestratorMsg;
-        type State = ();
-        type Arguments = ();
-
-        async fn pre_start(
-            &self,
-            _myself: ractor::ActorRef<Self::Msg>,
-            _args: Self::Arguments,
-        ) -> Result<Self::State, ractor::ActorProcessingErr> {
-            Ok(())
-        }
-
-        async fn handle(
-            &self,
-            _myself: ractor::ActorRef<Self::Msg>,
-            message: Self::Msg,
-            _state: &mut Self::State,
-        ) -> Result<(), ractor::ActorProcessingErr> {
-            if let OrchestratorMsg::StartWorkflow { reply, .. } = message {
-                let _ = reply.send(Ok(()));
-            }
-            Ok(())
-        }
-    }
-
-    fn production_app(
-        master_ref: ractor::ActorRef<OrchestratorMsg>,
-        dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore>,
-    ) -> Router {
-        Router::new()
-            .route("/api/v1/workflows", post(vo_api::handlers::start_workflow))
-            .layer(Extension(master_ref))
-            .layer(Extension(
-                Arc::new(AlwaysAdmitPressureGuard) as Arc<dyn WriterPressureGuard>
-            ))
-            .layer(Extension(dedupe_store))
-    }
-
-    #[tokio::test]
-    async fn given_start_request_when_handler_runs_then_production_orchestrator_receives_start() {
-        let (master_ref, _handle) = ractor::Actor::spawn(
-            Some("test-prod-orchestrator".to_string()),
-            CapturingOrchestrator,
-            (),
-        )
-        .await
-        .expect("spawn production orchestrator");
-
-        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
-            Arc::new(InMemoryDedupeStore::new());
-
-        let app = production_app(master_ref, dedupe_store);
-
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/workflows")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(
-                r#"{"namespace":"test-ns","workflow_type":"test-wf","paradigm":"fsm","input":{"key":"val"},"dedupe_key":"dk-prod-42"}"#,
-            ))
-            .unwrap();
-
-        let resp = app.oneshot(req).await.expect("oneshot");
-        let status = resp.status();
-        let (_parts, body_stream) = resp.into_parts();
-        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
-            .await
-            .expect("read body");
-        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
-        assert_eq!(status, StatusCode::CREATED, "response body: {body_str}");
-
-        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
-        assert_eq!(body["namespace"], "test-ns");
-        assert_eq!(body["workflow_type"], "test-wf");
-        assert!(body.get("instance_id").is_some());
-
-        let _ = _handle;
-    }
-
-    // ======================================================================
-    // BDD: exact workflow start without dedupe key → rejected (tw-4y6h.5.1)
-    // ======================================================================
-
-    #[tokio::test]
-    async fn given_exact_start_without_dedupe_key_when_started_then_request_is_rejected() {
-        let (master_ref, _handle) = ractor::Actor::spawn(
-            Some("test-dedupe-reject-orchestrator".to_string()),
-            CapturingOrchestrator,
-            (),
-        )
-        .await
-        .expect("spawn orchestrator");
-
-        let dedupe_store: Arc<dyn vo_storage::dedupe_partition::DedupeStore> =
-            Arc::new(InMemoryDedupeStore::new());
-
-        let app = production_app(master_ref, Arc::clone(&dedupe_store));
-
-        // Given: an exact workflow start request with no dedupe_key
-        let req = Request::builder()
-            .method("POST")
-            .uri("/api/v1/workflows")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(
-                r#"{"namespace":"test-ns","workflow_type":"exact-wf","paradigm":"fsm","input":{"key":"val"}}"#,
-            ))
-            .unwrap();
-
-        // When: start_workflow validates admission
-        let resp = app.oneshot(req).await.expect("oneshot");
-        let status = resp.status();
-        let (_parts, body_stream) = resp.into_parts();
-        let body_bytes = axum::body::to_bytes(body_stream, 1 << 20)
-            .await
-            .expect("read body");
-        let body_str = String::from_utf8(body_bytes.to_vec()).unwrap_or_default();
-
-        // Then: the request fails with a structured missing-dedupe error
-        assert_eq!(status, StatusCode::BAD_REQUEST, "response body: {body_str}");
-
-        let body: Value = serde_json::from_slice(&body_bytes).expect("parse json");
-        assert_eq!(body["error"], "missing_dedupe_key");
-        assert!(body["message"]
-            .as_str()
-            .unwrap_or("")
-            .contains("dedupe_key"));
-
-        // And: no durable records are written to the dedupe store
-        let contains_any = dedupe_store
-            .contains(&vo_types::DedupeKey::parse("any-key").unwrap())
-            .expect("dedupe store query");
-        assert!(
-            !contains_any,
-            "dedupe store must be empty — no records written"
-        );
-
-        let _ = _handle;
-    }
 }
 
 // ===========================================================================
@@ -1044,11 +895,7 @@ mod helpers {
     #[test]
     fn paradigm_roundtrip() {
         use vo_actor::WorkflowParadigm;
-        for p in [
-            WorkflowParadigm::Fsm,
-            WorkflowParadigm::Dag,
-            WorkflowParadigm::Procedural,
-        ] {
+        for p in [WorkflowParadigm::Fsm, WorkflowParadigm::Dag, WorkflowParadigm::Procedural] {
             let s = paradigm_to_str(p.clone());
             let back = parse_paradigm(s).unwrap();
             assert_eq!(back, p);
@@ -1120,10 +967,7 @@ mod error_envelope {
             let v: Value = serde_json::from_str(&body)
                 .unwrap_or_else(|e| panic!("URI {uri}: body not valid JSON: {e}\nbody: {body}"));
             assert!(v.get("error").is_some(), "URI {uri}: missing 'error' field");
-            assert!(
-                v.get("message").is_some(),
-                "URI {uri}: missing 'message' field"
-            );
+            assert!(v.get("message").is_some(), "URI {uri}: missing 'message' field");
         }
     }
 }

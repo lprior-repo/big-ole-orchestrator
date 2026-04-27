@@ -16,10 +16,11 @@ pub const KNOWN_MAGICS: &[[u8; 4]] = &[
     MACHO_MAGIC_64_LE,
 ];
 
-pub const ELF_MACHINE_X86_64: u16 = 0x3E;
-pub const ELF_MACHINE_AARCH64: u16 = 0xB7;
-pub const ELF_MACHINE_ARM: u16 = 0x28;
-pub const ELF_MACHINE_X86: u16 = 0x03;
+/// ELF machine types for architecture detection.
+pub const ELF_MACHINE_X86_64: u16 = 62;
+pub const ELF_MACHINE_AARCH64: u16 = 183;
+pub const ELF_MACHINE_ARM: u16 = 40;
+pub const ELF_MACHINE_X86: u16 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BinaryFormat {
@@ -64,13 +65,13 @@ impl ElfMachine {
     }
 
     #[must_use]
-    pub fn display_name(&self) -> String {
+    pub fn display_name(&self) -> &'static str {
         match self {
-            Self::X86_64 => "x86_64".to_string(),
-            Self::AArch64 => "AArch64".to_string(),
-            Self::Arm => "ARM".to_string(),
-            Self::X86 => "x86".to_string(),
-            Self::Unknown(n) => format!("unknown-machine-{n}"),
+            Self::X86_64 => "x86_64",
+            Self::AArch64 => "AArch64",
+            Self::Arm => "ARM",
+            Self::X86 => "x86",
+            Self::Unknown(n) => &format!("unknown-machine-{n}"),
         }
     }
 }
@@ -228,10 +229,14 @@ pub fn detect_elf_architecture(path: &Path) -> Result<Option<ElfMachine>, CheckE
 
     // Skip to offset 18 where ELF e_machine field is located
     let mut header = [0u8; 20];
-    reader.read_exact(&mut header).map_err(|e| CheckError::Io {
+    let bytes_read = reader.read_exact(&mut header).map_err(|e| CheckError::Io {
         path: path.to_path_buf(),
         source: e,
     })?;
+
+    if bytes_read < 20 {
+        return Ok(None);
+    }
 
     // ELF machine type is little-endian u16 at offset 18
     let machine = u16::from_le_bytes([header[18], header[19]]);
@@ -288,5 +293,100 @@ mod tests {
             path: PathBuf::from("a"),
         };
         assert_ne!(err1, err3);
+    }
+
+    #[test]
+    fn elf_machine_from_u16_returns_x86_64_for_correct_value() {
+        assert_eq!(
+            ElfMachine::from_u16(ELF_MACHINE_X86_64),
+            ElfMachine::X86_64
+        );
+    }
+
+    #[test]
+    fn elf_machine_from_u16_returns_aarch64_for_correct_value() {
+        assert_eq!(
+            ElfMachine::from_u16(ELF_MACHINE_AARCH64),
+            ElfMachine::AArch64
+        );
+    }
+
+    #[test]
+    fn elf_machine_from_u16_returns_arm_for_correct_value() {
+        assert_eq!(ElfMachine::from_u16(ELF_MACHINE_ARM), ElfMachine::Arm);
+    }
+
+    #[test]
+    fn elf_machine_from_u16_returns_x86_for_correct_value() {
+        assert_eq!(ElfMachine::from_u16(ELF_MACHINE_X86), ElfMachine::X86);
+    }
+
+    #[test]
+    fn elf_machine_from_u16_returns_unknown_for_unrecognized_value() {
+        let result = ElfMachine::from_u16(999);
+        assert_eq!(result, ElfMachine::Unknown(999));
+    }
+
+    #[test]
+    fn elf_machine_display_names() {
+        assert_eq!(ElfMachine::X86_64.display_name(), "x86_64");
+        assert_eq!(ElfMachine::AArch64.display_name(), "AArch64");
+        assert_eq!(ElfMachine::Arm.display_name(), "ARM");
+        assert_eq!(ElfMachine::X86.display_name(), "x86");
+        assert_eq!(ElfMachine::Unknown(123).display_name(), "unknown-machine-123");
+    }
+
+    #[test]
+    fn detect_elf_architecture_returns_none_for_non_elf_file() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_not_elf.txt");
+        std::fs::write(&test_file, "this is not a binary").unwrap();
+
+        let result = detect_elf_architecture(&test_file);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), None);
+
+        std::fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn detect_elf_architecture_returns_none_for_file_too_small() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_too_small");
+        std::fs::write(&test_file, &[0u8, 0, 0]).unwrap();
+
+        let result = detect_elf_architecture(&test_file);
+        assert!(result.is_err());
+
+        std::fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn detect_elf_architecture_returns_none_for_invalid_magic() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_invalid_magic");
+        // Write 20 bytes that don't start with ELF magic
+        std::fs::write(&test_file, &[0u8; 20]).unwrap();
+
+        let result = detect_elf_architecture(&test_file);
+        assert!(result.is_err());
+
+        std::fs::remove_file(&test_file).ok();
+    }
+
+    #[test]
+    fn detect_elf_architecture_returns_none_for_file_with_elf_magic_but_truncated() {
+        let dir = std::env::temp_dir();
+        let test_file = dir.join("veloxide_test_truncated");
+        // Write ELF magic but only 10 bytes total (not enough for e_machine at offset 18)
+        let mut buf = [0u8; 10];
+        buf[0..4].copy_from_slice(&ELF_MAGIC);
+        std::fs::write(&test_file, &buf).unwrap();
+
+        let result = detect_elf_architecture(&test_file);
+        // Should fail because file is too small for e_machine field
+        assert!(result.is_err());
+
+        std::fs::remove_file(&test_file).ok();
     }
 }
