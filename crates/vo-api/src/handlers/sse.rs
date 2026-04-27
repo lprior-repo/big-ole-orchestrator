@@ -46,8 +46,8 @@ pub enum WorkflowSseEvent {
 }
 
 impl WorkflowSseEvent {
-    fn to_sse_event(&self) -> Event {
-        let data = match self {
+    pub fn to_json_value(&self) -> serde_json::Value {
+        match self {
             WorkflowSseEvent::StepCompleted {
                 node_name,
                 sequence,
@@ -99,7 +99,11 @@ impl WorkflowSseEvent {
                     "error": error,
                 })
             }
-        };
+        }
+    }
+
+    pub(crate) fn to_sse_event(&self) -> Event {
+        let data = self.to_json_value();
         Event::default()
             .event("workflow-event")
             .data(data.to_string())
@@ -154,7 +158,7 @@ impl Default for SseState {
     }
 }
 
-fn make_sse_stream(
+pub fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
     TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {

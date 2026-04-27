@@ -4,11 +4,12 @@
 //! by their side-effect profile. No I/O — pure types.
 
 /// Classification of a workflow node by its side-effect profile (ADR-031).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum NodeKind {
     /// Pure computation — no side effects, deterministic.
+    #[default]
     Pure,
     /// Managed side-effect — tracked by the effect journal.
     ManagedEffect,

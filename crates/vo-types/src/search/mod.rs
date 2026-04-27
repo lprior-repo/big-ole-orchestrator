@@ -30,15 +30,15 @@ pub struct SearchResult {
     pub document_type: DocumentType,
 }
 
-#[derive(Debug, Clone)]
-struct DocumentEntry {
-    workspace_id: String,
-    doc_type: DocumentType,
-    #[allow(dead_code)]
-    text: String,
-    #[allow(dead_code)]
-    tags: Vec<String>,
-}
+   #[derive(Debug, Clone)]
+    pub struct DocumentEntry {
+        pub workspace_id: String,
+        pub doc_type: DocumentType,
+        #[allow(dead_code)]
+        pub text: String,
+        #[allow(dead_code)]
+        pub tags: Vec<String>,
+    }
 
 fn tokenize(text: &str) -> Vec<String> {
     text.to_lowercase()

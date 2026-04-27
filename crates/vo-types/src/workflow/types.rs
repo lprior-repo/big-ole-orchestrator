@@ -45,6 +45,15 @@ pub struct NodeCapability {
     pub connector: Option<ConnectorRequirement>,
 }
 
+impl Default for NodeCapability {
+    fn default() -> Self {
+        Self {
+            kind: NodeKind::default(),
+            connector: None,
+        }
+    }
+}
+
 impl NodeCapability {
     #[must_use]
     pub fn new(kind: NodeKind) -> Self {
