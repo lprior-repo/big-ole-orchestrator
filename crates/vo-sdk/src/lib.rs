@@ -76,6 +76,7 @@ use thiserror::Error;
 
 // Re-export public API
 pub use io::{is_read, is_written, read_input, secret, write_failure, write_success};
+pub use vo_types::TaskFailureKind;
 
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
@@ -89,25 +90,5 @@ pub enum SdkError {
     WriteError,
 }
 
-// TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
-// Kept here temporarily because this bead is scoped to vo-sdk only.
-// See: contract.md precondition "vo-types must define the shared IPC types"
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum TaskFailureKind {
-    User,
-    System,
-    Timeout,
-}
-
-impl TaskFailureKind {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::User => "User",
-            Self::System => "System",
-            Self::Timeout => "Timeout",
-        }
-    }
-}
-
-// TaskInput re-exported from vo_types.
+// TaskInput and TaskFailureKind re-exported from vo_types.
 pub use vo_types::TaskInput;
