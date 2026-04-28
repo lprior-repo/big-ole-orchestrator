@@ -320,7 +320,7 @@ impl ProjectionEngineBuilder {
             max_supported_version: self.max_supported_version,
             throttle: RebuildThrottleState::new(self.throttle_config),
             throttle_config: self.throttle_config,
-            active_rebuilds: Arc::new(HashMap::new()),
+            active_rebuilds: std::sync::RwLock::new(HashMap::new()),
             rebuild_in_progress: AtomicBool::new(false),
         }
     }
@@ -335,9 +335,7 @@ pub struct ProjectionEngine {
     max_supported_version: u8,
     throttle: RebuildThrottleState,
     throttle_config: RebuildThrottleConfig,
-    #[allow(dead_code)]
-    active_rebuilds: Arc<HashMap<String, Arc<RebuildContext>>>,
-    #[allow(dead_code)]
+    active_rebuilds: std::sync::RwLock<HashMap<String, Arc<RebuildContext>>>,
     rebuild_in_progress: AtomicBool,
 }
 
@@ -366,20 +364,38 @@ impl ProjectionEngine {
 
     pub fn try_acquire_rebuild_slot(
         &mut self,
-        _projection_id: &str,
+        projection_id: &str,
     ) -> Result<(), ProjectionError> {
+        {
+            let active = self.active_rebuilds.read().unwrap_or_else(|e| e.into_inner());
+            if active.contains_key(projection_id) {
+                return Err(ProjectionError::InvalidState(format!(
+                    "rebuild already in progress for projection '{projection_id}'"
+                )));
+            }
+        }
+
         match self.throttle.try_acquire_slot() {
             Some(wait_ms) if wait_ms > 0 => Err(ProjectionError::ThrottleExceeded(wait_ms)),
             Some(_) | None => {
+                let ctx = Arc::new(RebuildContext::new(projection_id.to_string(), 0));
+                let mut active = self.active_rebuilds.write().unwrap_or_else(|e| e.into_inner());
+                active.insert(projection_id.to_string(), ctx);
                 self.rebuild_in_progress.store(true, Ordering::Relaxed);
                 Ok(())
             }
         }
     }
 
-    pub fn release_rebuild_slot(&self) {
+    pub fn release_rebuild_slot(&self, projection_id: &str) {
         self.throttle.release_slot();
-        self.rebuild_in_progress.store(false, Ordering::Relaxed);
+        {
+            let mut active = self.active_rebuilds.write().unwrap_or_else(|e| e.into_inner());
+            active.remove(projection_id);
+            if active.is_empty() {
+                self.rebuild_in_progress.store(false, Ordering::Relaxed);
+            }
+        }
     }
 
     pub fn active_rebuild_count(&self) -> usize {

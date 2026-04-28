@@ -288,7 +288,7 @@ impl ProjectionRegistry {
 
         let result = rebuilder.rebuild_full(events);
 
-        self.engine.release_rebuild_slot();
+        self.engine.release_rebuild_slot(projection_id);
 
         match result {
             Ok(res) => {
