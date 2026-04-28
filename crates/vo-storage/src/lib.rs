@@ -48,6 +48,7 @@
     unsafe_code
 )]
 
+pub mod admission_commit;
 pub mod append;
 pub mod atomic_wait_commit;
 pub mod blob;
@@ -76,6 +77,7 @@ pub mod merkle_tree;
 pub mod mmap_cache;
 pub mod partitions;
 pub mod projection_compat;
+pub mod projection_rebuild;
 pub mod purge;
 pub mod qos_router;
 pub mod query;
