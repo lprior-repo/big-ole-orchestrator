@@ -7,6 +7,7 @@ pub mod error;
 pub mod events;
 mod structures;
 pub mod types;
+pub mod ports;
 
 pub use error::VoError;
 pub use events::{DuplicateResult, EventDedup, WorkflowEvent};
