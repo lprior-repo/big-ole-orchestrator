@@ -6,7 +6,8 @@ use vo_types::{
     SequenceNumber, StepId, TimerId,
 };
 
-use super::types::SnapshotData;
+use super::snapshot_commands::SnapshotData;
+use super::timer_commands::TimerOp;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -50,7 +51,7 @@ pub enum DbWriterMessage {
     AtomicTransition {
         step_id: Option<StepId>,
         instance_status: Option<InstanceStatus>,
-        timer_ops: Vec<super::types::TimerOp>,
+        timer_ops: Vec<TimerOp>,
         snapshot: Option<SnapshotData>,
         event: EventEnvelope,
     },
