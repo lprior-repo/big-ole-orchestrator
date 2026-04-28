@@ -1,8 +1,4 @@
 use std::path::PathBuf;
-<<<<<<< HEAD
-mod test_helpers;
-use test_helpers::{make_temp_dir, setup_project};
-=======
 
 fn make_temp_dir() -> PathBuf {
     let dir = tempfile::tempdir().unwrap();
@@ -22,7 +18,6 @@ fn setup_project(dir: &std::path::Path) {
     .unwrap();
 }
 
->>>>>>> e674fd02 (fix: auto-save uncommitted implementation work (gt-pvx safety net))
 use vo_cli::{
     commands::init::InitConfig, run_check, run_doctor, run_lock, BinaryFormat, CheckCategory, CheckError,
     DoctorConfig, DoctorError, LockConfig, Severity,

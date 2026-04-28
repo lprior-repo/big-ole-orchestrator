@@ -117,8 +117,9 @@ fn get_valid_transitions_returns_correct_events_for_pending() {
 #[test]
 fn get_valid_transitions_returns_correct_events_for_running_decision() {
     let transitions = get_valid_transitions(LifecycleState::RunningDecision);
-    assert_eq!(transitions.len(), 3);
+    assert_eq!(transitions.len(), 4);
     assert!(transitions.contains(&TransitionEvent::StepScheduled));
+    assert!(transitions.contains(&TransitionEvent::Hibernate));
     assert!(transitions.contains(&TransitionEvent::Cancel));
     assert!(transitions.contains(&TransitionEvent::Fail));
 }
@@ -135,11 +136,12 @@ fn get_valid_transitions_returns_correct_events_for_step_scheduled() {
 #[test]
 fn get_valid_transitions_returns_correct_events_for_step_executing() {
     let transitions = get_valid_transitions(LifecycleState::StepExecuting);
-    assert_eq!(transitions.len(), 6);
+    assert_eq!(transitions.len(), 7);
     assert!(transitions.contains(&TransitionEvent::WaitForTimer));
     assert!(transitions.contains(&TransitionEvent::YieldWithBlob));
     assert!(transitions.contains(&TransitionEvent::CompleteStep));
     assert!(transitions.contains(&TransitionEvent::PrepareEffect));
+    assert!(transitions.contains(&TransitionEvent::BeginCompensation));
     assert!(transitions.contains(&TransitionEvent::Cancel));
     assert!(transitions.contains(&TransitionEvent::Fail));
 }
@@ -147,9 +149,10 @@ fn get_valid_transitions_returns_correct_events_for_step_executing() {
 #[test]
 fn get_valid_transitions_returns_correct_events_for_waiting_for_timer() {
     let transitions = get_valid_transitions(LifecycleState::WaitingForTimer);
-    assert_eq!(transitions.len(), 4);
+    assert_eq!(transitions.len(), 5);
     assert!(transitions.contains(&TransitionEvent::TimerFired));
     assert!(transitions.contains(&TransitionEvent::TimerExpired));
+    assert!(transitions.contains(&TransitionEvent::Hibernate));
     assert!(transitions.contains(&TransitionEvent::Cancel));
     assert!(transitions.contains(&TransitionEvent::Fail));
 }
@@ -171,4 +174,67 @@ fn get_valid_transitions_returns_instance_resumed_for_failed() {
     let transitions = get_valid_transitions(LifecycleState::Failed);
     assert_eq!(transitions.len(), 1);
     assert!(transitions.contains(&TransitionEvent::InstanceResumed));
+}
+
+#[test]
+fn get_valid_transitions_returns_correct_events_for_hibernated() {
+    let transitions = get_valid_transitions(LifecycleState::Hibernated);
+    assert_eq!(transitions.len(), 2);
+    assert!(transitions.contains(&TransitionEvent::WakeFromHibernation));
+    assert!(transitions.contains(&TransitionEvent::Cancel));
+}
+
+#[test]
+fn get_valid_transitions_returns_correct_events_for_compensating() {
+    let transitions = get_valid_transitions(LifecycleState::Compensating);
+    assert_eq!(transitions.len(), 2);
+    assert!(transitions.contains(&TransitionEvent::CompensationCompleted));
+    assert!(transitions.contains(&TransitionEvent::CompensationFailed));
+}
+
+#[test]
+fn get_valid_transitions_returns_correct_events_for_reconciling() {
+    let transitions = get_valid_transitions(LifecycleState::Reconciling);
+    assert_eq!(transitions.len(), 2);
+    assert!(transitions.contains(&TransitionEvent::ReconciliationCompleted));
+    assert!(transitions.contains(&TransitionEvent::ReconciliationFailed));
+}
+
+#[test]
+fn get_operational_status_returns_blocked_for_hibernated() {
+    assert!(matches!(
+        get_operational_status(LifecycleState::Hibernated),
+        OperationalStatus::Blocked(BlockedReason::AwaitingWakeSignal)
+    ));
+}
+
+#[test]
+fn get_operational_status_returns_recovering_for_compensating() {
+    assert_eq!(
+        get_operational_status(LifecycleState::Compensating),
+        OperationalStatus::Recovering
+    );
+}
+
+#[test]
+fn get_operational_status_returns_recovering_for_reconciling() {
+    assert_eq!(
+        get_operational_status(LifecycleState::Reconciling),
+        OperationalStatus::Recovering
+    );
+}
+
+#[test]
+fn is_terminal_returns_false_for_hibernated() {
+    assert!(!is_terminal(LifecycleState::Hibernated));
+}
+
+#[test]
+fn is_terminal_returns_false_for_compensating() {
+    assert!(!is_terminal(LifecycleState::Compensating));
+}
+
+#[test]
+fn is_terminal_returns_false_for_reconciling() {
+    assert!(!is_terminal(LifecycleState::Reconciling));
 }

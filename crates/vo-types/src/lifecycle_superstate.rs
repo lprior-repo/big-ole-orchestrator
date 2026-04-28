@@ -173,6 +173,30 @@ mod tests {
         );
     }
 
+    #[test]
+    fn hibernated_maps_to_suspended() {
+        assert_eq!(
+            LifecycleState::Hibernated.superstate(),
+            LifecycleSuperstate::Suspended
+        );
+    }
+
+    #[test]
+    fn compensating_state_maps_to_compensating_superstate() {
+        assert_eq!(
+            LifecycleState::Compensating.superstate(),
+            LifecycleSuperstate::Compensating
+        );
+    }
+
+    #[test]
+    fn reconciling_maps_to_recovering() {
+        assert_eq!(
+            LifecycleState::Reconciling.superstate(),
+            LifecycleSuperstate::Recovering
+        );
+    }
+
     // --- LifecycleState serde roundtrip (ADR-039) ---
 
     #[test]
@@ -263,6 +287,33 @@ mod tests {
     }
 
     #[test]
+    fn lifecycle_state_hibernated_round_trips_via_serde() {
+        let json = "\"hibernated\"";
+        let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(parsed, LifecycleState::Hibernated);
+        let roundtrip = serde_json::to_string(&parsed).expect("serialize");
+        assert_eq!(roundtrip, json);
+    }
+
+    #[test]
+    fn lifecycle_state_compensating_round_trips_via_serde() {
+        let json = "\"compensating\"";
+        let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(parsed, LifecycleState::Compensating);
+        let roundtrip = serde_json::to_string(&parsed).expect("serialize");
+        assert_eq!(roundtrip, json);
+    }
+
+    #[test]
+    fn lifecycle_state_reconciling_round_trips_via_serde() {
+        let json = "\"reconciling\"";
+        let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(parsed, LifecycleState::Reconciling);
+        let roundtrip = serde_json::to_string(&parsed).expect("serialize");
+        assert_eq!(roundtrip, json);
+    }
+
+    #[test]
     fn lifecycle_state_all_variants_exhaustive() {
         use crate::state::LifecycleState;
         let states = [
@@ -273,6 +324,9 @@ mod tests {
             LifecycleState::PreparingEffect,
             LifecycleState::WaitingForTimer,
             LifecycleState::PendingPublication,
+            LifecycleState::Hibernated,
+            LifecycleState::Compensating,
+            LifecycleState::Reconciling,
             LifecycleState::Completed,
             LifecycleState::Failed,
             LifecycleState::Cancelled,
@@ -339,6 +393,7 @@ mod tests {
             OperationalStatus::Blocked(BlockedReason::DependenciesPending),
             OperationalStatus::Blocked(BlockedReason::ResourceContention),
             OperationalStatus::Blocked(BlockedReason::ManualHold),
+            OperationalStatus::Blocked(BlockedReason::AwaitingWakeSignal),
         ];
         for variant in variants {
             let json = serde_json::to_string(&variant).expect("serialize");
@@ -355,6 +410,7 @@ mod tests {
             BlockedReason::DependenciesPending,
             BlockedReason::ResourceContention,
             BlockedReason::ManualHold,
+            BlockedReason::AwaitingWakeSignal,
         ];
         for reason in &reasons {
             let json = serde_json::to_string(reason).expect("serialize");

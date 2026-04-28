@@ -32,6 +32,15 @@ pub enum LifecycleState {
     /// Publication barrier: waiting for blob to be verified durable (ADR-040)
     PendingPublication,
 
+    /// Actor is hibernated to disk, awaiting wake signal (ADR-005, ADR-039)
+    Hibernated,
+
+    /// Compensating: running undo/rollback logic for a previously committed step (ADR-039)
+    Compensating,
+
+    /// Reconciling: engine is reconciling state after crash or inconsistency (ADR-039)
+    Reconciling,
+
     /// Terminal state: bead completed successfully
     Completed,
 
@@ -55,6 +64,12 @@ impl LifecycleState {
             LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
             LifecycleState::PendingPublication => {
                 OperationalStatus::Blocked(BlockedReason::DependenciesPending)
+            }
+            LifecycleState::Hibernated => {
+                OperationalStatus::Blocked(BlockedReason::AwaitingWakeSignal)
+            }
+            LifecycleState::Compensating | LifecycleState::Reconciling => {
+                OperationalStatus::Recovering
             }
             LifecycleState::Completed | LifecycleState::Cancelled => {
                 OperationalStatus::Blocked(BlockedReason::ManualHold)
@@ -92,8 +107,16 @@ impl LifecycleState {
             LifecycleState::PreparingEffect => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Compensating
             }
-            LifecycleState::WaitingForTimer | LifecycleState::PendingPublication => {
+            LifecycleState::WaitingForTimer
+            | LifecycleState::PendingPublication
+            | LifecycleState::Hibernated => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
+            }
+            LifecycleState::Reconciling => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Recovering
+            }
+            LifecycleState::Compensating => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Compensating
             }
             LifecycleState::Failed => crate::lifecycle_superstate::LifecycleSuperstate::Recovering,
             LifecycleState::Completed | LifecycleState::Cancelled => {
@@ -112,6 +135,7 @@ impl LifecycleState {
             LifecycleState::RunningDecision => {
                 vec![
                     TransitionEvent::StepScheduled,
+                    TransitionEvent::Hibernate,
                     TransitionEvent::Cancel,
                     TransitionEvent::Fail,
                 ]
@@ -128,6 +152,7 @@ impl LifecycleState {
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
                 TransitionEvent::PrepareEffect,
+                TransitionEvent::BeginCompensation,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -139,6 +164,7 @@ impl LifecycleState {
             LifecycleState::WaitingForTimer => vec![
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
+                TransitionEvent::Hibernate,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -146,6 +172,18 @@ impl LifecycleState {
                 TransitionEvent::ConfirmPublication,
                 TransitionEvent::PublicationFailed,
                 TransitionEvent::Cancel,
+            ],
+            LifecycleState::Hibernated => vec![
+                TransitionEvent::WakeFromHibernation,
+                TransitionEvent::Cancel,
+            ],
+            LifecycleState::Compensating => vec![
+                TransitionEvent::CompensationCompleted,
+                TransitionEvent::CompensationFailed,
+            ],
+            LifecycleState::Reconciling => vec![
+                TransitionEvent::ReconciliationCompleted,
+                TransitionEvent::ReconciliationFailed,
             ],
             LifecycleState::Completed | LifecycleState::Cancelled => vec![],
             LifecycleState::Failed => vec![TransitionEvent::InstanceResumed],
@@ -177,6 +215,8 @@ pub enum BlockedReason {
     ResourceContention,
     /// Manual hold
     ManualHold,
+    /// Hibernated actor awaiting wake signal (ADR-005, ADR-039)
+    AwaitingWakeSignal,
 }
 
 /// Transition event that triggers state changes
@@ -217,6 +257,26 @@ pub enum TransitionEvent {
     // From Failed (only InstanceResumed valid)
     InstanceResumed,
     // From Cancelled (terminal - no transitions)
+
+    // Hibernation events (ADR-005, ADR-039)
+    /// Actor suspends to disk; transitions RunningDecision/WaitingForTimer -> Hibernated
+    Hibernate,
+    /// Actor wakes from hibernation; transitions Hibernated -> RunningDecision
+    WakeFromHibernation,
+
+    // Compensation events (ADR-039)
+    /// Begin compensating a committed step; transitions StepExecuting -> Compensating
+    BeginCompensation,
+    /// Compensation succeeded; transitions Compensating -> Completed
+    CompensationCompleted,
+    /// Compensation failed; transitions Compensating -> Failed
+    CompensationFailed,
+
+    // Reconciliation events (ADR-039)
+    /// Reconciliation succeeded; transitions Reconciling -> RunningDecision
+    ReconciliationCompleted,
+    /// Reconciliation failed; transitions Reconciling -> Failed
+    ReconciliationFailed,
 }
 
 impl TransitionEvent {
@@ -240,6 +300,13 @@ impl TransitionEvent {
             TransitionEvent::PublicationFailed,
             TransitionEvent::EmitOutputRef,
             TransitionEvent::InstanceResumed,
+            TransitionEvent::Hibernate,
+            TransitionEvent::WakeFromHibernation,
+            TransitionEvent::BeginCompensation,
+            TransitionEvent::CompensationCompleted,
+            TransitionEvent::CompensationFailed,
+            TransitionEvent::ReconciliationCompleted,
+            TransitionEvent::ReconciliationFailed,
         ]
     }
 }

@@ -10,15 +10,6 @@ use std::sync::LazyLock;
 use std::mem;
 use tokio::runtime::Handle;
 
-static BLOCKING_RT: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("Failed to build blocking runtime");
-    mem::forget(rt);
-    BLOCKING_RT_HANDLE.load(std::sync::atomic::Ordering::Relaxed)
-});
-
 static BLOCKING_RT_HANDLE: LazyLock<Handle> = LazyLock::new(|| {
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -31,10 +22,6 @@ static BLOCKING_RT_HANDLE: LazyLock<Handle> = LazyLock::new(|| {
 
 fn blocking_handle() -> Handle {
     BLOCKING_RT_HANDLE.clone()
-}
-
-fn blocking_handle() -> Handle {
-    BLOCKING_RT.handle().clone()
 }
 
 #[derive(Debug, Clone)]

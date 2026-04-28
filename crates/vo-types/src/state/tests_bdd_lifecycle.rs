@@ -170,10 +170,10 @@ mod superstate_hierarchy {
     }
 
     #[test]
-    fn given_failed_when_superstate_then_terminal() {
+    fn given_failed_when_superstate_then_recovering() {
         assert_eq!(
             LifecycleState::Failed.superstate(),
-            LifecycleSuperstate::Terminal
+            LifecycleSuperstate::Recovering
         );
     }
 
@@ -187,24 +187,39 @@ mod superstate_hierarchy {
 
     #[test]
     fn given_any_state_when_superstate_is_terminal_then_is_terminal_agrees() {
+        // Note: Failed is terminal but maps to Recovering superstate (it can be resumed).
+        // Only Completed and Cancelled are in the Terminal superstate and are truly terminal.
+        let terminal_states = [
+            LifecycleState::Completed,
+            LifecycleState::Cancelled,
+        ];
+        for state in &terminal_states {
+            assert!(state.is_terminal());
+            assert_eq!(state.superstate(), LifecycleSuperstate::Terminal);
+        }
+        // Failed is terminal but in Recovering superstate
+        assert!(LifecycleState::Failed.is_terminal());
+        assert_eq!(LifecycleState::Failed.superstate(), LifecycleSuperstate::Recovering);
+
+        // Non-terminal states should not be in Terminal superstate
         let all_states = [
             LifecycleState::Pending,
             LifecycleState::RunningDecision,
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
+            LifecycleState::PreparingEffect,
             LifecycleState::WaitingForTimer,
             LifecycleState::PendingPublication,
-            LifecycleState::Completed,
-            LifecycleState::Failed,
-            LifecycleState::Cancelled,
+            LifecycleState::Hibernated,
+            LifecycleState::Compensating,
+            LifecycleState::Reconciling,
         ];
-
         for state in all_states {
-            let is_terminal = state.is_terminal();
-            let is_terminal_superstate = state.superstate() == LifecycleSuperstate::Terminal;
-            assert_eq!(
-                is_terminal, is_terminal_superstate,
-                "is_terminal() and superstate()==Terminal disagree for {:?}",
+            assert!(!state.is_terminal(), "{:?} should not be terminal", state);
+            assert_ne!(
+                state.superstate(),
+                LifecycleSuperstate::Terminal,
+                "{:?} should not be in Terminal superstate",
                 state
             );
         }
@@ -322,7 +337,7 @@ mod terminal_reachability {
         .unwrap();
         assert_eq!(next, LifecycleState::Failed);
         assert!(next.is_terminal());
-        assert_eq!(next.superstate(), LifecycleSuperstate::Terminal);
+        assert_eq!(next.superstate(), LifecycleSuperstate::Recovering);
     }
 
     #[test]
@@ -434,16 +449,16 @@ mod terminal_reachability {
 
     #[test]
     fn given_any_non_pending_pub_state_when_all_valid_transitions_applied_then_all_succeed() {
-        // NOTE: PendingPublication lists ConfirmPublication/PublicationFailed as valid
-        // transitions via get_valid_transitions(), but apply() does not handle them yet.
-        // Similarly, StepExecuting lists YieldWithBlob but apply() doesn't handle it.
-        // These are known gaps between the declarative table and the imperative apply().
         let all_states = [
             LifecycleState::Pending,
             LifecycleState::RunningDecision,
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
+            LifecycleState::PreparingEffect,
             LifecycleState::WaitingForTimer,
+            LifecycleState::Hibernated,
+            LifecycleState::Compensating,
+            LifecycleState::Reconciling,
             LifecycleState::Completed,
             LifecycleState::Failed,
             LifecycleState::Cancelled,
@@ -452,10 +467,6 @@ mod terminal_reachability {
         for state in all_states {
             let valid_events = state.get_valid_transitions();
             for event in valid_events {
-                // Skip events not yet handled by apply()
-                if event == TransitionEvent::YieldWithBlob {
-                    continue;
-                }
                 let result = apply(state, event);
                 assert!(
                     result.is_ok(),
@@ -468,16 +479,16 @@ mod terminal_reachability {
 
     #[test]
     fn given_any_state_and_any_event_when_apply_succeeds_then_event_in_valid_transitions() {
-        // NOTE: PendingPublication lists ConfirmPublication/PublicationFailed/Cancel as
-        // valid via get_valid_transitions(), but apply() does not handle them yet.
-        // StepExecuting lists YieldWithBlob but apply() doesn't handle it.
-        // These are known gaps between the declarative table and imperative apply().
         let all_states = [
             LifecycleState::Pending,
             LifecycleState::RunningDecision,
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
+            LifecycleState::PreparingEffect,
             LifecycleState::WaitingForTimer,
+            LifecycleState::Hibernated,
+            LifecycleState::Compensating,
+            LifecycleState::Reconciling,
             LifecycleState::Completed,
             LifecycleState::Failed,
             LifecycleState::Cancelled,
@@ -486,10 +497,6 @@ mod terminal_reachability {
         for state in all_states {
             let valid = state.get_valid_transitions();
             for event in TransitionEvent::all_variants() {
-                // Skip events not yet handled by apply()
-                if *event == TransitionEvent::YieldWithBlob {
-                    continue;
-                }
                 // EmitOutputRef is valid from Completed but not in get_valid_transitions()
                 if state == LifecycleState::Completed && *event == TransitionEvent::EmitOutputRef {
                     continue;
@@ -504,5 +511,109 @@ mod terminal_reachability {
                 );
             }
         }
+    }
+
+    // ========================================================================
+    // Hibernation, Compensation, Reconciliation paths
+    // ========================================================================
+
+    #[test]
+    fn given_running_decision_when_hibernate_then_hibernated() {
+        let next = apply(LifecycleState::RunningDecision, TransitionEvent::Hibernate).unwrap();
+        assert_eq!(next, LifecycleState::Hibernated);
+        assert!(!next.is_terminal());
+        assert_eq!(next.superstate(), LifecycleSuperstate::Suspended);
+    }
+
+    #[test]
+    fn given_waiting_for_timer_when_hibernate_then_hibernated() {
+        let next = apply(LifecycleState::WaitingForTimer, TransitionEvent::Hibernate).unwrap();
+        assert_eq!(next, LifecycleState::Hibernated);
+    }
+
+    #[test]
+    fn given_hibernated_when_wake_then_running_decision() {
+        let next = apply(LifecycleState::Hibernated, TransitionEvent::WakeFromHibernation).unwrap();
+        assert_eq!(next, LifecycleState::RunningDecision);
+        assert_eq!(next.superstate(), LifecycleSuperstate::Active);
+    }
+
+    #[test]
+    fn given_hibernated_when_cancel_then_cancelled() {
+        let next = apply(LifecycleState::Hibernated, TransitionEvent::Cancel).unwrap();
+        assert_eq!(next, LifecycleState::Cancelled);
+        assert!(next.is_terminal());
+    }
+
+    #[test]
+    fn given_step_executing_when_begin_compensation_then_compensating() {
+        let next = apply(LifecycleState::StepExecuting, TransitionEvent::BeginCompensation).unwrap();
+        assert_eq!(next, LifecycleState::Compensating);
+        assert!(!next.is_terminal());
+        assert_eq!(next.superstate(), LifecycleSuperstate::Compensating);
+    }
+
+    #[test]
+    fn given_compensating_when_compensation_completed_then_completed() {
+        let next = apply(LifecycleState::Compensating, TransitionEvent::CompensationCompleted).unwrap();
+        assert_eq!(next, LifecycleState::Completed);
+        assert!(next.is_terminal());
+    }
+
+    #[test]
+    fn given_compensating_when_compensation_failed_then_failed() {
+        let next = apply(LifecycleState::Compensating, TransitionEvent::CompensationFailed).unwrap();
+        assert_eq!(next, LifecycleState::Failed);
+        assert!(next.is_terminal());
+    }
+
+    #[test]
+    fn given_reconciling_when_reconciliation_completed_then_running_decision() {
+        let next = apply(LifecycleState::Reconciling, TransitionEvent::ReconciliationCompleted).unwrap();
+        assert_eq!(next, LifecycleState::RunningDecision);
+        assert!(!next.is_terminal());
+        assert_eq!(next.superstate(), LifecycleSuperstate::Active);
+    }
+
+    #[test]
+    fn given_reconciling_when_reconciliation_failed_then_failed() {
+        let next = apply(LifecycleState::Reconciling, TransitionEvent::ReconciliationFailed).unwrap();
+        assert_eq!(next, LifecycleState::Failed);
+        assert!(next.is_terminal());
+    }
+
+    #[test]
+    fn given_compensating_when_cancel_then_cancelled() {
+        let next = apply(LifecycleState::Compensating, TransitionEvent::Cancel).unwrap();
+        assert_eq!(next, LifecycleState::Cancelled);
+    }
+
+    #[test]
+    fn given_reconciling_when_cancel_then_cancelled() {
+        let next = apply(LifecycleState::Reconciling, TransitionEvent::Cancel).unwrap();
+        assert_eq!(next, LifecycleState::Cancelled);
+    }
+
+    #[test]
+    fn full_hibernation_wake_path() {
+        let mut state = LifecycleState::Pending;
+        state = apply(state, TransitionEvent::AssignToNode).unwrap();
+        state = apply(state, TransitionEvent::Hibernate).unwrap();
+        assert_eq!(state, LifecycleState::Hibernated);
+        state = apply(state, TransitionEvent::WakeFromHibernation).unwrap();
+        assert_eq!(state, LifecycleState::RunningDecision);
+        state = apply(state, TransitionEvent::StepScheduled).unwrap();
+        state = apply(state, TransitionEvent::ExecuteStep).unwrap();
+        state = apply(state, TransitionEvent::CompleteStep).unwrap();
+        assert_eq!(state, LifecycleState::Completed);
+    }
+
+    #[test]
+    fn full_compensation_path() {
+        let mut state = LifecycleState::StepExecuting;
+        state = apply(state, TransitionEvent::BeginCompensation).unwrap();
+        assert_eq!(state, LifecycleState::Compensating);
+        state = apply(state, TransitionEvent::CompensationCompleted).unwrap();
+        assert_eq!(state, LifecycleState::Completed);
     }
 }
