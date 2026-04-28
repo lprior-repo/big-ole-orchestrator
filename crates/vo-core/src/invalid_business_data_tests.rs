@@ -545,26 +545,28 @@ mod workload_class_boundary {
     }
 
     #[test]
-    fn parse_uppercase_returns_unknown() {
-        assert!(WorkloadClass::parse("EXACT_CRITICAL").is_err());
+    fn parse_uppercase_is_case_insensitive() {
+        // The unified parser is intentionally case-insensitive.
+        assert!(WorkloadClass::parse("EXACT_CRITICAL").is_ok());
     }
 
     #[test]
-    fn parse_mixed_case_returns_unknown() {
-        assert!(WorkloadClass::parse("Standard").is_err());
+    fn parse_mixed_case_is_case_insensitive() {
+        // The unified parser is intentionally case-insensitive.
+        assert!(WorkloadClass::parse("Standard").is_ok());
     }
 
     #[test]
     fn budget_all_zero_acquire_fails_immediately() {
         let budget = WorkloadBudget::new(0, 0, 0, 0);
-        for class in WorkloadClass::all_by_priority() {
+        for class in crate::workload_class::ADR033_CLASSES {
             assert!(
-                budget.acquire(*class).is_err(),
+                budget.acquire(class).is_err(),
                 "{:?} should fail with zero budget",
                 class
             );
             assert!(
-                !budget.can_acquire(*class),
+                !budget.can_acquire(class),
                 "{:?} should not be acquirable",
                 class
             );

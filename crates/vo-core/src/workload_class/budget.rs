@@ -19,7 +19,7 @@ pub struct WorkloadBudget {
 
 impl WorkloadBudget {
     fn class_index(class: WorkloadClass) -> usize {
-        class.rank() as usize
+        super::class::adr033_class_index(class)
     }
 
     /// Creates a budget with per-class reserved permit counts.

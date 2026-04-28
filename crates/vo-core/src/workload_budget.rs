@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::workload_class::{WorkloadClass, WorkloadClassError};
+use crate::workload_class::{adr033_class_index, WorkloadClass, WorkloadClassError};
 
 #[derive(Clone, Debug)]
 pub struct WorkloadBudget {
@@ -10,7 +10,7 @@ pub struct WorkloadBudget {
 
 impl WorkloadBudget {
     fn class_index(class: WorkloadClass) -> usize {
-        class.rank() as usize
+        adr033_class_index(class)
     }
 
     #[must_use]
@@ -169,7 +169,7 @@ mod proptest_workload_invariants {
         fn rank_in_range(variant in proptest::sample::select(
             WorkloadClass::all_by_priority().to_vec()
         )) {
-            prop_assert!((0..=3u8).contains(&variant.rank()));
+            prop_assert!((0..=9u8).contains(&variant.rank()));
         }
     }
 
@@ -179,7 +179,7 @@ mod proptest_workload_invariants {
             WorkloadClass::all_by_priority().to_vec()
         )) {
             let never = variant.never_starved();
-            let is_protected = matches!(variant, WorkloadClass::ExactCritical | WorkloadClass::Recovery);
+            let is_protected = matches!(variant, WorkloadClass::ExactCritical | WorkloadClass::Live | WorkloadClass::Recovery);
             prop_assert_eq!(never, is_protected);
         }
     }
@@ -189,7 +189,8 @@ mod proptest_workload_invariants {
         fn as_str_roundtrips(variant in proptest::sample::select(
             WorkloadClass::all_by_priority().to_vec()
         )) {
-            prop_assert_eq!(WorkloadClass::parse(variant.as_str()), Ok(variant));
+            prop_assert!(WorkloadClass::parse(variant.as_str()).is_ok());
+            prop_assert_eq!(WorkloadClass::parse(variant.as_str()).unwrap(), variant);
         }
     }
 

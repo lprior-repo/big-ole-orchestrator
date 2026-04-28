@@ -16,6 +16,6 @@ mod degraded;
 mod error;
 
 pub use budget::{RejectionDetail, RejectionReason, WorkloadBudget};
-pub use class::WorkloadClass;
+pub use class::{adr033_class_index, ADR033_CLASSES, WorkloadClass};
 pub use degraded::DegradedBudget;
 pub use error::WorkloadClassError;

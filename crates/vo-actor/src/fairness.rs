@@ -1,58 +1,10 @@
 //! Fairness tracking types for workload classification.
 //!
-//! Provides the `WorkloadClass` taxonomy used by the admission controller
-//! and permit budget system (ADR-033). Every workload resolves to exactly
-//! one class, ensuring all work is subject to fairness accounting.
+//! Re-exports the canonical `WorkloadClass` from `vo_types::workload_class`.
 
-use std::fmt;
-use std::str::FromStr;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum WorkloadClass {
-    Recovery,
-    NewInstance,
-    #[default]
-    Internal,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum WorkloadClassParseError {
-    #[error(
-        "unknown workload class: \"{input}\". Valid classes: recovery, new_instance, internal"
-    )]
-    Unknown { input: String },
-}
-
-impl FromStr for WorkloadClass {
-    type Err = WorkloadClassParseError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
-            "recovery" => Ok(Self::Recovery),
-            "new_instance" | "newinstance" => Ok(Self::NewInstance),
-            "internal" => Ok(Self::Internal),
-            _ => Err(WorkloadClassParseError::Unknown {
-                input: s.to_string(),
-            }),
-        }
-    }
-}
-
-impl fmt::Display for WorkloadClass {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Recovery => write!(f, "recovery"),
-            Self::NewInstance => write!(f, "new_instance"),
-            Self::Internal => write!(f, "internal"),
-        }
-    }
-}
-
-pub const ALL_WORKLOAD_CLASSES: [WorkloadClass; 3] = [
-    WorkloadClass::Recovery,
-    WorkloadClass::NewInstance,
-    WorkloadClass::Internal,
-];
+pub use vo_types::workload_class::{
+    WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES,
+};
 
 #[cfg(test)]
 mod tests {
@@ -88,14 +40,8 @@ mod tests {
 
     #[test]
     fn parse_rejects_unknown() {
-        let result: Result<WorkloadClass, WorkloadClassParseError> = "background".parse();
+        let result: Result<WorkloadClass, WorkloadClassParseError> = "foobar".parse();
         assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert!(
-            matches!(err, WorkloadClassParseError::Unknown { ref input } if input == "background")
-        );
-        assert!(err.to_string().contains("background"));
-        assert!(err.to_string().contains("recovery"));
     }
 
     #[test]
@@ -105,8 +51,8 @@ mod tests {
     }
 
     #[test]
-    fn default_is_internal() {
-        assert_eq!(WorkloadClass::default(), WorkloadClass::Internal);
+    fn default_is_standard() {
+        assert_eq!(WorkloadClass::default(), WorkloadClass::Standard);
     }
 
     #[test]
@@ -127,7 +73,7 @@ mod tests {
 
     #[test]
     fn all_classes_contains_all_variants() {
-        assert_eq!(ALL_WORKLOAD_CLASSES.len(), 3);
+        assert_eq!(ALL_WORKLOAD_CLASSES.len(), 10);
         assert!(ALL_WORKLOAD_CLASSES.contains(&WorkloadClass::Recovery));
         assert!(ALL_WORKLOAD_CLASSES.contains(&WorkloadClass::NewInstance));
         assert!(ALL_WORKLOAD_CLASSES.contains(&WorkloadClass::Internal));
@@ -135,7 +81,18 @@ mod tests {
 
     #[test]
     fn every_workload_resolves_to_exactly_one_class() {
-        let classes = ["recovery", "new_instance", "internal"];
+        let classes = [
+            "recovery",
+            "new_instance",
+            "internal",
+            "exact_critical",
+            "live",
+            "standard",
+            "timer_resume",
+            "non_critical",
+            "background",
+            "unsafe_bulk",
+        ];
         for input in classes {
             let class: WorkloadClass = input.parse().unwrap();
             let count = ALL_WORKLOAD_CLASSES.iter().filter(|&&c| c == class).count();

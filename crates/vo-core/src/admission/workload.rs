@@ -21,62 +21,20 @@
 use serde::{Deserialize, Serialize};
 
 use super::types::PressureIndicator;
+pub use vo_types::workload_class::WorkloadClass;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WorkloadClass Enum
+// Admission Budget Classes (subset of WorkloadClass used by ADR-013 budgets)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Workload classification for budget-based admission per ADR-013.
-///
-/// Variants are ordered by priority (highest first) for admission decisions.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkloadClass {
-    /// Highest priority. Never rejected in any degraded mode.
-    Live,
-    /// Reserved capacity for crash recovery.
-    Recovery,
-    /// Timer-based resume, shares budget with Recovery.
-    TimerResume,
-    /// First to be rejected when degraded.
-    NonCritical,
-    /// Background tasks (blob writes, projections), deferred in degraded mode.
-    Background,
-}
-
-impl WorkloadClass {
-    /// Returns `true` if this class is never starved (always gets budget).
-    #[must_use]
-    pub fn never_starved(self) -> bool {
-        matches!(self, WorkloadClass::Live | WorkloadClass::Recovery)
-    }
-
-    /// Returns `true` if this class is deferred in degraded mode.
-    #[must_use]
-    pub fn is_deferred_in_degraded(self) -> bool {
-        matches!(self, WorkloadClass::NonCritical | WorkloadClass::Background)
-    }
-
-    /// Returns `true` if this class is accepted in Critical degraded mode.
-    ///
-    /// Only Live and Recovery are accepted when system is critical.
-    #[must_use]
-    pub fn is_accepted_in_critical(self) -> bool {
-        matches!(self, WorkloadClass::Live | WorkloadClass::Recovery)
-    }
-
-    /// Returns all variants ordered by priority (highest first).
-    #[must_use]
-    pub fn all_by_priority() -> &'static [WorkloadClass] {
-        &[
-            WorkloadClass::Live,
-            WorkloadClass::Recovery,
-            WorkloadClass::TimerResume,
-            WorkloadClass::NonCritical,
-            WorkloadClass::Background,
-        ]
-    }
-}
+/// The 5 workload classes managed by the admission budget system, in priority order.
+const ADMISSION_CLASSES: [WorkloadClass; 5] = [
+    WorkloadClass::Live,
+    WorkloadClass::Recovery,
+    WorkloadClass::TimerResume,
+    WorkloadClass::NonCritical,
+    WorkloadClass::Background,
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DegradedMode Enum
@@ -230,12 +188,11 @@ impl WorkloadBudget {
 
     /// Creates a budget with custom allocations.
     ///
-    /// The arrays must have exactly 5 elements matching the 5 WorkloadClass variants
+    /// The arrays must have exactly 5 elements matching the 5 ADMISSION_CLASSES
     /// in priority order: Live, Recovery, TimerResume, NonCritical, Background.
     #[must_use]
     pub fn with_allocations(max_slots: [u32; 5], reserved_min: [u32; 5]) -> Self {
-        let classes = WorkloadClass::all_by_priority();
-        let allocations: Vec<BudgetAllocation> = classes
+        let allocations: Vec<BudgetAllocation> = ADMISSION_CLASSES
             .iter()
             .zip(max_slots.iter().zip(reserved_min.iter()))
             .map(|(class, (max, reserved))| BudgetAllocation::new(*class, *max, *reserved))

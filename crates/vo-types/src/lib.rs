@@ -74,6 +74,7 @@ mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
+pub mod workload_class;
 pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
@@ -177,6 +178,9 @@ pub use types::{
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, GuaranteeClass, RetryPolicy, RetryPolicyError,
     StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
+};
+pub use workload_class::{
+    WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES,
 };
 
 #[cfg(kani)]

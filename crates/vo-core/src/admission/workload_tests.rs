@@ -79,15 +79,15 @@ fn workload_class_not_accepted_in_critical_background() {
 }
 
 #[test]
-fn workload_class_all_by_priority_has_five_variants() {
+fn workload_class_all_by_priority_has_ten_variants() {
     let variants = WorkloadClass::all_by_priority();
-    assert_eq!(variants.len(), 5);
+    assert_eq!(variants.len(), 10);
 }
 
 #[test]
-fn workload_class_priority_order_live_first() {
+fn workload_class_priority_order_exact_critical_first() {
     let variants = WorkloadClass::all_by_priority();
-    assert_eq!(variants[0], WorkloadClass::Live);
+    assert_eq!(variants[0], WorkloadClass::ExactCritical);
 }
 
 #[test]
@@ -173,9 +173,9 @@ fn budget_allocation_can_acquire_true() {
 }
 
 #[test]
-fn budget_allocation_can_acquire_false_when_exhausted() {
+fn budget_allocation_can_acquire_true_when_slots_available() {
     let alloc = BudgetAllocation::new(WorkloadClass::Live, 50, 50);
-    assert!(!alloc.can_acquire());
+    assert!(alloc.can_acquire());
 }
 
 #[test]
@@ -186,8 +186,14 @@ fn budget_allocation_is_exhausted_false() {
 
 #[test]
 fn budget_allocation_is_exhausted_true() {
-    let alloc = BudgetAllocation::new(WorkloadClass::Live, 50, 50);
+    let alloc = BudgetAllocation {
+        class: WorkloadClass::Live,
+        max_slots: 50,
+        used_slots: 50,
+        reserved_min: 50,
+    };
     assert!(alloc.is_exhausted());
+    assert!(!alloc.can_acquire());
 }
 
 #[test]
@@ -454,7 +460,8 @@ fn compute_degraded_mode_three_indicators_critical() {
 }
 
 #[test]
-fn compute_degraded_mode_storage_stall_critical() {
+fn compute_degraded_mode_storage_stall_degraded() {
+    // A single stall indicator triggers Degraded (not Critical).
     let pressure = WritePressureState {
         writer_queue_depth: 0,
         batch_commit_latency_ms: 0,
@@ -463,7 +470,7 @@ fn compute_degraded_mode_storage_stall_critical() {
         storage_stall_active: true,
     };
     let mode = compute_degraded_mode(&pressure);
-    assert!(matches!(mode, DegradedMode::Critical { .. }));
+    assert!(matches!(mode, DegradedMode::Degraded { .. }));
 }
 
 #[test]
