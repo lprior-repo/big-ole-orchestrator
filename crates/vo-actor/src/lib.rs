@@ -9,10 +9,14 @@ use vo_types::InstanceId;
 
 pub mod heartbeat;
 
+<<<<<<< Updated upstream
 pub mod master {
     pub struct MasterOrchestrator;
     pub struct OrchestratorConfig;
 }
+=======
+pub mod heartbeat;
+>>>>>>> Stashed changes
 
 pub mod async_message_router;
 pub mod fairness;

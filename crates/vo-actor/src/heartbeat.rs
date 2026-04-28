@@ -366,15 +366,31 @@ impl HeartbeatWatcher {
     }
 }
 
+/// Errors that can occur during heartbeat watcher operations.
+///
+/// Wraps either a [`ProbeError`] from a failed health probe or a generic
+/// registry access error.
 #[derive(Debug, thiserror::Error)]
 pub enum HeartbeatError {
+    /// A probe check failed (e.g., HTTP connection refused, TCP timeout).
     #[error("probe error: {0}")]
     Probe(#[from] ProbeError),
+    /// A registry operation failed (e.g., probe registry access error).
     #[error("registry error: {0}")]
     Registry(String),
 }
 
 /// Helper to run the heartbeat watcher with lifecycle integration.
+///
+/// Creates a [`HeartbeatWatcher`] with default configuration and starts the
+/// monitoring loop. This function runs indefinitely until the process is terminated.
+///
+/// # Panics
+///
+/// This function will panic if the watcher encounters an error during `run()`.
+/// For production use, prefer constructing a [`HeartbeatWatcher`] directly and
+/// handling errors gracefully via [`HeartbeatWatcher::run`] or
+/// [`HeartbeatWatcher::run_until_shutdown`].
 pub async fn run_heartbeat_watcher() {
     let _config = HeartbeatWatcherConfig::default();
     let watcher = HeartbeatWatcher::with_defaults();
