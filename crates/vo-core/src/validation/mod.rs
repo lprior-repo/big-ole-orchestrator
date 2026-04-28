@@ -10,17 +10,20 @@
 //!   (e.g., Unsafe nodes in non-BestEffort workflows)
 //! - Publish-time rejection of exact-once workflows missing dedupe policy (ADR-028)
 
+pub mod guarantee_validator;
 pub mod payload;
+pub mod sink_validator;
 pub mod unsafe_node;
 pub mod workflow;
 
+pub use guarantee_validator::{validate_exact_workflow_node_kinds, NodeDescriptor, UnsafeNodeError};
 pub use payload::{validate_inline_size, PayloadTooLarge};
-pub use unsafe_node::{validate_no_unsafe_in_exact_workflow, UnsafeNodeInExactWorkflow};
-pub use workflow::{
-    validate_effect_kinds, validate_exact_workflow_node_kinds, validate_workflow_effects,
-    validate_workflow_sinks, KnownSinks, NodeDescriptor, UnsafeNodeError,
-    UnsupportedSinkError, WorkflowSinkValidator,
+pub use sink_validator::{
+    validate_effect_kinds, validate_managed_effect_sinks, validate_workflow_effects,
+    validate_workflow_sinks, KnownSinks, UnsupportedConnectorSink, UnsupportedSinkError,
+    WorkflowSinkValidator,
 };
+pub use unsafe_node::{validate_no_unsafe_in_exact_workflow, UnsafeNodeInExactWorkflow};
 
 #[cfg(test)]
 mod workflow_tests;

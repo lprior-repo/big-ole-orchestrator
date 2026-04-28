@@ -4,8 +4,7 @@
 //! ensuring no published workflow can contain a managed
 //! effect targeting an unknown sink.
 
-use super::workflow::*;
-use std::collections::HashSet;
+use super::workflow::sink_validator::*;
 
 #[test]
 fn known_sinks_default_contains_blob_http_sql() {
