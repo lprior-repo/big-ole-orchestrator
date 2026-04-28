@@ -3,6 +3,15 @@
 use serde::{Deserialize, Serialize};
 use vo_types::{BinaryHash, RegistrationStatus, TimestampMs, WorkflowName};
 
+use crate::ghost_workflow::GhostWorkflowError;
+
+/// Domain event emitted when a workflow is reaped (Deactivated → Deleted).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkflowReaped {
+    pub workflow: WorkflowName,
+    pub version_hash: BinaryHash,
+}
+
 /// Persisted workflow registration with lifecycle metadata.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkflowRegistration {
@@ -72,6 +81,31 @@ impl WorkflowRegistration {
     #[must_use]
     pub fn is_reapable(&self) -> bool {
         self.status == RegistrationStatus::Deactivated && self.running_instance_count == 0
+    }
+
+    /// Transition to Deleted with validation.
+    ///
+    /// Only allowed from `Deactivated` with zero running instances.
+    /// Returns the domain event on success.
+    pub fn transition_to_deleted(&mut self) -> Result<WorkflowReaped, GhostWorkflowError> {
+        match self.status {
+            RegistrationStatus::Deactivated if self.running_instance_count == 0 => {
+                self.status = RegistrationStatus::Deleted;
+                Ok(WorkflowReaped {
+                    workflow: self.name.clone(),
+                    version_hash: self.version_hash.clone(),
+                })
+            }
+            RegistrationStatus::Deactivated => Err(GhostWorkflowError::ReaperNotDeactivated {
+                workflow: self.name.as_str().to_string(),
+                status: RegistrationStatus::Deactivated,
+            }),
+            current => Err(GhostWorkflowError::InvalidTransition {
+                workflow: self.name.as_str().to_string(),
+                from: current,
+                to: RegistrationStatus::Deleted,
+            }),
+        }
     }
 
     pub(crate) fn set_status(&mut self, status: RegistrationStatus) {

@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::time::{interval, Instant};
 use vo_types::WorkflowName;
 
-use super::{GhostLifecycle, GhostLifecycleStore, WorkflowRegistration};
+use super::{GhostLifecycle, GhostLifecycleStore, WorkflowReaped, WorkflowRegistration};
 use crate::ghost_workflow::GhostWorkflowError;
 
 pub struct ReaperConfig {
@@ -65,10 +65,10 @@ pub async fn spawn_reaper(
             lc.reap()
         };
 
-        for name in &reaped {
-            tracing::info!(workflow = %name, "reaping workflow");
+        for event in &reaped {
+            tracing::info!(workflow = %event.workflow, "reaping workflow");
 
-            if let Ok(reg) = store.get(name) {
+            if let Ok(reg) = store.get(&event.workflow) {
                 let bin_path = binary_path(&reg, &config.versions_path);
                 if bin_path.exists() {
                     match tokio::fs::remove_file(&bin_path).await {
@@ -77,8 +77,8 @@ pub async fn spawn_reaper(
                     }
                 }
 
-                if let Err(e) = store.delete(name) {
-                    tracing::error!(workflow = %name, error = %e, "failed to delete registration from store");
+                if let Err(e) = store.delete(&event.workflow) {
+                    tracing::error!(workflow = %event.workflow, error = %e, "failed to delete registration from store");
                 }
             }
         }

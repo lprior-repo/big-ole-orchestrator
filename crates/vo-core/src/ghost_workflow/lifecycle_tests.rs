@@ -2,7 +2,9 @@
 
 use vo_types::{BinaryHash, RegistrationStatus, TimestampMs, WorkflowName};
 
-use crate::ghost_workflow::{GhostLifecycle, GhostWorkflowError, WorkflowRegistration};
+use crate::ghost_workflow::{
+    GhostLifecycle, GhostWorkflowError, WorkflowReaped, WorkflowRegistration,
+};
 
 fn make_hash() -> BinaryHash {
     BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap()
@@ -129,8 +131,60 @@ fn reap_deactivated_with_zero_instances() {
     let reaped = lc.reap();
 
     assert_eq!(reaped.len(), 1);
-    assert_eq!(reaped[0], name);
+    assert_eq!(reaped[0].workflow, name);
+    assert_eq!(reaped[0].version_hash, make_hash());
     assert_eq!(lc.get(&name).unwrap().status(), RegistrationStatus::Deleted);
+}
+
+#[test]
+fn transition_to_deleted_succeeds_from_deactivated() {
+    let mut reg = make_registration("test-wf");
+    reg.set_status(RegistrationStatus::Deactivated);
+
+    let event = reg.transition_to_deleted().unwrap();
+    assert_eq!(event.workflow, make_name("test-wf"));
+    assert_eq!(event.version_hash, make_hash());
+    assert_eq!(reg.status(), RegistrationStatus::Deleted);
+}
+
+#[test]
+fn transition_to_deleted_rejects_active() {
+    let mut reg = make_registration("test-wf");
+    let result = reg.transition_to_deleted();
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        GhostWorkflowError::InvalidTransition { .. }
+    ));
+    assert_eq!(reg.status(), RegistrationStatus::Active);
+}
+
+#[test]
+fn transition_to_deleted_rejects_deactivated_with_instances() {
+    let mut reg = make_registration("test-wf");
+    reg.set_status(RegistrationStatus::Deactivated);
+    reg.running_instance_count = 2;
+
+    let result = reg.transition_to_deleted();
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        GhostWorkflowError::ReaperNotDeactivated { .. }
+    ));
+    assert_eq!(reg.status(), RegistrationStatus::Deactivated);
+}
+
+#[test]
+fn transition_to_deleted_rejects_already_deleted() {
+    let mut reg = make_registration("test-wf");
+    reg.set_status(RegistrationStatus::Deleted);
+
+    let result = reg.transition_to_deleted();
+    assert!(result.is_err());
+    assert!(matches!(
+        result.unwrap_err(),
+        GhostWorkflowError::InvalidTransition { .. }
+    ));
 }
 
 #[test]

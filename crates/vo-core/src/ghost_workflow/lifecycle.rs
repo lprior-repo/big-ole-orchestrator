@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use vo_types::{RegistrationStatus, TimestampMs, WorkflowName};
 
-use super::{GhostWorkflowError, WorkflowRegistration};
+use super::{GhostWorkflowError, WorkflowReaped, WorkflowRegistration};
 
 #[derive(Debug, Clone)]
 pub struct GhostLifecycle {
@@ -82,21 +82,28 @@ impl GhostLifecycle {
         }
     }
 
-    pub fn reap(&mut self) -> Vec<WorkflowName> {
-        let reaped: Vec<WorkflowName> = self
+    /// Run one reaper sweep: reap all Deactivated workflows with 0 running instances.
+    ///
+    /// Returns domain events for each reaped workflow. Uses `transition_to_deleted()`
+    /// for validated transitions instead of direct field mutation.
+    pub fn reap(&mut self) -> Vec<WorkflowReaped> {
+        let candidates: Vec<WorkflowName> = self
             .registrations
             .iter()
             .filter(|(_, reg)| reg.is_reapable())
             .map(|(name, _)| name.clone())
             .collect();
 
-        for name in &reaped {
+        let mut events = Vec::with_capacity(candidates.len());
+        for name in &candidates {
             if let Some(reg) = self.registrations.get_mut(name) {
-                reg.set_status(RegistrationStatus::Deleted);
+                if let Ok(event) = reg.transition_to_deleted() {
+                    events.push(event);
+                }
             }
         }
 
-        reaped
+        events
     }
 
     #[must_use]
