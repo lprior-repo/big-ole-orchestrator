@@ -1,4 +1,4 @@
-//! EventStore trait for append-only event log storage (ADR-002).
+//! `EventStore` trait for append-only event log storage (ADR-002).
 //!
 //! Architecture: Data (`EventStoreError`) → Calc (`append_events_checked`) → Actions
 //! (`EventStore` async trait).
@@ -29,15 +29,11 @@ pub enum EventStoreError {
 impl From<EventStoreError> for vo_types::events::Error {
     fn from(e: EventStoreError) -> Self {
         match e {
-            EventStoreError::OccConflict { .. } => {
-                vo_types::events::Error::PayloadDecodeSkipped
-            }
-            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed(
-                Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
-            ),
-            EventStoreError::InvalidArgument { .. } => {
-                vo_types::events::Error::InvalidEnvelopeFormat
-            }
+            EventStoreError::OccConflict { .. } => Self::PayloadDecodeSkipped,
+            EventStoreError::Storage { .. } => Self::PayloadDecodeFailed {
+                source: Box::new(Self::InvalidEnvelopeFormat),
+            },
+            EventStoreError::InvalidArgument { .. } => Self::InvalidEnvelopeFormat,
         }
     }
 }
@@ -50,10 +46,7 @@ pub trait EventStore: Send + Sync {
         events: Vec<EventEnvelope>,
     ) -> Result<u64, EventStoreError>;
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError>;
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError>;
 }
 
 #[derive(Debug, Clone)]
@@ -63,6 +56,7 @@ pub struct InMemoryEventStore {
 }
 
 impl InMemoryEventStore {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sequences: Arc::new(RwLock::new(HashMap::new())),
@@ -71,11 +65,7 @@ impl InMemoryEventStore {
     }
 
     #[cfg(test)]
-    pub fn with_events(
-        self,
-        instance_id: InstanceId,
-        events: Vec<EventEnvelope>,
-    ) -> Self {
+    pub fn with_events(self, instance_id: InstanceId, events: Vec<EventEnvelope>) -> Self {
         let mut seq_store = self.sequences.write().unwrap();
         let mut event_store = self.events.write().unwrap();
         if let Some(last) = events.last() {
@@ -96,6 +86,7 @@ impl Default for InMemoryEventStore {
 
 #[async_trait]
 impl EventStore for InMemoryEventStore {
+    #[allow(clippy::unwrap_used)]
     async fn append(
         &self,
         instance_id: &InstanceId,
@@ -114,7 +105,7 @@ impl EventStore for InMemoryEventStore {
 
         let first_sequence = events
             .first()
-            .ok_or(EventStoreError::InvalidArgument {
+            .ok_or_else(|| EventStoreError::InvalidArgument {
                 reason: "events batch cannot be empty".to_string(),
             })?
             .sequence;
@@ -125,8 +116,7 @@ impl EventStore for InMemoryEventStore {
                 events_store
                     .get(instance_id)
                     .and_then(|e| e.last())
-                    .map(|e| e.sequence)
-                    .unwrap_or(0)
+                    .map_or(0, |e| e.sequence)
             };
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
@@ -154,9 +144,7 @@ impl EventStore for InMemoryEventStore {
             let mut sequences = self.sequences.write().unwrap();
             let mut events_store = self.events.write().unwrap();
             sequences.insert(instance_id.clone(), final_sequence);
-            events_store
-                .entry(instance_id.clone())
-                .or_insert_with(Vec::new);
+            events_store.entry(instance_id.clone()).or_default();
             if let Some(existing) = events_store.get_mut(instance_id) {
                 existing.extend(events);
             }
@@ -165,10 +153,8 @@ impl EventStore for InMemoryEventStore {
         Ok(final_sequence)
     }
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError> {
+    #[allow(clippy::unwrap_used)]
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
         let sequences = self.sequences.read().unwrap();
         Ok(sequences.get(instance_id).copied().unwrap_or(0))
     }
@@ -357,9 +343,6 @@ mod tests {
         let events = vec![make_envelope(&instance_id, 1)];
 
         let result = store.append(&instance_id, events).await;
-        assert!(matches!(
-            result,
-            Err(EventStoreError::Storage { .. })
-        ));
+        assert!(matches!(result, Err(EventStoreError::Storage { .. })));
     }
 }

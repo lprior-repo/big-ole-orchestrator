@@ -48,20 +48,14 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut pending = self
-            .pending
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut pending = self.pending.write().unwrap_or_else(|e| e.into_inner());
         *pending = Some(new_config);
 
         Ok(())
     }
 
     pub fn commit(&self) -> Result<T, Error> {
-        let mut pending = self
-            .pending
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut pending = self.pending.write().unwrap_or_else(|e| e.into_inner());
         if let Some(new_config) = pending.take() {
             let mut current = self.current.write().expect(
                 "SAFETY: RwLock not poisoned — no code path panics while holding this lock",
@@ -74,10 +68,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     }
 
     pub fn rollback(&self) {
-        let mut pending = self
-            .pending
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut pending = self.pending.write().unwrap_or_else(|e| e.into_inner());
         *pending = None;
     }
 
@@ -100,10 +91,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             .validate(&new_config)
             .map_err(Error::ValidationFailed)?;
 
-        let mut current = self
-            .current
-            .write()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut current = self.current.write().unwrap_or_else(|e| e.into_inner());
         let old = (*current).clone();
         *current = new_config;
 

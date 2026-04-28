@@ -843,10 +843,7 @@ mod tests {
     #[test]
     fn timer_id_rejects_non_identifier_chars_when_invalid_input() {
         let result = TimerId::parse("timer@#$%^&*()");
-        assert!(
-            result.is_err(),
-            "TimerId must reject non-identifier chars"
-        );
+        assert!(result.is_err(), "TimerId must reject non-identifier chars");
     }
 
     #[test]
@@ -888,19 +885,13 @@ mod tests {
     #[test]
     fn timer_id_rejects_unicode_chars_when_input_has_non_ascii() {
         let result = TimerId::parse("\u{00e9}\u{00f1}");
-        assert!(
-            result.is_err(),
-            "TimerId must reject unicode chars"
-        );
+        assert!(result.is_err(), "TimerId must reject unicode chars");
     }
 
     #[test]
     fn timer_id_rejects_whitespace_chars_when_input_has_space() {
         let result = TimerId::parse("timer ");
-        assert!(
-            result.is_err(),
-            "TimerId must reject whitespace"
-        );
+        assert!(result.is_err(), "TimerId must reject whitespace");
     }
 
     #[test]

@@ -24,13 +24,10 @@ pub use metrics::{Counter, Gauge, Histogram, TelemetryMetrics};
 pub use traces::TelemetryTracer;
 
 #[cfg(feature = "telemetry")]
-pub use export::{TelemetryExporter, OtlpEndpoint, TelemetryConfig};
+pub use export::{OtlpEndpoint, TelemetryConfig, TelemetryExporter};
 
 #[cfg(feature = "telemetry")]
 use std::sync::Arc;
-
-#[cfg(feature = "telemetry")]
-use std::sync::atomic::{AtomicU64, Ordering};
 
 #[cfg(feature = "telemetry")]
 #[derive(Debug, Default)]

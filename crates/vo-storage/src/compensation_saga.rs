@@ -284,8 +284,7 @@ impl CompensationManifest {
             .filter_map(|id| {
                 self.entries
                     .get(id)
-                    .map(|e| e.status == SagaCompensationStatus::Pending)
-                    .unwrap_or(false)
+                    .is_some_and(|e| e.status == SagaCompensationStatus::Pending)
                     .then_some(id.clone())
             })
             .collect();
@@ -317,10 +316,10 @@ impl CompensationManifest {
         let mut result: Vec<String> = Vec::with_capacity(pending_effects.len());
 
         for effect_id in pending_effects.iter().rev() {
+            #[allow(clippy::unnecessary_map_or)]
             let all_deps_emitted = dependents
                 .get(effect_id)
-                .map(|deps| deps.iter().all(|d| emitted.contains(d)))
-                .unwrap_or(true);
+                .map_or(true, |deps| deps.iter().all(|d| emitted.contains(d)));
 
             if all_deps_emitted {
                 result.push((*effect_id).clone());

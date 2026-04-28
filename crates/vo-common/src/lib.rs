@@ -10,14 +10,14 @@ pub mod types;
 
 pub use error::VoError;
 pub use events::{DuplicateResult, EventDedup, WorkflowEvent};
-pub use types::{EventId, InstanceId, NamespaceId, TimerId};
 pub use structures::{Bounds, Octree, Vec3};
+pub use types::{EventId, InstanceId, NamespaceId, TimerId};
 
 #[cfg(feature = "telemetry")]
 pub mod telemetry;
 
 #[cfg(feature = "telemetry")]
 pub use telemetry::{
-    Counter, Gauge, Histogram, OtlpEndpoint, TelemetryConfig,
-    TelemetryExporter, TelemetryMetrics, TelemetryTracer,
+    Counter, Gauge, Histogram, OtlpEndpoint, TelemetryConfig, TelemetryExporter, TelemetryMetrics,
+    TelemetryTracer,
 };

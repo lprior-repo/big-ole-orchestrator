@@ -36,15 +36,12 @@ where
         let mut interval = interval(self.sweep_interval);
         loop {
             interval.tick().await;
-            match self.query.query_orphans().await {
-                Ok(orphans) => {
-                    for orphan in orphans {
-                        if tx.send(orphan).await.is_err() {
-                            return;
-                        }
+            if let Ok(orphans) = self.query.query_orphans().await {
+                for orphan in orphans {
+                    if tx.send(orphan).await.is_err() {
+                        return;
                     }
                 }
-                Err(_) => {}
             }
         }
     }

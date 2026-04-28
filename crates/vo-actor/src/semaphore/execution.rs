@@ -53,6 +53,7 @@ impl ExecutionSemaphore {
 
     /// Creates a new execution semaphore with default config.
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Self {
         Self::new(SemaphoreConfig::default())
     }

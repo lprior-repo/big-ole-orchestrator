@@ -10,7 +10,7 @@ use vo_common::WorkflowEvent;
 #[cfg(test)]
 mod serialization_bomb {
     use super::*;
-    use serde_json::{Value, json};
+    use serde_json::{json, Value};
 
     #[test]
     fn deeply_nested_rejected_not_consumed() {
@@ -127,10 +127,17 @@ mod serialization_bomb {
         let start = Instant::now();
         for (i, a) in events.iter().enumerate() {
             for (j, b) in events.iter().enumerate() {
-                if i == j { assert_eq!(a, b); } else { assert_ne!(a, b); }
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
             }
         }
-        assert!(start.elapsed().as_secs() < 10, "equality checks took too long");
+        assert!(
+            start.elapsed().as_secs() < 10,
+            "equality checks took too long"
+        );
     }
 
     #[test]
@@ -178,7 +185,9 @@ mod serialization_bomb {
                 })
             })
             .collect();
-        for h in handles { h.join().unwrap(); }
+        for h in handles {
+            h.join().unwrap();
+        }
     }
 
     #[test]
@@ -226,7 +235,10 @@ mod serialization_bomb {
             timestamp_ms: 0,
         };
         let json_str = serde_json::to_string(&event).unwrap();
-        assert!(!json_str.contains('\0'), "null byte must be escaped in JSON output");
+        assert!(
+            !json_str.contains('\0'),
+            "null byte must be escaped in JSON output"
+        );
         let rt: WorkflowEvent = serde_json::from_str(&json_str).unwrap();
         assert_eq!(rt, event);
     }
@@ -256,20 +268,34 @@ mod serialization_bomb {
     #[test]
     fn json_output_size_bounded_by_input() {
         let id = "x".repeat(100);
-        let event = WorkflowEvent::TimerFired { timer_id: id.clone(), timestamp_ms: 42 };
+        let event = WorkflowEvent::TimerFired {
+            timer_id: id.clone(),
+            timestamp_ms: 42,
+        };
         let json_str = serde_json::to_string(&event).unwrap();
-        assert!(json_str.len() < id.len() * 5, "JSON output too large: {} vs input {}", json_str.len(), id.len());
+        assert!(
+            json_str.len() < id.len() * 5,
+            "JSON output too large: {} vs input {}",
+            json_str.len(),
+            id.len()
+        );
     }
 
     #[test]
     fn many_events_vec_no_leak() {
         let events: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| WorkflowEvent::TimerFired { timer_id: format!("evt-{i}"), timestamp_ms: i })
+            .map(|i| WorkflowEvent::TimerFired {
+                timer_id: format!("evt-{i}"),
+                timestamp_ms: i,
+            })
             .collect();
         assert_eq!(events.len(), 10_000);
         drop(events);
         let events2: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| WorkflowEvent::TimerFired { timer_id: format!("evt-{i}"), timestamp_ms: i })
+            .map(|i| WorkflowEvent::TimerFired {
+                timer_id: format!("evt-{i}"),
+                timestamp_ms: i,
+            })
             .collect();
         assert_eq!(events2.len(), 10_000);
     }
@@ -286,21 +312,39 @@ mod serialization_bomb {
 
     #[test]
     fn identical_events_are_equal() {
-        let e1 = WorkflowEvent::TimerFired { timer_id: "replay".into(), timestamp_ms: 100 };
-        let e2 = WorkflowEvent::TimerFired { timer_id: "replay".into(), timestamp_ms: 100 };
+        let e1 = WorkflowEvent::TimerFired {
+            timer_id: "replay".into(),
+            timestamp_ms: 100,
+        };
+        let e2 = WorkflowEvent::TimerFired {
+            timer_id: "replay".into(),
+            timestamp_ms: 100,
+        };
         assert_eq!(e1, e2);
     }
 
     #[test]
     fn timestamp_diff_distinguishes_replay() {
-        let e1 = WorkflowEvent::TimerFired { timer_id: "same-id".into(), timestamp_ms: 100 };
-        let e2 = WorkflowEvent::TimerFired { timer_id: "same-id".into(), timestamp_ms: 101 };
-        assert_ne!(e1, e2, "replayed event with different timestamp must be distinct");
+        let e1 = WorkflowEvent::TimerFired {
+            timer_id: "same-id".into(),
+            timestamp_ms: 100,
+        };
+        let e2 = WorkflowEvent::TimerFired {
+            timer_id: "same-id".into(),
+            timestamp_ms: 101,
+        };
+        assert_ne!(
+            e1, e2,
+            "replayed event with different timestamp must be distinct"
+        );
     }
 
     #[test]
     fn json_replay_deterministic() {
-        let event = WorkflowEvent::TimerFired { timer_id: "det".into(), timestamp_ms: 42 };
+        let event = WorkflowEvent::TimerFired {
+            timer_id: "det".into(),
+            timestamp_ms: 42,
+        };
         let j1 = serde_json::to_string(&event).unwrap();
         let j2 = serde_json::to_string(&event).unwrap();
         assert_eq!(j1, j2, "same event must produce identical JSON");
@@ -309,9 +353,10 @@ mod serialization_bomb {
     #[test]
     fn unknown_variant_step_completed_rejected() {
         use serde_json::json;
-        assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"StepCompleted":{"step_id":"s1"}})
-        ).is_err());
+        assert!(
+            serde_json::from_value::<WorkflowEvent>(json!({"StepCompleted":{"step_id":"s1"}}))
+                .is_err()
+        );
     }
 
     #[test]
@@ -332,6 +377,7 @@ mod serialization_bomb {
     fn float_timestamp_rejected() {
         assert!(serde_json::from_str::<WorkflowEvent>(
             r#"{"TimerFired":{"timer_id":"t","timestamp_ms":1.5}}"#
-        ).is_err());
+        )
+        .is_err());
     }
 }

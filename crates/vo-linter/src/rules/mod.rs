@@ -50,9 +50,7 @@ impl RuleRegistry {
     /// Create a new registry with all built-in rules.
     #[must_use]
     pub fn new() -> Self {
-        let mut registry = Self {
-            rules: Vec::new(),
-        };
+        let mut registry = Self { rules: Vec::new() };
         registry.add_rule(random::RandomRule);
         registry
     }

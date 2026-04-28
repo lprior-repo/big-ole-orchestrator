@@ -6,7 +6,7 @@
 
 use std::io::Cursor;
 
-use vo_ipc::{write_envelope, read_envelope, Fd3Envelope, Fd4Envelope, TaskResult};
+use vo_ipc::{read_envelope, write_envelope, Fd3Envelope, Fd4Envelope, TaskResult};
 
 proptest::proptest! {
     #[test]

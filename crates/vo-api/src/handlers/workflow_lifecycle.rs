@@ -34,7 +34,7 @@ pub async fn terminate_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let (_, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -51,6 +51,7 @@ pub async fn terminate_workflow(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::Terminate {
+                namespace: namespace.clone(),
                 instance_id,
                 reason: "api-terminate".to_owned(),
                 reply: tx,
@@ -149,7 +150,7 @@ pub async fn compensate_workflow(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    let (_, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -166,6 +167,7 @@ pub async fn compensate_workflow(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::Compensate {
+                namespace: namespace.clone(),
                 instance_id,
                 reply: tx,
             },

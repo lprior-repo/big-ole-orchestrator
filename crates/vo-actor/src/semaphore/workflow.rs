@@ -36,6 +36,7 @@ impl WorkflowSemaphoreMap {
 
     /// Creates a new workflow semaphore map with default settings.
     #[must_use]
+    #[allow(clippy::should_implement_trait)]
     pub fn default() -> Self {
         Self::new(DEFAULT_MAX_PER_WORKFLOW)
     }
@@ -69,13 +70,19 @@ impl WorkflowSemaphoreMap {
     /// Returns the number of semaphores currently tracked.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.semaphores.read().unwrap_or_else(|e| e.into_inner()).len()
+        self.semaphores
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     /// Returns true if no workflows are being tracked.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.semaphores.read().unwrap_or_else(|e| e.into_inner()).is_empty()
+        self.semaphores
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_empty()
     }
 
     /// Cleans up semaphores with no waiting tasks.

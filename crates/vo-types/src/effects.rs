@@ -671,9 +671,7 @@ mod tests {
     #[case(EffectKind::HttpCall)]
     #[case(EffectKind::SqlQuery)]
     #[case(EffectKind::BlobWrite)]
-    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
-        #[case] kind: EffectKind,
-    ) {
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(#[case] kind: EffectKind) {
         let record = EffectRecord::new(
             "fx-test-kind".to_string(),
             kind,

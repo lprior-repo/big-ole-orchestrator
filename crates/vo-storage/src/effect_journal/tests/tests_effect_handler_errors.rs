@@ -39,11 +39,20 @@ fn handler_panic_during_effect_execution_preserves_prepared_effect() {
     )
     .unwrap();
 
-    let effect_id = journal.prepare(&id, record.clone()).expect("prepare succeeds");
-    assert_eq!(effect_id.as_str(), format!("{}::fx-panic-handler", id.as_str()));
+    let effect_id = journal
+        .prepare(&id, record.clone())
+        .expect("prepare succeeds");
+    assert_eq!(
+        effect_id.as_str(),
+        format!("{}::fx-panic-handler", id.as_str())
+    );
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 1, "prepared effect must be present after handler panic");
+    assert_eq!(
+        pending.len(),
+        1,
+        "prepared effect must be present after handler panic"
+    );
     assert_eq!(pending[0].intent_id(), "fx-panic-handler");
     assert_eq!(pending[0].status(), EffectIntent::Prepared);
 }
@@ -69,7 +78,10 @@ fn handler_panic_allows_rollback_recovery() {
         .expect("rollback succeeds even after handler panic");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert!(pending.is_empty(), "rolled-back effect must not appear pending");
+    assert!(
+        pending.is_empty(),
+        "rolled-back effect must not appear pending"
+    );
 }
 
 #[test]
@@ -93,7 +105,10 @@ fn handler_panic_allows_commit_retry() {
         .expect("commit succeeds after handler panic is resolved");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert!(pending.is_empty(), "committed effect must not appear pending");
+    assert!(
+        pending.is_empty(),
+        "committed effect must not appear pending"
+    );
 }
 
 #[test]
@@ -118,13 +133,23 @@ fn multiple_effects_one_handler_panic_others_unchanged() {
     )
     .unwrap();
 
-    let _effect_id1 = journal.prepare(&id, record1).expect("first prepare succeeds");
-    let effect_id2 = journal.prepare(&id, record2).expect("second prepare succeeds");
+    let _effect_id1 = journal
+        .prepare(&id, record1)
+        .expect("first prepare succeeds");
+    let effect_id2 = journal
+        .prepare(&id, record2)
+        .expect("second prepare succeeds");
 
-    journal.commit(&effect_id2).expect("second effect committed");
+    journal
+        .commit(&effect_id2)
+        .expect("second effect committed");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 1, "only un-committed effect should be pending");
+    assert_eq!(
+        pending.len(),
+        1,
+        "only un-committed effect should be pending"
+    );
     assert_eq!(pending[0].intent_id(), "fx-panic-first");
 }
 
@@ -151,21 +176,30 @@ fn handler_hang_during_execution_preserves_journal_consistency() {
     let effect_id = journal.prepare(&id, record).expect("prepare succeeds");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 1, "prepared effect must be present despite handler hang");
+    assert_eq!(
+        pending.len(),
+        1,
+        "prepared effect must be present despite handler hang"
+    );
     assert_eq!(pending[0].intent_id(), "fx-hang-handler");
 
     journal
         .rollback(&effect_id)
         .expect("rollback succeeds despite handler hang");
 
-    let pending_after = journal.list_pending(&id).expect("list_pending succeeds after rollback");
-    assert!(pending_after.is_empty(), "journal must be consistent after rollback");
+    let pending_after = journal
+        .list_pending(&id)
+        .expect("list_pending succeeds after rollback");
+    assert!(
+        pending_after.is_empty(),
+        "journal must be consistent after rollback"
+    );
 }
 
 #[test]
 fn concurrent_hang_and_rollback_maintains_consistency() {
-    use std::thread;
     use std::sync::Arc;
+    use std::thread;
 
     let journal = Arc::new(InMemoryEffectJournal::new());
     let id = sample_instance_id();
@@ -188,7 +222,10 @@ fn concurrent_hang_and_rollback_maintains_consistency() {
     });
 
     let result = handle.join();
-    assert!(result.is_ok(), "other operations must not be blocked by handler hang");
+    assert!(
+        result.is_ok(),
+        "other operations must not be blocked by handler hang"
+    );
 
     journal
         .rollback(&effect_id)
@@ -209,7 +246,9 @@ fn handler_hang_idempotent_prepare_remains_valid() {
     )
     .unwrap();
 
-    let effect_id1 = journal.prepare(&id, record1).expect("first prepare succeeds");
+    let effect_id1 = journal
+        .prepare(&id, record1)
+        .expect("first prepare succeeds");
 
     let record2 = EffectRecord::new(
         "fx-hang-idempotent".to_string(),
@@ -220,12 +259,21 @@ fn handler_hang_idempotent_prepare_remains_valid() {
     )
     .unwrap();
 
-    let effect_id2 = journal.prepare(&id, record2).expect("idempotent re-prepare succeeds");
+    let effect_id2 = journal
+        .prepare(&id, record2)
+        .expect("idempotent re-prepare succeeds");
 
-    assert_eq!(effect_id1, effect_id2, "idempotent prepare must return same effect_id");
+    assert_eq!(
+        effect_id1, effect_id2,
+        "idempotent prepare must return same effect_id"
+    );
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 1, "idempotent prepare must not create duplicate");
+    assert_eq!(
+        pending.len(),
+        1,
+        "idempotent prepare must not create duplicate"
+    );
 }
 
 // ========================================================================
@@ -251,7 +299,11 @@ fn handler_timeout_during_effect_preserves_prepared_effect() {
     let effect_id = journal.prepare(&id, record).expect("prepare succeeds");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 1, "prepared effect must be present after timeout");
+    assert_eq!(
+        pending.len(),
+        1,
+        "prepared effect must be present after timeout"
+    );
     assert_eq!(pending[0].intent_id(), "fx-timeout-handler");
     assert_eq!(pending[0].status(), EffectIntent::Prepared);
 }
@@ -273,10 +325,16 @@ fn handler_timeout_allows_rollback() {
     let effect_id = journal.prepare(&id, record).expect("prepare succeeds");
 
     let result = journal.rollback(&effect_id);
-    assert!(result.is_ok(), "rollback must succeed after handler timeout");
+    assert!(
+        result.is_ok(),
+        "rollback must succeed after handler timeout"
+    );
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert!(pending.is_empty(), "rolled-back effect must not appear pending");
+    assert!(
+        pending.is_empty(),
+        "rolled-back effect must not appear pending"
+    );
 }
 
 #[test]
@@ -293,7 +351,9 @@ fn handler_timeout_allows_retry_with_new_effect_id() {
     )
     .unwrap();
 
-    let effect_id1 = journal.prepare(&id, record1).expect("first prepare succeeds");
+    let effect_id1 = journal
+        .prepare(&id, record1)
+        .expect("first prepare succeeds");
 
     journal
         .rollback(&effect_id1)
@@ -308,7 +368,9 @@ fn handler_timeout_allows_retry_with_new_effect_id() {
     )
     .unwrap();
 
-    let effect_id2 = journal.prepare(&id, record2).expect("retry prepare succeeds");
+    let effect_id2 = journal
+        .prepare(&id, record2)
+        .expect("retry prepare succeeds");
 
     assert_ne!(
         effect_id1.as_str(),
@@ -321,7 +383,10 @@ fn handler_timeout_allows_retry_with_new_effect_id() {
         .expect("retry commit must succeed");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert!(pending.is_empty(), "committed effect must not appear pending");
+    assert!(
+        pending.is_empty(),
+        "committed effect must not appear pending"
+    );
 }
 
 #[test]
@@ -354,16 +419,26 @@ fn handler_timeout_multiple_effects_only_timed_out_one_rollback() {
     )
     .unwrap();
 
-    let effect_id1 = journal.prepare(&id, record1).expect("first prepare succeeds");
-    let effect_id2 = journal.prepare(&id, record2).expect("second prepare succeeds");
-    let effect_id3 = journal.prepare(&id, record3).expect("third prepare succeeds");
+    let effect_id1 = journal
+        .prepare(&id, record1)
+        .expect("first prepare succeeds");
+    let effect_id2 = journal
+        .prepare(&id, record2)
+        .expect("second prepare succeeds");
+    let effect_id3 = journal
+        .prepare(&id, record3)
+        .expect("third prepare succeeds");
 
     journal
         .rollback(&effect_id2)
         .expect("only timed-out effect rolled back");
 
     let pending = journal.list_pending(&id).expect("list_pending succeeds");
-    assert_eq!(pending.len(), 2, "only non-timed-out effects should remain pending");
+    assert_eq!(
+        pending.len(),
+        2,
+        "only non-timed-out effects should remain pending"
+    );
 
     let intent_ids: Vec<&str> = pending.iter().map(|r| r.intent_id()).collect();
     assert!(
@@ -383,10 +458,7 @@ fn handler_timeout_multiple_effects_only_timed_out_one_rollback() {
     journal.commit(&effect_id3).expect("third commit succeeds");
 
     let pending_final = journal.list_pending(&id).expect("list_pending succeeds");
-    assert!(
-        pending_final.is_empty(),
-        "all effects should be resolved"
-    );
+    assert!(pending_final.is_empty(), "all effects should be resolved");
 }
 
 // ========================================================================
@@ -447,9 +519,7 @@ fn already_terminal_error_is_properly_returned() {
 
     let effect_id = journal.prepare(&id, record).expect("prepare succeeds");
 
-    journal
-        .commit(&effect_id)
-        .expect("first commit succeeds");
+    journal.commit(&effect_id).expect("first commit succeeds");
 
     let result = journal.commit(&effect_id);
     assert!(
@@ -492,7 +562,9 @@ fn codec_error_during_decode_does_not_corrupt_journal() {
         .rollback(&effect_id)
         .expect("rollback must succeed after codec verification");
 
-    let pending_after = journal.list_pending(&id).expect("list_pending succeeds after rollback");
+    let pending_after = journal
+        .list_pending(&id)
+        .expect("list_pending succeeds after rollback");
     assert!(
         pending_after.is_empty(),
         "journal must be consistent after rollback"
@@ -587,8 +659,12 @@ fn effect_id_uniqueness_per_instance() {
     )
     .unwrap();
 
-    let effect_id1 = journal.prepare(&id1, record1).expect("prepare for instance 1");
-    let effect_id2 = journal.prepare(&id2, record2).expect("prepare for instance 2");
+    let effect_id1 = journal
+        .prepare(&id1, record1)
+        .expect("prepare for instance 1");
+    let effect_id2 = journal
+        .prepare(&id2, record2)
+        .expect("prepare for instance 2");
 
     assert_ne!(
         effect_id1.as_str(),

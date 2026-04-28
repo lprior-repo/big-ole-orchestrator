@@ -11,13 +11,16 @@ use serde_json::json;
 use vo_types::events::EventMetadata;
 use vo_types::{EventEnvelope, InstanceId};
 
-use crate::codec::{StorageError, EVENT_KEY_VERSION};
+use crate::codec::StorageError;
 use crate::query::{replay_events_by_prefix, EventReplayIterator};
 
 const EVENTS_PARTITION: &str = "events";
 const SEQUENCE_BYTES: usize = 8;
+const EVENT_KEY_VERSION: u8 = 0u8;
 
-static STREAM_LOCKS: OnceLock<Mutex<HashMap<Vec<u8>, Arc<Mutex<()>>>>> = OnceLock::new();
+type StreamLockMap = HashMap<Vec<u8>, Arc<Mutex<()>>>;
+
+static STREAM_LOCKS: OnceLock<Mutex<StreamLockMap>> = OnceLock::new();
 
 #[derive(Debug, Clone)]
 pub struct AppendEventRequest {

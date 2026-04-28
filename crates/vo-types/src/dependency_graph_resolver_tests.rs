@@ -666,8 +666,12 @@ fn execution_layers_all_edges_go_forward() {
 
     // Verify all edges go from earlier to later layers
     for edge in &workflow.edges {
-        let from_layer = node_layer.get(edge.source_node.as_str()).expect("source should be in layers");
-        let to_layer = node_layer.get(edge.target_node.as_str()).expect("target should be in layers");
+        let from_layer = node_layer
+            .get(edge.source_node.as_str())
+            .expect("source should be in layers");
+        let to_layer = node_layer
+            .get(edge.target_node.as_str())
+            .expect("target should be in layers");
         assert!(
             from_layer < to_layer,
             "Edge {} -> {} should go forward: layer {} -> layer {}",
@@ -772,7 +776,11 @@ fn execution_layers_parallel_nodes_all_ready_together() {
     let ready = DependencyGraphResolver::ready_nodes(&workflow, &completed);
 
     // All three parallel nodes should be ready at the same time
-    assert_eq!(ready.len(), 3, "All 3 parallel nodes should be ready together");
+    assert_eq!(
+        ready.len(),
+        3,
+        "All 3 parallel nodes should be ready together"
+    );
     assert!(ready.contains(&NodeName("b".into())));
     assert!(ready.contains(&NodeName("c".into())));
     assert!(ready.contains(&NodeName("d".into())));

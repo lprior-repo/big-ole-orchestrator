@@ -22,7 +22,7 @@ pub async fn send_signal(
     Path(id): Path<String>,
     Json(req): Json<V3SignalRequest>,
 ) -> impl IntoResponse {
-    let (_, instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -54,6 +54,7 @@ pub async fn send_signal(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::Signal {
+                namespace: namespace.clone(),
                 instance_id,
                 signal_name: req.signal_name.clone(),
                 payload,

@@ -6,6 +6,7 @@ use crate::structures::octree::{Bounds, Vec3};
 
 /// Compute the center point of a bounds.
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn bounds_center(b: &Bounds) -> Vec3 {
     Vec3::new(
         (b.min.x + b.max.x) / 2.0,
@@ -16,16 +17,14 @@ pub(crate) fn bounds_center(b: &Bounds) -> Vec3 {
 
 /// Compute the extent (size) of a bounds.
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn bounds_extent(b: &Bounds) -> Vec3 {
-    Vec3::new(
-        b.max.x - b.min.x,
-        b.max.y - b.min.y,
-        b.max.z - b.min.z,
-    )
+    Vec3::new(b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z)
 }
 
 /// Compute the octree child index (0-7) for a point within a bounds.
 #[inline]
+#[allow(dead_code)]
 pub(crate) fn child_index(parent: &Bounds, point: Vec3) -> usize {
     let center = bounds_center(parent);
     let mut idx = 0usize;

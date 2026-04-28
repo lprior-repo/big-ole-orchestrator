@@ -1,6 +1,10 @@
 #![allow(unexpected_cfgs)]
 use vo_types::{InstanceId, ParseError, SequenceNumber};
 
+/// Version byte for event key encoding format.
+/// Increment this when the encoding scheme changes.
+pub const EVENT_KEY_VERSION: u8 = 0;
+
 #[derive(Debug, PartialEq, Eq, Clone, thiserror::Error)]
 pub enum StorageError {
     #[error("corrupt key")]

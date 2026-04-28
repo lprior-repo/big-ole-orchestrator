@@ -69,7 +69,7 @@ impl<'de> Deserialize<'de> for ContentAddress {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        ContentAddress::new(&s).map_err(|e| serde::de::Error::custom(e))
+        Self::new(&s).map_err(serde::de::Error::custom)
     }
 }
 

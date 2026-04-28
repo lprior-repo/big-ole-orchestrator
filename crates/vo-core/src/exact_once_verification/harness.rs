@@ -41,8 +41,8 @@ impl LineageRolloverEvent {
             "type": "ContinuedAsNew",
             "workflow_id": self.instance_id,
             "lineage_id": self.lineage_id,
-            "old_epoch": self.old_epoch.0,
-            "new_epoch": self.new_epoch.0,
+            "old_epoch": self.old_epoch.get(),
+            "new_epoch": self.new_epoch.get(),
             "version": 1
         });
 
@@ -79,7 +79,7 @@ impl LineageRoutingState {
     }
 
     pub fn get_active_instance_id(&self, base_instance_id: &str) -> String {
-        format!("{}-epoch-{}", base_instance_id, self.active_epoch.0)
+        format!("{}-epoch-{}", base_instance_id, self.active_epoch.get())
     }
 }
 

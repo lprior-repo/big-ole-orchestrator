@@ -522,8 +522,14 @@ mod tests {
 
     #[test]
     fn qa_http_method_parse_is_same_as_from_str_ignore_case() {
-        assert_eq!(HttpMethod::parse("GET"), HttpMethod::from_str_ignore_case("GET"));
-        assert_eq!(HttpMethod::parse("weird"), HttpMethod::from_str_ignore_case("weird"));
+        assert_eq!(
+            HttpMethod::parse("GET"),
+            HttpMethod::from_str_ignore_case("GET")
+        );
+        assert_eq!(
+            HttpMethod::parse("weird"),
+            HttpMethod::from_str_ignore_case("weird")
+        );
     }
 
     #[test]
@@ -626,14 +632,21 @@ mod tests {
             .iter()
             .flat_map(|cat| cat.members().iter().copied())
             .collect();
-        assert_eq!(all, categorized, "every template must belong to exactly one category");
+        assert_eq!(
+            all, categorized,
+            "every template must belong to exactly one category"
+        );
     }
 
     #[test]
     fn qa_template_category_roundtrip_symmetry() {
         for cat in TemplateCategory::all() {
             for id in cat.members() {
-                assert_eq!(id.category(), cat, "category() must match TemplateCategory::members()");
+                assert_eq!(
+                    id.category(),
+                    cat,
+                    "category() must match TemplateCategory::members()"
+                );
             }
         }
     }
@@ -644,7 +657,10 @@ mod tests {
         let mut seen: HashSet<NodeTemplateId> = HashSet::new();
         for cat in TemplateCategory::all() {
             for id in cat.members() {
-                assert!(seen.insert(*id), "template {id:?} appears in multiple categories");
+                assert!(
+                    seen.insert(*id),
+                    "template {id:?} appears in multiple categories"
+                );
             }
         }
     }
@@ -793,7 +809,10 @@ mod tests {
 
     #[test]
     fn qa_node_template_parse_case_sensitive() {
-        assert_eq!(NodeTemplateId::parse("http-handler"), Some(NodeTemplateId::HttpHandler));
+        assert_eq!(
+            NodeTemplateId::parse("http-handler"),
+            Some(NodeTemplateId::HttpHandler)
+        );
         assert_eq!(NodeTemplateId::parse("Http-Handler"), None);
         assert_eq!(NodeTemplateId::parse("HTTP-HANDLER"), None);
         assert_eq!(NodeTemplateId::parse("Run"), None);
@@ -810,7 +829,12 @@ mod tests {
 
     #[test]
     fn qa_render_context_all_four_variants_match() {
-        let all = [RenderContext::Palette, RenderContext::CommandPalette, RenderContext::Canvas, RenderContext::Inspector];
+        let all = [
+            RenderContext::Palette,
+            RenderContext::CommandPalette,
+            RenderContext::Canvas,
+            RenderContext::Inspector,
+        ];
         assert_eq!(all.len(), 4);
     }
 }

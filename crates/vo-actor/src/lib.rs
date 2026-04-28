@@ -36,9 +36,9 @@ pub mod instance_registry_tests;
 // #[cfg(test)]
 // pub mod replay_attack_tests;  // module file missing
 pub mod timer_lifecycle;
-pub mod timers;
 pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
+pub mod timers;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -66,11 +66,124 @@ pub enum InstancePhaseView {
 pub enum OrchestratorMsg {
     /// Send a signal to a workflow instance
     Signal {
+        namespace: NamespaceId,
         instance_id: InstanceId,
         signal_name: String,
         payload: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
     },
+    /// Terminate a running workflow instance
+    Terminate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// Compensate (rollback) a workflow instance
+    Compensate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+    /// Get the status of a workflow instance
+    GetStatus {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
+    },
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<InstanceSnapshot>>,
+    },
+    /// Start a new workflow instance (legacy direct start)
+    StartWorkflow {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<InstanceId, StartError>>,
+    },
+    /// Reserve capacity for a workflow start (two-phase commit step 1)
+    ReserveWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
+    },
+    /// Abort a reserved workflow start (two-phase commit rollback)
+    AbortWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<()>,
+    },
+    /// Commit a reserved workflow start (two-phase commit step 2)
+    CommitWorkflowStart {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        workflow_type: String,
+        paradigm: WorkflowParadigm,
+        input: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<InstanceId, StartError>>,
+    },
+    /// Reserve capacity for a signal (two-phase commit step 1)
+    ReserveSignal {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        signal_name: String,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+    /// Commit a reserved signal (two-phase commit step 2)
+    CommitSignal {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        signal_name: String,
+        payload: Bytes,
+        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+    /// Abort a reserved workflow transition
+    AbortWorkflowTransition {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<()>,
+    },
+    /// Reserve a terminate operation (two-phase commit step 1)
+    ReserveTerminate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// Commit a reserved terminate (two-phase commit step 2)
+    CommitTerminate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reason: String,
+        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
+    },
+    /// Reserve a compensate operation (two-phase commit step 1)
+    ReserveCompensate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+    /// Commit a reserved compensate (two-phase commit step 2)
+    CommitCompensate {
+        namespace: NamespaceId,
+        instance_id: InstanceId,
+        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+    },
+}
+
+/// Error type for compensation operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum CompensateError {
+    #[error("instance not found: {0}")]
+    NotFound(String),
+    #[error("compensation failed: {0}")]
+    Failed(String),
 }
 
 /// Error type for signal operations.
@@ -403,8 +516,7 @@ mod constructor_tests_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let timer_id = TimerId::parse("timer-abc-123").unwrap();
 
-        let message =
-            InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+        let message = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
 
         match &message {
             InstanceActorMessage::TimerFired {
@@ -536,8 +648,7 @@ mod debug_format_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let node_name = NodeName::parse("compile-step").unwrap();
         let sequence = SequenceNumber::new_unchecked(1);
-        let message =
-            InstanceActorMessage::new_step_completed(instance_id, node_name, sequence);
+        let message = InstanceActorMessage::new_step_completed(instance_id, node_name, sequence);
 
         let debug_str = format!("{:?}", message);
         assert_eq!(
@@ -772,8 +883,7 @@ mod clone_instance_actor_message {
     fn timer_fired_clone_produces_bitwise_identical_copy() {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let timer_id = TimerId::parse("timer-abc-123").unwrap();
-        let message =
-            InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
+        let message = InstanceActorMessage::new_timer_fired(instance_id.clone(), timer_id.clone());
 
         let clone = message.clone();
 
@@ -920,8 +1030,7 @@ mod partial_eq_instance_actor_message {
 
         let msg1 =
             InstanceActorMessage::new_start_workflow(instance_id1, workflow_name1, node_name1);
-        let msg2 =
-            InstanceActorMessage::new_step_completed(instance_id2, node_name2, sequence2);
+        let msg2 = InstanceActorMessage::new_step_completed(instance_id2, node_name2, sequence2);
 
         assert!(msg1 != msg2);
     }
@@ -1000,8 +1109,7 @@ mod eq_properties_instance_actor_message {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
         let workflow_name = WorkflowName::parse("deploy-prod").unwrap();
         let node_name = NodeName::parse("build-step").unwrap();
-        let msg =
-            InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
+        let msg = InstanceActorMessage::new_start_workflow(instance_id, workflow_name, node_name);
 
         assert!(msg == msg);
     }
@@ -2876,4 +2984,3 @@ mod accept_resume_tests {
         );
     }
 }
-

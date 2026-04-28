@@ -362,12 +362,12 @@ impl ProjectionEngine {
         self.throttle_config
     }
 
-    pub fn try_acquire_rebuild_slot(
-        &mut self,
-        projection_id: &str,
-    ) -> Result<(), ProjectionError> {
+    pub fn try_acquire_rebuild_slot(&mut self, projection_id: &str) -> Result<(), ProjectionError> {
         {
-            let active = self.active_rebuilds.read().unwrap_or_else(|e| e.into_inner());
+            let active = self
+                .active_rebuilds
+                .read()
+                .unwrap_or_else(|e| e.into_inner());
             if active.contains_key(projection_id) {
                 return Err(ProjectionError::InvalidState(format!(
                     "rebuild already in progress for projection '{projection_id}'"
@@ -379,7 +379,10 @@ impl ProjectionEngine {
             Some(wait_ms) if wait_ms > 0 => Err(ProjectionError::ThrottleExceeded(wait_ms)),
             Some(_) | None => {
                 let ctx = Arc::new(RebuildContext::new(projection_id.to_string(), 0));
-                let mut active = self.active_rebuilds.write().unwrap_or_else(|e| e.into_inner());
+                let mut active = self
+                    .active_rebuilds
+                    .write()
+                    .unwrap_or_else(|e| e.into_inner());
                 active.insert(projection_id.to_string(), ctx);
                 self.rebuild_in_progress.store(true, Ordering::Relaxed);
                 Ok(())
@@ -390,7 +393,10 @@ impl ProjectionEngine {
     pub fn release_rebuild_slot(&self, projection_id: &str) {
         self.throttle.release_slot();
         {
-            let mut active = self.active_rebuilds.write().unwrap_or_else(|e| e.into_inner());
+            let mut active = self
+                .active_rebuilds
+                .write()
+                .unwrap_or_else(|e| e.into_inner());
             active.remove(projection_id);
             if active.is_empty() {
                 self.rebuild_in_progress.store(false, Ordering::Relaxed);

@@ -219,7 +219,11 @@ fn coevo_gen5_random_in_bare_loop_body() {
         }
         .to_string(),
     );
-    assert_eq!(diags.len(), 1, "Uuid::new_v4 inside bare loop must be caught");
+    assert_eq!(
+        diags.len(),
+        1,
+        "Uuid::new_v4 inside bare loop must be caught"
+    );
 }
 
 #[test]

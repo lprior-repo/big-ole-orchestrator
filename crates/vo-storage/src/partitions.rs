@@ -330,6 +330,7 @@ impl StorageEngine {
         })
     }
 
+    #[must_use]
     pub fn db(&self) -> &fjall::Database {
         &self.db
     }

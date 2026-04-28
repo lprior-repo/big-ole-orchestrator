@@ -349,8 +349,11 @@ mod tests {
 
     #[test]
     fn lineage_with_parent_returns_control_characters_error_when_id_contains_ctrl() {
-        let result =
-            WorkflowLineage::with_parent("lineage\x1fwith control".to_string(), Epoch::new(1), None);
+        let result = WorkflowLineage::with_parent(
+            "lineage\x1fwith control".to_string(),
+            Epoch::new(1),
+            None,
+        );
         assert_eq!(result, Err(LineageError::ControlCharacters));
     }
 

@@ -171,7 +171,10 @@ fn per_client_isolation_one_exhausted_does_not_affect_other() {
 
     // client-b should still have full burst
     let (allowed, _) = limiter.check_and_consume("client-b", now);
-    assert!(allowed, "client-b should not be affected by client-a's exhaustion");
+    assert!(
+        allowed,
+        "client-b should not be affected by client-a's exhaustion"
+    );
 }
 
 #[test]
@@ -202,9 +205,18 @@ fn per_client_many_clients_each_get_own_budget() {
 
     for i in 0..20 {
         let key = format!("client-{i}");
-        assert!(limiter.check_and_consume(&key, now).0, "{key} first request");
-        assert!(limiter.check_and_consume(&key, now).0, "{key} second request");
-        assert!(!limiter.check_and_consume(&key, now).0, "{key} third should fail");
+        assert!(
+            limiter.check_and_consume(&key, now).0,
+            "{key} first request"
+        );
+        assert!(
+            limiter.check_and_consume(&key, now).0,
+            "{key} second request"
+        );
+        assert!(
+            !limiter.check_and_consume(&key, now).0,
+            "{key} third should fail"
+        );
     }
 
     assert_eq!(limiter.key_count(), 20);

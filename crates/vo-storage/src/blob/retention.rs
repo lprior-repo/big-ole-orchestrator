@@ -18,7 +18,7 @@
 //!
 //! ## Invariants
 //!
-//! 1. Reference count is always non-negative (saturates at u64::MAX)
+//! 1. Reference count is always non-negative (saturates at `u64::MAX`)
 //! 2. A blob is GC-eligible iff its reference count is exactly zero
 //! 3. Decrementing a zero ref count returns an error (not a no-op)
 

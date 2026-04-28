@@ -549,7 +549,9 @@ impl AccessPolicy {
 
     #[must_use]
     pub fn allowed_for_permission(&self, permission: Permission) -> &[Principal] {
-        self.permission_principals.get(&permission).map_or(&[], Vec::as_slice)
+        self.permission_principals
+            .get(&permission)
+            .map_or(&[], Vec::as_slice)
     }
 
     #[must_use]

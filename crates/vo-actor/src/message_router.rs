@@ -215,11 +215,12 @@ pub struct TimestampMs(i64);
 impl TimestampMs {
     /// Returns the current timestamp.
     #[must_use]
+    #[allow(clippy::expect_used)]
     pub fn now() -> Self {
         Self(
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system time is after UNIX_EPOCH")
                 .as_millis() as i64,
         )
     }
@@ -722,6 +723,7 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if routing fails. The message may be sent to DLQ
     /// if delivery fails but routing succeeds.
+    #[allow(clippy::expect_used)]
     pub async fn route_unicast<T: Send + 'static>(
         &mut self,
         channel_id: &ChannelId,
@@ -731,7 +733,7 @@ impl MessageRouter {
 
         validate_route(channel.as_ref(), &self.config)?;
 
-        let channel = channel.unwrap();
+        let channel = channel.expect("channel exists after validation");
         let active_dests = select_active_destinations(&channel);
 
         if active_dests.is_empty() {
@@ -766,6 +768,7 @@ impl MessageRouter {
     /// # Errors
     /// Returns `RouteError` if no destinations are available. Messages that fail
     /// delivery individually are still sent to DLQ.
+    #[allow(clippy::expect_used)]
     pub async fn route_broadcast<T: Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
@@ -775,7 +778,7 @@ impl MessageRouter {
 
         validate_route(channel.as_ref(), &self.config)?;
 
-        let channel = channel.unwrap();
+        let channel = channel.expect("channel exists after validation");
         let active_dests = select_active_destinations(&channel);
 
         if active_dests.is_empty() {
@@ -807,7 +810,7 @@ impl MessageRouter {
                 message,
                 DeadLetterReason::ActorError("all destinations failed".to_string()),
             );
-            return Err(errors.into_iter().next().unwrap());
+            return Err(errors.into_iter().next().expect("errors is non-empty"));
         }
 
         Ok(())

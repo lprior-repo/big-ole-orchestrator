@@ -49,7 +49,6 @@
 )]
 
 pub mod append;
-pub mod atomic_wait_commit;
 pub mod blob;
 pub mod blob_store;
 #[cfg(test)]
@@ -65,7 +64,6 @@ pub mod dedupe_partition;
 pub mod effect_journal;
 pub mod event_log;
 pub mod event_store;
-pub mod event_summary_commit;
 pub mod fs_store;
 pub mod instance_index;
 pub mod key_encoding;
@@ -152,12 +150,13 @@ impl EventStoreBackend {
 /// assert!(result.is_ok());
 /// ```
 pub fn append_event<E: Serialize>(
-    namespace: &str,
+    _namespace: &str,
     instance_id: &str,
     event: E,
 ) -> Result<(), String> {
-    let _namespace = namespace;
-    let mut store = EVENT_STORE.lock().unwrap_or_else(|e| e.into_inner());
+    let mut store = EVENT_STORE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     store.append(instance_id, event)?;
     drop(store);
     Ok(())
@@ -177,7 +176,9 @@ pub fn append_event<E: Serialize>(
 /// assert_eq!(events.len(), 1);
 /// ```
 pub fn query_events(instance_id: &str) -> Vec<(u64, serde_json::Value)> {
-    let store = EVENT_STORE.lock().unwrap_or_else(|e| e.into_inner());
+    let store = EVENT_STORE
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     store
         .events
         .get(instance_id)

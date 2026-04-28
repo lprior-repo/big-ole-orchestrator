@@ -743,6 +743,7 @@ pub fn check_config_validation(project_dir: &Path) -> CategoryReport {
 // Display
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::unwrap_used)]
 pub fn format_report(report: &DoctorReport) -> (String, String) {
     let mut stdout = String::new();
     let mut stderr = String::new();

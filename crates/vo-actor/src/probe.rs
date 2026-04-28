@@ -354,6 +354,7 @@ impl HttpProbe {
 
 #[async_trait]
 impl Probe for HttpProbe {
+    #[allow(clippy::expect_used)]
     async fn check(&self) -> Result<ProbeResult, ProbeError> {
         let start = tokio::time::Instant::now();
 
@@ -388,7 +389,7 @@ impl Probe for HttpProbe {
             consecutive_failures: 0,
             last_check_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system time is after UNIX_EPOCH")
                 .as_millis() as u64,
             message: Some(format!("HTTP {} -> {}", self.url, status)),
         })
@@ -422,6 +423,7 @@ impl TcpProbe {
 
 #[async_trait]
 impl Probe for TcpProbe {
+    #[allow(clippy::expect_used)]
     async fn check(&self) -> Result<ProbeResult, ProbeError> {
         let start = tokio::time::Instant::now();
 
@@ -455,7 +457,7 @@ impl Probe for TcpProbe {
             consecutive_failures: 0,
             last_check_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system time is after UNIX_EPOCH")
                 .as_millis() as u64,
             message: Some(message),
         })
@@ -498,6 +500,7 @@ impl ExecProbe {
 
 #[async_trait]
 impl Probe for ExecProbe {
+    #[allow(clippy::expect_used)]
     async fn check(&self) -> Result<ProbeResult, ProbeError> {
         let start = tokio::time::Instant::now();
 
@@ -539,7 +542,7 @@ impl Probe for ExecProbe {
             consecutive_failures: 0,
             last_check_ms: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .expect("system time is after UNIX_EPOCH")
                 .as_millis() as u64,
             message: Some(message),
         })

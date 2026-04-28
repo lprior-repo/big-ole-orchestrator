@@ -118,9 +118,9 @@ impl EffectContext {
 
     pub async fn effect_age_ms(&self, effect_id: &EffectId) -> Option<u64> {
         let effects = self.effects.read().await;
-        effects.get(effect_id.as_str()).map(|tracked| {
-            tracked.spawned_at.elapsed().as_millis() as u64
-        })
+        effects
+            .get(effect_id.as_str())
+            .map(|tracked| tracked.spawned_at.elapsed().as_millis() as u64)
     }
 }
 
@@ -139,12 +139,11 @@ mod tests {
         let ctx = EffectContext::new();
         assert_eq!(ctx.tracked_count().await, 0);
 
-        let handle = ctx.spawn(
-            EffectId::new("fx-1"),
-            async {
+        let handle = ctx
+            .spawn(EffectId::new("fx-1"), async {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            },
-        ).await;
+            })
+            .await;
 
         assert_eq!(ctx.tracked_count().await, 1);
         assert!(ctx.contains(&EffectId::new("fx-1")).await);
@@ -157,12 +156,11 @@ mod tests {
     async fn effect_context_cancel_removes_effect() {
         let ctx = EffectContext::new();
 
-        let _handle = ctx.spawn(
-            EffectId::new("fx-cancel"),
-            async {
+        let _handle = ctx
+            .spawn(EffectId::new("fx-cancel"), async {
                 tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            },
-        ).await;
+            })
+            .await;
 
         assert!(ctx.contains(&EffectId::new("fx-cancel")).await);
         let cancelled = ctx.cancel(&EffectId::new("fx-cancel")).await;
@@ -196,12 +194,11 @@ mod tests {
     async fn effect_context_cancellation_propagates_to_task() {
         let ctx = EffectContext::new();
 
-        let handle = ctx.spawn(
-            EffectId::new("fx-abort"),
-            async {
+        let handle = ctx
+            .spawn(EffectId::new("fx-abort"), async {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-            },
-        ).await;
+            })
+            .await;
 
         ctx.cancel(&EffectId::new("fx-abort")).await;
 
@@ -228,13 +225,12 @@ mod tests {
         let cancel_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let cancel_flag_clone = cancel_flag.clone();
 
-        let handle = ctx.spawn(
-            EffectId::new("fx-exec"),
-            async move {
+        let handle = ctx
+            .spawn(EffectId::new("fx-exec"), async move {
                 tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 cancel_flag_clone.store(true, std::sync::atomic::Ordering::SeqCst);
-            },
-        ).await;
+            })
+            .await;
 
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
@@ -251,11 +247,13 @@ mod tests {
 
         ctx.spawn(EffectId::new("fx-queued-1"), async {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }).await;
+        })
+        .await;
 
         ctx.spawn(EffectId::new("fx-queued-2"), async {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }).await;
+        })
+        .await;
 
         let cancelled = ctx.cancel(&EffectId::new("fx-queued-2")).await;
         assert_eq!(cancelled, Some(true));

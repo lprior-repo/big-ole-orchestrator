@@ -24,6 +24,7 @@ pub struct DragState {
     pub start_bend: f32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Rect {
     pub(crate) x: f32,
@@ -53,6 +54,7 @@ pub(crate) fn sanitize_bend_input_edge(input: f32, start_bend: f32) -> f32 {
     input.clamp(-BEND_CLAMP, BEND_CLAMP)
 }
 
+#[allow(dead_code)]
 pub(crate) fn normalize_bend_delta(page_delta: f32, zoom: f32) -> f32 {
     if !zoom.is_finite() || zoom <= 0.0 {
         return 0.0;

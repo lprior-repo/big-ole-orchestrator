@@ -96,6 +96,7 @@ where
     S: TimerStorage + 'static,
 {
     let now = TimestampMs::now();
+    #[allow(clippy::expect_used)]
     let zero = TimestampMs::try_from(0u64).expect("0 is valid");
 
     let all_timers = storage

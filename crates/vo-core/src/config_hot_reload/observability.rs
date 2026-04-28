@@ -35,13 +35,13 @@ impl ReloadMetrics {
         }
     }
 
-    pub fn record_reload_success(&self, path: &PathBuf, duration: Instant) {
+    pub fn record_reload_success(&self, _path: &PathBuf, duration: Instant) {
         self.reloads_total.increment(1);
         let elapsed = duration.elapsed().as_secs_f64() * 1000.0;
         self.reload_duration_ms.record(elapsed);
     }
 
-    pub fn record_reload_error(&self, path: &PathBuf, reason: &str) {
+    pub fn record_reload_error(&self, _path: &PathBuf, _reason: &str) {
         self.reload_errors_total.increment(1);
     }
 }
@@ -109,9 +109,7 @@ mod tests {
 
         let duration_histograms: Vec<_> = entries
             .iter()
-            .filter(|(key, _, _, _)| {
-                key.key().name() == "vo_config_hot_reload.reload_duration_ms"
-            })
+            .filter(|(key, _, _, _)| key.key().name() == "vo_config_hot_reload.reload_duration_ms")
             .collect();
 
         assert!(

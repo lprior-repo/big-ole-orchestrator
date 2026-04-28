@@ -4,7 +4,8 @@
 
 use tempfile::tempdir;
 use vo_storage::snapshots::{
-    snapshot_load_latest_with_compat, AtomicSnapshotWriter, CompatSnapshotLoad, CURRENT_SNAPSHOT_VERSION,
+    snapshot_load_latest_with_compat, AtomicSnapshotWriter, CompatSnapshotLoad,
+    CURRENT_SNAPSHOT_VERSION,
 };
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
@@ -26,7 +27,9 @@ fn atomic_snapshot_write_then_readback_preserves_state() {
 
     // Write via AtomicSnapshotWriter (header format)
     let writer = AtomicSnapshotWriter::new(&db).unwrap();
-    writer.write_snapshot_atomic(id.clone(), 10, &original).unwrap();
+    writer
+        .write_snapshot_atomic(id.clone(), 10, &original)
+        .unwrap();
 
     // Read back via compat loader
     let partition = db
@@ -62,7 +65,9 @@ fn atomic_snapshot_survives_database_restart() {
     {
         let db = open_db(&dir);
         let writer = AtomicSnapshotWriter::new(&db).unwrap();
-        writer.write_snapshot_atomic(id.clone(), 42, &original).unwrap();
+        writer
+            .write_snapshot_atomic(id.clone(), 42, &original)
+            .unwrap();
     }
 
     // Phase 2: reopen database and read back

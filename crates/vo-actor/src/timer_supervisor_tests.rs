@@ -3,6 +3,8 @@
 //! These tests are written to compile but FAIL until the TimerSupervisor
 //! implementation is complete. This is the TDD red phase.
 
+#![allow(clippy::unwrap_used)]
+
 use std::sync::Arc;
 use std::time::Duration;
 
