@@ -15,6 +15,7 @@ use std::os::unix::io::FromRawFd;
 
 use serde_json::Value;
 use vo_types::TaskInputEnvelope;
+use zeroize::Zeroizing;
 
 use crate::SdkError;
 use crate::TaskFailureKind;
@@ -209,7 +210,7 @@ pub fn read_input() -> Result<TaskInput, SdkError> {
 }
 
 pub(crate) fn read_input_inner<R: Read>(reader: &mut R) -> Result<TaskInput, SdkError> {
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
@@ -239,7 +240,7 @@ pub fn read_input_inner_with_state<R: Read>(
     }
     *is_read = true;
 
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
@@ -276,7 +277,7 @@ pub fn read_input_inner_with_atomic_guard<R: Read>(
         return Err(SdkError::FdNotOpen);
     }
 
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)

@@ -70,16 +70,24 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::EmptyAttribute) => {
             quote::quote! { compile_error!("macro attribute is empty"); }
         }
-        Err(error::Error::TooManyAttributes) => {
+        Err(error::Error::TooManyAttributes { .. }) => {
             quote::quote! { compile_error!("too many macro attributes (max 255)"); }
         }
-        Err(error::Error::IdentParsingFailed) => {
+        Err(error::Error::IdentParsingFailed { .. }) => {
             quote::quote! { compile_error!("failed to parse function identifier"); }
         }
-        Err(error::Error::AsyncReturnTypeMismatch) => {
+        Err(error::Error::AsyncReturnTypeMismatch { .. }) => {
             quote::quote! { compile_error!("async functions cannot have a return type"); }
         }
- 
+        Err(error::Error::GenericFunction) => {
+            quote::quote! { compile_error!("task macro encountered a generic function"); }
+        }
+        Err(error::Error::UnsupportedAttribute { .. }) => {
+            quote::quote! { compile_error!("unsupported macro attribute"); }
+        }
+        Err(error::Error::GenerationFailed { .. }) => {
+            quote::quote! { compile_error!("code generation failed"); }
+        }
     }
 }
 
