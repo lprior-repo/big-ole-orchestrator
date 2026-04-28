@@ -5022,6 +5022,7 @@ dependencies = [
 name = "vo-common"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "proptest",
  "serde",
  "serde_json",
