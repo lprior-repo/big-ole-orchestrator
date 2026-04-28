@@ -27,9 +27,10 @@ use vo_actor::reanimator::{
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 use vo_actor::timer_supervisor::{
     supervisor::TimerSupervisor,
-    traits::{TimerStorage as SyncTimerStorage, WorkQueue as SyncWorkQueue},
-    types::{TimerRecord as SyncTimerRecord, TimerSupervisorError},
+    traits::WorkQueue as SyncWorkQueue,
+    types::TimerSupervisorError,
 };
+use vo_common::ports::{TimerStorage as AsyncTimerStorage, TimerRecord as UnifiedTimerRecord, TimerStorageError};
 
 fn ts_ms(value: u64) -> TimestampMs {
     TimestampMs::try_from(value).expect("valid timestamp")
@@ -188,37 +189,68 @@ mod timer_supervisor_panic_cleanup {
     use super::*;
 
     struct PanicOnEnqueueStorage {
-        timers: std::sync::Mutex<Vec<SyncTimerRecord>>,
+        timers: std::sync::Mutex<Vec<UnifiedTimerRecord>>,
     }
 
     impl PanicOnEnqueueStorage {
-        fn new(timers: Vec<SyncTimerRecord>) -> Self {
+        fn new(timers: Vec<UnifiedTimerRecord>) -> Self {
             Self {
                 timers: std::sync::Mutex::new(timers),
             }
         }
     }
 
-    impl SyncTimerStorage for PanicOnEnqueueStorage {
-        fn scan_due_timers(&self, _from: u64, _to: u64, _max: u32) -> Vec<SyncTimerRecord> {
-            self.timers.lock().unwrap().clone()
+    #[async_trait::async_trait]
+    impl AsyncTimerStorage for PanicOnEnqueueStorage {
+        async fn schedule_timer(
+            &self,
+            _record: UnifiedTimerRecord,
+        ) -> Result<(), TimerStorageError> {
+            Ok(())
         }
-
-        fn delete_timer(
+        async fn cancel_timer(
             &self,
             _instance_id: &InstanceId,
-            _fire_at_ms: u64,
-        ) -> Result<(), TimerSupervisorError> {
-            // INV-2: delete succeeds before dispatch
+            _fire_at_ms: TimestampMs,
+        ) -> Result<(), TimerStorageError> {
             Ok(())
         }
-
-        fn retry_timer(
+        async fn get_timer(
             &self,
-            _timer: &SyncTimerRecord,
-            _new_fire_at_ms: u64,
-        ) -> Result<(), TimerSupervisorError> {
+            _instance_id: &InstanceId,
+            _fire_at_ms: TimestampMs,
+        ) -> Result<UnifiedTimerRecord, TimerStorageError> {
+            Err(TimerStorageError::NotFound {
+                instance_id: make_instance_id(0x00),
+                fire_at_ms: TimestampMs::new_unchecked(0),
+            })
+        }
+        async fn list_timers_by_instance(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+            Ok(Vec::new())
+        }
+        async fn list_expired_timers(
+            &self,
+            _from: TimestampMs,
+            _to: TimestampMs,
+            _max: u32,
+        ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+            Ok(self.timers.lock().unwrap().clone())
+        }
+        async fn retry_timer(
+            &self,
+            _timer: &UnifiedTimerRecord,
+            _new_fire_at_ms: TimestampMs,
+        ) -> Result<(), TimerStorageError> {
             Ok(())
+        }
+        async fn delete_all_timers_for_instance(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<u32, TimerStorageError> {
+            Ok(0)
         }
     }
 
@@ -249,15 +281,17 @@ mod timer_supervisor_panic_cleanup {
     // RQ-TP04: TimerSupervisor shutdown detects panic in background task.
     #[tokio::test]
     async fn rq_supervisor_shutdown_detects_panic() {
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis() as u64);
-
+        let now_ms = TimestampMs::now();
         let instance_id = make_instance_id(0xB1);
-        let trigger_time = now_ms.saturating_sub(2000);
-        let timer = SyncTimerRecord::new(instance_id.clone(), now_ms, None, trigger_time, 2000);
+        let scheduled_at = TimestampMs::new_unchecked(now_ms.as_u64().saturating_sub(2000));
+        let timer = UnifiedTimerRecord::new(
+            instance_id.clone(),
+            now_ms,
+            None,
+            scheduled_at,
+        );
 
-        let storage: Arc<dyn SyncTimerStorage> = Arc::new(PanicOnEnqueueStorage::new(vec![timer]));
+        let storage: Arc<dyn AsyncTimerStorage> = Arc::new(PanicOnEnqueueStorage::new(vec![timer]));
         let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(PanicWorkQueue::new());
 
         let supervisor = TimerSupervisor::new(
@@ -280,50 +314,116 @@ mod timer_supervisor_panic_cleanup {
         );
     }
 
-    // RQ-TP05: Timer deleted from storage before dispatch — crash after delete
-    // doesn't leak the timer (INV-2 guarantees no double-fire).
-    #[test]
-    fn rq_delete_before_dispatch_prevents_leak() {
-        use vo_actor::timer_supervisor::calc::timer_delete_before_dispatch;
-
+    // RQ-TP05: Timer deleted from storage before dispatch via process_cycle.
+    // After process_cycle, the timer is deleted and dispatched (INV-2).
+    #[tokio::test]
+    async fn rq_delete_before_dispatch_prevents_leak() {
         let instance_id = make_instance_id(0xB2);
-        let timer = SyncTimerRecord::new(instance_id.clone(), 5000, None, 3000, 2000);
+        let now_ms = TimestampMs::now();
+        let fire_at = TimestampMs::new_unchecked(now_ms.as_u64().saturating_sub(1000));
+        let timer = UnifiedTimerRecord::new(
+            instance_id.clone(),
+            fire_at,
+            None,
+            TimestampMs::new_unchecked(fire_at.as_u64().saturating_sub(1000)),
+        );
 
         let deleted_instance: Arc<std::sync::Mutex<Option<InstanceId>>> =
             Arc::new(std::sync::Mutex::new(None));
         let deleted_instance_clone = deleted_instance.clone();
+        let enqueued_instances: Arc<std::sync::Mutex<Vec<InstanceId>>> =
+            Arc::new(std::sync::Mutex::new(Vec::new()));
+        let enqueued_clone = enqueued_instances.clone();
 
         struct TrackingStorage {
             deleted: Arc<std::sync::Mutex<Option<InstanceId>>>,
+            timer: std::sync::Mutex<Option<UnifiedTimerRecord>>,
         }
 
-        impl SyncTimerStorage for TrackingStorage {
-            fn scan_due_timers(&self, _from: u64, _to: u64, _max: u32) -> Vec<SyncTimerRecord> {
-                Vec::new()
+        #[async_trait::async_trait]
+        impl AsyncTimerStorage for TrackingStorage {
+            async fn schedule_timer(
+                &self,
+                _record: UnifiedTimerRecord,
+            ) -> Result<(), TimerStorageError> {
+                Ok(())
             }
-            fn delete_timer(
+            async fn cancel_timer(
                 &self,
                 instance_id: &InstanceId,
-                _fire_at_ms: u64,
-            ) -> Result<(), TimerSupervisorError> {
+                _fire_at_ms: TimestampMs,
+            ) -> Result<(), TimerStorageError> {
                 *self.deleted.lock().unwrap() = Some(instance_id.clone());
+                *self.timer.lock().unwrap() = None;
                 Ok(())
             }
-            fn retry_timer(
+            async fn get_timer(
                 &self,
-                _timer: &SyncTimerRecord,
-                _new_fire_at_ms: u64,
-            ) -> Result<(), TimerSupervisorError> {
+                _instance_id: &InstanceId,
+                _fire_at_ms: TimestampMs,
+            ) -> Result<UnifiedTimerRecord, TimerStorageError> {
+                Err(TimerStorageError::NotFound {
+                    instance_id: make_instance_id(0x00),
+                    fire_at_ms: TimestampMs::new_unchecked(0),
+                })
+            }
+            async fn list_timers_by_instance(
+                &self,
+                _instance_id: &InstanceId,
+            ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+                Ok(self.timer.lock().unwrap().take().into_iter().collect())
+            }
+            async fn list_expired_timers(
+                &self,
+                _from: TimestampMs,
+                _to: TimestampMs,
+                _max: u32,
+            ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+                Ok(self.timer.lock().unwrap().take().into_iter().collect())
+            }
+            async fn retry_timer(
+                &self,
+                _timer: &UnifiedTimerRecord,
+                _new_fire_at_ms: TimestampMs,
+            ) -> Result<(), TimerStorageError> {
+                Ok(())
+            }
+            async fn delete_all_timers_for_instance(
+                &self,
+                _instance_id: &InstanceId,
+            ) -> Result<u32, TimerStorageError> {
+                Ok(0)
+            }
+        }
+
+        struct TrackingQueue {
+            enqueued: Arc<std::sync::Mutex<Vec<InstanceId>>>,
+        }
+
+        impl SyncWorkQueue for TrackingQueue {
+            fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), TimerSupervisorError> {
+                self.enqueued.lock().unwrap().push(instance_id);
                 Ok(())
             }
         }
 
-        let storage: Arc<dyn SyncTimerStorage> = Arc::new(TrackingStorage {
+        let storage: Arc<dyn AsyncTimerStorage> = Arc::new(TrackingStorage {
             deleted: deleted_instance_clone,
+            timer: std::sync::Mutex::new(Some(timer)),
+        });
+        let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(TrackingQueue {
+            enqueued: enqueued_clone,
         });
 
-        let result = timer_delete_before_dispatch(&storage, &timer);
-        assert!(result.is_ok(), "Delete before dispatch should succeed");
+        let supervisor = TimerSupervisor::new(
+            Duration::from_millis(50),
+            storage.clone(),
+            work_queue.clone(),
+        )
+        .expect("valid config");
+
+        let result = supervisor.process_cycle().await;
+        assert!(result.is_ok(), "process_cycle should succeed");
 
         let deleted = deleted_instance.lock().unwrap();
         assert!(
@@ -335,54 +435,121 @@ mod timer_supervisor_panic_cleanup {
             &instance_id,
             "Correct timer instance must be deleted"
         );
-        // If a crash happens after this point, the timer is already gone from storage.
-        // No double-fire is possible. This IS the panic safety guarantee.
+
+        let enqueued = enqueued_instances.lock().unwrap();
+        assert!(
+            enqueued.contains(&instance_id),
+            "Timer must be dispatched after delete (INV-2)"
+        );
     }
 
-    // RQ-TP06: process_cycle handles all timer dispatch errors without leaking.
-    #[test]
-    fn rq_process_cycle_no_leak_on_dispatch_error() {
-        use vo_actor::timer_supervisor::calc::timer_delete_before_dispatch;
-
+    // RQ-TP06: process_cycle handles delete failure without leaking timers.
+    #[tokio::test]
+    async fn rq_process_cycle_no_leak_on_dispatch_error() {
         let instance_id = make_instance_id(0xB3);
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis() as u64);
-        let trigger_time = now_ms.saturating_sub(2000);
+        let now_ms = TimestampMs::now();
+        let fire_at = TimestampMs::new_unchecked(now_ms.as_u64().saturating_sub(1000));
+        let timer = UnifiedTimerRecord::new(
+            instance_id.clone(),
+            fire_at,
+            None,
+            TimestampMs::new_unchecked(fire_at.as_u64().saturating_sub(1000)),
+        );
 
-        struct FailDeleteStorage;
-        impl SyncTimerStorage for FailDeleteStorage {
-            fn scan_due_timers(&self, _from: u64, _to: u64, _max: u32) -> Vec<SyncTimerRecord> {
-                Vec::new()
+        struct FailDeleteStorage {
+            timer: std::sync::Mutex<Option<UnifiedTimerRecord>>,
+        }
+
+        #[async_trait::async_trait]
+        impl AsyncTimerStorage for FailDeleteStorage {
+            async fn schedule_timer(
+                &self,
+                _record: UnifiedTimerRecord,
+            ) -> Result<(), TimerStorageError> {
+                Ok(())
             }
-            fn delete_timer(
+            async fn cancel_timer(
                 &self,
                 _instance_id: &InstanceId,
-                _fire_at_ms: u64,
-            ) -> Result<(), TimerSupervisorError> {
-                Err(TimerSupervisorError::StorageError(
-                    "simulated failure".to_string(),
-                ))
+                _fire_at_ms: TimestampMs,
+            ) -> Result<(), TimerStorageError> {
+                Err(TimerStorageError::StorageFailed("simulated failure".to_string()))
             }
-            fn retry_timer(
+            async fn get_timer(
                 &self,
-                _timer: &SyncTimerRecord,
-                _new_fire_at_ms: u64,
-            ) -> Result<(), TimerSupervisorError> {
+                _instance_id: &InstanceId,
+                _fire_at_ms: TimestampMs,
+            ) -> Result<UnifiedTimerRecord, TimerStorageError> {
+                Err(TimerStorageError::NotFound {
+                    instance_id: make_instance_id(0x00),
+                    fire_at_ms: TimestampMs::new_unchecked(0),
+                })
+            }
+            async fn list_timers_by_instance(
+                &self,
+                _instance_id: &InstanceId,
+            ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+                Ok(self.timer.lock().unwrap().take().into_iter().collect())
+            }
+            async fn list_expired_timers(
+                &self,
+                _from: TimestampMs,
+                _to: TimestampMs,
+                _max: u32,
+            ) -> Result<Vec<UnifiedTimerRecord>, TimerStorageError> {
+                Ok(self.timer.lock().unwrap().take().into_iter().collect())
+            }
+            async fn retry_timer(
+                &self,
+                _timer: &UnifiedTimerRecord,
+                _new_fire_at_ms: TimestampMs,
+            ) -> Result<(), TimerStorageError> {
+                Ok(())
+            }
+            async fn delete_all_timers_for_instance(
+                &self,
+                _instance_id: &InstanceId,
+            ) -> Result<u32, TimerStorageError> {
+                Ok(0)
+            }
+        }
+
+        let storage: Arc<dyn AsyncTimerStorage> = Arc::new(FailDeleteStorage {
+            timer: std::sync::Mutex::new(Some(timer)),
+        });
+
+        struct NoopQueue;
+        impl SyncWorkQueue for NoopQueue {
+            fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), TimerSupervisorError> {
                 Ok(())
             }
         }
 
-        let timer = SyncTimerRecord::new(instance_id, now_ms, None, trigger_time, 2000);
-        let storage: Arc<dyn SyncTimerStorage> = Arc::new(FailDeleteStorage);
+        let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(NoopQueue);
 
-        // Delete-before-dispatch fails — timer is NOT deleted, NOT dispatched
-        let result = timer_delete_before_dispatch(&storage, &timer);
+        let supervisor = TimerSupervisor::new(
+            Duration::from_millis(50),
+            storage.clone(),
+            work_queue,
+        )
+        .expect("valid config");
+
+        // process_cycle should still complete (with errors logged)
+        let result = supervisor.process_cycle().await;
         assert!(
-            result.is_err(),
-            "Failed delete should return error (timer NOT dispatched, NOT leaked)"
+            result.is_ok(),
+            "process_cycle should complete even with delete failures"
         );
-        // Timer remains in storage for next cycle — no leak, will retry
+        // The delete failed so error_count should be > 0
+        let cycle_result = result.unwrap();
+        assert_eq!(
+            cycle_result.error_count, 1,
+            "Delete failure should be counted as error (timer NOT dispatched, NOT leaked)"
+        );
+        assert_eq!(
+            cycle_result.timers_fired, 0,
+            "No timers should be fired when delete fails"
+        );
     }
 }
 

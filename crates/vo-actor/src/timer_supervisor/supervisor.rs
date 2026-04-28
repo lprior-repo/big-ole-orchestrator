@@ -5,15 +5,19 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
-use super::calc::{is_overdue, timer_delete_before_dispatch, verify_dual_clock};
-use super::traits::{TimerStorage, WorkQueue};
+use vo_types::{InstanceId, TimestampMs};
+
+use super::calc::{is_overdue, verify_dual_clock};
+use super::traits::WorkQueue;
 use super::types::{
     CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
 };
+use vo_common::ports::TimerStorage;
 
 // =============================================================================
 // `TimerSupervisor` - Actor that manages timer scanning and dispatch
@@ -106,27 +110,20 @@ impl TimerSupervisor {
     ///
     /// # Errors
     /// Returns an error if storage operations fail.
-    pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
-        #[allow(clippy::cast_possible_truncation)]
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis() as u64);
-
-        #[allow(clippy::cast_possible_truncation)]
+    pub async fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
+        let now_ms = TimestampMs::now();
         let tick_interval_ms = self.tick_interval.as_millis() as u64;
 
-        // Scan for due timers
+        let from_ms = TimestampMs::new_unchecked(0);
+
         let due_timers = self
             .storage
-            .scan_due_timers(0, now_ms, 100)
+            .list_expired_timers(from_ms, now_ms, 100)
+            .await
+            .map_err(|e| TimerSupervisorError::StorageAdapterError(e.to_string()))?
             .into_iter()
             .filter(|timer| {
-                verify_dual_clock(
-                    timer.fire_at_ms,
-                    timer.trigger_time_ms,
-                    timer.duration_ms,
-                    now_ms,
-                )
+                verify_dual_clock(timer.fire_at_ms, now_ms)
             })
             .collect::<Vec<_>>();
 
@@ -135,16 +132,20 @@ impl TimerSupervisor {
         let mut error_count = 0u32;
 
         for timer in due_timers {
-            // Check if overdue
             if is_overdue(timer.fire_at_ms, now_ms, tick_interval_ms) {
                 self.metrics.overdue_timers.incr();
                 overdue_count += 1;
             }
 
-            // Delete before dispatch (INV-2)
-            match timer_delete_before_dispatch(&self.storage, &timer) {
+            let fire_at_ms = timer.fire_at_ms;
+
+            let delete_result = self
+                .storage
+                .cancel_timer(&timer.instance_id, fire_at_ms)
+                .await;
+
+            match delete_result {
                 Ok(()) => {
-                    // Dispatch succeeded
                     match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
                         Ok(()) => {
                             self.metrics.timers_fired.incr();
@@ -156,26 +157,30 @@ impl TimerSupervisor {
                             error_count += 1;
                             tracing::error!(
                                 instance_id = %timer.instance_id,
-                                fire_at_ms = timer.fire_at_ms,
+                                fire_at_ms = %fire_at_ms,
                                 error = %e,
                                 "Timer deleted but dispatch failed - attempting retry"
                             );
-                            let retry_fire_at_ms = now_ms.saturating_add(1000);
-                            if let Err(retry_err) =
-                                self.storage.retry_timer(&timer, retry_fire_at_ms)
+                            let retry_fire_at_ms = TimestampMs::new_unchecked(
+                                now_ms.as_u64().saturating_add(1000)
+                            );
+                            if let Err(retry_err) = self
+                                .storage
+                                .retry_timer(&timer, retry_fire_at_ms)
+                                .await
                             {
                                 tracing::error!(
                                     instance_id = %timer.instance_id,
-                                    fire_at_ms = timer.fire_at_ms,
-                                    retry_fire_at_ms = retry_fire_at_ms,
+                                    fire_at_ms = %fire_at_ms,
+                                    retry_fire_at_ms = %retry_fire_at_ms,
                                     error = %retry_err,
                                     "CRITICAL: Timer deleted but dispatch failed AND retry failed - timer permanently lost"
                                 );
                             } else {
                                 tracing::warn!(
                                     instance_id = %timer.instance_id,
-                                    fire_at_ms = timer.fire_at_ms,
-                                    retry_fire_at_ms = retry_fire_at_ms,
+                                    fire_at_ms = %fire_at_ms,
+                                    retry_fire_at_ms = %retry_fire_at_ms,
                                     "Timer recovered via retry queue after dispatch failure"
                                 );
                             }
@@ -216,7 +221,7 @@ impl TimerSupervisor {
                     break;
                 }
                 _ = scan_interval.tick() => {
-                    match self.process_cycle() {
+                    match self.process_cycle().await {
                         Ok(_) => {}
                         Err(e) if e.is_transient() => {
                             tracing::warn!("Transient error in timer supervisor cycle: {}", e);
@@ -314,28 +319,62 @@ impl TimerSupervisorHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timer_supervisor::traits::{TimerStorage, WorkQueue};
-    use crate::timer_supervisor::types::TimerRecord;
-    use vo_types::InstanceId;
+    use crate::timer_supervisor::traits::WorkQueue;
+    use async_trait::async_trait;
+    use vo_common::ports::{TimerStorage, TimerStorageError};
 
     struct MockStorage;
+    #[async_trait]
     impl TimerStorage for MockStorage {
-        fn scan_due_timers(&self, _from: u64, _to: u64, _max: u32) -> Vec<TimerRecord> {
-            Vec::new()
+        async fn schedule_timer(
+            &self,
+            _record: TimerRecord,
+        ) -> Result<(), TimerStorageError> {
+            Ok(())
         }
-        fn delete_timer(
+        async fn cancel_timer(
             &self,
             _instance_id: &InstanceId,
-            _fire_at_ms: u64,
-        ) -> Result<(), TimerSupervisorError> {
+            _fire_at_ms: TimestampMs,
+        ) -> Result<(), TimerStorageError> {
             Ok(())
         }
-        fn retry_timer(
+        async fn get_timer(
+            &self,
+            _instance_id: &InstanceId,
+            _fire_at_ms: TimestampMs,
+        ) -> Result<TimerRecord, TimerStorageError> {
+            Err(TimerStorageError::NotFound {
+                instance_id: InstanceId::from_bytes([0u8; 16]),
+                fire_at_ms: TimestampMs::new_unchecked(0),
+            })
+        }
+        async fn list_timers_by_instance(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<Vec<TimerRecord>, TimerStorageError> {
+            Ok(Vec::new())
+        }
+        async fn list_expired_timers(
+            &self,
+            _from: TimestampMs,
+            _to: TimestampMs,
+            _max: u32,
+        ) -> Result<Vec<TimerRecord>, TimerStorageError> {
+            Ok(Vec::new())
+        }
+        async fn retry_timer(
             &self,
             _timer: &TimerRecord,
-            _new_fire_at_ms: u64,
-        ) -> Result<(), TimerSupervisorError> {
+            _new_fire_at_ms: TimestampMs,
+        ) -> Result<(), TimerStorageError> {
             Ok(())
+        }
+        async fn delete_all_timers_for_instance(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<u32, TimerStorageError> {
+            Ok(0)
         }
     }
 

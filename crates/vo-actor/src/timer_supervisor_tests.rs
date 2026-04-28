@@ -257,21 +257,25 @@ impl WorkQueue for MockWorkQueue {
 // Calculation Layer (Pure Functions) - Delegates to timer_supervisor
 // =============================================================================
 
-/// verify_dual_clock - Dual-clock verification per ADR-013
-/// Returns true if fire_at_ms <= now_ms AND (trigger_time_ms + duration_ms) <= now_ms
+/// verify_dual_clock - Simplified to wall-clock check per unified TimerStorage design.
+/// Returns true if fire_at_ms <= now_ms
 pub fn verify_dual_clock(
     fire_at_ms: u64,
-    trigger_time_ms: u64,
-    duration_ms: u64,
+    _trigger_time_ms: u64,
+    _duration_ms: u64,
     now_ms: u64,
 ) -> bool {
-    super::timer_supervisor::verify_dual_clock(fire_at_ms, trigger_time_ms, duration_ms, now_ms)
+    let fire_at = vo_types::TimestampMs::new_unchecked(fire_at_ms);
+    let now = vo_types::TimestampMs::new_unchecked(now_ms);
+    super::timer_supervisor::verify_dual_clock(fire_at, now)
 }
 
 /// is_overdue - Check if timer is overdue beyond tick interval
 /// Returns true if fire_at_ms + tick_interval_ms < now_ms
 pub fn is_overdue(fire_at_ms: u64, now_ms: u64, tick_interval_ms: u64) -> bool {
-    super::timer_supervisor::is_overdue(fire_at_ms, now_ms, tick_interval_ms)
+    let fire_at = vo_types::TimestampMs::new_unchecked(fire_at_ms);
+    let now = vo_types::TimestampMs::new_unchecked(now_ms);
+    super::timer_supervisor::is_overdue(fire_at, now, tick_interval_ms)
 }
 
 // =============================================================================
@@ -307,8 +311,6 @@ impl TimerSupervisor {
 
     /// Processes one timer scan cycle
     pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
-        use super::timer_supervisor::{is_overdue, verify_dual_clock};
-
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -321,14 +323,12 @@ impl TimerSupervisor {
             .storage
             .scan_due_timers(0, now_ms, 100)
             .into_iter()
-            .filter(|timer| {
-                verify_dual_clock(
-                    timer.fire_at_ms,
-                    timer.trigger_time_ms,
-                    timer.duration_ms,
-                    now_ms,
-                )
-            })
+            .filter(|timer| verify_dual_clock(
+                timer.fire_at_ms,
+                timer.trigger_time_ms,
+                timer.duration_ms,
+                now_ms,
+            ))
             .collect::<Vec<_>>();
 
         let mut timers_fired = 0u32;
@@ -712,7 +712,7 @@ mod proptest_verify_dual_clock {
             now in 0u64..1_000_000_000_000u64,
         ) {
             let result = verify_dual_clock(fire_at, trigger, duration, now);
-            let expected = fire_at <= now && trigger.saturating_add(duration) <= now;
+            let expected = fire_at <= now;
             prop_assert_eq!(result, expected);
         }
     }
