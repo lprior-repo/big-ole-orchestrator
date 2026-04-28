@@ -71,17 +71,23 @@ impl SignalMatchResult {
 /// * `signal` — the signal address being delivered
 /// * `wait` — the wait record to match against
 /// * `wait_instance_lineage_id` — the lineage_id of the workflow instance that created the wait record
+/// * `instance_epoch` — the current epoch of the workflow instance that owns the wait record
 ///
 /// # Notes
 ///
 /// The `wait_instance_lineage_id` is required because `WaitRecord` does not
 /// carry a lineage_id directly (it is scoped to a workflow instance). The
 /// caller must resolve the lineage_id from the workflow instance.
+///
+/// The `instance_epoch` parameter provides the instance's current epoch for
+/// epoch-local signal matching, avoiding the need for a separate state lookup
+/// in the pure matching function.
 #[must_use]
 pub fn signal_match(
     signal: &SignalAddress,
     wait: &WaitRecord,
     wait_instance_lineage_id: &InstanceId,
+    instance_epoch: Epoch,
 ) -> SignalMatchResult {
     if signal.lineage_id() != wait_instance_lineage_id {
         return SignalMatchResult::LineageMismatch {
@@ -108,7 +114,7 @@ pub fn signal_match(
         match signal.epoch_id() {
             None => return SignalMatchResult::EpochNotSpecified,
             Some(signal_epoch) => {
-                let wait_epoch = wait_epoch_for_instance(wait.instance_id());
+                let wait_epoch = instance_epoch;
                 if signal_epoch != wait_epoch {
                     return SignalMatchResult::EpochMismatch {
                         signal_epoch,
@@ -120,18 +126,6 @@ pub fn signal_match(
     }
 
     SignalMatchResult::Matched
-}
-
-/// Stub function to get the epoch for a given instance.
-///
-/// In a full implementation, this would query the workflow state to get
-/// the current epoch for the instance. For signal matching purposes, this
-/// allows checking epoch-local routing.
-///
-/// NOTE: This is a placeholder. In the actual implementation, epoch resolution
-/// would be done via the workflow state store.
-fn wait_epoch_for_instance(_instance_id: &InstanceId) -> Epoch {
-    Epoch::ZERO
 }
 
 #[cfg(test)]
@@ -158,7 +152,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(result.is_matched());
     }
 
@@ -179,7 +173,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &other_lineage_id);
+        let result = signal_match(&signal, &wait, &other_lineage_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::LineageMismatch { .. } => {}
@@ -208,7 +202,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::InstanceMismatch { .. } => {}
@@ -233,7 +227,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::WaitKeyMismatch { .. } => {}
@@ -320,10 +314,10 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, epoch);
         assert!(
             result.is_matched(),
-            "Epoch-local signal should match when signal epoch is ZERO (wait_epoch_for_instance returns ZERO)"
+            "Epoch-local signal should match when signal epoch equals instance epoch"
         );
     }
 
@@ -333,7 +327,7 @@ mod tests {
         let instance_id = valid_instance_id();
         let wait_key = WaitKey::parse("approval").expect("valid key");
         let signal_epoch = Epoch::new(5);
-        let wait_epoch = Epoch::ZERO;
+        let instance_epoch = Epoch::ZERO;
 
         let signal = SignalAddress::epoch_local(
             lineage_id.clone(),
@@ -349,7 +343,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, instance_epoch);
         assert!(
             result.is_mismatch(),
             "Epoch-local signal should mismatch when epochs differ"
@@ -360,7 +354,7 @@ mod tests {
                 wait_epoch: w_ep,
             } => {
                 assert_eq!(sig_ep, signal_epoch);
-                assert_eq!(w_ep, wait_epoch);
+                assert_eq!(w_ep, instance_epoch);
             }
             _ => panic!("expected EpochMismatch"),
         }
@@ -390,7 +384,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal_without_epoch, &wait, &lineage_id);
+        let result = signal_match(&signal_without_epoch, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result.is_matched(),
             "Lineage-wide signal should match (epoch not checked)"
@@ -441,7 +435,7 @@ mod tests {
         .expect("valid wait record");
 
         for (signal, description) in cases {
-            let result = signal_match(&signal, &wait, &lineage_id);
+            let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
             assert!(
                 result.is_mismatch(),
                 "signal should not match due to {description}"
@@ -466,7 +460,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result.is_matched(),
             "Lineage-wide signal should match regardless of epoch (epoch not checked)"
@@ -490,7 +484,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result.is_matched(),
             "Signal should match with BufferPolicy::Reject"
@@ -514,7 +508,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result.is_matched(),
             "Signal should match with BufferPolicy::BufferOne"
@@ -538,7 +532,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result.is_matched(),
             "Signal should match with BufferPolicy::BufferMany"
@@ -562,7 +556,7 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let matched = signal_match(&signal, &wait, &lineage_id);
+        let matched = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         let debug_str = format!("{:?}", matched);
         assert!(
             debug_str.contains("Matched"),
@@ -574,7 +568,7 @@ mod tests {
             instance_id,
             WaitKey::parse("other-key").expect("valid key"),
         );
-        let mismatch_result = signal_match(&mismatch_signal, &wait, &lineage_id);
+        let mismatch_result = signal_match(&mismatch_signal, &wait, &lineage_id, Epoch::ZERO);
         let mismatch_debug = format!("{:?}", mismatch_result);
         assert!(
             mismatch_debug.contains("WaitKeyMismatch"),
@@ -630,10 +624,101 @@ mod tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             matches!(result, SignalMatchResult::WaitKeyMismatch { .. }),
             "Should fail at wait_key check after passing lineage check"
+        );
+    }
+
+    #[test]
+    fn signal_match_epoch_local_matches_when_instance_epoch_matches_signal_epoch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let epoch = Epoch::new(42);
+
+        let signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            epoch,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id, epoch);
+        assert!(
+            result.is_matched(),
+            "Epoch-local signal should match when instance epoch equals signal epoch"
+        );
+    }
+
+    #[test]
+    fn signal_match_epoch_local_mismatches_when_instance_epoch_differs_from_signal_epoch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let signal_epoch = Epoch::new(42);
+        let instance_epoch = Epoch::new(99);
+
+        let signal = SignalAddress::epoch_local(
+            lineage_id.clone(),
+            signal_epoch,
+            instance_id.clone(),
+            wait_key.clone(),
+        );
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id, instance_epoch);
+        assert!(
+            result.is_mismatch(),
+            "Epoch-local signal should mismatch when instance epoch differs from signal epoch"
+        );
+        match result {
+            SignalMatchResult::EpochMismatch {
+                signal_epoch: sig_ep,
+                wait_epoch: w_ep,
+            } => {
+                assert_eq!(sig_ep, signal_epoch);
+                assert_eq!(w_ep, instance_epoch);
+            }
+            _ => panic!("expected EpochMismatch"),
+        }
+    }
+
+    #[test]
+    fn signal_match_epoch_local_lineage_wide_ignores_instance_epoch() {
+        let lineage_id = valid_instance_id();
+        let instance_id = valid_instance_id();
+        let wait_key = WaitKey::parse("approval").expect("valid key");
+        let instance_epoch = Epoch::new(100);
+
+        let signal =
+            SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
+        let wait = WaitRecord::new(
+            instance_id,
+            wait_key,
+            crate::BufferPolicy::Reject,
+            crate::TimestampMs::now(),
+        )
+        .expect("valid wait record");
+
+        let result = signal_match(&signal, &wait, &lineage_id, instance_epoch);
+        assert!(
+            result.is_matched(),
+            "Lineage-wide signal should match regardless of instance epoch"
         );
     }
 }
