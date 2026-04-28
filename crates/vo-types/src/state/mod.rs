@@ -3,7 +3,7 @@
 //! Lifecycle state machine with exhaustive transition rules.
 #![allow(dead_code)]
 
-mod compiler;
+pub mod compiler;
 mod lifecycle;
 mod semantic_types;
 mod transition;
