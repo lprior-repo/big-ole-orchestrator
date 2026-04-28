@@ -156,7 +156,7 @@ mod signal_matching_tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lin_id);
+        let result = signal_match(&signal, &wait, &lin_id, Epoch::ZERO);
         assert!(result.is_matched());
     }
 
@@ -176,7 +176,7 @@ mod signal_matching_tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &other_lin_id);
+        let result = signal_match(&signal, &wait, &other_lin_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::LineageMismatch { .. } => {}
@@ -200,7 +200,7 @@ mod signal_matching_tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lin_id);
+        let result = signal_match(&signal, &wait, &lin_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::WaitKeyMismatch { .. } => {}
@@ -225,7 +225,7 @@ mod signal_matching_tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lin_id);
+        let result = signal_match(&signal, &wait, &lin_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::InstanceMismatch { .. } => {}
@@ -432,7 +432,7 @@ mod signal_epoch_local_mismatch_tests {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lin_id);
+        let result = signal_match(&signal, &wait, &lin_id, Epoch::ZERO);
         assert!(result.is_mismatch());
         match result {
             SignalMatchResult::EpochMismatch {
