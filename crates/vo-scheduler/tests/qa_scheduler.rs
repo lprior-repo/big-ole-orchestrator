@@ -155,7 +155,7 @@ fn cron_schedule_invalid_is_rejected() {
     let result = ScheduledJob::new(
         JobKind::Recurring,
         JobPriority::Normal,
-        SchedulePolicy::Cron { expression: "invalid".to_string() },
+        SchedulePolicy::Cron("invalid".to_string()),
         RetryPolicy::default(),
         bytes::Bytes::new(),
     );

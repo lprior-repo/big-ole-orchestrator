@@ -1,7 +1,13 @@
 pub mod error;
 pub mod job;
 pub mod queue;
+pub mod scheduler;
 pub mod types;
+
+pub use scheduler::{
+    CompletionResult, InMemoryJobStore, JobStore, RecordingDispatcher, Scheduler, TickOutcome,
+    WorkerDispatch,
+};
 
 #[cfg(test)]
 mod job_tests;

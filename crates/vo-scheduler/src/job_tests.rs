@@ -65,14 +65,10 @@ fn new_scheduled_job_has_scheduled_state_for_after() {
 
 #[test]
 fn new_cron_job_has_pending_state() {
-<<<<<<< HEAD
     let job = make_job(
         JobPriority::Normal,
         SchedulePolicy::Cron("0 * * * *".to_string()),
     );
-=======
-    let job = make_job(JobPriority::Normal, SchedulePolicy::Cron { expression: "0 * * * *".to_string() });
->>>>>>> e674fd02 (fix: auto-save uncommitted implementation work (gt-pvx safety net))
     assert_eq!(job.state, JobState::Pending);
 }
 
@@ -136,7 +132,7 @@ fn new_job_with_cron_invalid_returns_error() {
     let result = ScheduledJob::new(
         JobKind::OneShot,
         JobPriority::Normal,
-        SchedulePolicy::Cron { expression: "invalid cron".to_string() },
+        SchedulePolicy::Cron("invalid cron".to_string()),
         RetryPolicy::default(),
         bytes::Bytes::from_static(b"test"),
     );
