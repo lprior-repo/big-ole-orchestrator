@@ -38,6 +38,7 @@ pub mod effects;
 pub mod lease_calc;
 pub mod exact_once_verification;
 pub mod ghost_workflow;
+pub mod lineage_projection;
 pub mod transaction;
 
 pub use exact_once_verification::assertions::{
