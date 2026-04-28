@@ -27,7 +27,7 @@ pub async fn cancel_job(
     queue: &mut SchedulerQueue,
     job_id: JobId,
 ) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)?;
+    let state = queue.get_state(&job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
     
     match state {
         JobState::Scheduled | JobState::Pending | JobState::Running | JobState::Retrying => {
@@ -35,7 +35,7 @@ pub async fn cancel_job(
             Ok(())
         }
         JobState::Completed | JobState::Failed | JobState::Cancelled => {
-            Err(SchedulerError::InvalidTransition)
+            Err(SchedulerError::InvalidTransition { from_state: state.to_string(), action: "cancel".to_string() })
         }
     }
 }
@@ -44,7 +44,7 @@ pub async fn get_job_status(
     queue: &SchedulerQueue,
     job_id: JobId,
 ) -> Result<JobState, SchedulerError> {
-    queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)
+    queue.get_state(&job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })
 }
 
 pub async fn update_job_schedule(
@@ -52,18 +52,18 @@ pub async fn update_job_schedule(
     job_id: JobId,
     new_schedule: SchedulePolicy,
 ) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id).ok_or(SchedulerError::JobNotFound)?;
-    
+    let state = queue.get_state(&job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
+
     match state {
         JobState::Scheduled | JobState::Pending => {
             if matches!(new_schedule, SchedulePolicy::Immediate) && state == JobState::Scheduled {
-                return Err(SchedulerError::InvalidTransition);
+                return Err(SchedulerError::InvalidTransition { from_state: state.to_string(), action: "update_schedule".to_string() });
             }
             queue.update_schedule(&job_id, new_schedule)?;
             Ok(())
         }
         JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled | JobState::Retrying => {
-            Err(SchedulerError::InvalidTransition)
+            Err(SchedulerError::InvalidTransition { from_state: state.to_string(), action: "update_schedule".to_string() })
         }
     }
 }
@@ -136,7 +136,7 @@ mod tests {
         let mut queue = make_queue();
         let fake_id = JobId::generate();
         let result = cancel_job(&mut queue, fake_id).await;
-        assert!(matches!(result, Err(SchedulerError::JobNotFound)));
+        assert!(matches!(result, Err(SchedulerError::JobNotFound { .. })));
     }
 
     #[tokio::test]
@@ -146,7 +146,7 @@ mod tests {
         let job_id = schedule_job(&mut queue, job).await.unwrap();
         cancel_job(&mut queue, job_id).await.unwrap();
         let result = cancel_job(&mut queue, job_id).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
     }
 
     #[tokio::test]
@@ -163,7 +163,7 @@ mod tests {
         let queue = make_queue();
         let fake_id = JobId::generate();
         let result = get_job_status(&queue, fake_id).await;
-        assert!(matches!(result, Err(SchedulerError::JobNotFound)));
+        assert!(matches!(result, Err(SchedulerError::JobNotFound { .. })));
     }
 
     #[tokio::test]
@@ -200,7 +200,7 @@ mod tests {
         cancel_job(&mut queue, job_id).await.unwrap();
         let new_schedule = SchedulePolicy::Immediate;
         let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
     }
 
     #[tokio::test]
@@ -210,6 +210,6 @@ mod tests {
         let job_id = schedule_job(&mut queue, job).await.unwrap();
         queue.update_state(&job_id, JobState::Running).unwrap();
         let result = update_job_schedule(&mut queue, job_id, SchedulePolicy::At(Utc::now() + Duration::hours(1))).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
     }
 }

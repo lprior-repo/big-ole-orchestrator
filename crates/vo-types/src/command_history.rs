@@ -25,7 +25,6 @@ use ulid::Ulid;
 
 use crate::command_envelope::CommandEnvelope;
 use crate::command_metadata::Issuer;
-use crate::string_types::ParseError;
 use crate::types::TimestampMs;
 use crate::workflow::{DagNode, Edge};
 
@@ -765,7 +764,7 @@ impl CommandHistory {
             Some(after_snapshot),
             batch_metadata,
             Some(command_id.clone()),
-        );
+        )?;
 
         if self.entries.len() >= self.capacity {
             if let Some(oldest_idx) = self

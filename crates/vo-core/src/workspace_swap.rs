@@ -309,6 +309,33 @@ pub enum SwapPhase {
     Complete,
 }
 
+impl SwapPhase {
+    /// Parse a string into the corresponding [`SwapPhase`].
+    ///
+    /// Returns `None` for unrecognized strings.
+    pub(crate) fn from_str_lossy(s: &str) -> Option<Self> {
+        match s.trim() {
+            "staging" => Some(Self::Staging),
+            "staged" => Some(Self::Staged),
+            "swapping" => Some(Self::Swapping),
+            "complete" => Some(Self::Complete),
+            "initial" => Some(Self::Initial),
+            _ => None,
+        }
+    }
+
+    /// Returns the string representation of this phase.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            Self::Staging => "staging",
+            Self::Staged => "staged",
+            Self::Swapping => "swapping",
+            Self::Complete => "complete",
+            Self::Initial => "initial",
+        }
+    }
+}
+
 /// Status of a prior (or in-progress) workspace swap.
 ///
 /// Returned by [`AtomicSwap::check_status`], this enum indicates whether a swap
@@ -925,6 +952,71 @@ impl AtomicSwap {
     #[must_use]
     pub fn shadow_dir(&self) -> PathBuf {
         self.shadow_path()
+    }
+
+    fn journal_path(&self) -> PathBuf {
+        let mut p = self.workspace.clone();
+        let name = p
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        p.set_file_name(format!("{name}{}", self.journal_suffix));
+        p
+    }
+
+    fn shadow_path(&self) -> PathBuf {
+        let mut p = self.workspace.clone();
+        let name = p
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        p.set_file_name(format!("{name}{}", self.shadow_suffix));
+        p
+    }
+
+    fn backup_path(&self) -> PathBuf {
+        let mut p = self.workspace.clone();
+        let name = p
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        p.set_file_name(format!("{name}.backup"));
+        p
+    }
+
+    fn validate_workspace(&self) -> Result<(), SwapError> {
+        if !self.workspace.exists() {
+            return Err(SwapError::WorkspaceNotFound(self.workspace.clone()));
+        }
+        if !self.workspace.is_dir() {
+            return Err(SwapError::NotADirectory(self.workspace.clone()));
+        }
+        Ok(())
+    }
+
+    fn write_journal(&self, phase: SwapPhase) -> Result<(), SwapError> {
+        let journal = self.journal_path();
+        let content = phase.as_str();
+        fs::write(&journal, content).map_err(|e| SwapError::JournalWrite {
+            path: journal.clone(),
+            source: e,
+        })?;
+        sync_dir(journal.parent().unwrap_or(Path::new(".")))?;
+        Ok(())
+    }
+
+    fn cleanup_journal(&self) -> Result<(), SwapError> {
+        let journal = self.journal_path();
+        if journal.exists() {
+            fs::remove_file(&journal).map_err(|e| SwapError::RemoveFailed {
+                path: journal,
+                source: e,
+            })?;
+        }
+        Ok(())
     }
 }
 

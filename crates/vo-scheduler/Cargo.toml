@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+vo-common = { path = "../vo-common" }
 vo-types = { path = "../vo-types" }
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }

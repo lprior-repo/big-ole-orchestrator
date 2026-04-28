@@ -91,8 +91,8 @@ fn lookup_returns_job_by_id() {
 fn lookup_returns_error_for_missing_job() {
     let queue = SchedulerQueue::new(100);
     let result = queue.lookup(&JobId::generate());
-    assert!(
-        matches!(result, Err(SchedulerError::JobNotFound)),
+      assert!(
+        matches!(result, Err(SchedulerError::JobNotFound { .. })),
         "lookup of missing job should return JobNotFound"
     );
 }
@@ -113,7 +113,7 @@ fn remove_deletes_job_from_queue() {
 fn remove_returns_error_for_missing_job() {
     let mut queue = SchedulerQueue::new(100);
     let result = queue.remove(&JobId::generate());
-    assert!(matches!(result, Err(SchedulerError::JobNotFound)));
+    assert!(matches!(result, Err(SchedulerError::JobNotFound { .. })));
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn update_state_rejects_invalid_transition() {
     queue.insert(job).unwrap();
     let result = queue.update_state(&id, JobState::Completed);
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "Pending -> Completed should be invalid"
     );
 }
@@ -150,7 +150,7 @@ fn update_state_rejects_terminal_to_running() {
     queue.update_state(&id, JobState::Completed).unwrap();
     let result = queue.update_state(&id, JobState::Running);
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "Completed -> Running should be invalid"
     );
 }
@@ -159,7 +159,7 @@ fn update_state_rejects_terminal_to_running() {
 fn update_state_rejects_missing_job() {
     let mut queue = SchedulerQueue::new(100);
     let result = queue.update_state(&JobId::generate(), JobState::Running);
-    assert!(matches!(result, Err(SchedulerError::JobNotFound)));
+    assert!(matches!(result, Err(SchedulerError::JobNotFound { .. })));
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn cancel_rejects_completed_job() {
     queue.update_state(&id, JobState::Completed).unwrap();
     let result = queue.cancel(&id);
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "cannot cancel a completed job"
     );
 }
@@ -198,7 +198,7 @@ fn cancel_rejects_failed_job() {
     queue.update_state(&id, JobState::Failed).unwrap();
     let result = queue.cancel(&id);
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "cannot cancel a failed job"
     );
 }
@@ -227,7 +227,7 @@ fn update_schedule_rejects_running_job() {
     queue.update_state(&id, JobState::Running).unwrap();
     let result = queue.update_schedule(&id, SchedulePolicy::At(future_time()));
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "cannot update schedule of a running job"
     );
 }
@@ -241,14 +241,14 @@ fn update_schedule_rejects_completed_job() {
     queue.update_state(&id, JobState::Running).unwrap();
     queue.update_state(&id, JobState::Completed).unwrap();
     let result = queue.update_schedule(&id, SchedulePolicy::At(future_time()));
-    assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+    assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
 }
 
 #[test]
 fn update_schedule_rejects_missing_job() {
     let mut queue = SchedulerQueue::new(100);
     let result = queue.update_schedule(&JobId::generate(), SchedulePolicy::Immediate);
-    assert!(matches!(result, Err(SchedulerError::JobNotFound)));
+    assert!(matches!(result, Err(SchedulerError::JobNotFound { .. })));
 }
 
 #[test]
@@ -347,7 +347,7 @@ fn non_recurring_job_cannot_reschedule_after_completed() {
     queue.update_state(&id, JobState::Completed).unwrap();
     let result = queue.update_state(&id, JobState::Scheduled);
     assert!(
-        matches!(result, Err(SchedulerError::InvalidTransition)),
+        matches!(result, Err(SchedulerError::InvalidTransition { .. })),
         "OneShot jobs cannot reschedule"
     );
 }

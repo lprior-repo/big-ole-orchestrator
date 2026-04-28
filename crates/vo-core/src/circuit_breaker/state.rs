@@ -103,26 +103,26 @@ use crate::circuit_breaker::{
 ///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::{CircuitBreakerState, RegistrationStatus};
-//! use std::time::Instant;
-//! use vo_types::WorkflowName;
-//!
-//! let state = CircuitBreakerState::new();
-//! let wf = WorkflowName::parse("my-workflow").unwrap();
-//!
-//! // Set status
-//! state.set_status(wf.clone(), RegistrationStatus::Quarantined);
-//! assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
-//!
-//! // Set rate limiter
-//! state.set_rate_limit(wf.clone(), Instant::now());
-//! assert!(state.get_rate_limit(&wf).is_some());
-//!
-//! // Remove rate limiter entry
-//! state.remove_rate_limit(&wf);
-//! assert!(state.get_rate_limit(&wf).is_none());
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::{CircuitBreakerState, RegistrationStatus};
+/// use std::time::Instant;
+/// use vo_types::WorkflowName;
+///
+/// let state = CircuitBreakerState::new();
+/// let wf = WorkflowName::parse("my-workflow").unwrap();
+///
+/// // Set status
+/// state.set_status(wf.clone(), RegistrationStatus::Quarantined);
+/// assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
+///
+/// // Set rate limiter
+/// state.set_rate_limit(wf.clone(), Instant::now());
+/// assert!(state.get_rate_limit(&wf).is_some());
+///
+/// // Remove rate limiter entry
+/// state.remove_rate_limit(&wf);
+/// assert!(state.get_rate_limit(&wf).is_none());
+/// ```
 pub struct CircuitBreakerState {
     /// Workflow status map. Unknown workflows default to `Active`.
     ///

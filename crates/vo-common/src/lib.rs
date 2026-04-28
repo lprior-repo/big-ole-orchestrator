@@ -9,7 +9,7 @@ pub mod events;
 mod structures;
 pub mod types;
 
-pub use error::VoError;
+pub use error::{ExecutionError, JobRunError, RetryError, SchedulerError, VoError};
 pub use events::{DuplicateResult, EventDedup, WorkflowEvent};
 pub use types::{EventId, InstanceId, NamespaceId, TimerId};
 pub use structures::{Bounds, Octree, Vec3};

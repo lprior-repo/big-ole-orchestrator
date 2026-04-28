@@ -492,7 +492,7 @@ mod handlers {
                     timestamp_ms: u64,
                     schema_version: u8,
                     payload: serde_json::Value,
-                    metadata: vo_types::EventMetadata,
+                    metadata: vo_types::events::EventMetadata,
                 }
 
                 #[derive(serde::Serialize)]

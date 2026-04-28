@@ -51,6 +51,193 @@ impl VoError {
     }
 }
 
+/// Unified execution error covering both vo-scheduler and vo-executor.
+///
+/// Consolidates vo-scheduler's `ExecutionError` (Panicked, TimedOut, Cancelled,
+/// ResourceExhausted) with vo-executor's execution-related errors (TimeoutExceeded,
+/// ExecutionCancelled, TransientError, RetryExhausted, StepNotFound, InvalidTransition).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Error)]
+pub enum ExecutionError {
+    #[error("step not found: {step_id}")]
+    StepNotFound { step_id: String },
+
+    #[error("invalid timeout: {value}ms - {reason}")]
+    InvalidTimeout { value: u64, reason: String },
+
+    #[error("timeout exceeded: {elapsed_ms}ms > {limit_ms}ms")]
+    TimeoutExceeded { elapsed_ms: u64, limit_ms: u64 },
+
+    #[error("invalid state transition: {from_state} -> {action}")]
+    InvalidTransition { from_state: String, action: String },
+
+    #[error("retry exhausted after {attempts} attempts: {last_error}")]
+    RetryExhausted {
+        attempts: u32,
+        last_error: Box<ExecutionError>,
+    },
+
+    #[error("invalid retry policy: {reason}")]
+    InvalidRetryPolicy { reason: String },
+
+    #[error("execution cancelled: {reason}")]
+    Cancelled { reason: String },
+
+    #[error("transient error: {reason} (recoverable={recoverable})")]
+    Transient { reason: String, recoverable: bool },
+
+    #[error("job panicked during execution")]
+    Panicked,
+
+    #[error("job timed out after {timeout_ms}ms")]
+    TimedOut { timeout_ms: u64 },
+
+    #[error("job exhausted available resources")]
+    ResourceExhausted,
+}
+
+/// Unified scheduler error covering both vo-scheduler and vo-executor scheduler.
+///
+/// Consolidates vo-scheduler's `SchedulerError` with vo-executor scheduler's
+/// `SchedulerError`, providing a single enum for all scheduler-related failures.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Error)]
+pub enum SchedulerError {
+    #[error("job not found: {job_id}")]
+    JobNotFound { job_id: String },
+
+    #[error("scheduler queue full")]
+    QueueFull,
+
+    #[error("scheduler is stopped")]
+    SchedulerStopped,
+
+    #[error("invalid schedule: {0}")]
+    InvalidSchedule(String),
+
+    #[error("concurrency limit reached")]
+    ConcurrencyLimitReached,
+
+    #[error("storage error: {0}")]
+    StorageError(String),
+
+    #[error("invalid state transition: {from_state} -> {action}")]
+    InvalidTransition { from_state: String, action: String },
+
+    #[error("serialization error: {0}")]
+    SerializationError(String),
+
+    #[error("invalid job id: {0}")]
+    InvalidJobId(String),
+}
+
+/// Unified retry error covering both vo-scheduler's `RetryExhaustedError`
+/// and vo-executor's `RetryPolicyError`.
+///
+/// Consolidates max-attempts, backoff, and retry-policy validation errors
+/// into a single enum.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Error)]
+pub enum RetryError {
+    #[error("max retry attempts reached: {attempts}")]
+    MaxAttemptsReached { attempts: u32 },
+
+    #[error("backoff calculation overflow")]
+    BackoffOverflow,
+
+    #[error("retry not allowed for this job kind")]
+    RetryNotAllowed,
+
+    #[error("zero attempts not allowed")]
+    ZeroAttempts,
+
+    #[error("invalid multiplier: {got} (must be >= 1.0)")]
+    InvalidMultiplier { got: f64 },
+
+    #[error("max_backoff_ms ({max}) must be >= backoff_ms ({ms})")]
+    MaxBackoffTooSmall { max: u64, ms: u64 },
+}
+
+/// Job run error for vo-executor scheduler.
+///
+/// Tracks the outcome of an individual job run attempt.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Error)]
+pub enum JobRunError {
+    #[error("job {job_id} failed: {reason}")]
+    Failed { job_id: String, reason: String },
+
+    #[error("job {job_id} exceeded retries ({attempts} attempts)")]
+    ExceededRetries { job_id: String, attempts: u32 },
+
+    #[error("job {job_id} cancelled")]
+    Cancelled { job_id: String },
+}
+
+impl ExecutionError {
+    /// Returns true if this error represents a transient condition that may
+    /// succeed on retry.
+    #[must_use]
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::Transient { recoverable: true, .. }
+                | Self::TimeoutExceeded { .. }
+                | Self::RetryExhausted { .. }
+                | Self::TimedOut { .. }
+        )
+    }
+
+    /// Returns true if this error is permanent and should not be retried.
+    #[must_use]
+    pub fn is_permanent(&self) -> bool {
+        matches!(
+            self,
+            Self::StepNotFound { .. }
+                | Self::InvalidTimeout { .. }
+                | Self::InvalidTransition { .. }
+                | Self::InvalidRetryPolicy { .. }
+                | Self::Panicked
+        )
+    }
+}
+
+impl SchedulerError {
+    /// Returns true if this error represents a transient condition.
+    #[must_use]
+    pub fn is_transient(&self) -> bool {
+        matches!(
+            self,
+            Self::QueueFull | Self::StorageError(_) | Self::SerializationError(_)
+        )
+    }
+
+    /// Returns true if this error is permanent.
+    #[must_use]
+    pub fn is_permanent(&self) -> bool {
+        matches!(
+            self,
+            Self::InvalidSchedule
+                | Self::InvalidTransition { .. }
+                | Self::InvalidJobId(_)
+                | Self::SchedulerStopped
+        )
+    }
+
+    /// Returns true if this error represents job not being found.
+    #[must_use]
+    pub fn is_not_found(&self) -> bool {
+        matches!(self, Self::JobNotFound { .. })
+    }
+}
+
+impl RetryError {
+    /// Returns true if this error allows a retry with modified parameters.
+    #[must_use]
+    pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::MaxAttemptsReached { .. } | Self::MaxBackoffTooSmall { .. }
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

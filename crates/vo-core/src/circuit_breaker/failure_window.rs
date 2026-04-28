@@ -73,20 +73,20 @@ use crate::circuit_breaker::FailureRecord;
 ///
 /// # Invariants
 ///
-//! - INV-004: No two entries share the same `BinaryHash`. Duplicate hashes
-//!   update the timestamp of the existing entry.
-//! - INV-007: Entries are evicted when `now - failed_at > window_duration`.
-//! - The `records` vector is always sorted by `failed_at` in ascending order.
-//!
+/// - INV-004: No two entries share the same `BinaryHash`. Duplicate hashes
+///   update the timestamp of the existing entry.
+/// - INV-007: Entries are evicted when `now - failed_at > window_duration`.
+/// - The `records` vector is always sorted by `failed_at` in ascending order.
+///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::FailureWindow;
-//!
-//! let window = FailureWindow::new();
-//! assert!(window.is_empty());
-//! assert_eq!(window.len(), 0);
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::FailureWindow;
+///
+/// let window = FailureWindow::new();
+/// assert!(window.is_empty());
+/// assert_eq!(window.len(), 0);
+/// ```
 #[derive(Debug, Clone)]
 pub struct FailureWindow {
     /// Unique-hash failure records within the window.
@@ -218,25 +218,25 @@ impl FailureWindow {
 ///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::{FailureWindow, failure_window::record_failure_in_window};
-//! use std::time::{Duration, Instant};
-//! use vo_types::BinaryHash;
-//!
-//! let mut window = FailureWindow::new();
-//! let hash1 = BinaryHash::parse("aaa").unwrap();
-//! let hash2 = BinaryHash::parse("bbb").unwrap();
-//! let now = Instant::now();
-//!
-//! // First unique hash → count = 1
-//! assert_eq!(record_failure_in_window(&mut window, hash1.clone(), now, Duration::from_secs(600)), 1);
-//!
-//! // Second unique hash → count = 2
-//! assert_eq!(record_failure_in_window(&mut window, hash2.clone(), now, Duration::from_secs(600)), 2);
-//!
-//! // Duplicate hash → count stays 2 (INV-004: timestamp updated, no count increase)
-//! assert_eq!(record_failure_in_window(&mut window, hash1, now + Duration::from_secs(5), Duration::from_secs(600)), 2);
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::{FailureWindow, failure_window::record_failure_in_window};
+/// use std::time::{Duration, Instant};
+/// use vo_types::BinaryHash;
+///
+/// let mut window = FailureWindow::new();
+/// let hash1 = BinaryHash::parse("aaa").unwrap();
+/// let hash2 = BinaryHash::parse("bbb").unwrap();
+/// let now = Instant::now();
+///
+/// // First unique hash → count = 1
+/// assert_eq!(record_failure_in_window(&mut window, hash1.clone(), now, Duration::from_secs(600)), 1);
+///
+/// // Second unique hash → count = 2
+/// assert_eq!(record_failure_in_window(&mut window, hash2.clone(), now, Duration::from_secs(600)), 2);
+///
+/// // Duplicate hash → count stays 2 (INV-004: timestamp updated, no count increase)
+/// assert_eq!(record_failure_in_window(&mut window, hash1, now + Duration::from_secs(5), Duration::from_secs(600)), 2);
+/// ```
 pub fn record_failure_in_window(
     window: &mut FailureWindow,
     hash: BinaryHash,
@@ -289,25 +289,25 @@ pub fn record_failure_in_window(
 ///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::{FailureWindow, failure_window::unique_failures_in_window};
-//! use std::time::{Duration, Instant};
-//! use vo_types::BinaryHash;
-//!
-//! let mut window = FailureWindow::new();
-//! let hash = BinaryHash::parse("aaa").unwrap();
-//! let now = Instant::now();
-//!
-//! // Record a failure
-//! vo_core::circuit_breaker::failure_window::record_failure_in_window(
-//!     &mut window, hash.clone(), now, Duration::from_secs(600),
-//! );
-//! assert_eq!(unique_failures_in_window(&mut window, now, Duration::from_secs(600)), 1);
-//!
-//! // Expire the entry (go far into the future)
-//! let far_future = now + Duration::from_secs(700);
-//! assert_eq!(unique_failures_in_window(&mut window, far_future, Duration::from_secs(600)), 0);
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::{FailureWindow, failure_window::unique_failures_in_window};
+/// use std::time::{Duration, Instant};
+/// use vo_types::BinaryHash;
+///
+/// let mut window = FailureWindow::new();
+/// let hash = BinaryHash::parse("aaa").unwrap();
+/// let now = Instant::now();
+///
+/// // Record a failure
+/// vo_core::circuit_breaker::failure_window::record_failure_in_window(
+///     &mut window, hash.clone(), now, Duration::from_secs(600),
+/// );
+/// assert_eq!(unique_failures_in_window(&mut window, now, Duration::from_secs(600)), 1);
+///
+/// // Expire the entry (go far into the future)
+/// let far_future = now + Duration::from_secs(700);
+/// assert_eq!(unique_failures_in_window(&mut window, far_future, Duration::from_secs(600)), 0);
+/// ```
 pub fn unique_failures_in_window(
     window: &mut FailureWindow,
     now: Instant,

@@ -100,27 +100,27 @@ use std::time::{Duration, Instant};
 ///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::check_rate_limit;
-//! use std::time::{Duration, Instant};
-//!
-//! let t0 = Instant::now();
-//! let window = Duration::from_secs(60);
-//!
-//! // Just registered (0 elapsed) → full window remaining
-//! assert_eq!(check_rate_limit(Some(t0), window, t0), Some(60));
-//!
-//! // 29.5s elapsed → 31s remaining (ceiling of 30.5)
-//! let now = t0 + Duration::from_millis(29500);
-//! assert_eq!(check_rate_limit(Some(t0), window, now), Some(31));
-//!
-//! // 60s elapsed → allowed (window exactly expired)
-//! let now = t0 + Duration::from_secs(60);
-//! assert_eq!(check_rate_limit(Some(t0), window, now), None);
-//!
-//! // No prior registration → always allowed
-//! assert_eq!(check_rate_limit(None, window, t0), None);
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::check_rate_limit;
+/// use std::time::{Duration, Instant};
+///
+/// let t0 = Instant::now();
+/// let window = Duration::from_secs(60);
+///
+/// // Just registered (0 elapsed) → full window remaining
+/// assert_eq!(check_rate_limit(Some(t0), window, t0), Some(60));
+///
+/// // 29.5s elapsed → 31s remaining (ceiling of 30.5)
+/// let now = t0 + Duration::from_millis(29500);
+/// assert_eq!(check_rate_limit(Some(t0), window, now), Some(31));
+///
+/// // 60s elapsed → allowed (window exactly expired)
+/// let now = t0 + Duration::from_secs(60);
+/// assert_eq!(check_rate_limit(Some(t0), window, now), None);
+///
+/// // No prior registration → always allowed
+/// assert_eq!(check_rate_limit(None, window, t0), None);
+/// ```
 #[must_use]
 pub fn check_rate_limit(
     last_registration: Option<Instant>,
@@ -154,13 +154,13 @@ pub fn check_rate_limit(
 ///
 /// # Examples
 ///
-//! ```
-//! use vo_core::circuit_breaker::update_rate_limit;
-//! use std::time::Instant;
-//!
-//! let now = Instant::now();
-//! assert_eq!(update_rate_limit(now), now);
-//! ```
+/// ```
+/// use vo_core::circuit_breaker::update_rate_limit;
+/// use std::time::Instant;
+///
+/// let now = Instant::now();
+/// assert_eq!(update_rate_limit(now), now);
+/// ```
 #[must_use]
 pub fn update_rate_limit(now: Instant) -> Instant {
     now

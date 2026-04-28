@@ -95,20 +95,20 @@ use dashmap::DashMap;
 /// - If insufficient tokens, the request is denied with a wait time.
 ///
 /// # Examples
-//!
-//! ```
-//! use vo_core::circuit_breaker::TokenBucketConfig;
-//!
-//! // 10 token burst, 5 tokens/sec sustained, 1 token per request
-//! let config = TokenBucketConfig::new(10, 5.0, 1);
-//! assert_eq!(config.burst, 10);
-//! assert_eq!(config.sustained_rate, 5.0);
-//! assert_eq!(config.cost_per_request, 1);
-//!
-//! // Default config: 100 burst, 10 tokens/sec, 1 cost
-//! let default = TokenBucketConfig::default();
-//! assert_eq!(default.burst, 100);
-//! ```
+///
+/// ```
+/// use vo_core::circuit_breaker::TokenBucketConfig;
+///
+/// // 10 token burst, 5 tokens/sec sustained, 1 token per request
+/// let config = TokenBucketConfig::new(10, 5.0, 1);
+/// assert_eq!(config.burst, 10);
+/// assert_eq!(config.sustained_rate, 5.0);
+/// assert_eq!(config.cost_per_request, 1);
+///
+/// // Default config: 100 burst, 10 tokens/sec, 1 cost
+/// let default = TokenBucketConfig::default();
+/// assert_eq!(default.burst, 100);
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct TokenBucketConfig {
     /// Maximum number of tokens in the bucket (burst capacity).
@@ -240,27 +240,27 @@ impl BucketState {
 /// fine-grained partition-level writes.
 ///
 /// # Examples
-//!
-//! ```
-//! use vo_core::circuit_breaker::{TokenBucketConfig, TokenBucketRateLimiter};
-//! use std::time::{Duration, Instant};
-//!
-//! let config = TokenBucketConfig::new(5, 1.0, 1); // 5 tokens, 1/sec
-//! let limiter = TokenBucketRateLimiter::new(config);
-//!
-//! let now = Instant::now();
-//!
-//! // First 5 requests are allowed (bucket starts full)
-//! for _ in 0..5 {
-//!     let (allowed, _) = limiter.check_and_consume("wf", now);
-//!     assert!(allowed);
-//! }
-//!
-//! // 6th request is denied (bucket empty)
-//! let (allowed, retry_after) = limiter.check_and_consume("wf", now);
-//! assert!(!allowed);
-//! assert_eq!(retry_after, 1); // Wait 1 second for next token
-//! ```
+///
+/// ```
+/// use vo_core::circuit_breaker::{TokenBucketConfig, TokenBucketRateLimiter};
+/// use std::time::{Duration, Instant};
+///
+/// let config = TokenBucketConfig::new(5, 1.0, 1); // 5 tokens, 1/sec
+/// let limiter = TokenBucketRateLimiter::new(config);
+///
+/// let now = Instant::now();
+///
+/// // First 5 requests are allowed (bucket starts full)
+/// for _ in 0..5 {
+///     let (allowed, _) = limiter.check_and_consume("wf", now);
+///     assert!(allowed);
+/// }
+///
+/// // 6th request is denied (bucket empty)
+/// let (allowed, retry_after) = limiter.check_and_consume("wf", now);
+/// assert!(!allowed);
+/// assert_eq!(retry_after, 1); // Wait 1 second for next token
+/// ```
 #[derive(Debug, Clone)]
 pub struct TokenBucketRateLimiter {
     config: TokenBucketConfig,
