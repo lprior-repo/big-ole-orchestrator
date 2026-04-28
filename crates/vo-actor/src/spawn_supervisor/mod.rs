@@ -6,11 +6,13 @@
 //!
 //! - [`types`] - Type definitions (SpawnRecord, SpawnPhase, SpawnSupervisorError, SpawnSupervisorState, CycleResult)
 //! - [`metrics`] - Metrics (Counter, SpawnSupervisorMetrics)
-//! - [`traits`] - Trait definitions (SpawnStorage, ProcessManager, WorkQueue)
+//! - [`traits`] - Trait definitions (SpawnStorage, ProcessManager)
 //! - [`actor`] - SpawnSupervisor struct, constructor, spawn, and run_loop
 //! - [`cycle`] - process_cycle implementation (Phases 1-3)
 //! - [`health`] - Health check probing
 //! - [`pure`] - Pure calculation functions (no side effects)
+//!
+//! WorkQueue is shared in [crate::work_queue].
 
 pub mod actor;
 pub mod cycle;
@@ -30,5 +32,6 @@ pub(crate) use actor::SpawnSupervisor as Actor;
 pub use actor::{SpawnSupervisor, SpawnSupervisorHandle};
 pub use metrics::{Counter, SpawnSupervisorMetrics};
 pub use pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
-pub use traits::{ProcessHandle, ProcessManager, SpawnStorage, WorkQueue};
+pub use traits::{ProcessHandle, ProcessManager, SpawnStorage};
+pub use crate::work_queue::WorkQueue;
 pub use types::{CycleResult, SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState};

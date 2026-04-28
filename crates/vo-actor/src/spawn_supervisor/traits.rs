@@ -1,11 +1,13 @@
-//! Async traits: SpawnStorage, ProcessManager, WorkQueue
+//! Async traits: SpawnStorage, ProcessManager
+//!
+//! WorkQueue is shared in crate::work_queue.
 
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
+use vo_types::InstanceId;
 
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
-use vo_types::InstanceId;
 
 // =============================================================================
 // Async Traits - Storage and Process abstractions
@@ -81,19 +83,4 @@ pub trait ProcessManager: Send + Sync {
 
     /// Waits for a process to exit.
     async fn wait(&self, pid: u32) -> Result<i32, SpawnSupervisorError>;
-}
-
-/// Async work queue trait for dispatching work
-#[async_trait]
-pub trait WorkQueue: Send + Sync {
-    /// Enqueues a spawn work item for the given instance.
-    async fn enqueue_spawn(
-        &self,
-        instance_id: InstanceId,
-        executable: PathBuf,
-        args: Vec<String>,
-    ) -> Result<(), SpawnSupervisorError>;
-
-    /// Enqueues a resume work item for the given instance.
-    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError>;
 }

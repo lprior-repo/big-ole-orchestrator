@@ -226,24 +226,27 @@ impl WorkQueue for MockWorkQueue {
         instance_id: InstanceId,
         _executable: PathBuf,
         _args: Vec<String>,
-    ) -> Result<(), SpawnSupervisorError> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if *self.should_fail.lock().unwrap() {
-            return Err(SpawnSupervisorError::DispatchError(
-                "Queue full".to_string(),
-            ));
+            return Err("Queue full".into());
         }
         self.enqueued_spawns.lock().unwrap().push(instance_id);
         Ok(())
     }
 
-    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
+    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if *self.should_fail.lock().unwrap() {
-            return Err(SpawnSupervisorError::DispatchError(
-                "Queue full".to_string(),
-            ));
+            return Err("Queue full".into());
         }
         self.enqueued_resumes.lock().unwrap().push(instance_id);
         Ok(())
+    }
+
+    async fn is_instance_terminal(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(false)
     }
 }
 

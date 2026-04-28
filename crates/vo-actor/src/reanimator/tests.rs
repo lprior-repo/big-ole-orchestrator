@@ -196,7 +196,8 @@ mod reanimator_handle_tests {
 
 mod crash_recovery_tests {
     use super::*;
-    use crate::reanimator::traits::{PendingTimer, TimerStorage, WorkQueue};
+    use crate::reanimator::traits::{PendingTimer, TimerStorage};
+    use crate::work_queue::WorkQueue;
 
     fn make_pending_timer(
         instance_id: InstanceId,

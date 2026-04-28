@@ -12,7 +12,8 @@ use tokio::time::{interval, MissedTickBehavior};
 use vo_types::InstanceId;
 
 use super::calc::{is_overdue, timer_delete_before_dispatch, verify_dual_clock};
-use super::traits::{TimerStorage, WorkQueue};
+use super::traits::TimerStorage;
+use crate::work_queue::WorkQueue;
 use super::types::{
     CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
 };
@@ -108,7 +109,7 @@ impl TimerSupervisor {
     ///
     /// # Errors
     /// Returns an error if storage operations fail.
-    pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
+    pub async fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
         #[allow(clippy::cast_possible_truncation)]
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -147,7 +148,7 @@ impl TimerSupervisor {
             match timer_delete_before_dispatch(&self.storage, &timer) {
                 Ok(()) => {
                     // Dispatch succeeded
-                    match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
+                    match self.work_queue.enqueue_resume(timer.instance_id.clone()).await {
                         Ok(()) => {
                             self.metrics.timers_fired.incr();
                             timers_fired += 1;
@@ -218,7 +219,7 @@ impl TimerSupervisor {
                     break;
                 }
                 _ = scan_interval.tick() => {
-                    match self.process_cycle() {
+                    match self.process_cycle().await {
                         Ok(_) => {}
                         Err(e) if e.is_transient() => {
                             tracing::warn!("Transient error in timer supervisor cycle: {}", e);
@@ -316,7 +317,8 @@ impl TimerSupervisorHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::timer_supervisor::traits::{TimerStorage, WorkQueue};
+    use crate::timer_supervisor::traits::TimerStorage;
+    use crate::work_queue::WorkQueue;
 
     struct MockStorage;
     impl TimerStorage for MockStorage {
@@ -340,9 +342,27 @@ mod tests {
     }
 
     struct MockQueue;
+    #[async_trait::async_trait]
     impl WorkQueue for MockQueue {
-        fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), TimerSupervisorError> {
+        async fn enqueue_spawn(
+            &self,
+            _instance_id: InstanceId,
+            _executable: std::path::PathBuf,
+            _args: Vec<String>,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             Ok(())
+        }
+        async fn enqueue_resume(
+            &self,
+            _instance_id: InstanceId,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            Ok(())
+        }
+        async fn is_instance_terminal(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(false)
         }
     }
 

@@ -13,9 +13,10 @@ use std::time::Duration;
 use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::mock::{MockTimerStorage, MockWorkQueue};
-use crate::reanimator::traits::{PendingTimer, TimerStorage, WorkQueue};
+use crate::reanimator::traits::{PendingTimer, TimerStorage};
 use crate::reanimator::types::{FairnessBudget, ReanimatorConfig};
 use crate::reanimator::{ReanimatorError, TimerRecord};
+use crate::work_queue::WorkQueue;
 
 // =============================================================================
 // Helper Functions

@@ -1,15 +1,13 @@
 //! Timer supervisor traits
 //!
-//! Contains the storage and work queue trait definitions.
-
-use std::sync::Arc;
+//! Contains the storage trait definition. WorkQueue is shared in crate::work_queue.
 
 use vo_types::InstanceId;
 
 use super::types::{TimerRecord, TimerSupervisorError};
 
 // =============================================================================
-// Traits - Storage and WorkQueue abstractions
+// Traits - Storage abstractions
 // =============================================================================
 
 /// Storage trait for timer operations
@@ -38,13 +36,4 @@ pub trait TimerStorage: Send + Sync {
         timer: &TimerRecord,
         new_fire_at_ms: u64,
     ) -> Result<(), TimerSupervisorError>;
-}
-
-/// Work queue trait for dispatching work
-pub trait WorkQueue: Send + Sync {
-    /// Enqueues a resume work item for the given instance.
-    ///
-    /// # Errors
-    /// Returns an error if the enqueue operation fails.
-    fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), TimerSupervisorError>;
 }

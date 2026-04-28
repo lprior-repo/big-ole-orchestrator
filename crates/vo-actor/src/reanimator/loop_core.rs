@@ -9,10 +9,11 @@ use tokio::time::{interval, MissedTickBehavior};
 use vo_types::TimestampMs;
 
 use crate::reanimator::{
-    traits::{TimerStorage, WorkQueue},
+    traits::TimerStorage,
     types::{validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState},
     ReanimatorError,
 };
+use crate::work_queue::WorkQueue;
 
 const STALE_PENDING_THRESHOLD_MS: u64 = 60_000;
 

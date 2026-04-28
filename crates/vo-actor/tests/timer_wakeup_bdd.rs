@@ -23,9 +23,10 @@ use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
     mock::{MockTimerStorage, MockWorkQueue},
-    traits::{TimerStorage, WorkQueue},
+    traits::TimerStorage,
     ReanimatorConfig, ReanimatorLoop, TimerRecord,
 };
+use vo_actor::work_queue::WorkQueue;
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 
 // =============================================================================

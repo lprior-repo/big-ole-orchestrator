@@ -6,9 +6,11 @@
 //! # Structure
 //!
 //! - [`types`] - Type definitions (TimerRecord, TimerSupervisorError, etc.)
-//! - [`traits`] - Trait definitions (TimerStorage, WorkQueue)
+//! - [`traits`] - Trait definitions (TimerStorage)
 //! - [`calc`] - Pure calculation functions
 //! - [`supervisor`] - Main supervisor actor implementation
+//!
+//! WorkQueue is shared in [crate::work_queue].
 
 pub mod calc;
 pub mod supervisor;
@@ -18,7 +20,8 @@ pub mod types;
 // Re-export commonly used types
 pub use calc::{is_overdue, timer_delete_before_dispatch, verify_dual_clock};
 pub use supervisor::{TimerSupervisor, TimerSupervisorHandle};
-pub use traits::{TimerStorage, WorkQueue};
+pub use traits::TimerStorage;
+pub use crate::work_queue::WorkQueue;
 pub use types::{
     Counter, CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics,
     TimerSupervisorState,

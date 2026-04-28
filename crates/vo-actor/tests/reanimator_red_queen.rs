@@ -25,10 +25,11 @@ use vo_types::{InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
     mock::{MockTimerStorage, MockWorkQueue},
-    traits::{TimerStorage, WorkQueue},
+    traits::TimerStorage,
     types::{ReanimatorConfig, TimerRecord},
     ReanimatorError, ReanimatorLoop,
 };
+use vo_actor::work_queue::WorkQueue;
 
 fn ts_ms(value: u64) -> TimestampMs {
     TimestampMs::try_from(value).expect("valid timestamp")

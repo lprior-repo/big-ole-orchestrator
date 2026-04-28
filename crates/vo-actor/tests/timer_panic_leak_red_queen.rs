@@ -27,9 +27,10 @@ use vo_actor::reanimator::{
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 use vo_actor::timer_supervisor::{
     supervisor::TimerSupervisor,
-    traits::{TimerStorage as SyncTimerStorage, WorkQueue as SyncWorkQueue},
+    traits::TimerStorage as SyncTimerStorage,
     types::{TimerRecord as SyncTimerRecord, TimerSupervisorError},
 };
+use vo_actor::work_queue::{WorkQueue, WorkQueue as SyncWorkQueue};
 
 fn ts_ms(value: u64) -> TimestampMs {
     TimestampMs::try_from(value).expect("valid timestamp")
@@ -236,13 +237,25 @@ mod timer_supervisor_panic_cleanup {
         }
     }
 
-    impl SyncWorkQueue for PanicWorkQueue {
-        fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), TimerSupervisorError> {
+    #[async_trait::async_trait]
+    impl WorkQueue for PanicWorkQueue {
+        async fn enqueue_spawn(
+            &self,
+            _instance_id: InstanceId,
+            _executable: std::path::PathBuf,
+            _args: Vec<String>,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            Ok(())
+        }
+        async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if self.should_panic.load(Ordering::SeqCst) {
                 panic!("simulated panic during enqueue_resume");
             }
             self.enqueued.lock().unwrap().push(instance_id);
             Ok(())
+        }
+        async fn is_instance_terminal(&self, _instance_id: &InstanceId) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+            Ok(false)
         }
     }
 
@@ -491,7 +504,8 @@ mod timer_lifecycle_panic_safety {
 
 mod crash_recovery_timer_safety {
     use super::*;
-    use vo_actor::reanimator::traits::{PendingTimer, WorkQueue};
+    use vo_actor::reanimator::traits::PendingTimer;
+use vo_actor::work_queue::WorkQueue;
 
     // RQ-TP10: Pending timer from crashed reanimator is replayed on restart.
     #[tokio::test]
@@ -582,16 +596,24 @@ mod crash_recovery_timer_safety {
 
         #[async_trait::async_trait]
         impl WorkQueue for TerminalWorkQueue {
+            async fn enqueue_spawn(
+                &self,
+                _instance_id: InstanceId,
+                _executable: std::path::PathBuf,
+                _args: Vec<String>,
+            ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+                Ok(())
+            }
             async fn enqueue_resume(
                 &self,
                 instance_id: InstanceId,
-            ) -> Result<(), vo_actor::reanimator::ReanimatorError> {
+            ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 self.inner.enqueue_resume(instance_id).await
             }
             async fn is_instance_terminal(
                 &self,
                 _instance_id: &InstanceId,
-            ) -> Result<bool, vo_actor::reanimator::ReanimatorError> {
+            ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
                 Ok(true) // Instance is in terminal state
             }
         }

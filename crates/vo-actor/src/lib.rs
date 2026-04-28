@@ -31,6 +31,7 @@ pub mod signal_buffer;
 pub mod signal_messages;
 pub mod signals;
 pub mod spawn_supervisor;
+pub mod work_queue;
 
 #[cfg(test)]
 pub mod signal_buffer_tests;

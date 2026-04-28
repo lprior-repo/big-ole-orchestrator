@@ -26,9 +26,10 @@ use vo_types::{Epoch, InstanceId, TimestampMs};
 
 use vo_actor::reanimator::{
     mock::{MockTimerStorage, MockWorkQueue},
-    traits::{TimerStorage, WorkQueue},
+    traits::TimerStorage,
     ReanimatorConfig, ReanimatorLoop, ReanimatorState, TimerRecord,
 };
+use vo_actor::work_queue::WorkQueue;
 use vo_actor::signal_buffer::{BufferResult, SignalBuffer, SignalBufferConfig};
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 

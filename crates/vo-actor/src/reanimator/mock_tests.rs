@@ -5,10 +5,11 @@ use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::{
     mock::{MockTimerStorage, MockWorkQueue},
-    traits::{TimerStorage, WorkQueue},
+    traits::TimerStorage,
     types::TimerRecord,
     ReanimatorError,
 };
+use crate::work_queue::WorkQueue;
 
 // Helper function to create TimestampMs from u64 without unwrap in test code
 fn ts_ms(value: u64) -> TimestampMs {
@@ -124,10 +125,8 @@ mod mock_work_queue_tests {
 
         let result = queue.enqueue_resume(instance_id.clone()).await;
 
-        assert_eq!(
-            result,
-            Err(ReanimatorError::EnqueueFailed("Mock failure".to_string()))
-        );
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Mock failure");
     }
 
     #[tokio::test]

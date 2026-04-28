@@ -5,9 +5,10 @@ use tokio::sync::Mutex;
 use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::{
-    traits::{PendingTimer, TimerStorage, WorkQueue},
+    traits::{PendingTimer, TimerStorage},
     ReanimatorError, TimerRecord,
 };
+use crate::work_queue::WorkQueue;
 
 /// A mock timer storage that stores timers in memory.
 #[derive(Debug)]
@@ -328,9 +329,17 @@ impl MockWorkQueue {
 
 #[async_trait::async_trait]
 impl WorkQueue for MockWorkQueue {
-    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), ReanimatorError> {
+    async fn enqueue_spawn(
+        &self,
+        _instance_id: InstanceId,
+        _executable: std::path::PathBuf,
+        _args: Vec<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
+    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if *self.should_fail.lock().await {
-            return Err(ReanimatorError::EnqueueFailed("Mock failure".to_string()));
+            return Err(Box::new(ReanimatorError::EnqueueFailed("Mock failure".to_string())));
         }
         self.enqueued.lock().await.push(instance_id);
         Ok(())
@@ -339,7 +348,7 @@ impl WorkQueue for MockWorkQueue {
     async fn is_instance_terminal(
         &self,
         _instance_id: &InstanceId,
-    ) -> Result<bool, ReanimatorError> {
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         Ok(false)
     }
 }

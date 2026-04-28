@@ -271,10 +271,19 @@ impl WorkQueue for MockWorkQueue {
         _instance_id: InstanceId,
         _executable: PathBuf,
         _args: Vec<String>,
-    ) -> Result<(), SpawnSupervisorError> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
     }
-    async fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
+    async fn enqueue_resume(
+        &self,
+        _instance_id: InstanceId,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         Ok(())
+    }
+    async fn is_instance_terminal(
+        &self,
+        _instance_id: &InstanceId,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(false)
     }
 }

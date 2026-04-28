@@ -133,11 +133,8 @@ pub trait TimerStorage: Send + Sync {
     ) -> Result<(), TimerSupervisorError>;
 }
 
-/// Work queue trait for dispatching work
-pub trait WorkQueue: Send + Sync {
-    fn enqueue_resume(&self, instance_id: vo_types::InstanceId)
-        -> Result<(), TimerSupervisorError>;
-}
+// Re-export shared WorkQueue trait
+pub use crate::work_queue::WorkQueue;
 
 // =============================================================================
 // Mock Types for Testing
@@ -232,24 +229,39 @@ impl MockWorkQueue {
     }
 }
 
+#[async_trait::async_trait]
 impl WorkQueue for MockWorkQueue {
-    fn enqueue_resume(
+    async fn enqueue_spawn(
+        &self,
+        _instance_id: vo_types::InstanceId,
+        _executable: std::path::PathBuf,
+        _args: Vec<String>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        Ok(())
+    }
+    async fn enqueue_resume(
         &self,
         instance_id: vo_types::InstanceId,
-    ) -> Result<(), TimerSupervisorError> {
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if *self.instance_not_found.lock().unwrap() {
-            return Err(TimerSupervisorError::InstanceNotFound(instance_id));
+            return Err(Box::new(TimerSupervisorError::InstanceNotFound(instance_id)));
         }
         if *self.mailbox_full.lock().unwrap() {
-            return Err(TimerSupervisorError::MailboxFull(instance_id));
+            return Err(Box::new(TimerSupervisorError::MailboxFull(instance_id)));
         }
         if *self.should_fail.lock().unwrap() {
-            return Err(TimerSupervisorError::DispatchError(
+            return Err(Box::new(TimerSupervisorError::DispatchError(
                 "Enqueue failed".to_string(),
-            ));
+            )));
         }
         self.enqueued.lock().unwrap().push(instance_id);
         Ok(())
+    }
+    async fn is_instance_terminal(
+        &self,
+        _instance_id: &vo_types::InstanceId,
+    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        Ok(false)
     }
 }
 
@@ -306,7 +318,7 @@ impl TimerSupervisor {
     }
 
     /// Processes one timer scan cycle
-    pub fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
+    pub async fn process_cycle(&self) -> Result<CycleResult, TimerSupervisorError> {
         use super::timer_supervisor::{is_overdue, verify_dual_clock};
 
         let now_ms = std::time::SystemTime::now()
@@ -349,7 +361,7 @@ impl TimerSupervisor {
             {
                 Ok(()) => {
                     // Dispatch
-                    match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
+                    match self.work_queue.enqueue_resume(timer.instance_id.clone()).await {
                         Ok(()) => {
                             self.metrics.timers_fired.incr();
                             timers_fired += 1;
@@ -357,7 +369,7 @@ impl TimerSupervisor {
                         Err(e) => {
                             self.metrics.dispatch_errors.incr();
                             // Return specific errors instead of logging and continuing
-                            return Err(e);
+                            return Err(TimerSupervisorError::DispatchError(e.to_string()));
                         }
                     }
                 }
@@ -653,7 +665,7 @@ mod process_cycle_tests {
         };
 
         // When
-        let result = supervisor.process_cycle();
+        let result = supervisor.process_cycle().await;
 
         // Then: Returns Err(InstanceNotFound)
         assert_eq!(

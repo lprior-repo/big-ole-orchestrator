@@ -1,4 +1,6 @@
-//! Traits for timer storage and work queue operations.
+//! Traits for timer storage operations.
+//!
+//! WorkQueue is shared in crate::work_queue.
 
 use vo_types::{InstanceId, TimestampMs};
 
@@ -95,18 +97,4 @@ pub trait TimerStorage: Send + Sync {
     ) -> Result<u32, ReanimatorError>;
 }
 
-/// Trait for enqueuing resume work.
-/// Abstracts the work queue implementation.
-#[async_trait::async_trait]
-pub trait WorkQueue: Send + Sync {
-    /// Enqueues a resume message for an instance.
-    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), ReanimatorError>;
 
-    /// Checks if an instance is in a terminal state (Completed, Failed, or Cancelled).
-    ///
-    /// Used during crash recovery to skip timer replay for terminated instances.
-    /// Returns `Ok(true)` if terminal, `Ok(false)` if still active, or an error if
-    /// the check itself failed.
-    async fn is_instance_terminal(&self, instance_id: &InstanceId)
-        -> Result<bool, ReanimatorError>;
-}

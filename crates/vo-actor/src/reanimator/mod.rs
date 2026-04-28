@@ -24,7 +24,8 @@ mod verification;
 pub use error::ReanimatorError;
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};
 pub use mock::{MockTimerStorage, MockWorkQueue};
-pub use traits::{PendingTimer, TimerStorage, WorkQueue};
+pub use traits::{PendingTimer, TimerStorage};
+pub use crate::work_queue::WorkQueue;
 pub use types::{
     calculate_batch_size, calculate_scan_result, check_resume_budget, filter_timers_by_fairness,
     validate_timer_record, FairnessBudget, ReanimatorConfig, ReanimatorState, TimerRecord,
