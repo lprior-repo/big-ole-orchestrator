@@ -1447,7 +1447,7 @@ fn make_version(wf: &str, hash: &str) -> WorkflowVersion {
     let name = vo_types::WorkflowName::parse(wf).expect("workflow name should be valid");
     let hash = vo_types::BinaryHash::parse(hash).expect("hash should be valid");
     let ts = vo_types::TimestampMs::try_from(1712200000000u64).unwrap();
-    WorkflowVersion::new(name, hash, ts).expect("version should be created")
+    WorkflowVersion::new(name, hash, ts, vo_types::VERSION_BASE_PATH).expect("version should be created")
 }
 
 #[test]
@@ -1467,7 +1467,7 @@ fn workflow_version_rejects_short_hash() {
     let short_hash = vo_types::BinaryHash::parse("aabbccdd").unwrap();
     let ts = vo_types::TimestampMs::try_from(1712200000000u64).unwrap();
 
-    let result = WorkflowVersion::new(name, short_hash, ts);
+    let result = WorkflowVersion::new(name, short_hash, ts, vo_types::VERSION_BASE_PATH);
     assert_eq!(result, Err(WorkflowVersionError::HashTooShort));
 }
 

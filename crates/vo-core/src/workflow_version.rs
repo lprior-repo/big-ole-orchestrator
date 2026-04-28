@@ -28,6 +28,9 @@ pub enum WorkflowVersionError {
 impl WorkflowVersion {
     /// Create a new WorkflowVersion.
     ///
+    /// `version_base_path` is the filesystem root under which versioned binaries live
+    /// (e.g. `"/var/wtf/versions"`). The domain struct does not decide this — callers inject it.
+    ///
     /// # Errors
     ///
     /// Returns an error if the hash is shorter than 64 characters.
@@ -35,11 +38,12 @@ impl WorkflowVersion {
         name: WorkflowName,
         hash: BinaryHash,
         registered_at: TimestampMs,
+        version_base_path: &str,
     ) -> Result<Self, WorkflowVersionError> {
         if hash.as_str().len() < 64 {
             return Err(WorkflowVersionError::HashTooShort);
         }
-        let binary_path = format!("/var/wtf/versions/{}/{}", hash.as_str(), name.as_str());
+        let binary_path = format!("{}/{}/{}", version_base_path, hash.as_str(), name.as_str());
         Ok(Self {
             name,
             hash,
@@ -109,11 +113,12 @@ impl VersionPinnedInstance {
         workflow_name: WorkflowName,
         hash: BinaryHash,
         created_at: TimestampMs,
+        version_base_path: &str,
     ) -> Result<Self, WorkflowVersionError> {
         if hash.as_str().len() < 64 {
             return Err(WorkflowVersionError::HashTooShort);
         }
-        let binary_path = format!("/var/wtf/versions/{}/{}", hash.as_str(), workflow_name.as_str());
+        let binary_path = format!("{}/{}/{}", version_base_path, hash.as_str(), workflow_name.as_str());
         Ok(Self {
             instance_id,
             workflow_name,
@@ -210,6 +215,7 @@ impl WorkflowVersionRegistry {
         instance_id: String,
         workflow_name: &WorkflowName,
         created_at: TimestampMs,
+        version_base_path: &str,
     ) -> Result<VersionPinnedInstance, VersionPinError> {
         let hash = self
             .active_versions
@@ -223,6 +229,7 @@ impl WorkflowVersionRegistry {
             workflow_name.clone(),
             hash.clone(),
             created_at,
+            version_base_path,
         )
         .map_err(|_| VersionPinError::HashTooShort)
     }
@@ -260,7 +267,7 @@ impl std::error::Error for VersionPinError {}
 
 #[cfg(test)]
 mod tests {
-    use vo_types::{BinaryHash, TimestampMs, WorkflowName};
+    use vo_types::{BinaryHash, TimestampMs, VERSION_BASE_PATH, WorkflowName};
     #[test]
     fn new_creates_version_with_correct_binary_path_format() {
         let hash =
@@ -269,9 +276,9 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let version = super::WorkflowVersion::new(name.clone(), hash.clone(), ts).unwrap();
+        let version = super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
 
-        let expected = format!("/var/wtf/versions/{}/{}", hash.as_str(), name.as_str());
+        let expected = format!("{}/{}/{}", VERSION_BASE_PATH, hash.as_str(), name.as_str());
         assert_eq!(version.binary_path(), expected);
     }
 
@@ -283,7 +290,7 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let version = super::WorkflowVersion::new(name, hash, ts).unwrap();
+        let version = super::WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH).unwrap();
 
         assert_eq!(version.schema_version(), 1);
     }
@@ -296,7 +303,7 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let original = super::WorkflowVersion::new(name.clone(), hash.clone(), ts).unwrap();
+        let original = super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
 
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: super::WorkflowVersion = serde_json::from_str(&json).unwrap();
@@ -319,23 +326,37 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let result = super::WorkflowVersion::new(name, hash, ts);
+        let result = super::WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH);
 
         assert_eq!(result, Err(super::WorkflowVersionError::HashTooShort));
     }
 
     #[test]
-    fn binary_path_returns_string_starting_with_prefix() {
+    fn binary_path_returns_string_starting_with_injected_prefix() {
         let hash =
             BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 .unwrap();
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let version = super::WorkflowVersion::new(name, hash, ts).unwrap();
+        let version = super::WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH).unwrap();
 
         let path = version.binary_path();
         assert!(path.starts_with("/var/wtf/versions/"));
+    }
+
+    #[test]
+    fn binary_path_uses_custom_base_path() {
+        let hash =
+            BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+                .unwrap();
+        let name = WorkflowName::parse("my-workflow").unwrap();
+        let ts = TimestampMs::try_from(1712200000000u64).unwrap();
+
+        let version = super::WorkflowVersion::new(name, hash, ts, "/opt/veloxide/bin").unwrap();
+
+        assert!(version.binary_path().starts_with("/opt/veloxide/bin/"));
+        assert!(version.binary_path().contains("my-workflow"));
     }
 
     #[test]
@@ -346,9 +367,8 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let version = super::WorkflowVersion::new(name, hash, ts).unwrap();
+        let version = super::WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH).unwrap();
 
-        // Proves binary_path() returns &str (borrowed), not String (owned).
         let _path: &str = version.binary_path();
     }
 
@@ -362,7 +382,7 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let v = super::WorkflowVersion::new(name, hash, ts).unwrap();
+        let v = super::WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH).unwrap();
 
         let mut set = HashSet::new();
         set.insert(v);

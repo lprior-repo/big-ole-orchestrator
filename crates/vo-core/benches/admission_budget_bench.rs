@@ -254,11 +254,12 @@ fn bench_workflow_version(c: &mut Criterion) {
                 black_box(name.clone()),
                 black_box(hash.clone()),
                 black_box(ts),
+                black_box(vo_types::VERSION_BASE_PATH),
             ))
         })
     });
 
-    let version = WorkflowVersion::new(name.clone(), hash.clone(), ts).unwrap();
+    let version = WorkflowVersion::new(name.clone(), hash.clone(), ts, vo_types::VERSION_BASE_PATH).unwrap();
     group.bench_function("serde_roundtrip", |b| {
         b.iter(|| {
             let json = serde_json::to_string(black_box(&version)).unwrap();
