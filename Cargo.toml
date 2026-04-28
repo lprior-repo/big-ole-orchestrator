@@ -51,6 +51,8 @@ zstd = "0.13"
 axum = "0.8"
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace"] }
+rust-embed = "8"
+mime_guess = "2"
 reqwest = { version = "0.12", features = ["json"] }
 
 # CLI

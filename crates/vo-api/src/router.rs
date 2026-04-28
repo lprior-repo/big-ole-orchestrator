@@ -126,7 +126,9 @@ pub fn create_router(state: AppState) -> Router {
         .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.query.db.clone()));
 
-    let ui_routes = Router::new().route("/wtf/ui", get(wtf_ui));
+    let ui_routes = Router::new()
+        .route("/wtf/ui", get(wtf_ui))
+        .route("/wtf/ui/{*path}", get(wtf_ui_asset));
 
     // SSE streaming -- uses Extension + State<SseState>
     let sse_routes = Router::new()
@@ -146,25 +148,13 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
+        .merge(ui_routes)
         .layer(TimeoutLayer::with_status_code(
             StatusCode::REQUEST_TIMEOUT,
             Duration::from_secs(30),
         ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-}
-
-async fn wtf_ui() -> Html<&'static str> {
-    Html(
-        r#"<!doctype html>
-<html>
-<head><title>Veloxide WTF UI</title></head>
-<body>
-<h1>Veloxide WTF UI</h1>
-<p>Dioxus app shell route is ready.</p>
-</body>
-</html>"#,
-    )
 }
 
 #[cfg(test)]
