@@ -3,11 +3,127 @@
 //! Handles Phase 1 (spawn new processes), Phase 2 (health check existing spawns),
 //! and Phase 3 (respawn failed spawns).
 
-use super::pure::{calculate_backoff_delay, should_respawn};
+use vo_types::InstanceId;
+
+use super::pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
 
 impl Actor {
+    /// Detects zombie processes among running spawns and reaps them.
+    ///
+    /// Scans all running-phase spawn records, checks if the underlying process
+    /// is a zombie via `ProcessManager::is_zombie`, and transitions zombie
+    /// records to `Terminated` phase. Also detects logical zombie state using
+    /// `is_zombie_state` for failed records with high attempt counts.
+    ///
+    /// Returns the set of instance IDs that were reaped during this sweep.
+    pub async fn zombie_detection(&self) -> Vec<InstanceId> {
+        let mut reaped = Vec::new();
+
+        // Phase A: Scan running processes for OS-level zombies.
+        let running_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Running, 100)
+            .await;
+
+        for record in running_records {
+            let pid = match record.spawn_id {
+                Some(ref sid) => {
+                    // Try to parse the spawn ID as a PID.
+                    sid.to_string().parse::<u32>().unwrap_or(0)
+                }
+                None => 0,
+            };
+
+            if pid == 0 {
+                continue;
+            }
+
+            match self.process_manager.is_zombie(pid).await {
+                Ok(true) => {
+                    tracing::warn!(
+                        instance_id = %record.instance_id,
+                        pid,
+                        "Zombie process detected, reaping"
+                    );
+                    self.metrics.zombies_detected.incr();
+
+                    // Terminate the zombie process.
+                    if let Err(e) = self.process_manager.terminate(pid).await {
+                        tracing::error!(
+                            instance_id = %record.instance_id,
+                            pid,
+                            error = %e,
+                            "Failed to terminate zombie process"
+                        );
+                    }
+
+                    // Transition to Terminated phase.
+                    if let Err(e) = self
+                        .storage
+                        .transition_phase(&record.instance_id, SpawnPhase::Terminated)
+                        .await
+                    {
+                        tracing::error!(
+                            instance_id = %record.instance_id,
+                            error = %e,
+                            "Failed to transition zombie to Terminated"
+                        );
+                    }
+
+                    reaped.push(record.instance_id.clone());
+                }
+                Ok(false) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        instance_id = %record.instance_id,
+                        pid,
+                        error = %e,
+                        "Failed to check zombie status"
+                    );
+                }
+            }
+        }
+
+        // Phase B: Scan failed records for logical zombie state (high attempts).
+        let failed_records = self
+            .storage
+            .scan_spawns_by_phase(SpawnPhase::Failed, 100)
+            .await;
+
+        for record in failed_records {
+            if is_zombie_state(&record) {
+                tracing::warn!(
+                    instance_id = %record.instance_id,
+                    attempts = record.spawn_attempts,
+                    "Logical zombie detected (failed with high attempt count), reaping"
+                );
+                self.metrics.zombies_detected.incr();
+
+                if let Err(e) = self
+                    .storage
+                    .transition_phase(&record.instance_id, SpawnPhase::Terminated)
+                    .await
+                {
+                    tracing::error!(
+                        instance_id = %record.instance_id,
+                        error = %e,
+                        "Failed to transition logical zombie to Terminated"
+                    );
+                }
+
+                reaped.push(record.instance_id.clone());
+            }
+        }
+
+        if !reaped.is_empty() {
+            tracing::info!(count = reaped.len(), "Zombie detection sweep completed, reaped instances");
+        }
+
+        reaped
+    }
+
     /// Processes one spawn cycle.
     ///
     /// Scans storage for spawns in spawn/health-check phases, spawns/health-checks them,

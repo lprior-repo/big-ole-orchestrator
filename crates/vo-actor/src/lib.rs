@@ -1284,6 +1284,8 @@ pub enum StartError {
     AlreadyExists(String),
     #[error("Spawn failed: {0}")]
     SpawnFailed(String),
+    #[error("Ghost instance rejected: {0} has been reaped by zombie detection")]
+    GhostInstance(String),
 }
 
 /// Reserved permit budget tracking per workload class.

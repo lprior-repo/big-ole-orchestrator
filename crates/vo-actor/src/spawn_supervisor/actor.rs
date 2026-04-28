@@ -144,6 +144,10 @@ impl SpawnSupervisor {
                     break;
                 }
                 _ = scan_interval.tick() => {
+                    // Run zombie detection before the process cycle so
+                    // reaped instances are cleaned up before new work is dispatched.
+                    let _reaped = self.zombie_detection().await;
+
                     match self.process_cycle().await {
                         Ok(_) => {}
                         Err(e) if e.is_transient() => {
