@@ -180,10 +180,12 @@ impl LifecycleState {
             LifecycleState::Compensating => vec![
                 TransitionEvent::CompensationCompleted,
                 TransitionEvent::CompensationFailed,
+                TransitionEvent::Cancel,
             ],
             LifecycleState::Reconciling => vec![
                 TransitionEvent::ReconciliationCompleted,
                 TransitionEvent::ReconciliationFailed,
+                TransitionEvent::Cancel,
             ],
             LifecycleState::Completed | LifecycleState::Cancelled => vec![],
             LifecycleState::Failed => vec![TransitionEvent::InstanceResumed],

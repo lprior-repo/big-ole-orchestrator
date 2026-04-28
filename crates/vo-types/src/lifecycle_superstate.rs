@@ -158,10 +158,10 @@ mod tests {
     }
 
     #[test]
-    fn failed_maps_to_terminal() {
+    fn failed_maps_to_recovering_superstate() {
         assert_eq!(
             LifecycleState::Failed.superstate(),
-            LifecycleSuperstate::Terminal
+            LifecycleSuperstate::Recovering
         );
     }
 

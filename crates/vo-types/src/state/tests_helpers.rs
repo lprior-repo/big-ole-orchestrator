@@ -187,7 +187,7 @@ fn get_valid_transitions_returns_correct_events_for_hibernated() {
 #[test]
 fn get_valid_transitions_returns_correct_events_for_compensating() {
     let transitions = get_valid_transitions(LifecycleState::Compensating);
-    assert_eq!(transitions.len(), 2);
+    assert_eq!(transitions.len(), 3);
     assert!(transitions.contains(&TransitionEvent::CompensationCompleted));
     assert!(transitions.contains(&TransitionEvent::CompensationFailed));
 }
@@ -195,7 +195,7 @@ fn get_valid_transitions_returns_correct_events_for_compensating() {
 #[test]
 fn get_valid_transitions_returns_correct_events_for_reconciling() {
     let transitions = get_valid_transitions(LifecycleState::Reconciling);
-    assert_eq!(transitions.len(), 2);
+    assert_eq!(transitions.len(), 3);
     assert!(transitions.contains(&TransitionEvent::ReconciliationCompleted));
     assert!(transitions.contains(&TransitionEvent::ReconciliationFailed));
 }

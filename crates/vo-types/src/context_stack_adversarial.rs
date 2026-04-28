@@ -307,10 +307,10 @@ fn rq_lifecycle_superstate_consistency() {
         );
     }
 
-    // Failed maps to Terminal (operational_status is Recovering, but superstate is Terminal)
+    // Failed maps to Recovering superstate (it can be resumed via InstanceResumed)
     assert_eq!(
         LifecycleState::Failed.superstate(),
-        crate::LifecycleSuperstate::Terminal
+        crate::LifecycleSuperstate::Recovering
     );
 }
 
@@ -355,6 +355,7 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             LifecycleState::RunningDecision,
             vec![
                 TransitionEvent::StepScheduled,
+                TransitionEvent::Hibernate,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -374,6 +375,7 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
                 TransitionEvent::PrepareEffect,
+                TransitionEvent::BeginCompensation,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -391,6 +393,7 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             vec![
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
+                TransitionEvent::Hibernate,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -400,6 +403,29 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             vec![
                 TransitionEvent::ConfirmPublication,
                 TransitionEvent::PublicationFailed,
+                TransitionEvent::Cancel,
+            ],
+        ),
+        (
+            LifecycleState::Hibernated,
+            vec![
+                TransitionEvent::WakeFromHibernation,
+                TransitionEvent::Cancel,
+            ],
+        ),
+        (
+            LifecycleState::Compensating,
+            vec![
+                TransitionEvent::CompensationCompleted,
+                TransitionEvent::CompensationFailed,
+                TransitionEvent::Cancel,
+            ],
+        ),
+        (
+            LifecycleState::Reconciling,
+            vec![
+                TransitionEvent::ReconciliationCompleted,
+                TransitionEvent::ReconciliationFailed,
                 TransitionEvent::Cancel,
             ],
         ),
