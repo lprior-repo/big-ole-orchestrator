@@ -43,13 +43,13 @@ impl WorkflowSemaphoreMap {
     /// Gets or creates a semaphore for the given workflow.
     fn get_or_create(&self, workflow_name: &WorkflowName) -> Arc<Semaphore> {
         {
-            let semaphores = self.semaphores.read().unwrap();
+            let semaphores = self.semaphores.read().unwrap_or_else(|e| e.into_inner());
             if let Some(sem) = semaphores.get(workflow_name) {
                 return Arc::clone(sem);
             }
         }
 
-        let mut semaphores = self.semaphores.write().unwrap();
+        let mut semaphores = self.semaphores.write().unwrap_or_else(|e| e.into_inner());
         if let Some(sem) = semaphores.get(workflow_name) {
             return Arc::clone(sem);
         }
@@ -69,20 +69,20 @@ impl WorkflowSemaphoreMap {
     /// Returns the number of semaphores currently tracked.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.semaphores.read().unwrap().len()
+        self.semaphores.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Returns true if no workflows are being tracked.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.semaphores.read().unwrap().is_empty()
+        self.semaphores.read().unwrap_or_else(|e| e.into_inner()).is_empty()
     }
 
     /// Cleans up semaphores with no waiting tasks.
     ///
     /// This is a best-effort cleanup to prevent memory growth.
     pub fn cleanup_idle(&self) {
-        let mut semaphores = self.semaphores.write().unwrap();
+        let mut semaphores = self.semaphores.write().unwrap_or_else(|e| e.into_inner());
         semaphores.retain(|_, sem| sem.available_permits() < self.max_per_workflow);
     }
 }

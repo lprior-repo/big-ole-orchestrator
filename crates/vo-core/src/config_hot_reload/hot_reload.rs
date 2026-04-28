@@ -1,9 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::Instant;
 
 use super::error::Error;
-use super::observability::{ReloadEvent, ReloadMetrics};
 
 pub trait ConfigValidator<T: Clone + Send + Sync>: Send + Sync {
     fn validate(&self, config: &T) -> Result<(), String>;
@@ -14,8 +12,6 @@ pub struct HotReloadConfig<T: Clone + Send + Sync> {
     pending: RwLock<Option<T>>,
     path: PathBuf,
     validator: Arc<dyn ConfigValidator<T>>,
-    metrics: Option<Arc<ReloadMetrics>>,
-    event_tx: Option<tokio::sync::mpsc::Sender<ReloadEvent>>,
 }
 
 impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
@@ -33,19 +29,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
             pending: RwLock::new(None),
             path,
             validator,
-            metrics: None,
-            event_tx: None,
         })
-    }
-
-    pub fn with_metrics(mut self, metrics: Arc<ReloadMetrics>) -> Self {
-        self.metrics = Some(metrics);
-        self
-    }
-
-    pub fn with_event_channel(mut self, event_tx: tokio::sync::mpsc::Sender<ReloadEvent>) -> Self {
-        self.event_tx = Some(event_tx);
-        self
     }
 
     #[must_use]
@@ -55,7 +39,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     {
         self.current
             .read()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
@@ -67,7 +51,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         let mut pending = self
             .pending
             .write()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+            .unwrap_or_else(|e| e.into_inner());
         *pending = Some(new_config);
 
         Ok(())
@@ -77,7 +61,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         let mut pending = self
             .pending
             .write()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(new_config) = pending.take() {
             let mut current = self.current.write().expect(
                 "SAFETY: RwLock not poisoned — no code path panics while holding this lock",
@@ -93,7 +77,7 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
         let mut pending = self
             .pending
             .write()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+            .unwrap_or_else(|e| e.into_inner());
         *pending = None;
     }
 
@@ -106,58 +90,23 @@ impl<T: Clone + Send + Sync + 'static> HotReloadConfig<T> {
     where
         T: for<'de> serde::de::DeserializeOwned,
     {
-        let start = Instant::now();
-        let path = self.path.clone();
+        let content =
+            std::fs::read_to_string(&self.path).map_err(|_| Error::ReadError(self.path.clone()))?;
 
-        let content = match std::fs::read_to_string(&self.path) {
-            Ok(c) => c,
-            Err(e) => {
-                self.emit_error(&path, &e.to_string());
-                return Err(Error::ReadError(path));
-            }
-        };
+        let new_config: T =
+            serde_json::from_str(&content).map_err(|e| Error::ParseError(e.to_string()))?;
 
-        let new_config = match serde_json::from_str(&content) {
-            Ok(c) => c,
-            Err(e) => {
-                self.emit_error(&path, &e.to_string());
-                return Err(Error::ParseError(e.to_string()));
-            }
-        };
-
-        if let Err(e) = self.validator.validate(&new_config) {
-            self.emit_error(&path, &e);
-            return Err(Error::ValidationFailed(e));
-        }
+        self.validator
+            .validate(&new_config)
+            .map_err(Error::ValidationFailed)?;
 
         let mut current = self
             .current
             .write()
-            .expect("SAFETY: RwLock not poisoned — no code path panics while holding this lock");
+            .unwrap_or_else(|e| e.into_inner());
         let old = (*current).clone();
         *current = new_config;
 
-        self.emit_success(&path, start);
         Ok(old)
-    }
-
-    fn emit_success(&self, path: &PathBuf, start: Instant) {
-        if let Some(ref metrics) = self.metrics {
-            metrics.record_reload_success(path, start);
-        }
-        if let Some(ref tx) = self.event_tx {
-            let event = ReloadEvent::reload_success(path.clone());
-            let _ = tx.try_send(event);
-        }
-    }
-
-    fn emit_error(&self, path: &PathBuf, reason: &str) {
-        if let Some(ref metrics) = self.metrics {
-            metrics.record_reload_error(path, reason);
-        }
-        if let Some(ref tx) = self.event_tx {
-            let event = ReloadEvent::reload_error(path.clone(), reason);
-            let _ = tx.try_send(event);
-        }
     }
 }
