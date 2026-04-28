@@ -18,8 +18,8 @@ use vo_actor::lifecycle::{
     ShutdownPropagator,
 };
 use vo_actor::message_router::{
-    ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata, MessageRouter, RouteError,
-    TimestampMs as RouterTimestampMs,
+    ActorDestination, ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata,
+    MessageRouter, RouteError, TimestampMs as RouterTimestampMs,
 };
 use vo_actor::probe::{
     AggregatedStatus, BackoffConfig, ProbeConfig, ProbeId, ProbeRegistry, ProbeStatus,
@@ -517,7 +517,7 @@ mod bdd_message_router {
     fn given_router_when_register_channel_then_has_channel() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         assert!(router.has_channel(&ChannelId::new("ch-1")));
         assert_eq!(router.num_channels(), 1);
@@ -526,7 +526,7 @@ mod bdd_message_router {
     #[test]
     fn given_router_when_duplicate_channel_then_error() {
         let mut router = MessageRouter::with_default_config();
-        let dest = ActorDestination::new(42usize);
+        let dest = ActorDestination::test();
         router
             .register_channel(ChannelId::new("ch-1"), dest.clone())
             .unwrap();
@@ -540,7 +540,7 @@ mod bdd_message_router {
     fn given_router_when_unregister_then_removed() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         router.unregister_channel(&ChannelId::new("ch-1"));
         assert!(!router.has_channel(&ChannelId::new("ch-1")));
@@ -550,7 +550,7 @@ mod bdd_message_router {
     fn given_router_when_deactivate_then_not_active() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         router.deactivate_channel(&ChannelId::new("ch-1")).unwrap();
         assert!(!router.is_channel_active(&ChannelId::new("ch-1")));

@@ -3,10 +3,12 @@
 //! The `MessageRouter` struct and all its mutating/querying methods.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use super::calc::{select_active_destinations, should_broadcast, validate_route, RouteError};
 use super::data::{
-    ActorDestination, ChannelEntry, ChannelId, RouterConfig, RoutingDestination, TimestampMs,
+    ActorDestination, ChannelEntry, ChannelId, RouterConfig, RouterEnvelope, RoutingDestination,
+    TimestampMs,
 };
 use super::dlq::{DeadLetterEntry, DeadLetterMessage, DeadLetterQueue, DeadLetterReason};
 
@@ -114,7 +116,7 @@ impl MessageRouter {
         Ok(())
     }
 
-    pub async fn route_unicast<T: Send + 'static>(
+    pub async fn route_unicast<T: Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: T,
@@ -124,19 +126,24 @@ impl MessageRouter {
         let channel = channel.unwrap();
         let active_dests = select_active_destinations(&channel);
         if active_dests.is_empty() {
-            self.send_to_dlq(channel_id, message, DeadLetterReason::NoActiveDestinations);
+            self.send_to_dlq(
+                channel_id,
+                std::any::type_name::<T>(),
+                DeadLetterReason::NoActiveDestinations,
+            );
             return Err(RouteError::NoActiveDestinations(channel_id.clone()));
         }
         let (_index, dest) = active_dests[0];
+        let arc_message = Arc::new(message);
         match self
-            .deliver_to_destination_unicast(dest, &message, channel_id)
+            .deliver_to_destination_unicast(dest, arc_message, channel_id)
             .await
         {
             Ok(()) => Ok(()),
             Err(e) => {
                 self.send_to_dlq(
                     channel_id,
-                    message,
+                    std::any::type_name::<T>(),
                     DeadLetterReason::ActorError(e.to_string()),
                 );
                 Err(e)
@@ -154,7 +161,11 @@ impl MessageRouter {
         let channel = channel.unwrap();
         let active_dests = select_active_destinations(&channel);
         if active_dests.is_empty() {
-            self.send_to_dlq(channel_id, message, DeadLetterReason::NoActiveDestinations);
+            self.send_to_dlq(
+                channel_id,
+                std::any::type_name::<T>(),
+                DeadLetterReason::NoActiveDestinations,
+            );
             return Err(RouteError::NoActiveDestinations(channel_id.clone()));
         }
         if !should_broadcast(&channel, &self.config) {
@@ -162,9 +173,10 @@ impl MessageRouter {
         }
         let mut errors = Vec::new();
         let num_destinations = active_dests.len();
+        let arc_message = Arc::new(message);
         for (_index, dest) in active_dests {
             if let Err(e) = self
-                .deliver_to_destination_broadcast(dest, &message, channel_id)
+                .deliver_to_destination_broadcast(dest, Arc::clone(&arc_message), channel_id)
                 .await
             {
                 errors.push(e);
@@ -173,7 +185,7 @@ impl MessageRouter {
         if !errors.is_empty() && errors.len() == num_destinations {
             self.send_to_dlq(
                 channel_id,
-                message,
+                std::any::type_name::<T>(),
                 DeadLetterReason::ActorError("all destinations failed".to_string()),
             );
             return Err(errors.into_iter().next().unwrap());
@@ -194,43 +206,43 @@ impl MessageRouter {
         }
     }
 
-    #[allow(clippy::unused_async)]
-    async fn deliver_to_destination_unicast<T: Send + 'static>(
+    async fn deliver_to_destination_unicast<T: Send + Sync + 'static>(
         &self,
         destination: &RoutingDestination,
-        message: &T,
-        _channel_id: &ChannelId,
+        message: Arc<T>,
+        channel_id: &ChannelId,
     ) -> Result<(), RouteError> {
-        tracing::debug!("delivering message to destination (simulated success)");
-        let _ = destination;
-        let _ = message;
-        Ok(())
+        let envelope = RouterEnvelope::new(message);
+        destination
+            .destination
+            .deliver(envelope)
+            .map_err(|e| RouteError::ActorError(channel_id.clone(), e))
     }
 
-    #[allow(clippy::unused_async)]
     async fn deliver_to_destination_broadcast<T: Send + Sync + 'static>(
         &self,
         destination: &RoutingDestination,
-        message: &T,
-        _channel_id: &ChannelId,
+        message: Arc<T>,
+        channel_id: &ChannelId,
     ) -> Result<(), RouteError> {
-        tracing::debug!("delivering message to destination (simulated success)");
-        let _ = destination;
-        let _ = message;
-        Ok(())
+        let envelope = RouterEnvelope::new(message);
+        destination
+            .destination
+            .deliver(envelope)
+            .map_err(|e| RouteError::ActorError(channel_id.clone(), e))
     }
 
-    fn send_to_dlq<T: Send + 'static>(
+    fn send_to_dlq(
         &mut self,
         channel_id: &ChannelId,
-        _message: T,
+        type_name: &str,
         reason: DeadLetterReason,
     ) {
         let entry = DeadLetterEntry {
             channel_id: channel_id.clone(),
             message: DeadLetterMessage {
                 payload: Vec::new(),
-                type_name: std::any::type_name::<T>().to_string(),
+                type_name: type_name.to_string(),
             },
             enqueued_at: TimestampMs::now(),
             reason,
