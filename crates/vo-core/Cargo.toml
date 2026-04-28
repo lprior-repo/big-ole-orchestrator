@@ -15,6 +15,8 @@ tokio.workspace = true
 notify = "6"
 glob = "0.3.3"
 metrics = { workspace = true }
+fjall = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "rt", "macros", "time", "sync"] }

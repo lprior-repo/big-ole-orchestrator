@@ -32,6 +32,7 @@ pub mod command_dedup;
 pub mod compensation_order;
 pub mod config_hot_reload;
 pub mod connector;
+pub mod db_writer_actor;
 pub mod db_writer_message;
 pub mod debounce;
 pub mod effects;
