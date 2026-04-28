@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -292,11 +292,46 @@ Jobs integrate with `LifecycleState` from `vo-types` as follows:
 | Cancelled | `Cancelled` | Terminal cancellation state |
 | Retrying | `WaitingForTimer` | Waiting to retry |
 
-#### 6.1 State Synchronization
+#### 6.1 State Synchronization Protocol
 
-- When job enters `Running` state, corresponding `LifecycleState` MUST be `StepExecuting`
-- When job completes or fails, corresponding `LifecycleState` MUST transition to `Completed` or `Failed`
-- The scheduler MUST update lifecycle state within the same transaction as job state
+The scheduler MUST update lifecycle state within the same transaction as job state (atomically).
+
+**Transition Sequence for Running Jobs:**
+
+1. Worker picks up job from queue
+2. Scheduler atomically:
+   - Updates job state: `Pending` → `Running`
+   - Updates lifecycle state: `StepScheduled` → `StepExecuting`
+   - Persists both state changes
+3. If persistence fails, both states MUST roll back to previous values
+
+**Transition Sequence for Completed/Failed Jobs:**
+
+1. Job execution completes (success or failure)
+2. Scheduler atomically:
+   - Updates job state to `Completed` or `Failed`
+   - Updates lifecycle state to `Completed` or `Failed`
+   - Records `last_error` if applicable
+   - Persists all changes
+3. If persistence fails, the job remains in `Running` state and MUST be recovered via reconciliation
+
+**Cancellation Synchronization:**
+
+- When `cancel_job()` is called on a non-terminal job:
+  - Job state transitions to `Cancelled`
+  - Lifecycle state transitions to `Cancelled` within same transaction
+- For `Running` jobs: cancellation is requested asynchronously; lifecycle state transitions to `Cancelled` only after job execution stops
+
+#### 6.2 Transactional Requirements
+
+All state transitions affecting both `JobState` and `LifecycleState` MUST be:
+
+1. **Atomic**: Both states update or neither does
+2. **Consistent**: Invariants hold before and after
+3. **Isolated**: Concurrent transitions do not interfere
+4. **Durable**: Persisted before acknowledgment
+
+**Implementation note**: Use a single transaction spanning both job persistence and lifecycle state updates. If the underlying storage does not support multi-document transactions, use the Saga pattern with compensating transactions.
 
 ### 7. Invariants
 
@@ -324,26 +359,143 @@ Jobs integrate with `LifecycleState` from `vo-types` as follows:
 
 ### 8. Observability
 
-The scheduler MUST emit telemetry for:
+The scheduler MUST emit telemetry for all operations using the OpenTelemetry metrics API.
 
-| Metric | Description |
-|--------|-------------|
-| `jobs_scheduled_total` | Counter of jobs scheduled |
-| `jobs_completed_total` | Counter of jobs completed |
-| `jobs_failed_total` | Counter of jobs failed |
-| `jobs_cancelled_total` | Counter of jobs cancelled |
-| `jobs_retried_total` | Counter of job retries |
-| `queue_depth` | Current number of jobs in queue |
-| `job_execution_duration_seconds` | Histogram of job execution times |
-| `job_retry_delay_seconds` | Histogram of retry delays |
+#### 8.1 Metric Specifications
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `jobs_scheduled_total` | Counter | `job_kind`, `priority` | Jobs added to scheduler |
+| `jobs_completed_total` | Counter | `job_kind`, `priority` | Jobs completed successfully |
+| `jobs_failed_total` | Counter | `job_kind`, `priority`, `error_type` | Jobs failed after retries |
+| `jobs_cancelled_total` | Counter | `job_kind`, `priority` | Jobs cancelled explicitly |
+| `jobs_retried_total` | Counter | `job_kind`, `priority`, `attempt` | Retry attempts triggered |
+| `queue_depth` | Gauge | `state` | Current jobs per state |
+| `job_execution_duration_seconds` | Histogram | `job_kind`, `priority` | Job execution time (see buckets) |
+| `job_retry_delay_seconds` | Histogram | `job_kind`, `priority` | Delay between retry attempts |
+
+#### 8.2 Histogram Buckets
+
+**`job_execution_duration_seconds`:**
+```
+[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0]
+```
+
+**`job_retry_delay_seconds`:**
+```
+[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0]
+```
+
+#### 8.3 Error Classification Labels
+
+`error_type` label values for `jobs_failed_total`:
+
+| Error | Label Value |
+|-------|-------------|
+| `Panicked` | `panicked` |
+| `TimedOut` | `timed_out` |
+| `ResourceExhausted` | `resource_exhausted` |
+| `MaxAttemptsReached` | `max_attempts_reached` |
+| `BackoffOverflow` | `backoff_overflow` |
+| `SerializationError` | `serialization_error` |
+
+#### 8.4 Trace Spans
+
+For each job lifecycle transition, emit a trace span with:
+
+- **Span name**: `job.{transition}` (e.g., `job.schedule`, `job.complete`, `job.fail`)
+- **Attributes**:
+  - `job.id`: ULID of the job
+  - `job.kind`: One of `one_shot`, `recurring`, `delayed`
+  - `job.priority`: One of `critical`, `high`, `normal`, `low`, `background`
+  - `job.state`: State before transition
+  - `job.attempt`: Current attempt count
+
+#### 8.5 Queue Depth Gauge Labels
+
+`queue_depth` gauge MUST report with `state` label:
+
+| JobState | State Label |
+|----------|-------------|
+| Scheduled | `scheduled` |
+| Pending | `pending` |
+| Running | `running` |
+| Completed | `completed` |
+| Failed | `failed` |
+| Cancelled | `cancelled` |
+| Retrying | `retrying` |
+
+#### 8.6 Metric Emission Points
+
+| Operation | Metrics to Emit |
+|-----------|-----------------|
+| `schedule_job()` | `jobs_scheduled_total` + trace span |
+| Job starts executing | `queue_depth` (pending → running) |
+| Job completes | `jobs_completed_total`, `job_execution_duration_seconds` + trace span |
+| Job fails | `jobs_failed_total` + trace span |
+| Retry triggered | `jobs_retried_total`, `job_retry_delay_seconds` |
+| `cancel_job()` | `jobs_cancelled_total` |
+| Queue poll | `queue_depth` (periodic gauge update) |
 
 ### 9. Cancellation Safety
 
-The scheduler loop is cancellation-safe:
+The scheduler implements a multi-phase cancellation protocol that ensures no state loss.
 
-- `cancel_job()` waits for in-flight job to complete cancellation before returning
-- If job is `Running` when cancelled, cancellation is requested but job may complete
-- No state is lost if scheduler task is cancelled
+#### 9.1 Cancellation Protocol
+
+**Phase 1: Cancellation Request**
+
+When `cancel_job()` is called:
+
+1. Validate job exists and is not in terminal state (`Completed`, `Failed`, `Cancelled`)
+2. Record cancellation intent in job metadata
+3. Transition job state to `Cancelled` atomically with lifecycle state
+4. Return `Ok(())` to caller
+
+**Phase 2: In-Flight Job Handling (for Running jobs)**
+
+If job is `Running` when cancelled:
+
+1. Set cancellation flag in job context (checked by worker)
+2. Worker MAY complete execution before checking cancellation flag
+3. If worker completes first: job ends in `Completed`, lifecycle state updated
+4. If cancellation checked first: job ends in `Cancelled`, lifecycle state updated
+5. The scheduler loop MUST NOT lose track of the job during this window
+
+**Phase 3: Draining (optional blocking mode)**
+
+`cancel_job()` supports an optional `drain: bool` parameter:
+
+- `drain: false` (default): Returns immediately after Phase 1
+- `drain: true`: Waits until job execution fully stops (either completed or cancellation took effect)
+
+#### 9.2 Scheduler Task Cancellation Safety
+
+If the scheduler task itself is cancelled (e.g., tokio task cancellation):
+
+1. All in-memory state MUST be flushed to persistence before cancellation completes
+2. The scheduler MUST use structured concurrency (e.g., `JoinSet`) to track spawned workers
+3. On restart, scheduler MUST reconcile in-memory state with persisted state
+4. No job state is lost - any job not fully persisted is recovered from last known state
+
+#### 9.3 Cancellation Invariants
+
+1. **No orphaned jobs**: Every non-terminal job is either running or queued
+2. **Idempotent cancellation**: Calling `cancel_job()` multiple times on same job returns `Ok(())` on first call, `Err(SchedulerError::InvalidTransition)` on subsequent calls
+3. **Terminal states are final**: Cancellation MUST NOT transition `Completed`, `Failed`, or already `Cancelled` jobs
+4. **Cancellation is cooperative**: Running jobs check cancellation flag and yield control if set
+
+#### 9.4 Implementation Requirements
+
+- Cancellation flag MUST be stored in job context accessible by worker
+- Worker MUST check cancellation flag at:
+  - Loop boundaries
+  - Await points
+  - Before long operations
+- Scheduler MUST provide `cancel_with_drain()` async function that awaits job termination
+- On scheduler restart, reconciliation MUST:
+  1. Load all jobs from persistence
+  2. For `Running` jobs without active workers: transition to `Pending` for retry or `Failed` based on retry policy
 
 ### 10. Send+Sync Requirements
 
