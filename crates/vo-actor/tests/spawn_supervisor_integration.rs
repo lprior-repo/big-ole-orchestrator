@@ -14,10 +14,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_actor::spawn_supervisor::{
-    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult, ExecutionSemaphore, ProcessHandle,
+    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult, ProcessHandle,
     ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,
     SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
 };
+use vo_actor::semaphore::ExecutionSemaphore;
 use vo_types::InstanceId;
 
 fn test_instance_id() -> InstanceId {
@@ -452,7 +453,7 @@ async fn process_cycle_max_attempts_exceeded_skips_record() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
     record.spawn_attempts = 10; // Exceeds max_spawn_attempts of 5
     storage.add_record(record);
 
@@ -575,7 +576,7 @@ async fn process_cycle_respawn_uses_work_queue() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2;
     storage.add_record(record);
@@ -757,12 +758,11 @@ async fn process_cycle_increments_zombies_detected_metric() {
         .await
         .expect("Process cycle should succeed");
 
-    // IMPLEMENTATION GAP #1: zombies_detected metric exists but is never incremented
-    // The is_zombie method on ProcessManager is never called in the implementation
-    // This test documents the expected behavior
+    // Zombie detection is invoked during Phase 3: failed records with >3 attempts
+    // and the ProcessManager reports the PID as a zombie
     assert_eq!(
         supervisor.metrics.zombies_detected.get(),
-        0, // This will fail because zombie detection is not implemented
+        1,
         "zombies_detected metric should be incremented when zombie is detected"
     );
 }
@@ -1371,7 +1371,7 @@ async fn respawn_failed_phase_delays_by_backoff() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
+    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2; // Attempt 2: backoff = 300ms * 2^1 = 600ms
     storage.add_record(record);
@@ -1420,7 +1420,7 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
 
     // Attempt 1: 50ms
     let instance_id_1 = test_instance_id();
-    let mut record_1 = SpawnRecord::new(instance_id_1.clone(), "./worker".to_string(), None);
+    let mut record_1 = SpawnRecord::new(instance_id_1.clone(), PathBuf::from("./worker"), vec![], None);
     record_1.spawn_phase = SpawnPhase::Failed;
     record_1.spawn_attempts = 1;
     storage.add_record(record_1);
@@ -1445,7 +1445,7 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
     // Attempt 2: 100ms
     storage.records.lock().unwrap().clear();
     let instance_id_2 = test_instance_id();
-    let mut record_2 = SpawnRecord::new(instance_id_2.clone(), "./worker".to_string(), None);
+    let mut record_2 = SpawnRecord::new(instance_id_2.clone(), PathBuf::from("./worker"), vec![], None);
     record_2.spawn_phase = SpawnPhase::Failed;
     record_2.spawn_attempts = 2;
     storage.add_record(record_2);

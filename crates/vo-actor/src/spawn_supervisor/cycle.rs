@@ -3,7 +3,7 @@
 //! Handles Phase 1 (spawn new processes), Phase 2 (health check existing spawns),
 //! and Phase 3 (respawn failed spawns).
 
-use super::pure::{calculate_backoff_delay, should_respawn};
+use super::pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
 use crate::semaphore::types::AdmissionDecision;
@@ -249,31 +249,35 @@ impl Actor {
         for record in failed_records {
             spawns_processed += 1;
 
-            let pid = record.last_pid.or_else(|| {
-                record.last_error.as_ref().and_then(|e| match e {
+            // Check for zombie state before attempting respawn
+            if is_zombie_state(&record) {
+                let pid = record.last_error.as_ref().and_then(|e| match e {
                     SpawnSupervisorError::ProcessExited { pid, .. } => Some(*pid),
                     _ => None,
-                })
-            });
+                });
 
-            if let Some(pid) = pid {
-                match self.process_manager.is_zombie(pid).await {
-                    Ok(true) => {
-                        self.metrics.zombies_detected.incr();
-                        tracing::warn!(
-                            instance_id = %record.instance_id,
-                            pid = pid,
-                            "Zombie process detected, skipping respawn"
-                        );
-                        continue;
+                if let Some(pid) = pid {
+                    match self.process_manager.is_zombie(pid).await {
+                        Ok(true) => {
+                            self.metrics.zombies_detected.incr();
+                            tracing::warn!(
+                                instance_id = %record.instance_id,
+                                pid = pid,
+                                "Zombie process detected, skipping respawn"
+                            );
+                            continue;
+                        }
+                        Ok(false) => {}
+                        Err(e) => {
+                            tracing::warn!(
+                                instance_id = %record.instance_id,
+                                error = %e,
+                                "Failed to check zombie status, proceeding with respawn logic"
+                            );
+                        }
                     }
-                    Ok(false) => {}
-                    Err(e) => {
-                        tracing::warn!(
-                            instance_id = %record.instance_id,
-                            error = %e,
-                            "Failed to check zombie status, proceeding with respawn logic"
-                        );
+                }
+            }
                     }
                 }
             }
