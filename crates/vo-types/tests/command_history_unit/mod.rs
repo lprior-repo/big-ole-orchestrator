@@ -22,7 +22,6 @@ fn make_node(name: &str) -> DagNode {
         node_name: NodeName::parse(name).unwrap(),
         retry_policy: make_retry_policy(),
         compensation_policy: None,
-        capability: Default::default(),
     }
 }
 

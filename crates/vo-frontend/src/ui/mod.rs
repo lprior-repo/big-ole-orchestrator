@@ -17,6 +17,9 @@ pub mod template_rendering_tests;
 
 pub use command_palette::NodeCommandPalette;
 pub use domain_types::{HandleKind, HttpMethod, NodeTemplateId};
-pub use guarantee_badge::{GuaranteeBadge, NodeGuaranteeBadge};
+pub use guarantee_badge::{
+    ConditionalKindBadge, EdgeTraversalIndicator, GuaranteeBadge, NodeGuaranteeBadge,
+    RouterDecisionBadge, RouterNodeBadge,
+};
 pub use operator_action_panel::{ActionType, OperatorActionPanel};
 pub use prototype_palette::PrototypePalette;

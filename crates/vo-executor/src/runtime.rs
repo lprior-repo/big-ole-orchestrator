@@ -6,7 +6,36 @@
 
 use crate::errors::ExecuteNodeError;
 use crate::types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
-use tokio::runtime::{Builder, Handle};
+use std::sync::LazyLock;
+use std::mem;
+use tokio::runtime::Handle;
+
+static BLOCKING_RT: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to build blocking runtime");
+    mem::forget(rt);
+    BLOCKING_RT_HANDLE.load(std::sync::atomic::Ordering::Relaxed)
+});
+
+static BLOCKING_RT_HANDLE: LazyLock<Handle> = LazyLock::new(|| {
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("Failed to build blocking runtime");
+    let handle = rt.handle().clone();
+    mem::forget(rt);
+    handle
+});
+
+fn blocking_handle() -> Handle {
+    BLOCKING_RT_HANDLE.clone()
+}
+
+fn blocking_handle() -> Handle {
+    BLOCKING_RT.handle().clone()
+}
 
 #[derive(Debug, Clone)]
 pub struct Runtime {
@@ -21,12 +50,8 @@ pub enum RuntimeError {
 
 impl Runtime {
     pub fn new() -> Result<Self, RuntimeError> {
-        let runtime = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| RuntimeError::BuildFailed(e.to_string()))?;
         Ok(Self {
-            handle: runtime.handle().clone(),
+            handle: blocking_handle(),
         })
     }
 

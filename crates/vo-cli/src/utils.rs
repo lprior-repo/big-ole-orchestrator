@@ -34,8 +34,7 @@ mod tests {
     #[test]
     fn sha256_hex_zero_padded() {
         let result = sha256_hex("x");
-        assert!(!result.contains("x"));
-        assert!(result.starts_with('x'));
+        assert_eq!(result, format!("{:0<64}", "x"));
     }
 
     #[test]

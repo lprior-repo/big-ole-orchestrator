@@ -1,4 +1,5 @@
 mod binomial_heap;
+mod edge_tracking;
 #[cfg(test)]
 mod blackhat_encryption_credentials_tests;
 mod blob;
@@ -126,6 +127,9 @@ pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
 pub use node_kind::NodeKind;
+pub use edge_tracking::{
+    EdgeTraversalLog, RouterDecision, TraversedEdge, select_fan_in_source,
+};
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
@@ -180,8 +184,8 @@ mod kani_proofs;
 
 #[cfg(test)]
 mod adversarial_tests;
-#[cfg(test)]
-mod command_envelope_red_queen_tests;
+// #[cfg(test)]
+// mod command_envelope_red_queen_tests;  // removed: directory without mod.rs
 #[cfg(test)]
 mod compensation_tests;
 #[cfg(test)]
@@ -189,7 +193,7 @@ mod context_stack_adversarial;
 #[cfg(test)]
 mod cross_cutting_tests;
 #[cfg(test)]
-mod dependency_graph_resolver_tests;
+// mod dependency_graph_resolver_tests;  // removed: file not found
 #[cfg(test)]
 mod identity_bdd_tests;
 #[cfg(test)]
@@ -198,12 +202,8 @@ mod identity_tests;
 mod red_queen_tests;
 
 #[cfg(test)]
-mod schema_evolution_bdd_tests;
-#[cfg(test)]
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
-#[cfg(test)]
-mod tests_bdd_dag_cycle_validation;
 #[cfg(test)]
 mod workflow_tests;

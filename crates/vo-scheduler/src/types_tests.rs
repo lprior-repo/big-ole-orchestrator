@@ -264,7 +264,7 @@ fn schedule_policy_display_after() {
 
 #[test]
 fn schedule_policy_display_cron() {
-    let policy = SchedulePolicy::Cron("*/5 * * * *".to_string());
+    let policy = SchedulePolicy::Cron { expression: "*/5 * * * *".to_string() };
     assert_eq!(policy.to_string(), "cron(*/5 * * * *)");
 }
 
@@ -296,6 +296,26 @@ fn schedule_policy_validate_cron_valid_range() {
 #[test]
 fn schedule_policy_validate_cron_valid_mixed() {
     assert!(SchedulePolicy::validate_cron("*/5 0 1-15 * 1").is_ok());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_comma_separated() {
+    assert!(SchedulePolicy::validate_cron("1,2,3 * * * *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_step_non_numeric() {
+    assert!(SchedulePolicy::validate_cron("*/abc * * * *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_negative_value() {
+    assert!(SchedulePolicy::validate_cron("-1 * * * *").is_err());
+}
+
+#[test]
+fn schedule_policy_validate_cron_invalid_large_number() {
+    assert!(SchedulePolicy::validate_cron("100 * * * *").is_err());
 }
 
 #[test]
@@ -386,8 +406,8 @@ fn schedule_policy_equality_after() {
 
 #[test]
 fn schedule_policy_equality_cron() {
-    let p1 = SchedulePolicy::Cron("*/5 * * * *".to_string());
-    let p2 = SchedulePolicy::Cron("*/5 * * * *".to_string());
+    let p1 = SchedulePolicy::Cron { expression: "*/5 * * * *".to_string() };
+    let p2 = SchedulePolicy::Cron { expression: "*/5 * * * *".to_string() };
     assert_eq!(p1, p2);
 }
 
@@ -814,6 +834,7 @@ fn schedule_policy_serialize_immediate() {
 
 #[test]
 fn schedule_policy_serialize_cron() {
+<<<<<<< HEAD
     // Tagged newtype variants with String content require #[serde(borrow)] or
     // a helper — currently serde_json cannot serialize this variant directly.
     let policy = SchedulePolicy::Cron("*/5 * * * *".to_string());
@@ -826,6 +847,22 @@ fn schedule_policy_roundtrip_cron_fails_gracefully() {
     let policy = SchedulePolicy::Cron("0 12 * * 1".to_string());
     let result = serde_json::to_string(&policy);
     assert!(result.is_err(), "Cron variant with String cannot be serialized via serde_json");
+=======
+    let json = serde_json::to_string(&SchedulePolicy::Cron { expression: "*/5 * * * *".to_string() }).unwrap();
+    assert!(json.contains(r#""type":"cron""#));
+    assert!(json.contains("*/5 * * * *"));
+}
+
+#[test]
+fn schedule_policy_roundtrip_cron() {
+    let policy = SchedulePolicy::Cron { expression: "0 12 * * 1".to_string() };
+    let json = serde_json::to_string(&policy).unwrap();
+    let recovered: SchedulePolicy = serde_json::from_str(&json).unwrap();
+    match &recovered {
+        SchedulePolicy::Cron { expression } => assert_eq!(expression, "0 12 * * 1"),
+        _ => panic!("Expected Cron variant"),
+    }
+>>>>>>> e674fd02 (fix: auto-save uncommitted implementation work (gt-pvx safety net))
 }
 
 // === RetryPolicy display tests ===

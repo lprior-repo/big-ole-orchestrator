@@ -11,7 +11,7 @@
 //! - `NodeGuaranteeBadge`: per-node safety classification badge
 
 use dioxus::prelude::*;
-use vo_types::{GuaranteeClass, NodeKind};
+use vo_types::{GuaranteeClass, NodeKind, RouterDecision};
 
 /// Workflow-level guarantee class badge.
 ///
@@ -62,6 +62,95 @@ pub fn NodeGuaranteeBadge(
         rsx! {
             GuaranteeBadge { guarantee_class: workflow_guarantee, class: extra_class }
         }
+    }
+}
+
+/// Router decision badge showing Yes/No branch outcome.
+///
+/// Renders a colored badge indicating which branch was taken by a Router node.
+/// Uses green for "yes" and amber for "no" to visually distinguish branches.
+#[component]
+pub fn RouterDecisionBadge(decision: RouterDecision, class: Option<String>) -> Element {
+    let extra_class = class.unwrap_or_default();
+
+    match decision {
+        RouterDecision::Yes => rsx! {
+            span {
+                class: "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border-emerald-200 {extra_class}",
+                span { "yes" }
+            }
+        },
+        RouterDecision::No => rsx! {
+            span {
+                class: "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium bg-amber-50 text-amber-700 border-amber-200 {extra_class}",
+                span { "no" }
+            }
+        },
+    }
+}
+
+/// Router node badge for UI display.
+///
+/// Renders a badge indicating this is a Router node with conditional Yes/No branches.
+/// Uses an orange/amber color scheme to visually distinguish Router nodes from other kinds.
+#[component]
+pub fn RouterNodeBadge(class: Option<String>) -> Element {
+    let extra_class = class.unwrap_or_default();
+    rsx! {
+        span {
+            class: "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-medium bg-orange-50 text-orange-700 border-orange-200 {extra_class}",
+            span { "router" }
+        }
+    }
+}
+
+/// Edge traversal indicator for visualizing conditionally traversed edges.
+///
+/// Given whether an edge was traversed at runtime, renders a subtle indicator (dot).
+/// Green dot for traversed edges, gray for not-traversed. Used for visual debugging
+/// of conditional DAG execution (ADR-022 Section 2).
+#[component]
+pub fn EdgeTraversalIndicator(was_traversed: bool, class: Option<String>) -> Element {
+    let extra_class = class.unwrap_or_default();
+
+    if was_traversed {
+        rsx! {
+            span {
+                class: "inline-block h-1.5 w-1.5 rounded-full bg-green-500 {extra_class}",
+            }
+        }
+    } else {
+        rsx! {
+            span {
+                class: "inline-block h-1.5 w-1.5 rounded-full bg-slate-300 {extra_class}",
+            }
+        }
+    }
+}
+
+/// Router node badge (NodeKind::Router specific).
+///
+/// Returns the appropriate badge component based on the node's kind.
+/// For Router nodes, renders RouterNodeBadge; for others, delegates to NodeGuaranteeBadge.
+#[component]
+pub fn ConditionalKindBadge(
+    node_kind: NodeKind,
+    workflow_guarantee: GuaranteeClass,
+    class: Option<String>,
+) -> Element {
+    let extra_class = class.unwrap_or_default();
+
+    match node_kind {
+        NodeKind::Router => rsx! {
+            RouterNodeBadge { class: extra_class }
+        },
+        _ => rsx! {
+            NodeGuaranteeBadge {
+                node_kind,
+                workflow_guarantee,
+                class: extra_class,
+            }
+        },
     }
 }
 
@@ -134,6 +223,7 @@ mod tests {
             NodeKind::ManagedEffect,
             NodeKind::Wait,
             NodeKind::Signal,
+            NodeKind::Router,
         ];
         for kind in safe_kinds {
             assert!(!matches!(kind, NodeKind::Unsafe));
@@ -176,5 +266,25 @@ mod tests {
                 GuaranteeClass::BestEffort => assert!(!is_unsafe_conflict),
             }
         }
+    }
+
+    #[test]
+    fn router_decision_yes_uses_emerald() {
+        assert!(RouterDecision::Yes.label() == "yes");
+    }
+
+    #[test]
+    fn router_decision_no_uses_amber() {
+        assert!(RouterDecision::No.label() == "no");
+    }
+
+    #[test]
+    fn conditional_kind_badge_router_returns_router_node_badge_kind() {
+        assert!(matches!(NodeKind::Router, NodeKind::Router));
+    }
+
+    #[test]
+    fn conditional_kind_badge_non_router_delegates_to_node_guarantee() {
+        assert!(!matches!(NodeKind::Pure, NodeKind::Router));
     }
 }

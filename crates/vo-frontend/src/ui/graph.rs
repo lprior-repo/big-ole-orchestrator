@@ -223,6 +223,7 @@ pub fn node_kind_to_category(kind: NodeKind) -> NodeCategory {
         NodeKind::Wait => NodeCategory::Timing,
         NodeKind::Signal => NodeCategory::Signal,
         NodeKind::Unsafe => NodeCategory::Flow,
+        NodeKind::Router => NodeCategory::Flow,
     }
 }
 
@@ -471,6 +472,11 @@ mod tests {
     #[test]
     fn node_kind_to_category_maps_unsafe_to_flow() {
         assert_eq!(node_kind_to_category(NodeKind::Unsafe), NodeCategory::Flow);
+    }
+
+    #[test]
+    fn node_kind_to_category_maps_router_to_flow() {
+        assert_eq!(node_kind_to_category(NodeKind::Router), NodeCategory::Flow);
     }
 
     #[test]

@@ -158,6 +158,7 @@ where
                 .arg(
                     clap::Arg::new("engine-url")
                         .long("engine-url")
+                        .action(clap::ArgAction::Set)
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
                 )
@@ -173,6 +174,7 @@ where
                 .arg(
                     clap::Arg::new("engine-url")
                         .long("engine-url")
+                        .action(clap::ArgAction::Set)
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
                 )
@@ -258,6 +260,7 @@ where
                 .arg(
                     clap::Arg::new("engine-url")
                         .long("engine-url")
+                        .action(clap::ArgAction::Set)
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000")
                         .help("Engine URL"),
@@ -275,6 +278,7 @@ where
                 .arg(
                     clap::Arg::new("engine-url")
                         .long("engine-url")
+                        .action(clap::ArgAction::Set)
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000")
                         .help("Engine URL"),

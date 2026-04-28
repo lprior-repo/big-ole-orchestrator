@@ -84,18 +84,6 @@ fn cron_schedule_accepted_and_stored() {
 }
 
 #[test]
-fn cron_invalid_expression_rejected() {
-    let result = ScheduledJob::new(
-        JobKind::Recurring,
-        JobPriority::Normal,
-        SchedulePolicy::Cron("invalid".to_string()),
-        RetryPolicy::default(),
-        bytes::Bytes::new(),
-    );
-    assert!(result.is_err());
-}
-
-#[test]
 fn queue_pops_highest_priority_first() {
     let mut q = SchedulerQueue::new(10);
     let due = chrono::Utc::now();
@@ -160,4 +148,16 @@ fn make_job(
     .unwrap();
     job.due_at = due_at;
     job
+}
+
+#[test]
+fn cron_schedule_invalid_is_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron { expression: "invalid".to_string() },
+        RetryPolicy::default(),
+        bytes::Bytes::new(),
+    );
+    assert!(result.is_err());
 }

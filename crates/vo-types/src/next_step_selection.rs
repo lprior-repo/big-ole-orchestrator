@@ -23,6 +23,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::edge_tracking::EdgeTraversalLog;
 use crate::{NodeName, StepOutcome};
 
 // ============================================================================
@@ -418,6 +419,175 @@ pub fn emit_scheduling_intention(
     )
 }
 
+// ============================================================================
+// Conditional Fan-In Aware Selection (ADR-022 Section 2)
+// ============================================================================
+
+/// Per-parent outcome map for conditional fan-in.
+///
+/// Maps each completed parent node to its outcome, enabling correct
+/// edge condition matching when a downstream node has multiple parents
+/// from different branches.
+#[derive(Debug, Clone, Default)]
+pub struct ParentOutcomeMap {
+    outcomes: std::collections::HashMap<NodeName, StepOutcome>,
+}
+
+impl ParentOutcomeMap {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            outcomes: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Record the outcome of a completed parent node.
+    pub fn record(&mut self, parent: NodeName, outcome: StepOutcome) {
+        self.outcomes.insert(parent, outcome);
+    }
+
+    /// Get the outcome of a specific parent node.
+    #[must_use]
+    pub fn get(&self, parent: &NodeName) -> Option<&StepOutcome> {
+        self.outcomes.get(parent)
+    }
+
+    /// Check if a parent node has a recorded outcome.
+    #[must_use]
+    pub fn contains(&self, parent: &NodeName) -> bool {
+        self.outcomes.contains_key(parent)
+    }
+
+    /// Convert from an EdgeTraversalLog.
+    #[must_use]
+    pub fn from_traversal_log(log: &EdgeTraversalLog) -> Self {
+        let mut map = Self::new();
+        for edge in log.records() {
+            if let Some(outcome) = edge.outcome {
+                map.outcomes.insert(edge.source_node.clone(), outcome);
+            }
+        }
+        map
+    }
+
+    /// Get all recorded parent names.
+    #[must_use]
+    pub fn parents(&self) -> Vec<&NodeName> {
+        self.outcomes.keys().collect()
+    }
+}
+
+/// Select the next step with full conditional fan-in support (ADR-022 Section 2).
+///
+/// Unlike `select_next_step`, this function uses per-parent outcome tracking
+/// via the `completed_outcomes` map to correctly handle DAGs where a node has
+/// multiple incoming edges from different branches (e.g., Router Yes/No branches
+/// converging on a fan-in node).
+///
+/// # Algorithm
+///
+/// For each candidate node's incoming edges:
+/// 1. If the source node is not in `completed_outcomes`, skip the node (parent not executed).
+/// 2. For each completed parent, check if its edge condition matches that parent's outcome.
+/// 3. A node is ready only if ALL its incoming edges from completed parents are satisfied.
+///
+/// This is the ADR-022 Section 2 compliant fan-in: "the Engine inspects its incoming
+/// edges and only pipes the JSON output from the specific parent node that was
+/// *actually executed* in the current path."
+#[must_use]
+pub fn select_next_step_with_fan_in(
+    workflow: &crate::WorkflowDefinition,
+    completed_outcomes: &ParentOutcomeMap,
+) -> Result<Option<NextStep>, SelectionError> {
+    // Validate completed set
+    for parent in completed_outcomes.parents() {
+        if workflow.get_node(parent).is_none() {
+            return Err(SelectionError::UnknownCompletedNode(parent.clone()));
+        }
+    }
+
+    let ready_nodes = find_ready_nodes_fan_in(workflow, completed_outcomes);
+
+    if ready_nodes.is_empty() {
+        return Err(SelectionError::NoReadyNodes);
+    }
+
+    let selected = ready_nodes.into_iter().next().unwrap();
+
+    Ok(Some(NextStep {
+        step_id: selected,
+        attempt: 1,
+        fence: 1,
+    }))
+}
+
+/// Find all nodes ready to execute with conditional fan-in awareness.
+///
+/// A node is ready when:
+/// 1. It has not yet been completed (not in outcomes)
+/// 2. All its dependencies (incoming edge sources) have outcomes recorded
+/// 3. For each completed parent, the edge condition matches that parent's outcome
+fn find_ready_nodes_fan_in(
+    workflow: &crate::WorkflowDefinition,
+    completed_outcomes: &ParentOutcomeMap,
+) -> Vec<NodeName> {
+    let outcomes = completed_outcomes;
+
+    workflow
+        .nodes
+        .as_slice()
+        .iter()
+        .filter_map(|node| {
+            let node_name = &node.node_name;
+
+            // Skip already completed nodes (have outcomes recorded)
+            if outcomes.contains(node_name) {
+                return None;
+            }
+
+            // Check dependencies: all incoming edge sources must have outcomes
+            let incoming: Vec<_> = workflow
+                .edges
+                .iter()
+                .filter(|edge| &edge.target_node == node_name)
+                .collect();
+
+            // If no incoming edges, node is a root — always ready
+            if incoming.is_empty() {
+                return Some(node_name.clone());
+            }
+
+            // All incoming edge sources must have recorded outcomes
+            let all_parents_have_outcomes = incoming.iter().all(|edge| {
+                outcomes.contains(&edge.source_node)
+            });
+
+            if !all_parents_have_outcomes {
+                return None;
+            }
+
+            // Check edge conditions: each completed parent's outcome must match the edge condition
+            let all_conditions_satisfied = incoming.iter().all(|edge| {
+                if let Some(&parent_outcome) = outcomes.get(&edge.source_node) {
+                    edge.condition.matches(parent_outcome)
+                } else {
+                    false
+                }
+            });
+
+            if all_conditions_satisfied {
+                Some(node_name.clone())
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+// ============================================================================
+// Tests
+// ============================================================================
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -566,5 +736,162 @@ mod tests {
         assert_eq!(intention.attempt, 1);
         assert_eq!(intention.fence, 42);
         assert_eq!(intention.execution_id, "exec-456");
+    }
+
+    // =========================================================================
+    // Conditional Fan-In Tests (ADR-022 Section 2)
+    // =========================================================================
+
+    /// Create a diamond DAG with Router branching:
+    ///
+    /// ```text
+    ///    A (Router)
+    ///   / \
+    /// Yes No
+    ///  /   \
+    ///  B     C
+    ///   \   /
+    ///     D (fan-in)
+    /// ```
+    fn create_fan_in_workflow() -> crate::WorkflowDefinition {
+        use crate::{DagNode, Edge, EdgeCondition, NonEmptyVec, RetryPolicy, WorkflowName};
+
+        let nodes = NonEmptyVec::new_unchecked(vec![
+            DagNode {
+                node_name: NodeName("A".to_string()),
+                retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
+                compensation_policy: Default::default(),
+            },
+            DagNode {
+                node_name: NodeName("B".to_string()),
+                retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
+                compensation_policy: Default::default(),
+            },
+            DagNode {
+                node_name: NodeName("C".to_string()),
+                retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
+                compensation_policy: Default::default(),
+            },
+            DagNode {
+                node_name: NodeName("D".to_string()),
+                retry_policy: RetryPolicy::new(3, 100, 2.0).unwrap(),
+                compensation_policy: Default::default(),
+            },
+        ]);
+
+        let edges = vec![
+            Edge {
+                source_node: NodeName("A".to_string()),
+                target_node: NodeName("B".to_string()),
+                condition: EdgeCondition::OnSuccess,
+            },
+            Edge {
+                source_node: NodeName("A".to_string()),
+                target_node: NodeName("C".to_string()),
+                condition: EdgeCondition::OnFailure,
+            },
+            Edge {
+                source_node: NodeName("B".to_string()),
+                target_node: NodeName("D".to_string()),
+                condition: EdgeCondition::Always,
+            },
+            Edge {
+                source_node: NodeName("C".to_string()),
+                target_node: NodeName("D".to_string()),
+                condition: EdgeCondition::Always,
+            },
+        ];
+
+        crate::WorkflowDefinition {
+            workflow_name: WorkflowName("fan-in-test".to_string()),
+            nodes,
+            edges,
+        }
+    }
+
+    #[test]
+    fn parent_outcome_map_records_and_retrieves() {
+        let mut map = ParentOutcomeMap::new();
+        map.record(NodeName("A".into()), StepOutcome::Success);
+        assert!(map.contains(&NodeName("A".into())));
+        assert_eq!(map.get(&NodeName("A".into())), Some(&StepOutcome::Success));
+        assert_eq!(map.get(&NodeName("B".into())), None);
+    }
+
+    #[test]
+    fn parent_outcome_map_from_traversal_log() {
+        use crate::edge_tracking::{EdgeTraversalLog, TraversedEdge};
+
+        let mut log = EdgeTraversalLog::new();
+        // First edge: A→B with Success
+        log.record(TraversedEdge::on_success(NodeName("A".into()), NodeName("B".into())));
+        // Second edge: A→C with Failure (last outcome for A wins in map)
+        log.record(TraversedEdge::on_failure(NodeName("A".into()), NodeName("C".into())));
+
+        let map = ParentOutcomeMap::from_traversal_log(&log);
+        // The last recorded outcome for A is Failure
+        assert_eq!(map.get(&NodeName("A".into())), Some(&StepOutcome::Failure));
+    }
+
+    #[test]
+    fn fan_in_selects_b_when_a_succeeds() {
+        let workflow = create_fan_in_workflow();
+        let mut outcomes = ParentOutcomeMap::new();
+        outcomes.record(NodeName("A".into()), StepOutcome::Success);
+
+        let result = select_next_step_with_fan_in(&workflow, &outcomes);
+        assert!(result.is_ok());
+        let next = result.unwrap().unwrap();
+        assert_eq!(next.step_id.to_string(), "B");
+    }
+
+    #[test]
+    fn fan_in_selects_c_when_a_fails() {
+        let workflow = create_fan_in_workflow();
+        let mut outcomes = ParentOutcomeMap::new();
+        outcomes.record(NodeName("A".into()), StepOutcome::Failure);
+
+        let result = select_next_step_with_fan_in(&workflow, &outcomes);
+        assert!(result.is_ok());
+        let next = result.unwrap().unwrap();
+        assert_eq!(next.step_id.to_string(), "C");
+    }
+
+    #[test]
+    fn fan_in_no_ready_when_no_outcomes() {
+        let workflow = create_fan_in_workflow();
+        let outcomes = ParentOutcomeMap::new();
+
+        let result = select_next_step_with_fan_in(&workflow, &outcomes);
+        // Only A has no incoming edges, but A itself should be selected
+        assert!(result.is_ok());
+        let next = result.unwrap();
+        assert!(next.is_some());
+        assert_eq!(next.unwrap().step_id.to_string(), "A");
+    }
+
+    #[test]
+    fn fan_in_returns_error_for_unknown_parent() {
+        let workflow = create_fan_in_workflow();
+        let mut outcomes = ParentOutcomeMap::new();
+        outcomes.record(NodeName("NonExistent".into()), StepOutcome::Success);
+
+        let result = select_next_step_with_fan_in(&workflow, &outcomes);
+        assert!(matches!(
+            result,
+            Err(SelectionError::UnknownCompletedNode(_))
+        ));
+    }
+
+    #[test]
+    fn fan_in_root_nodes_ready_without_outcomes() {
+        let workflow = create_test_workflow();
+        let outcomes = ParentOutcomeMap::new();
+
+        let result = select_next_step_with_fan_in(&workflow, &outcomes);
+        assert!(result.is_ok());
+        let next = result.unwrap().unwrap();
+        // Root node A has no incoming edges
+        assert_eq!(next.step_id.to_string(), "A");
     }
 }

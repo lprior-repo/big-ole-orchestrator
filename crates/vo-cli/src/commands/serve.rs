@@ -41,6 +41,69 @@ pub fn validate_serve_config(config: &ServeConfig) -> Result<(), ServeError> {
 }
 
 pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
+<<<<<<< HEAD
+=======
+    validate_serve_config(config)?;
+
+    let db = fjall::Database::builder(&config.storage_path)
+        .open()
+        .map_err(|e| ServeError::InvalidStoragePath(format!("Failed to open Fjall DB: {e}")))?;
+
+    let db_handle = std::sync::Arc::new(db);
+
+    let workspace_index = std::sync::Arc::new(std::sync::RwLock::new(
+        vo_types::workspace::WorkspaceIndex::new(),
+    ));
+
+    let search_engine = std::sync::Arc::new(std::sync::RwLock::new(
+        vo_types::search::SearchEngine::new(),
+    ));
+
+    let query = vo_api::handlers::QueryState::new(
+        db_handle.clone(),
+        workspace_index,
+        search_engine,
+    );
+
+    let sse = vo_api::handlers::SseState::new();
+    let ws = vo_api::handlers::WsState::new();
+
+    let (master_ref, _master_handle) = ractor::Actor::spawn(
+        Some("api-orchestrator".to_string()),
+        DummyMaster,
+        (),
+    )
+    .await
+    .map_err(|e| {
+        ServeError::InvalidStoragePath(format!("Failed to spawn orchestrator: {e}"))
+    })?;
+    let master = std::sync::Arc::new(master_ref);
+
+    let circuit_breaker = std::sync::Arc::new(
+        vo_core::circuit_breaker::CircuitBreakerState::new(),
+    );
+
+    let dedupe_store = std::sync::Arc::new(
+        vo_storage::dedupe_partition::InMemoryDedupeStore::new(),
+    );
+
+    let writer_pressure = std::sync::Arc::new(
+        vo_core::admission::WatchdogPressureGuard::permissive(),
+    );
+
+    let state = vo_api::router::AppState {
+        query,
+        sse,
+        ws,
+        master,
+        circuit_breaker,
+        dedupe_store,
+        writer_pressure,
+    };
+
+    let router = vo_api::router::create_router(state);
+
+>>>>>>> e674fd02 (fix: auto-save uncommitted implementation work (gt-pvx safety net))
     let listen_addr = format!("{}:{}", config.host, config.port);
     let listener = match tokio::net::TcpListener::bind(&listen_addr).await {
         Ok(l) => l,

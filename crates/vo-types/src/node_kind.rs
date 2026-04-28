@@ -18,6 +18,10 @@ pub enum NodeKind {
     Signal,
     /// Escape hatch — no guarantees.
     Unsafe,
+    /// Routing node with Yes/No branches for conditional DAG traversal (ADR-022 Section 2).
+    /// Outputs are conditionally routed based on a boolean decision; downstream fan-in
+    /// selects the output from the actually-traversed branch.
+    Router,
 }
 
 impl NodeKind {
@@ -31,6 +35,7 @@ impl NodeKind {
             NodeKind::Wait,
             NodeKind::Signal,
             NodeKind::Unsafe,
+            NodeKind::Router,
         ]
     }
 }
@@ -105,14 +110,47 @@ mod tests {
     }
 
     #[test]
-    fn node_kind_all_variants_returns_five_in_declaration_order() {
+    fn node_kind_all_variants_returns_six_in_declaration_order() {
         let variants = NodeKind::all_variants();
-        assert_eq!(variants.len(), 5);
+        assert_eq!(variants.len(), 6);
         assert_eq!(variants[0], NodeKind::Pure);
         assert_eq!(variants[1], NodeKind::ManagedEffect);
         assert_eq!(variants[2], NodeKind::Wait);
         assert_eq!(variants[3], NodeKind::Signal);
         assert_eq!(variants[4], NodeKind::Unsafe);
+        assert_eq!(variants[5], NodeKind::Router);
+    }
+
+    #[test]
+    fn node_kind_router_serializes_to_snake_case() {
+        let json = serde_json::to_string(&NodeKind::Router).unwrap();
+        assert_eq!(json, "\"router\"");
+    }
+
+    #[test]
+    fn node_kind_router_round_trips_via_serde() {
+        let json = "\"router\"";
+        let parsed: NodeKind = serde_json::from_str(json).expect("should deserialize 'router'");
+        assert_eq!(parsed, NodeKind::Router);
+        let roundtrip = serde_json::to_string(&parsed).unwrap();
+        assert_eq!(roundtrip, json);
+    }
+
+    #[test]
+    fn node_kind_all_variants_round_trip_via_serde_includes_router() {
+        let variants = [
+            NodeKind::Pure,
+            NodeKind::ManagedEffect,
+            NodeKind::Wait,
+            NodeKind::Signal,
+            NodeKind::Unsafe,
+            NodeKind::Router,
+        ];
+        for variant in variants {
+            let json = serde_json::to_string(&variant).unwrap();
+            let recovered: NodeKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(recovered, variant, "round-trip failed for {:?}", variant);
+        }
     }
 
     #[test]
@@ -141,7 +179,7 @@ mod proptests {
 
     proptest! {
         #[test]
-        fn node_kind_all_variants_proptest_exhaustive(idx in 0..5usize) {
+        fn node_kind_all_variants_proptest_exhaustive(idx in 0..6usize) {
             let variants = NodeKind::all_variants();
             prop_assert!(idx < variants.len(), "idx {} should be in range", idx);
             let variant = variants[idx];
@@ -151,7 +189,7 @@ mod proptests {
         }
 
         #[test]
-        fn node_kind_hash_is_deterministic(variant in 0..5u8) {
+        fn node_kind_hash_is_deterministic(variant in 0..6u8) {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
 
@@ -161,6 +199,7 @@ mod proptests {
                 2 => NodeKind::Wait,
                 3 => NodeKind::Signal,
                 4 => NodeKind::Unsafe,
+                5 => NodeKind::Router,
                 _ => return prop_assert!(false, "invalid variant index"),
             };
 
@@ -174,13 +213,14 @@ mod proptests {
         }
 
         #[test]
-        fn node_kind_equality_is_reflexive(variant in 0..5u8) {
+        fn node_kind_equality_is_reflexive(variant in 0..6u8) {
             let kind = match variant {
                 0 => NodeKind::Pure,
                 1 => NodeKind::ManagedEffect,
                 2 => NodeKind::Wait,
                 3 => NodeKind::Signal,
                 4 => NodeKind::Unsafe,
+                5 => NodeKind::Router,
                 _ => return prop_assert!(false, "invalid variant index"),
             };
             prop_assert_eq!(kind, kind, "equality should be reflexive");
