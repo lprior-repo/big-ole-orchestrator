@@ -790,6 +790,8 @@ fn command_debug_all_variants() {
             "{:?}",
             Command::Purge {
                 instance: "i".into(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             }
         ),
         format!(

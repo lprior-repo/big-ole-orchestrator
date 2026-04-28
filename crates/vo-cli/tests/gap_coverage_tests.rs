@@ -2010,6 +2010,8 @@ fn command_clone_equality() {
 fn command_purge_clone_equality() {
     let cmd = Command::Purge {
         instance: "abc".into(),
+        storage_path: PathBuf::from(".vo/storage"),
+        dry_run: false,
     };
     let cmd2 = cmd.clone();
     assert_eq!(cmd, cmd2);

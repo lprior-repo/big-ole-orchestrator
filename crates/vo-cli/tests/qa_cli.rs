@@ -8,6 +8,8 @@ fn parse_purge_with_instance_id_flag() {
         cli.command,
         Command::Purge {
             instance: "abc-123".into(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         }
     );
 }

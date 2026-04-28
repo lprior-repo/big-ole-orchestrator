@@ -401,7 +401,9 @@ fn parse_purge_basic() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: "inst-123".to_string()
+            instance: "inst-123".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         }
     );
 }
@@ -412,7 +414,9 @@ fn parse_purge_empty_instance() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: "".to_string()
+            instance: "".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         }
     );
 }
@@ -1129,6 +1133,8 @@ fn registry_lookups_all_commands() {
         (
             Command::Purge {
                 instance: "x".into(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             },
             "purge",
         ),
@@ -1444,6 +1450,8 @@ fn command_equality() {
 fn command_clone() {
     let c = Command::Purge {
         instance: "test".to_string(),
+        storage_path: PathBuf::from(".vo/storage"),
+        dry_run: false,
     };
     let cloned = c.clone();
     assert_eq!(c, cloned);

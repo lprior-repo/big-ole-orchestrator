@@ -836,6 +836,8 @@ fn cli_debug_format_all_commands() {
     let commands = vec![
         Command::Purge {
             instance: "i".into(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
         Command::Check {
             workflow: false,

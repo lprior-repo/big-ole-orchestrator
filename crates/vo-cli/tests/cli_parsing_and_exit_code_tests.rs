@@ -17,7 +17,9 @@ fn parse_purge_with_instance() {
     assert_eq!(
         cli.command,
         Command::Purge {
-            instance: "i-42".to_string()
+            instance: "i-42".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         }
     );
 }
@@ -331,11 +333,15 @@ fn cli_equality_same_command() {
     let a = Cli {
         command: Command::Purge {
             instance: "x".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
     };
     let b = Cli {
         command: Command::Purge {
             instance: "x".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
     };
     assert_eq!(a, b);
@@ -346,11 +352,15 @@ fn cli_inequality_different_instance() {
     let a = Cli {
         command: Command::Purge {
             instance: "x".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
     };
     let b = Cli {
         command: Command::Purge {
             instance: "y".to_string(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
     };
     assert_ne!(a, b);

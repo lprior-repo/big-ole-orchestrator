@@ -12,6 +12,8 @@ fn rq_purge_shell_metachars_pass_through_untampered() {
         cli.command,
         Command::Purge {
             instance: payload.into(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         }
     );
 }

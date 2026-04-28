@@ -373,8 +373,10 @@ fn lockfile_with_multiple_entries_verifies_all() {
 #[test]
 fn cli_command_all_variants_cloneable() {
     let commands = vec![
-        Command::Purge {
+         Command::Purge {
             instance: "x".into(),
+            storage_path: PathBuf::from(".vo/storage"),
+            dry_run: false,
         },
         Command::Check {
             workflow: false,

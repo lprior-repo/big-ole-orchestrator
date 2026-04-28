@@ -900,6 +900,8 @@ fn command_all_variants_debug_format() {
             "{:?}",
             Command::Purge {
                 instance: "test".into(),
+                storage_path: PathBuf::from(".vo/storage"),
+                dry_run: false,
             }
         ),
         format!(
