@@ -9,9 +9,9 @@ mod semantic_types;
 mod transition;
 
 pub use compiler::{
-    create_lifecycle_table, CompilerTransitionError, Guard, GuardFn, GuardResult, SideEffect,
-    SideEffectFn, SideEffectResult, TransitionBuilder, TransitionRule, TransitionTable,
-    TransitionTableBuilder,
+    allows_recovery, create_lifecycle_table, CompilerTransitionError, Guard, GuardFn, GuardResult,
+    is_valid_transition, SideEffect, SideEffectFn, SideEffectResult, TransitionBuilder,
+    TransitionRule, TransitionTable, TransitionTableBuilder,
 };
 
 pub use lifecycle::{BlockedReason, LifecycleState, OperationalStatus, TransitionEvent};
@@ -24,6 +24,10 @@ pub use transition::{
 mod tests_apply_errors;
 #[cfg(test)]
 mod tests_apply_happy;
+#[cfg(test)]
+mod tests_compiler_definition;
+#[cfg(test)]
+mod tests_compiler_transitions;
 #[cfg(test)]
 mod tests_derives;
 #[cfg(test)]
