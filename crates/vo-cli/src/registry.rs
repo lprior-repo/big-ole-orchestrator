@@ -23,6 +23,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
+        registry.register(Box::new(handlers::HistoryHandler));
         registry.register(Box::new(handlers::WorkspaceHandler));
         registry
     }
@@ -435,6 +436,68 @@ mod handlers {
                     println!("| Quarantined               | yes                          |");
                 }
                 println!("+---------------------------+-------------------------------+");
+                Ok(())
+            })
+        }
+    }
+
+    pub struct HistoryHandler;
+
+    impl CommandHandler for HistoryHandler {
+        fn name(&self) -> &'static str {
+            "history"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::History {
+                ref instance_id,
+                ref engine_url,
+                canonical,
+                json,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a history command".to_string()))
+                });
+            };
+            let instance_id = instance_id.clone();
+            let engine_url = engine_url.clone();
+            Box::pin(async move {
+                let config = crate::commands::workflow_history::WorkflowHistoryConfig {
+                    instance_id,
+                    engine_url: engine_url.clone(),
+                    json,
+                };
+                let history =
+                    crate::commands::workflow_history::run_workflow_history(&config).await?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&history).map_err(|e| {
+                        CliError::Dispatch(format!("JSON serialization failed: {}", e))
+                    })?);
+                } else {
+                    println!("Workflow History for {}", history.instance_id);
+                    println!("Total events: {}", history.entries.len());
+                    if let Some(redacted) = history.redacted_fields {
+                        eprintln!("Warning: {} fields were redacted", redacted.len());
+                    }
+                    println!("");
+                    for entry in &history.entries {
+                        println!(
+                            "[{:>6}] {} {}",
+                            entry.sequence, entry.event_type,
+                            entry.step_id.as_deref().unwrap_or("-")
+                        );
+                        if let Some(ref err) = entry.error {
+                            println!("  ERROR: {}", err);
+                        }
+                        if let Some(ref output) = entry.output {
+                            println!("  Output: {}", output);
+                        }
+                    }
+                }
                 Ok(())
             })
         }

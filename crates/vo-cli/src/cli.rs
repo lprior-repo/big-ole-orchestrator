@@ -87,8 +87,9 @@ pub enum Command {
     },
     History {
         instance_id: String,
-        storage_path: PathBuf,
+        engine_url: String,
         canonical: bool,
+        json: bool,
     },
     Workspace {
         action: WorkspaceAction,
@@ -276,6 +277,36 @@ where
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000")
                         .help("Engine URL"),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("history")
+                .about("Query workflow event history")
+                .arg(
+                    clap::Arg::new("instance")
+                        .required(true)
+                        .index(1)
+                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                )
+                .arg(
+                    clap::Arg::new("engine-url")
+                        .long("engine-url")
+                        .action(clap::ArgAction::Set)
+                        .env("VO_ENGINE_URL")
+                        .default_value("http://localhost:3000")
+                        .help("Engine URL"),
+                )
+                .arg(
+                    clap::Arg::new("canonical")
+                        .long("canonical")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Output canonical form"),
+                )
+                .arg(
+                    clap::Arg::new("json")
+                        .long("json")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Output JSON format"),
                 ),
         )
         .subcommand(
@@ -516,16 +547,18 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
-            let storage_path = sub_matches
-                .get_one::<String>("storage-path")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let engine_url = sub_matches
+                .get_one::<String>("engine-url")
+                .cloned()
+                .unwrap_or_else(|| "http://localhost:3000".to_string());
             let canonical = sub_matches.get_flag("canonical");
+            let json = sub_matches.get_flag("json");
             Ok(Cli {
                 command: Command::History {
                     instance_id,
-                    storage_path,
+                    engine_url,
                     canonical,
+                    json,
                 },
             })
         }
