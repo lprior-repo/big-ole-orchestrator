@@ -158,7 +158,8 @@ pub use dual_representation::{
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent,
+    EffectTransitionError, EffectTransitionEvent, validate_effect_against_schema,
+    EffectValidationError, JsonType, StepSchema,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;

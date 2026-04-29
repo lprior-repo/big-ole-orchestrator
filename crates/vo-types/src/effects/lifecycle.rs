@@ -3,11 +3,94 @@
 //! EffectRecord is the persisted representation of a managed effect.
 //! Receipt is the durable execution receipt for committed effects (ADR-041).
 
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum EffectKind {
     HttpCall,
     SqlQuery,
     BlobWrite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum JsonType {
+    String,
+    Number,
+    Bool,
+    Object,
+    Array,
+    Null,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct StepSchema {
+    pub expected_intent: crate::effects::EffectIntent,
+    pub expected_kind: EffectKind,
+    pub required_params: Vec<String>,
+    pub param_types: HashMap<String, JsonType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EffectValidationError {
+    #[error("Effect intent {0:?} does not match schema expected {1:?}")]
+    IntentMismatch(crate::effects::EffectIntent, crate::effects::EffectIntent),
+    #[error("Effect kind {0:?} does not match schema expected {1:?}")]
+    KindMismatch(EffectKind, EffectKind),
+    #[error("Required param '{name}' is missing from params_json")]
+    MissingParam { name: String },
+    #[error("Param '{param}' has type {actual:?} but schema expects {expected:?}")]
+    TypeMismatch {
+        param: String,
+        expected: JsonType,
+        actual: JsonType,
+    },
+}
+
+pub fn validate_effect_against_schema(
+    effect: &EffectRecord,
+    schema: &StepSchema,
+) -> Result<(), EffectValidationError> {
+    if effect.status != schema.expected_intent {
+        return Err(EffectValidationError::IntentMismatch(
+            effect.status,
+            schema.expected_intent,
+        ));
+    }
+    if effect.kind != schema.expected_kind {
+        return Err(EffectValidationError::KindMismatch(
+            effect.kind,
+            schema.expected_kind,
+        ));
+    }
+    if let serde_json::Value::Object(params) = &effect.params_json {
+        for param_name in &schema.required_params {
+            if !params.contains_key(param_name) {
+                return Err(EffectValidationError::MissingParam {
+                    name: param_name.clone(),
+                });
+            }
+        }
+        for (param_name, expected_type) in &schema.param_types {
+            if let Some(value) = params.get(param_name) {
+                let actual_type = match value {
+                    serde_json::Value::String(_) => JsonType::String,
+                    serde_json::Value::Number(_) => JsonType::Number,
+                    serde_json::Value::Bool(_) => JsonType::Bool,
+                    serde_json::Value::Object(_) => JsonType::Object,
+                    serde_json::Value::Array(_) => JsonType::Array,
+                    serde_json::Value::Null => JsonType::Null,
+                };
+                if actual_type != *expected_type {
+                    return Err(EffectValidationError::TypeMismatch {
+                        param: param_name.clone(),
+                        expected: *expected_type,
+                        actual: actual_type,
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -61,6 +144,32 @@ impl EffectRecord {
             status,
             committed_at,
         })
+    }
+
+    #[must_use]
+    pub fn new_with_schema(
+        intent_id: String,
+        kind: EffectKind,
+        params_json: serde_json::Value,
+        status: crate::effects::EffectIntent,
+        committed_at: Option<crate::types::TimestampMs>,
+        schema: &StepSchema,
+    ) -> Result<Self, EffectValidationError> {
+        let record = Self {
+            intent_id: intent_id.clone(),
+            kind,
+            params_json: params_json.clone(),
+            status,
+            committed_at,
+        };
+        if intent_id.is_empty() {
+            return Err(EffectValidationError::IntentMismatch(
+                status,
+                schema.expected_intent,
+            ));
+        }
+        validate_effect_against_schema(&record, schema)?;
+        Ok(record)
     }
 
     #[must_use]
@@ -445,5 +554,131 @@ mod tests {
             result.unwrap_err(),
             EffectCompressionError::DecompressionFailed(_)
         ));
+    }
+
+    #[test]
+    fn test_validate_happy_path() {
+        let effect = EffectRecord::new(
+            "fx-123".to_string(),
+            EffectKind::HttpCall,
+            json!({"url": "https://api.stripe.com/v1/charges", "amount": 100}),
+            crate::effects::EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let mut param_types = HashMap::new();
+        param_types.insert("url".to_string(), JsonType::String);
+        param_types.insert("amount".to_string(), JsonType::Number);
+        let schema = StepSchema {
+            expected_intent: crate::effects::EffectIntent::Prepared,
+            expected_kind: EffectKind::HttpCall,
+            required_params: vec!["url".to_string(), "amount".to_string()],
+            param_types,
+        };
+        let result = validate_effect_against_schema(&effect, &schema);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_validate_intent_mismatch() {
+        let effect = EffectRecord::new(
+            "fx-123".to_string(),
+            EffectKind::HttpCall,
+            json!({"url": "https://api.stripe.com/v1/charges"}),
+            crate::effects::EffectIntent::Committed,
+            None,
+        )
+        .unwrap();
+        let schema = StepSchema {
+            expected_intent: crate::effects::EffectIntent::Prepared,
+            expected_kind: EffectKind::HttpCall,
+            required_params: vec![],
+            param_types: HashMap::new(),
+        };
+        let result = validate_effect_against_schema(&effect, &schema);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectValidationError::IntentMismatch(
+                crate::effects::EffectIntent::Committed,
+                crate::effects::EffectIntent::Prepared
+            )
+        ));
+    }
+
+    #[test]
+    fn test_validate_missing_required_param() {
+        let effect = EffectRecord::new(
+            "fx-123".to_string(),
+            EffectKind::SqlQuery,
+            json!({"table": "users"}),
+            crate::effects::EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let schema = StepSchema {
+            expected_intent: crate::effects::EffectIntent::Prepared,
+            expected_kind: EffectKind::SqlQuery,
+            required_params: vec!["query".to_string()],
+            param_types: HashMap::new(),
+        };
+        let result = validate_effect_against_schema(&effect, &schema);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectValidationError::MissingParam { name } if name == "query"
+        ));
+    }
+
+    #[test]
+    fn test_validate_type_mismatch() {
+        let effect = EffectRecord::new(
+            "fx-123".to_string(),
+            EffectKind::HttpCall,
+            json!({"count": "string_value"}),
+            crate::effects::EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let mut param_types = HashMap::new();
+        param_types.insert("count".to_string(), JsonType::Number);
+        let schema = StepSchema {
+            expected_intent: crate::effects::EffectIntent::Prepared,
+            expected_kind: EffectKind::HttpCall,
+            required_params: vec![],
+            param_types,
+        };
+        let result = validate_effect_against_schema(&effect, &schema);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectValidationError::TypeMismatch {
+                param,
+                expected: JsonType::Number,
+                actual: JsonType::String,
+            } if param == "count"
+        ));
+    }
+
+    #[test]
+    fn test_validate_null_param_allowed() {
+        let effect = EffectRecord::new(
+            "fx-123".to_string(),
+            EffectKind::HttpCall,
+            json!({"optional_field": null}),
+            crate::effects::EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let mut param_types = HashMap::new();
+        param_types.insert("optional_field".to_string(), JsonType::Null);
+        let schema = StepSchema {
+            expected_intent: crate::effects::EffectIntent::Prepared,
+            expected_kind: EffectKind::HttpCall,
+            required_params: vec![],
+            param_types,
+        };
+        let result = validate_effect_against_schema(&effect, &schema);
+        assert!(result.is_ok());
     }
 }

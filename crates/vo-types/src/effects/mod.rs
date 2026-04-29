@@ -14,7 +14,10 @@ pub use compensation::CompensationPolicy;
 pub use intent::{
     apply_effect_transition, EffectIntent, EffectTransitionError, EffectTransitionEvent,
 };
-pub use lifecycle::{EffectCompressionError, EffectKind, EffectRecord, Receipt};
+pub use lifecycle::{
+    validate_effect_against_schema, EffectCompressionError, EffectKind, EffectRecord,
+    EffectValidationError, JsonType, Receipt, StepSchema,
+};
 
 #[cfg(feature = "proptest")]
 #[allow(clippy::unwrap_used)]
