@@ -17,7 +17,7 @@ use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
 use vo_storage::event_log::{append_event, replay_events_in_namespace, AppendEventRequest};
 use vo_types::events::EventMetadata;
-use vo_types::InstanceId;
+use vo_types::{CommandMetadata, InstanceId};
 
 use crate::handlers::helpers::parse_paradigm;
 use crate::handlers::ingress::{
@@ -45,18 +45,37 @@ pub async fn start_workflow(
     Extension(event_db): Extension<Arc<fjall::Database>>,
     Json(req): Json<V3StartRequest>,
 ) -> impl IntoResponse {
-    // Step 1: Validate dedupe key presence (ADR-028 Section 2).
-    let dedupe_key = match req.dedupe_key {
-        Some(ref key) if !key.is_empty() => key.clone(),
-        _ => {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ApiError::new(
-                    "missing_dedupe_key",
-                    "dedupe_key is required for exact workflow ingress (ADR-028)",
-                )),
-            )
-                .into_response();
+    // Step 1: Extract command metadata from command_envelope (ADR-036).
+    // ADR-036: When command_envelope is provided, use command_id for dedup
+    // and propagate command metadata into all events.
+    let command_metadata: Option<CommandMetadata> = req.command_envelope.as_ref().map(|envelope| {
+        CommandMetadata {
+            command_id: envelope.metadata.command_id.clone(),
+            correlation_id: envelope.metadata.correlation_id.clone(),
+            causation_id: envelope.metadata.causation_id.clone(),
+            issuer: envelope.metadata.issuer.clone(),
+            issued_at: envelope.metadata.issued_at,
+        }
+    });
+
+    // Step 2: Determine dedupe key (ADR-036 command_id takes precedence over legacy dedupe_key).
+    // If command_envelope is provided, use command_id as the dedupe key for ADR-036 compliance.
+    // Otherwise, fall back to the legacy dedupe_key for backward compatibility.
+    let dedupe_key = if let Some(ref envelope) = req.command_envelope {
+        envelope.metadata.command_id.as_str().to_string()
+    } else {
+        match req.dedupe_key {
+            Some(ref key) if !key.is_empty() => key.clone(),
+            _ => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiError::new(
+                        "missing_dedupe_key",
+                        "dedupe_key is required for exact workflow ingress (ADR-028)",
+                    )),
+                )
+                    .into_response();
+            }
         }
     };
 
@@ -279,6 +298,7 @@ pub async fn start_workflow(
         req.workflow_binary_hash.as_deref(),
         &req.input,
         &dedupe_key,
+        command_metadata.clone(),
     );
     if let Err(error) = persisted_start {
         let _ = master
@@ -317,7 +337,7 @@ pub async fn start_workflow(
         .await;
 
     if !matches!(call_result, Ok(CallResult::Success(Ok(())))) {
-        let _ = persist_workflow_start_rejected_event(&event_db, &captured_namespace, &captured_id);
+        let _ = persist_workflow_start_rejected_event(&event_db, &captured_namespace, &captured_id, command_metadata);
     }
 
     match call_result {
@@ -411,6 +431,7 @@ fn persist_workflow_start_rejected_event(
     db: &fjall::Database,
     namespace: &str,
     instance_id: &InstanceId,
+    command_metadata: Option<CommandMetadata>,
 ) -> Result<(), vo_storage::codec::StorageError> {
     let payload = serde_json::json!({
         "type": "WorkflowTerminated",
@@ -426,7 +447,7 @@ fn persist_workflow_start_rejected_event(
             timestamp_ms: now_ms(),
             payload,
             metadata: EventMetadata {
-                command_metadata: None,
+                command_metadata,
                 annotations,
             },
         },
@@ -553,6 +574,7 @@ fn persist_workflow_started_event(
     top_level_binary_hash: Option<&str>,
     input: &serde_json::Value,
     dedupe_key: &str,
+    command_metadata: Option<CommandMetadata>,
 ) -> Result<(), vo_storage::codec::StorageError> {
     let binary_hash = workflow_binary_hash(top_level_binary_hash, input);
     let payload = serde_json::json!({
@@ -576,7 +598,7 @@ fn persist_workflow_started_event(
             timestamp_ms: now_ms(),
             payload,
             metadata: EventMetadata {
-                command_metadata: None,
+                command_metadata,
                 annotations,
             },
         },

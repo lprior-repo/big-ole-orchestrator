@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use vo_types::CommandEnvelope;
 
 /// POST /api/v1/workflows request body.
 ///
@@ -23,8 +24,14 @@ pub struct V3StartRequest {
     pub instance_id: Option<String>,
     /// Stable dedupe key for exactly-once ingress (ADR-028).
     /// Required for exact workflow ingress.
+    /// Deprecated: use `command_envelope.command_id` instead for ADR-036 compliance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dedupe_key: Option<String>,
+    /// Command envelope for ADR-036 command identity, correlation, and causation.
+    /// When provided, the engine uses `command_id` for deduplication and propagates
+    /// command metadata into all events emitted by this workflow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_envelope: Option<CommandEnvelope>,
 }
 
 /// Response to POST /api/v1/workflows on success (HTTP 201).
