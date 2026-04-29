@@ -235,6 +235,63 @@ fn write_envelope_works_with_generic_struct() {
 }
 
 #[test]
+fn fd3_envelope_roundtrip_with_newlines_and_unicode() {
+    let env = Fd3Envelope {
+        version: 1,
+        instance_id: "inst1".to_string(),
+        node_id: "node1".to_string(),
+        input: serde_json::json!({
+            "text_with_newlines": "line1\nline2\nline3",
+            "chinese": "中文测试",
+            "emoji": "Hello 👋 World 🌍",
+            "mixed": "Newlines\nAnd\tTabs\tAnd\r\nCRLF",
+            "unicodeNormalization": "ÅÅÆØØ"
+        }),
+        secrets: {
+            let mut m = BTreeMap::new();
+            m.insert("key_with_newlines".to_string(), "value\nwith\nnewlines".to_string());
+            m
+        },
+        metadata: {
+            let mut m = BTreeMap::new();
+            m.insert("trailing_newline".to_string(), "ends_with_newline\n".to_string());
+            m.insert("chinese_key".to_string(), "值".to_string());
+            m
+        },
+    };
+
+    let mut buffer = Vec::new();
+    write_envelope(&mut buffer, &env).unwrap();
+    let mut reader = Cursor::new(buffer);
+    let decoded: Fd3Envelope = read_envelope(&mut reader).unwrap();
+
+    assert_eq!(env, decoded);
+}
+
+#[test]
+fn fd4_envelope_roundtrip_with_embedded_newlines_in_result() {
+    let env = Fd4Envelope {
+        version: 1,
+        instance_id: "inst1".to_string(),
+        node_id: "node1".to_string(),
+        result: TaskResult::Success {
+            output: serde_json::json!({
+                "log": "Step 1 completed\nStep 2 completed\nStep 3 failed\n",
+                "multiline_string": "First line\nSecond line\nThird line",
+                "unicode": "Émoji test: 🎭🎯🎲"
+            }),
+        },
+    };
+
+    let mut buffer = Vec::new();
+    write_envelope(&mut buffer, &env).unwrap();
+    let mut reader = Cursor::new(buffer);
+    let decoded: Fd4Envelope = read_envelope(&mut reader).unwrap();
+
+    assert_eq!(env, decoded);
+}
+
+#[test]
 fn read_envelope_fails_on_zero_length_prefix() {
     let buffer = vec![0u8; 4];
     let mut reader = Cursor::new(buffer);

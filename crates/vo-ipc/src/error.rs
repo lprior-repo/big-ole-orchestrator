@@ -53,6 +53,8 @@ pub enum IpcError {
     IncompleteRead { expected: usize, actual: usize },
     #[error("Invalid JSON or UTF-8: {0}")]
     InvalidJson(String),
+    #[error("Invalid postcard encoding: {0}")]
+    InvalidPostcard(String),
     #[error("Version mismatch: expected 1, got {0}")]
     VersionMismatch(u8),
     #[error("Schema violation: {0}")]

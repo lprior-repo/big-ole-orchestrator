@@ -142,22 +142,36 @@ pub fn engine_receive_envelope(
 // --- Calculations ---
 
 fn serialize_envelope<T: Serialize>(envelope: &T) -> Result<Vec<u8>, IpcError> {
-    serde_json::to_vec(envelope).map_err(|e| IpcError::InvalidJson(e.to_string()))
+    #[cfg(debug_assertions)]
+    {
+        serde_json::to_vec(envelope).map_err(|e| IpcError::InvalidJson(e.to_string()))
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        postcard::to_allocvec(envelope).map_err(|e| IpcError::InvalidPostcard(e.to_string()))
+    }
 }
 
 fn deserialize_and_validate<T: DeserializeOwned>(payload: &[u8]) -> Result<T, IpcError> {
-    let value: serde_json::Value =
-        serde_json::from_slice(payload).map_err(|e| IpcError::InvalidJson(e.to_string()))?;
+    #[cfg(debug_assertions)]
+    {
+        let value: serde_json::Value =
+            serde_json::from_slice(payload).map_err(|e| IpcError::InvalidJson(e.to_string()))?;
 
-    validate_json_schema(&value)?;
+        validate_json_schema(&value)?;
 
-    serde_json::from_value(value).map_err(|e| {
-        if e.is_data() {
-            IpcError::SchemaViolation(e.to_string())
-        } else {
-            IpcError::InvalidJson(e.to_string())
-        }
-    })
+        serde_json::from_value(value).map_err(|e| {
+            if e.is_data() {
+                IpcError::SchemaViolation(e.to_string())
+            } else {
+                IpcError::InvalidJson(e.to_string())
+            }
+        })
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        postcard::from_bytes(payload).map_err(|e| IpcError::InvalidPostcard(e.to_string()))
+    }
 }
 
 fn validate_json_schema(value: &serde_json::Value) -> Result<(), IpcError> {
