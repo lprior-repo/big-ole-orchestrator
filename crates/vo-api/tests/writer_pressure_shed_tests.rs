@@ -25,7 +25,10 @@ use vo_api::router::AppState;
 use vo_api::types::V3StartRequest;
 use vo_core::admission::{PressureGuardResult, WatchdogPressureGuard, WriterPressureGuard};
 use vo_core::circuit_breaker::CircuitBreakerState;
-use vo_core::storage_watchdog::types::{StorageHealth, StorageWatchdogConfig};
+use vo_core::storage_watchdog::types::{
+    StorageHealth, StorageWatchdogConfig,
+};
+use vo_api::projection::ProjectionService;
 use vo_storage::dedupe_partition::{DedupeStore, InMemoryDedupeStore};
 
 struct SheddingGuard;
@@ -277,6 +280,7 @@ async fn app_state_includes_writer_pressure_field() {
         .await
         .expect("spawn");
 
+    let projection = Arc::new(ProjectionService::new());
     let state = AppState {
         query: vo_api::handlers::query::QueryState::new(
             Arc::new(vo_storage::partitions::StorageEngine::open(
@@ -291,6 +295,7 @@ async fn app_state_includes_writer_pressure_field() {
             Arc::new(std::sync::RwLock::new(
                 vo_types::search::SearchEngine::new(),
             )),
+            projection: projection.clone(),
         ),
         sse: vo_api::handlers::sse::SseState::new(),
         ws: vo_api::handlers::ws::WsState::new(),
@@ -298,6 +303,7 @@ async fn app_state_includes_writer_pressure_field() {
         circuit_breaker: Arc::new(CircuitBreakerState::new()),
         dedupe_store: Arc::new(InMemoryDedupeStore::new()),
         writer_pressure: Arc::new(WatchdogPressureGuard::permissive()),
+        projection,
     };
     let _ = state;
 }

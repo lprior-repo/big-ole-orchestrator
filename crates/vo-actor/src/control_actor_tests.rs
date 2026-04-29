@@ -46,7 +46,7 @@ async fn cancel_returns_alreadyterminal_error_when_instance_is_completed() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
     let actor = ControlActor::new();
     match actor.handle_cancel(instance_id) {
-        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Completed }) => {}
+        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Completed, .. }) => {}
         other => panic!("Expected AlreadyTerminal(Completed), got {:?}", other),
     }
 }
@@ -56,7 +56,7 @@ async fn cancel_returns_alreadyterminal_error_when_instance_is_cancelled() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
     let actor = ControlActor::new();
     match actor.handle_cancel(instance_id) {
-        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Cancelled }) => {}
+        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Cancelled, .. }) => {}
         other => panic!("Expected AlreadyTerminal(Cancelled), got {:?}", other),
     }
 }
@@ -103,7 +103,7 @@ async fn cancel_returns_storageerror_when_event_append_fails() {
 async fn resume_on_failed_instance_emits_instanceresumed_and_actor_re_enters_decision() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00F000").unwrap();
     let actor = ControlActor::new();
-    let instance_resumed = actor.handle_resume(instance_id).unwrap();
+    let instance_resumed = actor.handle_resume(instance_id.clone()).unwrap();
     assert_eq!(instance_resumed.instance_id, instance_id);
     assert_ne!(
         instance_resumed.previous_binary_hash,

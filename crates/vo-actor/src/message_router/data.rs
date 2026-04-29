@@ -2,6 +2,7 @@
 //!
 //! All types here are pure data with no side effects.
 
+use std::any::Any;
 use std::sync::Arc;
 use tokio::time::Duration;
 
@@ -167,9 +168,57 @@ impl TimestampMs {
     }
 }
 
+/// Type-erased message envelope for routing through the message router.
+///
+/// Wraps any `Send + Sync + 'static` message, preserving the type name
+/// for diagnostics and dead-letter recording.
+pub struct RouterEnvelope {
+    payload: Box<dyn Any + Send + Sync>,
+    type_name: String,
+}
+
+impl RouterEnvelope {
+    pub fn new<T: Send + Sync + 'static>(message: T) -> Self {
+        Self {
+            payload: Box::new(message),
+            type_name: std::any::type_name::<T>().to_string(),
+        }
+    }
+
+    pub fn downcast<T: Send + Sync + 'static>(self) -> Option<T> {
+        self.payload.downcast::<T>().ok().map(|b| *b)
+    }
+
+    #[must_use]
+    pub fn type_name(&self) -> &str {
+        &self.type_name
+    }
+}
+
+impl std::fmt::Debug for RouterEnvelope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RouterEnvelope")
+            .field("type_name", &self.type_name)
+            .finish()
+    }
+}
+
+/// Trait for delivering routed messages to a destination.
+///
+/// Implementors bridge the router's type-erased envelopes to the underlying
+/// transport — typically an ractor `ActorRef`, a tokio channel, or a test mock.
+pub trait MessageSink: Send + Sync {
+    fn deliver(&self, envelope: RouterEnvelope) -> Result<(), String>;
+}
+
+/// A routing destination backed by a `MessageSink`.
+///
+/// Messages routed to this destination are wrapped in a `RouterEnvelope`
+/// and delivered via the sink's `deliver` method.
 #[derive(Clone)]
-#[allow(dead_code)]
-pub struct ActorDestination(Arc<dyn Send + Sync>);
+pub struct ActorDestination {
+    sink: Arc<dyn MessageSink>,
+}
 
 impl std::fmt::Debug for ActorDestination {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -178,14 +227,30 @@ impl std::fmt::Debug for ActorDestination {
 }
 
 impl ActorDestination {
-    #[allow(dead_code)]
-    pub fn new<T: Send + Sync + 'static>(inner: T) -> Self {
-        Self(Arc::new(inner))
+    pub fn new(sink: impl MessageSink + 'static) -> Self {
+        Self {
+            sink: Arc::new(sink),
+        }
     }
 
-    #[allow(dead_code)]
-    pub fn downcast<T: Send + Sync + 'static>(&self) -> Option<&T> {
-        None
+    /// Creates a destination that accepts messages but discards them (for tests).
+    #[must_use]
+    pub fn test() -> Self {
+        Self {
+            sink: Arc::new(NoopMessageSink),
+        }
+    }
+
+    pub fn deliver(&self, envelope: RouterEnvelope) -> Result<(), String> {
+        self.sink.deliver(envelope)
+    }
+}
+
+struct NoopMessageSink;
+
+impl MessageSink for NoopMessageSink {
+    fn deliver(&self, _envelope: RouterEnvelope) -> Result<(), String> {
+        Ok(())
     }
 }
 

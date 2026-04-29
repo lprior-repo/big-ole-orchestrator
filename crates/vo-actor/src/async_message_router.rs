@@ -159,7 +159,7 @@ mod tests {
     }
 
     fn test_destination() -> ActorDestination {
-        ActorDestination::new(String::from("test-actor"))
+        ActorDestination::test()
     }
 
     #[tokio::test]

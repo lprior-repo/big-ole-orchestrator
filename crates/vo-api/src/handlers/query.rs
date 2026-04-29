@@ -1,4 +1,7 @@
 //! Query API handlers for workflow state inspection (ADR-007).
+//!
+//! Per ADR-025, all query endpoints default to operator projections (redacted).
+//! Privileged forensic access is available via `?view=canonical`.
 
 use std::sync::Arc;
 
@@ -8,9 +11,11 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use vo_storage::query::replay_events;
 use vo_types::search::{QueryParser, SearchEngine, SearchResult};
 
+use crate::projection::{ProjectionService, ViewMode};
 use crate::types::v3::*;
 use crate::types::ApiError;
 use vo_types::workspace::{WorkspaceId, WorkspaceIndex};
@@ -22,50 +27,45 @@ use super::split_path_id;
 pub struct QueryState {
     pub db: Arc<fjall::Database>,
     pub workspace_index: Arc<std::sync::RwLock<WorkspaceIndex>>,
-    pub search_engine: Arc<std::sync::RwLock<SearchEngine>>,
+    /// Operator projection service (ADR-025).
+    pub projection: Arc<ProjectionService>,
 }
 
-impl QueryState {
-    pub fn new(
-        db: Arc<fjall::Database>,
-        workspace_index: Arc<std::sync::RwLock<WorkspaceIndex>>,
-        search_engine: Arc<std::sync::RwLock<SearchEngine>>,
-    ) -> Self {
-        Self {
-            db,
-            workspace_index,
-            search_engine,
-        }
-    }
+// ---------------------------------------------------------------------------
+// Query parameters for projection view mode (ADR-025)
+// ---------------------------------------------------------------------------
 
-    pub fn index_workspace(&self, id: WorkspaceId, text: &str, tags: &[String]) {
-        if let Ok(mut engine) = self.search_engine.write() {
-            engine.index_workspace(id, text, tags);
-        }
-    }
+#[derive(Debug, Deserialize, Default)]
+pub struct ViewParams {
+    /// View mode: `projected` (default, redacted) or `canonical` (privileged, full data).
+    pub view: Option<ViewMode>,
+}
 
-    pub fn remove_from_index(&self, id: WorkspaceId) {
-        if let Ok(mut engine) = self.search_engine.write() {
-            engine.remove_workspace(id);
-        }
+impl ViewParams {
+    fn view_mode(&self) -> ViewMode {
+        self.view.unwrap_or_default()
     }
+}
 
-    pub fn build_engine_from_workspace_index(&self) {
-        if let Ok(workspace) = self.workspace_index.read() {
-            if let Ok(mut engine) = self.search_engine.write() {
-                *engine = SearchEngine::new();
-                for (id, node) in &workspace.nodes {
-                    let text = node.name.to_string();
-                    let tags: Vec<String> = node
-                        .metadata
-                        .entries
-                        .iter()
-                        .flat_map(|(k, v)| [k.clone(), v.clone()])
-                        .collect();
-                    engine.index_workspace(*id, &text, &tags);
-                }
-            }
-        }
+/// Resolve the workflow type from an event payload.
+fn workflow_type_from_payload(payload: &serde_json::Value) -> String {
+    payload
+        .get("workflow_type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Apply projection to a payload if the view mode is `Projected`.
+fn maybe_project_payload(
+    projection: &ProjectionService,
+    workflow_type: &str,
+    payload: serde_json::Value,
+    view_mode: ViewMode,
+) -> serde_json::Value {
+    match view_mode {
+        ViewMode::Canonical => payload,
+        ViewMode::Projected => projection.project_payload(workflow_type, &payload).payload,
     }
 }
 
@@ -77,6 +77,7 @@ impl QueryState {
 pub async fn get_timeline(
     Path(id): Path<String>,
     State(state): State<QueryState>,
+    AxumQuery(view_params): AxumQuery<ViewParams>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
@@ -92,7 +93,8 @@ pub async fn get_timeline(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let view_mode = view_params.view_mode();
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -106,11 +108,18 @@ pub async fn get_timeline(
                     .and_then(|v| v.as_str())
                     .map_or("unknown", |value| value)
                     .to_string();
+                let wf_type = workflow_type_from_payload(&envelope.payload);
+                let payload = maybe_project_payload(
+                    &state.projection,
+                    &wf_type,
+                    envelope.payload,
+                    view_mode,
+                );
                 entries.push(TimelineEntry {
                     sequence: envelope.sequence,
                     timestamp_ms: envelope.timestamp_ms,
                     event_type,
-                    payload: envelope.payload,
+                    payload,
                 });
             }
             Err(e) => {
@@ -139,6 +148,7 @@ pub async fn get_timeline(
 pub async fn get_history(
     Path(id): Path<String>,
     State(state): State<QueryState>,
+    AxumQuery(view_params): AxumQuery<ViewParams>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
@@ -154,29 +164,35 @@ pub async fn get_history(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let view_mode = view_params.view_mode();
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
         match result {
             Ok(envelope) => {
-                let event_type = envelope
-                    .payload
+                let wf_type = workflow_type_from_payload(&envelope.payload);
+                let payload = maybe_project_payload(
+                    &state.projection,
+                    &wf_type,
+                    envelope.payload.clone(),
+                    view_mode,
+                );
+
+                let event_type = payload
                     .get("type")
                     .and_then(|v| v.as_str())
                     .map_or("unknown", |value| value)
                     .to_string();
-                let step_id = envelope
-                    .payload
+                let step_id = payload
                     .get("step_id")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                let error = envelope
-                    .payload
+                let error = payload
                     .get("error")
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                let output = envelope.payload.get("output").cloned();
+                let output = payload.get("output").cloned();
 
                 entries.push(HistoryEntry {
                     sequence: envelope.sequence,
@@ -212,6 +228,7 @@ pub async fn get_history(
 pub async fn get_effect_journal(
     Path(id): Path<String>,
     State(state): State<QueryState>,
+    AxumQuery(view_params): AxumQuery<ViewParams>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
@@ -227,14 +244,22 @@ pub async fn get_effect_journal(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let view_mode = view_params.view_mode();
+    let iter = replay_events(&*state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
         match result {
             Ok(envelope) => {
-                let event_type = envelope
-                    .payload
+                let wf_type = workflow_type_from_payload(&envelope.payload);
+                let payload = maybe_project_payload(
+                    &state.projection,
+                    &wf_type,
+                    envelope.payload.clone(),
+                    view_mode,
+                );
+
+                let event_type = payload
                     .get("type")
                     .and_then(|v| v.as_str())
                     .map_or("unknown", |value| value)
@@ -259,7 +284,7 @@ pub async fn get_effect_journal(
                     timestamp_ms: envelope.timestamp_ms,
                     event_type,
                     semantics,
-                    payload: envelope.payload,
+                    payload,
                 });
             }
             Err(e) => {

@@ -12,7 +12,8 @@ use vo_types::InstanceId;
 
 use super::actor::{SpawnSupervisor, SpawnSupervisorHandle};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord, ExecutionSemaphore};
+use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord};
+use crate::semaphore::ExecutionSemaphore;
 
 fn test_instance_id() -> InstanceId {
     let ulid = Ulid::new();
