@@ -42,23 +42,28 @@ pub(crate) fn internal_task_macro(
         return quote::quote! { compile_error!("expected a function item"); };
     }
 
-    if !attr.is_empty() {
-        let attr_str = attr.to_string();
-        if attr_str.is_empty() {
+    let attrs = match parse_task_attrs(&attr) {
+        Ok(a) => a,
+        Err(error::Error::EmptyAttribute) => {
             return quote::quote! { compile_error!("macro attribute is empty"); };
         }
-        let attr_count = attr_str.split_whitespace().count();
-        if attr_count > 255 {
+        Err(error::Error::TooManyAttributes) => {
             return quote::quote! { compile_error!("too many macro attributes (max 255)"); };
         }
-        if attr_str.starts_with("retries") {
-            return quote::quote! { compile_error!("unsupported attribute: retries"); };
+        Err(error::Error::UnknownAttribute) => {
+            return quote::quote! { compile_error!("unknown attribute"); };
         }
-        return quote::quote! { compile_error!("unsupported attribute"); };
-    }
+        Err(error::Error::InvalidAttributeValue) => {
+            return quote::quote! { compile_error!("invalid attribute value"); };
+        }
+        Err(_) => {
+            return quote::quote! { compile_error!("attribute parse error"); };
+        }
+    };
 
     match parse_task(&item) {
-        Ok(task_def) => {
+        Ok(mut task_def) => {
+            task_def.attrs = attrs;
             if let Ok(main_fn) = generate_task_entrypoint(&task_def) {
                 quote::quote! {
                     #item
