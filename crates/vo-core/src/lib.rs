@@ -46,6 +46,7 @@ pub mod storage_watchdog;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;
+pub mod workflow_definition_hot_reload;
 pub mod workflow_version;
 pub mod workload_class;
 pub mod workspace_swap;
