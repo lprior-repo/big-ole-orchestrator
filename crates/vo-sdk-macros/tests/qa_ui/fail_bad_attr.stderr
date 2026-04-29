@@ -1,7 +1,7 @@
-error: unsupported attribute
+error: unknown attribute
  --> tests/qa_ui/fail_bad_attr.rs:3:1
   |
-3 | #[task(timeout = 30)]
-  | ^^^^^^^^^^^^^^^^^^^^^
+3 | #[task(unknown_key = 99)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)

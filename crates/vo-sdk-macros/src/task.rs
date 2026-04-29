@@ -1,7 +1,7 @@
 #![allow(unexpected_cfgs)]
 
 use proc_macro2::TokenStream;
-use syn::Type;
+use syn::{parse::Parse, parse::ParseStream, punctuated::Punctuated, Token, Type};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct TaskAttrs {
@@ -22,6 +22,43 @@ pub struct TaskDef {
 
 use crate::error::Error;
 
+struct AttrList(Punctuated<syn::MetaNameValue, Token![,]>);
+
+impl Parse for AttrList {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(AttrList(Punctuated::parse_terminated(input)?))
+    }
+}
+
+fn parse_int_value(expr: &syn::Expr) -> Option<u64> {
+    match expr {
+        syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Int(int_lit),
+            ..
+        }) => int_lit.base10_parse::<u64>().ok(),
+        _ => None,
+    }
+}
+
+fn apply_name_value(
+    nv: &syn::MetaNameValue,
+    attrs: &mut TaskAttrs,
+) -> Result<(), Error> {
+    let key = nv.path.get_ident().map(|i| i.to_string());
+    match key.as_deref() {
+        Some("retries") => {
+            let v = parse_int_value(&nv.value).ok_or(Error::InvalidAttributeValue)?;
+            attrs.retries = Some(v as u32);
+        }
+        Some("timeout") => {
+            let v = parse_int_value(&nv.value).ok_or(Error::InvalidAttributeValue)?;
+            attrs.timeout = Some(v);
+        }
+        _ => return Err(Error::UnknownAttribute),
+    }
+    Ok(())
+}
+
 pub fn parse_task_attrs(attr: &proc_macro2::TokenStream) -> Result<TaskAttrs, Error> {
     if attr.is_empty() {
         return Ok(TaskAttrs::default());
@@ -32,44 +69,22 @@ pub fn parse_task_attrs(attr: &proc_macro2::TokenStream) -> Result<TaskAttrs, Er
         return Err(Error::EmptyAttribute);
     }
 
-    let attr_count = attr_str.split_whitespace().count();
+    let attr_count = attr_str.split(',').count();
     if attr_count > 255 {
         return Err(Error::TooManyAttributes);
     }
 
-    let parsed: syn::Meta = syn::parse2(attr.clone()).map_err(|_| Error::UnknownAttribute)?;
+    let list: AttrList = syn::parse2(attr.clone()).map_err(|_| Error::UnknownAttribute)?;
 
-    match parsed {
-        syn::Meta::NameValue(nv) => {
-            let key = nv.path.get_ident().map(|i| i.to_string());
-            let val = match &nv.value {
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Int(int_lit),
-                    ..
-                }) => int_lit.base10_parse::<u64>().ok(),
-                _ => None,
-            };
-
-            match key.as_deref() {
-                Some("retries") => {
-                    let v = val.ok_or(Error::InvalidAttributeValue)?;
-                    Ok(TaskAttrs {
-                        retries: Some(v as u32),
-                        timeout: None,
-                    })
-                }
-                Some("timeout") => {
-                    let v = val.ok_or(Error::InvalidAttributeValue)?;
-                    Ok(TaskAttrs {
-                        retries: None,
-                        timeout: Some(v),
-                    })
-                }
-                _ => Err(Error::UnknownAttribute),
-            }
-        }
-        _ => Err(Error::UnknownAttribute),
+    if list.0.len() > 255 {
+        return Err(Error::TooManyAttributes);
     }
+
+    let mut attrs = TaskAttrs::default();
+    for nv in list.0 {
+        apply_name_value(&nv, &mut attrs)?;
+    }
+    Ok(attrs)
 }
 
 pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
@@ -268,6 +283,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -284,6 +300,7 @@ mod tests {
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -299,6 +316,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -315,6 +333,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![("a".to_string(), expected_ty)],
+            attrs: TaskAttrs::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -337,6 +356,7 @@ mod tests {
                 ("b".to_string(), expected_b),
                 ("c".to_string(), expected_c),
             ],
+            attrs: TaskAttrs::default(),
         };
         let result = parse_task(&input);
         assert_eq!(result.unwrap(), expected);
@@ -626,6 +646,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = generate_task_entrypoint(&task).unwrap();
         let output = result.to_string();
@@ -659,6 +680,48 @@ mod tests {
         );
     }
 
+    #[test]
+    fn parse_task_attrs_accepts_retries() {
+        let attr = quote! { retries = 3 };
+        let result = parse_task_attrs(&attr).unwrap();
+        assert_eq!(result, TaskAttrs { retries: Some(3), timeout: None });
+    }
+
+    #[test]
+    fn parse_task_attrs_accepts_timeout() {
+        let attr = quote! { timeout = 30 };
+        let result = parse_task_attrs(&attr).unwrap();
+        assert_eq!(result, TaskAttrs { retries: None, timeout: Some(30) });
+    }
+
+    #[test]
+    fn parse_task_attrs_accepts_combined_retries_and_timeout() {
+        let attr = quote! { retries = 3, timeout = 30 };
+        let result = parse_task_attrs(&attr).unwrap();
+        assert_eq!(result, TaskAttrs { retries: Some(3), timeout: Some(30) });
+    }
+
+    #[test]
+    fn parse_task_attrs_accepts_timeout_then_retries() {
+        let attr = quote! { timeout = 60, retries = 5 };
+        let result = parse_task_attrs(&attr).unwrap();
+        assert_eq!(result, TaskAttrs { retries: Some(5), timeout: Some(60) });
+    }
+
+    #[test]
+    fn parse_task_attrs_rejects_unknown_in_combined() {
+        let attr = quote! { retries = 3, bogus = 1 };
+        let result = parse_task_attrs(&attr);
+        assert_eq!(result, Err(Error::UnknownAttribute));
+    }
+
+    #[test]
+    fn parse_task_attrs_rejects_non_integer_value() {
+        let attr = quote! { retries = "three" };
+        let result = parse_task_attrs(&attr);
+        assert_eq!(result, Err(Error::InvalidAttributeValue));
+    }
+
     proptest! {
         #[test]
         fn parse_task_no_panic(item_str in ".*") {
@@ -678,6 +741,7 @@ mod tests {
                 return_type: None,
                 generics: syn::Generics::default(),
                 args: vec![],
+                attrs: TaskAttrs::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }
@@ -702,6 +766,7 @@ mod verification {
                 return_type: None,
                 generics: syn::Generics::default(),
                 args: vec![],
+                attrs: TaskAttrs::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }

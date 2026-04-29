@@ -94,6 +94,12 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::AsyncReturnTypeMismatch) => {
             quote::quote! { compile_error!("async functions cannot have a return type"); }
         }
+        Err(error::Error::UnknownAttribute) => {
+            quote::quote! { compile_error!("unknown attribute"); }
+        }
+        Err(error::Error::InvalidAttributeValue) => {
+            quote::quote! { compile_error!("invalid attribute value"); }
+        }
     }
 }
 
@@ -158,12 +164,57 @@ mod tests {
     }
 
     #[test]
-    fn task_macro_rejects_unsupported_macro_attributes() {
+    fn task_macro_accepts_retries_attribute() {
         let attr = quote! { retries = 3 };
         let item = quote! { fn my_task() {} };
-        let expected = quote! { compile_error!("unsupported attribute: retries"); };
         let result = internal_task_macro(attr, item);
-        assert_eq!(result.to_string(), expected.to_string());
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "retries=3 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_accepts_timeout_attribute() {
+        let attr = quote! { timeout = 30 };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "timeout=30 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_accepts_combined_retries_and_timeout() {
+        let attr = quote! { retries = 3, timeout = 30 };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "retries=3, timeout=30 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
     }
 
     #[test]
@@ -227,10 +278,10 @@ mod tests {
     }
 
     #[test]
-    fn task_macro_rejects_exactly_one_attribute() {
+    fn task_macro_rejects_unknown_attribute() {
         let attr = quote! { foo };
         let item = quote! { fn a() {} };
-        let expected = quote! { compile_error!("unsupported attribute"); };
+        let expected = quote! { compile_error!("unknown attribute"); };
         let result = internal_task_macro(attr, item);
         assert_eq!(result.to_string(), expected.to_string());
     }
@@ -238,10 +289,10 @@ mod tests {
     #[test]
     fn task_macro_rejects_too_many_attributes() {
         let mut attrs = Vec::new();
-        for _ in 0..256 {
-            attrs.push(quote! { foo });
+        for i in 0..256u32 {
+            attrs.push(quote! { retries = #i });
         }
-        let attr = quote! { #(#attrs)* };
+        let attr = quote! { #(#attrs),* };
         let item = quote! { fn a() {} };
         let expected = quote! { compile_error!("too many macro attributes (max 255)"); };
         let result = internal_task_macro(attr, item);

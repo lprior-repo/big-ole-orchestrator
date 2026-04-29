@@ -38,7 +38,7 @@ fn qa_pass_arguments_compiles() {
 }
 
 #[test]
-fn qa_fail_unsupported_attr_rejected() {
+fn qa_fail_unknown_attr_rejected() {
     let t = TestCases::new();
     t.compile_fail("tests/qa_ui/fail_bad_attr.rs");
 }
