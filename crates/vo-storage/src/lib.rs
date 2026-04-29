@@ -50,7 +50,6 @@
 
 pub mod append;
 pub mod atomic_wait_commit;
-pub mod event_summary_commit;
 pub mod blob;
 pub mod blob_store;
 #[cfg(test)]
@@ -64,7 +63,9 @@ pub mod crypto;
 mod crypto_tests;
 pub mod dedupe_partition;
 pub mod effect_journal;
+pub mod event_log;
 pub mod event_store;
+pub mod event_summary_commit;
 pub mod instance_index;
 pub mod key_encoding;
 pub mod key_partition;
@@ -191,22 +192,6 @@ where
     tokio::task::block_in_place(|| handle.block_on(f))
 }
 
-use event_store::{EventStore, InMemoryEventStore};
-
-static APPEND_EVENT_STORE: LazyLock<InMemoryEventStore> = LazyLock::new(InMemoryEventStore::new);
-
-pub(crate) fn _internal_append_store() -> &'static InMemoryEventStore {
-    &APPEND_EVENT_STORE
-}
-
-fn block_on_sync<F, T>(f: F) -> T
-where
-    F: std::future::Future<Output = T>,
-{
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::block_in_place(|| handle.block_on(f))
-}
-
 /// Queries all stored events for a given `instance_id`.
 ///
 /// Returns a vector of `(sequence, payload)` tuples in ascending sequence order.
@@ -237,8 +222,8 @@ pub fn query_events(instance_id: &str) -> Vec<(u64, serde_json::Value)> {
 #[cfg(test)]
 mod tests {
     use super::append_event;
-    use crate::event_store::EventStore;
     use crate::_internal_append_store;
+    use crate::event_store::EventStore;
     use vo_types::InstanceId;
 
     #[tokio::test]

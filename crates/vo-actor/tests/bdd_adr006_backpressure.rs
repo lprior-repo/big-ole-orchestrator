@@ -143,7 +143,13 @@ async fn bdd_006_s1_zero_cost_yielding_no_cpu_spin() {
         elapsed
     );
     assert!(
-        matches!(decision, AdmissionDecision::Rejected { reason: RejectionReason::Timeout, .. }),
+        matches!(
+            decision,
+            AdmissionDecision::Rejected {
+                reason: RejectionReason::Timeout,
+                ..
+            }
+        ),
         "should timeout, not spin-burn CPU, got: {:?}",
         decision
     );
@@ -220,7 +226,10 @@ impl BoundedStderrBuffer {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StderrWriteResult {
-    Accepted { written: usize, buffer_full: bool },
+    Accepted {
+        written: usize,
+        buffer_full: bool,
+    },
     Truncated {
         written: usize,
         remaining: usize,
@@ -259,7 +268,13 @@ fn bdd_006_s2_stderr_at_budget_boundary_truncated() {
     let result = buffer.write(&chunk);
 
     // Then: buffer is full, subsequent writes are truncated
-    assert!(matches!(result, StderrWriteResult::Truncated { buffer_full: true, .. }));
+    assert!(matches!(
+        result,
+        StderrWriteResult::Truncated {
+            buffer_full: true,
+            ..
+        }
+    ));
     assert!(buffer.is_overflow());
 
     // And: further writes are truncated
@@ -320,7 +335,13 @@ async fn bdd_006_s2_stderr_overflow_blocks_then_timeout_kills() {
         for _ in 0..100 {
             let chunk = vec![b'x'; 500];
             let result = buf.write(&chunk);
-            if matches!(result, StderrWriteResult::Truncated { buffer_full: true, .. }) {
+            if matches!(
+                result,
+                StderrWriteResult::Truncated {
+                    buffer_full: true,
+                    ..
+                }
+            ) {
                 // Per ADR-023: the child's write() would block here.
                 // Simulate the child being stuck.
                 return;
@@ -442,8 +463,8 @@ impl WritePathQoS {
     fn recalculate_degraded(&self) {
         let critical = self.critical_queue_depth.load(Ordering::Relaxed);
         let blob = self.blob_queue_depth.load(Ordering::Relaxed);
-        let is_degraded = critical > self.writer_queue_max * 80 / 100
-            || blob > self.blob_queue_max * 80 / 100;
+        let is_degraded =
+            critical > self.writer_queue_max * 80 / 100 || blob > self.blob_queue_max * 80 / 100;
         self.degraded.store(is_degraded, Ordering::Relaxed);
     }
 
@@ -491,7 +512,13 @@ fn bdd_006_s3_large_payload_blocks_control_records_triggers_shed() {
 
     // Then: it is shed to prevent blocking control records
     assert!(
-        matches!(decision, AdmissionDecision::Rejected { reason: RejectionReason::LoadShed, .. }),
+        matches!(
+            decision,
+            AdmissionDecision::Rejected {
+                reason: RejectionReason::LoadShed,
+                ..
+            }
+        ),
         "large payload blocking control records should be shed"
     );
 }
@@ -509,7 +536,13 @@ fn bdd_006_s3_blob_queue_overflow_triggers_shedding() {
     // Then: additional blobs are shed
     let decision = qos.enqueue_blob(1000);
     assert!(
-        matches!(decision, AdmissionDecision::Rejected { reason: RejectionReason::LoadShed, .. }),
+        matches!(
+            decision,
+            AdmissionDecision::Rejected {
+                reason: RejectionReason::LoadShed,
+                ..
+            }
+        ),
         "overflow blobs should be shed"
     );
 }
@@ -532,11 +565,23 @@ fn bdd_006_s3_degraded_mode_sheds_projections_and_blobs() {
 
     // Then: projections and blobs are shed, but critical writes still pass
     assert!(
-        matches!(projection_decision, AdmissionDecision::Rejected { reason: RejectionReason::LoadShed, .. }),
+        matches!(
+            projection_decision,
+            AdmissionDecision::Rejected {
+                reason: RejectionReason::LoadShed,
+                ..
+            }
+        ),
         "projections should be shed in degraded mode"
     );
     assert!(
-        matches!(blob_decision, AdmissionDecision::Rejected { reason: RejectionReason::LoadShed, .. }),
+        matches!(
+            blob_decision,
+            AdmissionDecision::Rejected {
+                reason: RejectionReason::LoadShed,
+                ..
+            }
+        ),
         "blobs should be shed in degraded mode"
     );
     assert_eq!(qos.enqueue_critical(), AdmissionDecision::Admitted);
@@ -554,7 +599,10 @@ fn bdd_006_s3_admission_coupling_considers_queue_depth_and_latency() {
     qos.recalculate_degraded();
 
     // Then: system detects degradation
-    assert!(qos.is_degraded(), "high queue depth should trigger degradation");
+    assert!(
+        qos.is_degraded(),
+        "high queue depth should trigger degradation"
+    );
 
     // And: subsequent blob writes are rejected
     let decision = qos.enqueue_blob(1000);
@@ -617,7 +665,9 @@ async fn bdd_006_s4_single_writer_invariant_prevents_duplicate_activation() {
     let instance_id = make_instance_id(1);
 
     // When: the same instance is activated twice
-    let check1 = enforcer.check_activation(&instance_id).expect("check should succeed");
+    let check1 = enforcer
+        .check_activation(&instance_id)
+        .expect("check should succeed");
     assert!(check1.is_allowed());
 
     // Register the instance as active
@@ -628,7 +678,9 @@ async fn bdd_006_s4_single_writer_invariant_prevents_duplicate_activation() {
     registry.register(instance_id.clone());
 
     // Then: the second activation is rejected
-    let check2 = enforcer.check_activation(&instance_id).expect("check should succeed");
+    let check2 = enforcer
+        .check_activation(&instance_id)
+        .expect("check should succeed");
     assert!(!check2.is_allowed());
     assert!(matches!(
         check2.error,
@@ -673,7 +725,15 @@ async fn bdd_006_s4_bounded_mailbox_prevents_inversion() {
     let results = futures::future::join_all(handles).await;
     let rejected_count = results
         .iter()
-        .filter(|r| matches!(r, Ok(AdmissionDecision::Rejected { reason: RejectionReason::LoadShed, .. })))
+        .filter(|r| {
+            matches!(
+                r,
+                Ok(AdmissionDecision::Rejected {
+                    reason: RejectionReason::LoadShed,
+                    ..
+                })
+            )
+        })
         .count();
 
     assert!(

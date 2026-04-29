@@ -167,10 +167,18 @@ pub struct ScheduledJob {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ScheduledJobValidationError {
     RetryPolicyMaxAttemptsZero,
-    RetryPolicyBackoffMultiplierBelowOne { value: f64 },
+    RetryPolicyBackoffMultiplierBelowOne {
+        value: f64,
+    },
     RetryPolicyInitialDelayZero,
-    RetryCountExceedsMax { attempt_count: u32, max_attempts: u32 },
-    LastErrorMismatch { has_error: bool, state: JobState },
+    RetryCountExceedsMax {
+        attempt_count: u32,
+        max_attempts: u32,
+    },
+    LastErrorMismatch {
+        has_error: bool,
+        state: JobState,
+    },
 }
 
 impl std::fmt::Display for ScheduledJobValidationError {
@@ -180,7 +188,11 @@ impl std::fmt::Display for ScheduledJobValidationError {
                 write!(f, "retry_policy.max_attempts must be > 0")
             }
             Self::RetryPolicyBackoffMultiplierBelowOne { value } => {
-                write!(f, "retry_policy.backoff_multiplier {} must be >= 1.0", value)
+                write!(
+                    f,
+                    "retry_policy.backoff_multiplier {} must be >= 1.0",
+                    value
+                )
             }
             Self::RetryPolicyInitialDelayZero => {
                 write!(f, "retry_policy.initial_delay must be > 0")
@@ -214,15 +226,16 @@ impl ScheduledJob {
             return Err(ScheduledJobValidationError::RetryPolicyMaxAttemptsZero);
         }
         if self.retry_policy.backoff_multiplier < 1.0 {
-            return Err(ScheduledJobValidationError::RetryPolicyBackoffMultiplierBelowOne {
-                value: self.retry_policy.backoff_multiplier,
-            });
+            return Err(
+                ScheduledJobValidationError::RetryPolicyBackoffMultiplierBelowOne {
+                    value: self.retry_policy.backoff_multiplier,
+                },
+            );
         }
         if self.retry_policy.initial_delay.is_zero() {
             return Err(ScheduledJobValidationError::RetryPolicyInitialDelayZero);
         }
-        if self.state == JobState::Retrying
-            && self.attempt_count >= self.retry_policy.max_attempts
+        if self.state == JobState::Retrying && self.attempt_count >= self.retry_policy.max_attempts
         {
             return Err(ScheduledJobValidationError::RetryCountExceedsMax {
                 attempt_count: self.attempt_count,
@@ -473,9 +486,12 @@ mod tests {
 
     #[test]
     fn job_builder() {
-        let job = Job::new("test payload".to_string(), Schedule::one_shot(Duration::from_secs(10)))
-            .with_priority(JobPriority::High)
-            .with_retries(5, 500);
+        let job = Job::new(
+            "test payload".to_string(),
+            Schedule::one_shot(Duration::from_secs(10)),
+        )
+        .with_priority(JobPriority::High)
+        .with_retries(5, 500);
 
         assert_eq!(job.priority, JobPriority::High);
         assert_eq!(job.max_retries, 5);
@@ -504,7 +520,10 @@ mod tests {
     fn job_id_get() {
         let id = JobId::generate();
         assert_eq!(id.get(), id.0);
-        assert_eq!(JobId::parse("01ARYZ6S41TVGZFMASEG1RB1EMN").unwrap().get(), Ulid::from_str("01ARYZ6S41TVGZFMASEG1RB1EMN").unwrap());
+        assert_eq!(
+            JobId::parse("01ARYZ6S41TVGZFMASEG1RB1EMN").unwrap().get(),
+            Ulid::from_str("01ARYZ6S41TVGZFMASEG1RB1EMN").unwrap()
+        );
     }
 
     #[test]

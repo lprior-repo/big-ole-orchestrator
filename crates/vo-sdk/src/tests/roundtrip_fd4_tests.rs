@@ -7,7 +7,9 @@ fn round_trip_via_fd4_envelope(instance_id: &str, node_id: &str, payload: serde_
         version: 1,
         instance_id: instance_id.to_string(),
         node_id: node_id.to_string(),
-        result: TaskResult::Success { output: payload.clone() },
+        result: TaskResult::Success {
+            output: payload.clone(),
+        },
     };
 
     let mut buf = Vec::new();
@@ -96,7 +98,11 @@ fn sdk_fd4_write_engine_read_roundtrip_large_payload_64kb() {
 
 #[test]
 fn sdk_fd4_write_engine_read_roundtrip_unicode() {
-    round_trip_via_fd4_envelope("testinstance", "testnode", serde_json::json!("日本語テスト"));
+    round_trip_via_fd4_envelope(
+        "testinstance",
+        "testnode",
+        serde_json::json!("日本語テスト"),
+    );
 }
 
 #[test]
@@ -127,9 +133,5 @@ fn sdk_fd4_write_engine_read_with_instance_and_node_ids() {
 
 #[test]
 fn sdk_fd4_write_engine_read_with_alphanumeric_ids() {
-    round_trip_via_fd4_envelope(
-        "testinstance01",
-        "nodeabc123",
-        serde_json::json!([1, 2, 3]),
-    );
+    round_trip_via_fd4_envelope("testinstance01", "nodeabc123", serde_json::json!([1, 2, 3]));
 }

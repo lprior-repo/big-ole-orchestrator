@@ -1,7 +1,7 @@
 #![allow(clippy::redundant_pattern_matching)]
+use common::make_temp_dir;
 use std::path::PathBuf;
 use vo_cli::{InitConfig, InitError, LockError};
-use common::make_temp_dir;
 
 #[test]
 fn init_creates_vo_dir_and_workflows_dir() {

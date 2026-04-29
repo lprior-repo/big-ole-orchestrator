@@ -87,7 +87,7 @@ fn all_node_kinds_survive_serde_round_trip_individually() {
             nodes: vec![NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: *kind,
-            retry_policy: None,
+                retry_policy: None,
                 signal_scope: None,
             }],
             edges: vec![],

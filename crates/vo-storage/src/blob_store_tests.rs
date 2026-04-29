@@ -553,28 +553,15 @@ fn blob_record_is_gc_eligible_requires_both_conditions() {
     );
     assert!(record.is_gc_eligible(1500), "both ref=0 and expired");
 
-    let record = BlobRecord::with_status(
-        content_addr,
-        1024,
-        0,
-        1000,
-        Some(1500),
-        BlobStatus::Pending,
-    );
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 0, 1000, Some(1500), BlobStatus::Pending);
     assert!(!record.is_gc_eligible(1499), "expired at 1500, not at 1499");
 }
 
 #[test]
 fn blob_record_gc_eligible_without_ttl() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
-    let record = BlobRecord::with_status(
-        content_addr,
-        1024,
-        0,
-        1000,
-        None,
-        BlobStatus::Pending,
-    );
+    let record = BlobRecord::with_status(content_addr, 1024, 0, 1000, None, BlobStatus::Pending);
     assert!(
         !record.is_gc_eligible(u64::MAX),
         "no TTL means never expires, even with ref=0"
@@ -590,14 +577,8 @@ fn blob_record_status_transition_consistency() {
     assert!(pending.can_transition_to(BlobStatus::Failed));
     assert!(!pending.can_transition_to(BlobStatus::Published));
 
-    let stored = BlobRecord::with_status(
-        content_addr,
-        1024,
-        1,
-        1000,
-        None,
-        BlobStatus::DurablyStored,
-    );
+    let stored =
+        BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::DurablyStored);
     assert!(stored.can_transition_to(BlobStatus::Published));
     assert!(!stored.can_transition_to(BlobStatus::Pending));
     assert!(!stored.can_transition_to(BlobStatus::Failed));
@@ -619,14 +600,7 @@ fn blob_record_terminal_states_no_transitions() {
     assert!(!published.can_transition_to(BlobStatus::DurablyStored));
     assert!(!published.can_transition_to(BlobStatus::Failed));
 
-    let failed = BlobRecord::with_status(
-        content_addr,
-        1024,
-        1,
-        1000,
-        None,
-        BlobStatus::Failed,
-    );
+    let failed = BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::Failed);
     assert!(!failed.can_transition_to(BlobStatus::Pending));
     assert!(!failed.can_transition_to(BlobStatus::DurablyStored));
     assert!(!failed.can_transition_to(BlobStatus::Published));
@@ -763,14 +737,8 @@ fn blob_record_with_status_allows_direct_status_construction() {
     );
     assert_eq!(record.status(), BlobStatus::Published);
 
-    let record = BlobRecord::with_status(
-        content_addr,
-        1024,
-        1,
-        1000,
-        Some(2000),
-        BlobStatus::Failed,
-    );
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 1, 1000, Some(2000), BlobStatus::Failed);
     assert_eq!(record.status(), BlobStatus::Failed);
 }
 
@@ -882,14 +850,7 @@ fn blob_record_serde_roundtrip_published() {
 #[test]
 fn blob_record_serde_roundtrip_failed() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
-    let record = BlobRecord::with_status(
-        content_addr.clone(),
-        0,
-        1,
-        999,
-        None,
-        BlobStatus::Failed,
-    );
+    let record = BlobRecord::with_status(content_addr.clone(), 0, 1, 999, None, BlobStatus::Failed);
     let json = serde_json::to_string(&record).unwrap();
     let recovered: BlobRecord = serde_json::from_str(&json).unwrap();
     assert_eq!(recovered.status(), BlobStatus::Failed);
@@ -899,17 +860,16 @@ fn blob_record_serde_roundtrip_failed() {
 fn encode_blob_record_roundtrip_with_all_statuses() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
     for &status in BlobStatus::all_variants() {
-        let record = BlobRecord::with_status(
-            content_addr.clone(),
-            100,
-            1,
-            1000,
-            Some(2000),
-            status,
-        );
+        let record =
+            BlobRecord::with_status(content_addr.clone(), 100, 1, 1000, Some(2000), status);
         let encoded = encode_blob_record(&record).unwrap();
         let decoded = decode_blob_record(&encoded).unwrap();
-        assert_eq!(decoded.status(), status, "roundtrip failed for {:?}", status);
+        assert_eq!(
+            decoded.status(),
+            status,
+            "roundtrip failed for {:?}",
+            status
+        );
     }
 }
 
@@ -929,7 +889,10 @@ fn partition_constants_have_expected_values() {
 #[test]
 fn content_address_from_bytes_all_zeros() {
     let addr = ContentAddress::from_bytes(&[0u8; 32]);
-    assert_eq!(addr.as_str(), "0000000000000000000000000000000000000000000000000000000000000000");
+    assert_eq!(
+        addr.as_str(),
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    );
     let bytes = addr.as_bytes();
     assert_eq!(bytes, [0u8; 32]);
 }
@@ -937,7 +900,10 @@ fn content_address_from_bytes_all_zeros() {
 #[test]
 fn content_address_from_bytes_all_ff() {
     let addr = ContentAddress::from_bytes(&[0xFFu8; 32]);
-    assert_eq!(addr.as_str(), "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+    assert_eq!(
+        addr.as_str(),
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    );
     let bytes = addr.as_bytes();
     assert_eq!(bytes, [0xFFu8; 32]);
 }
@@ -945,14 +911,8 @@ fn content_address_from_bytes_all_ff() {
 #[test]
 fn blob_record_with_zero_ref_count_is_gc_eligible_when_expired() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
-    let record = BlobRecord::with_status(
-        content_addr,
-        1024,
-        0,
-        1000,
-        Some(2000),
-        BlobStatus::Pending,
-    );
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 0, 1000, Some(2000), BlobStatus::Pending);
     assert!(record.is_gc_eligible(2000));
     assert!(record.is_gc_eligible(3000));
     assert!(!record.is_gc_eligible(1999));

@@ -12,7 +12,7 @@ use vo_storage::event_log::{append_event, AppendEventRequest};
 use vo_types::events::EventMetadata;
 
 use crate::handlers::helpers::split_path_id;
-use crate::types::{ApiError, V3SignalRequest};
+use crate::types::ApiError;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -34,5 +34,3 @@ pub async fn send_signal(
     )
         .into_response()
 }
-
-use crate::handlers::helpers::split_path_id;

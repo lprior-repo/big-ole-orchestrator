@@ -193,17 +193,13 @@ fn filter_compensatable_removes_not_needed() {
 fn saga_simple_failure_compensates_in_reverse() {
     // Forward execution: charge -> reserve -> ship
     // Ship fails, so compensate: reserve, charge (reverse order)
-    let completed_steps = vec![
-        node("charge", &[]),
-        node("reserve", &["charge"]),
-    ];
+    let completed_steps = vec![node("charge", &[]), node("reserve", &["charge"])];
     let result = compute_compensation_order(completed_steps).expect("should not error");
     match result {
         CompensationOrderResult::Ordered { execution_order } => {
             // Reverse dependency order: reserve first, then charge
-            let pos = |id: &str| -> usize {
-                execution_order.iter().position(|x| x == id).expect(id)
-            };
+            let pos =
+                |id: &str| -> usize { execution_order.iter().position(|x| x == id).expect(id) };
             assert!(
                 pos("reserve") < pos("charge"),
                 "reserve must compensate before charge (it depended on charge)"
@@ -228,11 +224,16 @@ fn saga_multi_step_failure_compensates_all_previous() {
     let result = compute_compensation_order(completed_steps).expect("should not error");
     match result {
         CompensationOrderResult::Ordered { execution_order } => {
-            let pos = |id: &str| -> usize {
-                execution_order.iter().position(|x| x == id).expect(id)
-            };
-            assert!(pos("step3") < pos("step2"), "step3 compensates before step2");
-            assert!(pos("step2") < pos("step1"), "step2 compensates before step1");
+            let pos =
+                |id: &str| -> usize { execution_order.iter().position(|x| x == id).expect(id) };
+            assert!(
+                pos("step3") < pos("step2"),
+                "step3 compensates before step2"
+            );
+            assert!(
+                pos("step2") < pos("step1"),
+                "step2 compensates before step1"
+            );
         }
         other => panic!("expected Ordered, got {:?}", other),
     }
@@ -253,9 +254,8 @@ fn saga_diamond_failure_compensates_branches_before_root() {
     let result = compute_compensation_order(completed_steps).expect("should not error");
     match result {
         CompensationOrderResult::Ordered { execution_order } => {
-            let pos = |id: &str| -> usize {
-                execution_order.iter().position(|x| x == id).expect(id)
-            };
+            let pos =
+                |id: &str| -> usize { execution_order.iter().position(|x| x == id).expect(id) };
             // Both reserve and warehouse must compensate before charge
             assert!(pos("reserve") < pos("charge"), "reserve before charge");
             assert!(pos("warehouse") < pos("charge"), "warehouse before charge");
@@ -289,7 +289,7 @@ fn saga_failure_skips_not_needed_compensation() {
     let steps = vec![
         node("charge", &[]),
         node("reserve", &["charge"]),
-        node("notify", &[]),  // notification doesn't need compensation
+        node("notify", &[]), // notification doesn't need compensation
     ];
     let mut policies = HashMap::new();
     policies.insert("charge".to_string(), CompensationPolicy::Required);
@@ -300,9 +300,18 @@ fn saga_failure_skips_not_needed_compensation() {
     let result = compute_compensation_order(compensatable).expect("should not error");
     match result {
         CompensationOrderResult::Ordered { execution_order } => {
-            assert!(execution_order.contains(&"charge".to_string()), "charge must compensate");
-            assert!(execution_order.contains(&"reserve".to_string()), "reserve must compensate");
-            assert!(!execution_order.contains(&"notify".to_string()), "notify should be skipped");
+            assert!(
+                execution_order.contains(&"charge".to_string()),
+                "charge must compensate"
+            );
+            assert!(
+                execution_order.contains(&"reserve".to_string()),
+                "reserve must compensate"
+            );
+            assert!(
+                !execution_order.contains(&"notify".to_string()),
+                "notify should be skipped"
+            );
         }
         other => panic!("expected Ordered, got {:?}", other),
     }

@@ -431,7 +431,6 @@ mod tests {
     // =========================================================================
 
     mod ws_instance_completed {
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
@@ -599,7 +598,6 @@ mod tests {
 
     mod ws_client_lag_silent_drop {
         use crate::WorkflowSseEvent;
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 
@@ -694,7 +692,6 @@ mod tests {
 
     mod broadcast_multiple_clients {
         use super::*;
-        use vo_api::handlers::ws::{WorkflowEvent, WsBroadcaster};
         use tokio::sync::broadcast;
         use vo_api::handlers::ws::{WorkflowWsEvent, WsBroadcaster};
 

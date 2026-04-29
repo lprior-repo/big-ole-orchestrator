@@ -47,9 +47,18 @@ pub fn is_valid_state_transition(from: &ProjectionState, to: &ProjectionState) -
         (ProjectionState::Building, ProjectionState::Ready { .. })
             | (ProjectionState::Building, ProjectionState::Failed { .. })
             | (ProjectionState::Ready { .. }, ProjectionState::Stale { .. })
-            | (ProjectionState::Stale { .. }, ProjectionState::Rebuilding { .. })
-            | (ProjectionState::Rebuilding { .. }, ProjectionState::Ready { .. })
-            | (ProjectionState::Rebuilding { .. }, ProjectionState::Failed { .. })
+            | (
+                ProjectionState::Stale { .. },
+                ProjectionState::Rebuilding { .. }
+            )
+            | (
+                ProjectionState::Rebuilding { .. },
+                ProjectionState::Ready { .. }
+            )
+            | (
+                ProjectionState::Rebuilding { .. },
+                ProjectionState::Failed { .. }
+            )
             | (ProjectionState::Failed { .. }, ProjectionState::Building)
     )
 }

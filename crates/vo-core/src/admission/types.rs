@@ -383,9 +383,7 @@ mod tests {
             compaction_stall_active: false,
             storage_stall_active: false,
         };
-        let result = crate::admission::check::check_admission_with_thresholds(
-            &state, &thresholds,
-        );
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(
             result.is_ok(),
             "at-threshold values must be admitted (strict > comparison)"
@@ -409,9 +407,7 @@ mod tests {
             compaction_stall_active: false,
             storage_stall_active: false,
         };
-        let result = crate::admission::check::check_admission_with_thresholds(
-            &state, &thresholds,
-        );
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(result.is_err());
     }
 
@@ -420,7 +416,9 @@ mod tests {
     /// Then: Used slots saturate at max, never wrap to negative
     #[test]
     fn invariant_budget_saturating_prevents_overflow() {
-        use crate::admission::workload::{WorkloadBudget, acquire_slot, release_slot, WorkloadClass};
+        use crate::admission::workload::{
+            acquire_slot, release_slot, WorkloadBudget, WorkloadClass,
+        };
 
         // Create a budget with max_slots=1 for Live
         let budget = WorkloadBudget::with_allocations([1, 1, 1, 1, 1], [1, 1, 1, 0, 0]);
@@ -438,7 +436,11 @@ mod tests {
 
         // Double release should saturate at 0, not wrap
         let budget = release_slot(&budget, WorkloadClass::Live);
-        assert_eq!(budget.total_used(), 0, "must saturate at 0, never underflow");
+        assert_eq!(
+            budget.total_used(),
+            0,
+            "must saturate at 0, never underflow"
+        );
     }
 
     /// Given: Budget with zero max slots
@@ -446,12 +448,15 @@ mod tests {
     /// Then: Rejected immediately (boundary: zero capacity)
     #[test]
     fn invariant_zero_capacity_always_rejected() {
-        use crate::admission::workload::{WorkloadBudget, acquire_slot, WorkloadClass};
+        use crate::admission::workload::{acquire_slot, WorkloadBudget, WorkloadClass};
 
         let budget = WorkloadBudget::with_allocations([0, 0, 0, 0, 0], [0, 0, 0, 0, 0]);
         for class in WorkloadClass::all_by_priority() {
             let result = acquire_slot(&budget, *class);
-            assert!(result.is_err(), "{class:?} with zero capacity must be rejected");
+            assert!(
+                result.is_err(),
+                "{class:?} with zero capacity must be rejected"
+            );
         }
     }
 }

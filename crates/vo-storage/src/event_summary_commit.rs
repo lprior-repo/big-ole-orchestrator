@@ -660,12 +660,8 @@ mod tests {
         let event_key = encode_event_key(&instance_id, &make_sequence(1)).unwrap();
         let event_value = encode_event_value(&event).unwrap();
         let created_at = make_timestamp(1712200000000);
-        let summary_key = encode_instance_index_key(
-            InstanceStatus::Running,
-            created_at,
-            &instance_id,
-        )
-        .unwrap();
+        let summary_key =
+            encode_instance_index_key(InstanceStatus::Running, created_at, &instance_id).unwrap();
 
         // Given: batch with both event and summary staged but NOT committed
         let events_ks = db1
@@ -690,7 +686,10 @@ mod tests {
              proves no partial event leak on summary write failure"
         );
 
-        let summary_visible = instances_ks.get(&summary_key).expect("get summary").is_some();
+        let summary_visible = instances_ks
+            .get(&summary_key)
+            .expect("get summary")
+            .is_some();
         assert!(
             !summary_visible,
             "summary must NOT be visible when batch commit is skipped"
@@ -717,9 +716,7 @@ mod tests {
         let main_event = events_ks2
             .get(&event_key)
             .expect("get event from committed db")
-            .expect(
-                "event must be visible after successful atomic batch commit",
-            );
+            .expect("event must be visible after successful atomic batch commit");
         assert_eq!(main_event.len(), event_value.len());
 
         let json: serde_json::Value =

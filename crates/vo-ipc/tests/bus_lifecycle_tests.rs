@@ -138,12 +138,9 @@ async fn bus_drain_empty_stderr() {
 
 #[tokio::test]
 async fn bus_drain_captures_stderr() {
-    let config = SubprocessConfig::new(
-        fixture_binary(),
-        5000,
-        b"stderr-text bus-stderr 0".to_vec(),
-    )
-    .unwrap();
+    let config =
+        SubprocessConfig::new(fixture_binary(), 5000, b"stderr-text bus-stderr 0".to_vec())
+            .unwrap();
     let bus = MessageBus::spawn(config, BusConfig::default())
         .await
         .unwrap();
@@ -158,8 +155,7 @@ async fn bus_drain_captures_stderr() {
 
 #[tokio::test]
 async fn bus_send_and_recv_through_channel() {
-    let config =
-        SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
+    let config = SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
     let mut bus = MessageBus::spawn(config, BusConfig::new(64, 5000))
         .await
         .unwrap();
@@ -179,8 +175,7 @@ async fn bus_send_and_recv_through_channel() {
 
 #[tokio::test]
 async fn bus_send_fills_backpressure_limit() {
-    let config =
-        SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
+    let config = SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
     let bus = MessageBus::spawn(config, BusConfig::new(4, 5000))
         .await
         .unwrap();
@@ -198,8 +193,7 @@ async fn bus_send_fills_backpressure_limit() {
 
 #[tokio::test]
 async fn bus_try_recv_returns_empty_when_no_messages() {
-    let config =
-        SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
+    let config = SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
     let mut bus = MessageBus::spawn(config, BusConfig::new(64, 5000))
         .await
         .unwrap();
@@ -214,19 +208,19 @@ async fn bus_try_recv_returns_empty_when_no_messages() {
 
 #[tokio::test]
 async fn bus_drain_nonzero_exit_returns_process_failed() {
-    let config = SubprocessConfig::new(
-        fixture_binary(),
-        5000,
-        b"stderr-text fail 42".to_vec(),
-    )
-    .unwrap();
+    let config =
+        SubprocessConfig::new(fixture_binary(), 5000, b"stderr-text fail 42".to_vec()).unwrap();
     let bus = MessageBus::spawn(config, BusConfig::default())
         .await
         .unwrap();
 
     let result = bus.drain().await;
     match result {
-        Err(IpcError::ProcessFailed { exit_code, stderr_bytes, .. }) => {
+        Err(IpcError::ProcessFailed {
+            exit_code,
+            stderr_bytes,
+            ..
+        }) => {
             assert_eq!(exit_code, 42);
             assert_eq!(stderr_bytes, b"fail");
         }
@@ -252,8 +246,7 @@ async fn bus_drain_timeout_returns_timeout_error() {
 
 #[tokio::test]
 async fn bus_spawn_invalid_program_returns_spawn_failed() {
-    let config =
-        SubprocessConfig::new("/nonexistent/binary/path", 1000, vec![]).unwrap_err();
+    let config = SubprocessConfig::new("/nonexistent/binary/path", 1000, vec![]).unwrap_err();
     // SubprocessConfig validates the path, so we need to test with a valid path
     // but the spawn should still fail for other reasons. Let's test the config rejection.
     assert!(config.to_string().contains("does not exist"));
@@ -290,8 +283,7 @@ async fn bus_drain_fd4_huge_payload_returns_error() {
 
 #[tokio::test]
 async fn bus_shutdown_succeeds_on_normal_exit() {
-    let config =
-        SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
+    let config = SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
     let bus = MessageBus::spawn(config, BusConfig::default())
         .await
         .unwrap();
@@ -368,7 +360,11 @@ async fn bus_concurrent_spawns_complete_successfully() {
 
     for handle in handles {
         let result = handle.await.expect("task panicked");
-        assert!(result.is_ok(), "concurrent bus spawn should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "concurrent bus spawn should succeed: {:?}",
+            result
+        );
     }
 }
 
@@ -385,7 +381,11 @@ async fn bus_sequential_drains_dont_leak_fds() {
             .await
             .unwrap();
         let result = bus.drain().await;
-        assert!(result.is_ok(), "sequential drain should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "sequential drain should succeed: {:?}",
+            result
+        );
     }
 }
 
@@ -472,14 +472,22 @@ async fn bus_drain_child_stalls_after_header_times_out() {
     let elapsed = start.elapsed();
 
     assert!(matches!(result, Err(IpcError::Timeout { .. })));
-    assert!(elapsed < Duration::from_secs(5), "timeout should fire quickly: {:?}", elapsed);
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "timeout should fire quickly: {:?}",
+        elapsed
+    );
 }
 
 #[tokio::test]
 async fn bus_drain_partial_fd4_header_returns_error() {
     let dir = tempdir().unwrap();
     let script = dir.path().join("partial_header.py");
-    std::fs::write(&script, "#!/usr/bin/python3\nimport os\nos.write(4, b'\\x00\\x00\\x00')\n").unwrap();
+    std::fs::write(
+        &script,
+        "#!/usr/bin/python3\nimport os\nos.write(4, b'\\x00\\x00\\x00')\n",
+    )
+    .unwrap();
     make_executable(&script);
 
     let config = SubprocessConfig::new(&script, 5000, vec![]).unwrap();

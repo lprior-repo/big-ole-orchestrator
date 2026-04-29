@@ -34,13 +34,13 @@
 use std::sync::Arc;
 
 use ractor::Actor;
-use ractor::ActorRef;
 use ractor::ActorProcessingErr;
+use ractor::ActorRef;
 use ractor::RpcReplyPort;
 use serde::{Deserialize, Serialize};
 
 use crate::db_writer_message::DbWriterMessage;
-use crate::transaction::{Transaction, TransactionCommitter, TransactionError};
+use crate::transaction::{TransactionCommitter, TransactionError};
 
 #[cfg(feature = "fjall")]
 mod fjall_committer;
@@ -84,7 +84,7 @@ pub enum DbWriterActorError {
 pub type CommitReplyPort = RpcReplyPort<Result<(), DbWriterActorError>>;
 
 /// Messages that can be sent to DbWriterActor.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum DbWriterActorMsg {
     /// A batch of messages to commit.
     Commit {
@@ -92,26 +92,25 @@ pub enum DbWriterActorMsg {
         reply: CommitReplyPort,
     },
     /// Get current mailbox depth for health monitoring (ADR-015).
-    GetMailboxDepth {
-        reply: RpcReplyPort<usize>,
-    },
+    GetMailboxDepth { reply: RpcReplyPort<usize> },
     /// Graceful shutdown signal.
-    Shutdown {
-        reply: RpcReplyPort<()>,
-    },
+    Shutdown { reply: RpcReplyPort<()> },
 }
 
 /// Actor state for DbWriterActor.
-pub struct DbWriterActorState<C> {
-    committer: C,
+pub struct DbWriterActorState {
+    committer: Box<dyn TransactionCommitter + Send + Sync>,
     config: DbWriterActorConfig,
     current_batch: Vec<DbWriterMessage>,
     messages_received: usize,
     batches_committed: usize,
 }
 
-impl<C> DbWriterActorState<C> {
-    fn new(committer: C, config: DbWriterActorConfig) -> Self {
+impl DbWriterActorState {
+    fn new(
+        committer: Box<dyn TransactionCommitter + Send + Sync>,
+        config: DbWriterActorConfig,
+    ) -> Self {
         Self {
             committer,
             config,
@@ -133,17 +132,18 @@ impl<C> DbWriterActorState<C> {
         let messages = std::mem::take(&mut self.current_batch);
         self.current_batch = Vec::new();
 
-        let tx: Transaction<C> = Transaction::new();
-        let mut tx = tx;
-        for msg in messages {
-            tx.push(msg).map_err(|e| TransactionError::AlreadyCommitted)?;
-        }
-
-        tx.commit(&self.committer)?;
+        // Commit using the committer
+        (self.committer).commit_batch(messages)?;
         self.batches_committed += 1;
 
         Ok(())
     }
+}
+
+/// Arguments passed to DbWriterActor during spawn.
+pub struct DbWriterActorArguments {
+    pub committer: Box<dyn TransactionCommitter + Send + Sync>,
+    pub config: DbWriterActorConfig,
 }
 
 /// DbWriterActor - Ractor actor for batch-committing control-plane transitions.
@@ -168,33 +168,31 @@ impl DbWriterActor {
     ///
     /// Returns an error if actor spawning fails.
     #[expect(clippy::unused_async)]
-    pub async fn spawn<C>(
-        committer: C,
+    pub async fn spawn(
+        committer: Box<dyn TransactionCommitter + Send + Sync>,
         config: DbWriterActorConfig,
-    ) -> Result<(ActorRef<DbWriterActorMsg>, ractor::ActorHash), ActorProcessingErr>
-    where
-        C: TransactionCommitter + Send + Sync + 'static,
-    {
-        let props = ractor::ActorProperties::default()
-            .set_mailbox_capacity(config.mailbox_capacity);
-
-        let state = DbWriterActorState::new(committer, config);
-
-        ractor::Actor::spawn_linked(Some("db-writer".to_string()), Self, state, props)
+    ) -> Result<
+        (ActorRef<DbWriterActorMsg>, tokio::task::JoinHandle<()>),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
+        let args = DbWriterActorArguments { committer, config };
+        ractor::Actor::spawn(Some("db-writer".to_string()), Self, args)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
     }
 }
 
 impl Actor for DbWriterActor {
     type Msg = DbWriterActorMsg;
-    type State = DbWriterActorState<()>;
-    type Arguments = ();
+    type State = DbWriterActorState;
+    type Arguments = DbWriterActorArguments;
 
     async fn pre_start(
         &self,
         _: ActorRef<Self::Msg>,
-        _: Self::Arguments,
+        args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(DbWriterActorState::new((), DbWriterActorConfig::default()))
+        Ok(DbWriterActorState::new(args.committer, args.config))
     }
 
     async fn handle(
@@ -211,7 +209,8 @@ impl Actor for DbWriterActor {
 
                     if state.should_flush() {
                         if let Err(e) = state.commit_batch() {
-                            let _ = reply.send(Err(DbWriterActorError::CommitFailed(e.to_string())));
+                            let _ =
+                                reply.send(Err(DbWriterActorError::CommitFailed(e.to_string())));
                             return Ok(());
                         }
                     }
@@ -224,7 +223,11 @@ impl Actor for DbWriterActor {
                 }
             }
             DbWriterActorMsg::GetMailboxDepth { reply } => {
-                let _ = reply.send(state.messages_received.saturating_sub(state.batches_committed * state.config.max_batch_size));
+                let _ = reply.send(
+                    state
+                        .messages_received
+                        .saturating_sub(state.batches_committed * state.config.max_batch_size),
+                );
             }
             DbWriterActorMsg::Shutdown { reply } => {
                 if let Err(e) = state.commit_batch() {
@@ -245,8 +248,8 @@ impl Actor for DbWriterActor {
 pub async fn spawn_fjall_db_writer(
     db: Arc<fjall::Database>,
     config: DbWriterActorConfig,
-) -> Result<(ActorRef<DbWriterActorMsg>, ractor::ActorHash), DbWriterActorError> {
-    let committer = FjallDbWriter::new(db);
+) -> Result<(ActorRef<DbWriterActorMsg>, tokio::task::JoinHandle<()>), DbWriterActorError> {
+    let committer = Box::new(FjallDbWriter::new(db));
 
     DbWriterActor::spawn(committer, config)
         .await
@@ -345,7 +348,7 @@ mod tests {
 
     #[tokio::test]
     async fn actor_receives_messages_and_commits_batch() {
-        let committer = MockCommitter::new();
+        let committer = Box::new(MockCommitter::new());
         let config = DbWriterActorConfig {
             mailbox_capacity: 100,
             flush_interval_ms: 1000,
@@ -363,21 +366,28 @@ mod tests {
         };
 
         let (reply_port, reply) = ractor::single::oneshot();
-        actor_ref.cast(actor_ref.clone(), DbWriterActorMsg::Commit {
-            messages: vec![msg],
-            reply: reply_port,
-        }).expect("cast should succeed");
+        actor_ref
+            .cast(
+                actor_ref.clone(),
+                DbWriterActorMsg::Commit {
+                    messages: vec![msg],
+                    reply: reply_port,
+                },
+            )
+            .expect("cast should succeed");
 
         let result = reply.await.expect("reply should succeed");
         assert!(result.is_ok());
 
-        actor_ref.cast(actor_ref, DbWriterActorMsg::Shutdown { reply }).expect("shutdown should succeed");
+        actor_ref
+            .cast(actor_ref, DbWriterActorMsg::Shutdown { reply })
+            .expect("shutdown should succeed");
         handle.await.expect("handle should stop");
     }
 
     #[tokio::test]
     async fn bounded_mailbox_config_is_respected() {
-        let committer = MockCommitter::new();
+        let committer = Box::new(MockCommitter::new());
         let config = DbWriterActorConfig {
             mailbox_capacity: 5, // Very small for testing
             flush_interval_ms: 1000,
@@ -392,12 +402,17 @@ mod tests {
         // This tests ADR-015: bounded mailbox
 
         let (reply_port, reply) = ractor::single::oneshot();
-        actor_ref.cast(actor_ref.clone(), DbWriterActorMsg::GetMailboxDepth { reply })
+        actor_ref
+            .cast(
+                actor_ref.clone(),
+                DbWriterActorMsg::GetMailboxDepth { reply },
+            )
             .expect("cast should succeed");
 
         let _depth = reply.await.expect("reply should succeed");
 
-        actor_ref.cast(actor_ref, DbWriterActorMsg::Shutdown { reply: reply_port })
+        actor_ref
+            .cast(actor_ref, DbWriterActorMsg::Shutdown { reply: reply_port })
             .expect("shutdown should succeed");
         handle.await.expect("handle should stop");
     }

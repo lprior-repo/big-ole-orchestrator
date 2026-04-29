@@ -7,7 +7,10 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
-use crate::key_encoding::{decode_dedupe_key as decode_dedupe_key_canonical, encode_dedupe_key as encode_dedupe_key_canonical};
+use crate::key_encoding::{
+    decode_dedupe_key as decode_dedupe_key_canonical,
+    encode_dedupe_key as encode_dedupe_key_canonical,
+};
 use vo_types::{DedupeKey, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -208,7 +211,7 @@ pub enum DedupeStoreError {
 /// Delegates to `key_encoding::encode_dedupe_key`.
 #[must_use]
 pub fn encode_dedupe_key(key: &DedupeKey) -> Vec<u8> {
-    encode_dedupe_key_canonical(key.as_str())
+    encode_dedupe_key_canonical(key.as_str()).expect("dedupe key encoding should not fail")
 }
 
 /// Decode length-prefixed bytes into a `DedupeKey` (ADR-020).
@@ -220,7 +223,9 @@ pub fn encode_dedupe_key(key: &DedupeKey) -> Vec<u8> {
 /// Returns `DedupeStoreError::Codec` if the bytes are malformed or the key is invalid.
 pub fn decode_dedupe_key(bytes: &[u8]) -> Result<DedupeKey, DedupeStoreError> {
     decode_dedupe_key_canonical(bytes)
-        .map_err(|e| DedupeStoreError::Codec { reason: e.to_string() })
+        .map_err(|e| DedupeStoreError::Codec {
+            reason: e.to_string(),
+        })
         .and_then(|s| {
             DedupeKey::parse(&s).map_err(|e| DedupeStoreError::Codec {
                 reason: e.to_string(),

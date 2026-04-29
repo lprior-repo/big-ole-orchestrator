@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use std::hint::black_box;
 use std::sync::Arc;
 use std::thread;
 use tempfile::tempdir;

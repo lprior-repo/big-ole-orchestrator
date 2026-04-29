@@ -52,8 +52,7 @@ enum PendingTransition {
     Terminate { reason: String },
 }
 
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct MasterState {
     config: OrchestratorConfig,
     active: HashMap<RuntimeInstanceKey, InstanceRecord>,
@@ -88,7 +87,6 @@ impl Default for MasterOrchestrator {
         Self
     }
 }
-
 
 impl MasterState {
     fn reserve_workflow_start(
@@ -564,7 +562,7 @@ impl Actor for MasterOrchestrator {
             } => {
                 let _: () = state.abort_workflow_start(namespace, instance_id);
                 send_reply(reply, ())
-            },
+            }
             OrchestratorMsg::GetStatus {
                 namespace,
                 instance_id,
@@ -602,11 +600,8 @@ impl Actor for MasterOrchestrator {
                 reply,
             } => {
                 let _: () = state.abort_workflow_transition(namespace, instance_id);
-                send_reply(
-                    reply,
-                    (),
-                )
-            },
+                send_reply(reply, ())
+            }
             OrchestratorMsg::ListActive { reply } => send_reply(reply, state.list_active()),
             OrchestratorMsg::Compensate {
                 namespace,

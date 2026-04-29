@@ -10,7 +10,9 @@ use std::sync::{Arc, RwLock};
 use tokio::time::{interval, Duration};
 
 use crate::lock_storage::port::{LockStorage, LockStorageError};
-use crate::{LockEntry, LockId, LockMode, LockQuery, LockQueryResponse, LockRelease, LockStatus, OwnerId};
+use crate::{
+    LockEntry, LockId, LockMode, LockQuery, LockQueryResponse, LockRelease, LockStatus, OwnerId,
+};
 
 pub struct InMemoryLockStorage {
     locks: Arc<RwLock<HashMap<LockId, Vec<LockEntry>>>>,
@@ -75,7 +77,9 @@ impl InMemoryLockStorage {
         owner: &OwnerId,
         hold_token: &str,
     ) -> Option<&'a LockEntry> {
-        entries.iter().find(|e| e.owner == *owner && e.hold_token == hold_token)
+        entries
+            .iter()
+            .find(|e| e.owner == *owner && e.hold_token == hold_token)
     }
 }
 
@@ -115,7 +119,10 @@ impl LockStorage for InMemoryLockStorage {
                 } else {
                     LockStorageError::NotLockOwner {
                         lock_id: release.lock_id.clone(),
-                        expected: entries.first().map(|e| e.owner.clone()).unwrap_or_else(|| OwnerId::new("unknown".into())),
+                        expected: entries
+                            .first()
+                            .map(|e| e.owner.clone())
+                            .unwrap_or_else(|| OwnerId::new("unknown".into())),
                         got: release.owner,
                     }
                 }
@@ -171,7 +178,9 @@ impl LockStorage for InMemoryLockStorage {
 
     async fn get(&self, lock_id: &LockId) -> Result<Option<LockEntry>, LockStorageError> {
         let locks = self.locks.read().unwrap();
-        Ok(locks.get(lock_id).and_then(|entries| entries.first().cloned()))
+        Ok(locks
+            .get(lock_id)
+            .and_then(|entries| entries.first().cloned()))
     }
 
     async fn update_status(
@@ -186,11 +195,12 @@ impl LockStorage for InMemoryLockStorage {
             .get(lock_id)
             .ok_or_else(|| LockStorageError::LockNotFound(lock_id.clone()))?;
 
-        Self::find_entry(entries, owner, hold_token)
-            .ok_or_else(|| LockStorageError::InvalidHoldToken {
+        Self::find_entry(entries, owner, hold_token).ok_or_else(|| {
+            LockStorageError::InvalidHoldToken {
                 lock_id: lock_id.clone(),
                 hold_token: hold_token.to_string(),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -216,7 +226,10 @@ mod tests {
 
         storage.acquire(entry.clone()).await.unwrap();
         let result = storage.get(&entry.lock_id).await.unwrap();
-        assert_eq!(result.as_ref().map(|e| e.lock_id.clone()), Some(entry.lock_id.clone()));
+        assert_eq!(
+            result.as_ref().map(|e| e.lock_id.clone()),
+            Some(entry.lock_id.clone())
+        );
 
         let release = LockRelease {
             lock_id: entry.lock_id.clone(),

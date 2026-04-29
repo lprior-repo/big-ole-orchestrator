@@ -308,10 +308,7 @@ pub fn read_input_inner_with_atomic_guard<R: Read>(
 /// or the key is not present in the secrets map.
 pub fn secret(key: &str) -> Result<String, SdkError> {
     let input = read_input()?;
-    input
-        .secret(key)
-        .cloned()
-        .ok_or(SdkError::InvalidInput)
+    input.secret(key).cloned().ok_or(SdkError::InvalidInput)
 }
 
 // ============================================================================
@@ -321,22 +318,6 @@ pub fn secret(key: &str) -> Result<String, SdkError> {
 fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
     let borrowed = unsafe { std::os::unix::io::BorrowedFd::borrow_raw(fd) };
     borrowed.try_clone_to_owned().is_ok()
-}
-
-/// Retrieve a secret by key from a deserialized [`TaskInput`].
-///
-/// Per ADR-014, secrets are injected as part of the JSON payload over FD3,
-/// never as environment variables. This function provides O(1) lookup into
-/// the in-memory secret map.
-///
-/// # Example
-///
-/// ```ignore
-/// let input = vo_sdk::read_input()?;
-/// let stripe_key = vo_sdk::secret(&input, "STRIPE_KEY");
-/// ```
-pub fn secret<'a>(input: &'a vo_types::TaskInput, key: &'a str) -> Option<&'a str> {
-    input.secret(key)
 }
 
 /// Parse and validate a JSON buffer into a `TaskInput`.

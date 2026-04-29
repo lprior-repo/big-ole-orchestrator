@@ -144,10 +144,7 @@ pub fn wrap_dek(
 ///
 /// Returns `CryptoError::InvalidKeyMaterial` if the wrapped data is malformed.
 /// Returns `CryptoError::UnwrappingFailed` if decryption fails.
-pub fn unwrap_dek(
-    wrapped: &[u8],
-    kek: &[u8; KEK_SIZE_BYTES],
-) -> Result<SecretDek, CryptoError> {
+pub fn unwrap_dek(wrapped: &[u8], kek: &[u8; KEK_SIZE_BYTES]) -> Result<SecretDek, CryptoError> {
     use aes_gcm::aead::Aead;
 
     if wrapped.len() < IV_SIZE_BYTES + TAG_SIZE_BYTES + DEK_SIZE_BYTES {

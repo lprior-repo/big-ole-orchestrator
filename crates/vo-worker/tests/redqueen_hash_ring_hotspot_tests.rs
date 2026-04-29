@@ -264,9 +264,7 @@ mod hotspot_after_node_remove {
     #[test]
     fn redistribution_bounded_by_virtual_node_count() {
         let key_count = 5000;
-        let mut ring = HashRing::new(HashRingConfig {
-            virtual_nodes: 300,
-        });
+        let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 300 });
         for i in 0..5 {
             ring.add_node(RingNode {
                 pool_id: PoolId::new(format!("node-{}", i)),

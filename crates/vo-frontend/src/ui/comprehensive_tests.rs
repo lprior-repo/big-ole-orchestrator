@@ -11,10 +11,15 @@
 //! - SSE event parsing and handling
 //! - WASM build target behavior
 
-use vo_frontend::ui::edges::graph_types::{Connection, ExecutionState, Node, NodeId, PortName, WorkflowNode};
-use vo_frontend::ui::edges::layout::{calculate_edge_path, EdgeEndpoint, find_parallel_branches};
+use vo_frontend::ui::edges::graph_types::{
+    Connection, ExecutionState, Node, NodeId, PortName, WorkflowNode,
+};
+use vo_frontend::ui::edges::layout::{calculate_edge_path, find_parallel_branches, EdgeEndpoint};
 use vo_frontend::ui::edges::types::{BendStyle, EdgeStyle};
-use vo_frontend::ui::graph::{node_kind_to_category, GuaranteeClass, NodeCategory, ValidationIssue, ValidationResult, ValidationSeverity, Workflow};
+use vo_frontend::ui::graph::{
+    node_kind_to_category, GuaranteeClass, NodeCategory, ValidationIssue, ValidationResult,
+    ValidationSeverity, Workflow,
+};
 use vo_types::NodeKind;
 
 // ============================================================================
@@ -213,11 +218,7 @@ mod state_management_edge_cases {
         let mut workflow = Workflow::new("concurrent-test".to_string(), GuaranteeClass::ExactOnce);
 
         for i in 0..100 {
-            let node = Node::new(
-                NodeId::new(),
-                format!("node-{}", i),
-                NodeKind::Pure,
-            );
+            let node = Node::new(NodeId::new(), format!("node-{}", i), NodeKind::Pure);
             workflow.add_node(node);
         }
 
@@ -226,7 +227,8 @@ mod state_management_edge_cases {
 
     #[test]
     fn given_workflow_when_removing_nodes_rapidly_then_correct_count() {
-        let mut workflow = Workflow::new("rapid-remove-test".to_string(), GuaranteeClass::BestEffort);
+        let mut workflow =
+            Workflow::new("rapid-remove-test".to_string(), GuaranteeClass::BestEffort);
 
         let node_ids: Vec<NodeId> = (0..10)
             .map(|_| {
@@ -258,7 +260,8 @@ mod state_management_edge_cases {
 
     #[test]
     fn given_workflow_when_updating_same_node_multiple_times_then_final_state_correct() {
-        let mut workflow = Workflow::new("multi-update-test".to_string(), GuaranteeClass::ExactOnce);
+        let mut workflow =
+            Workflow::new("multi-update-test".to_string(), GuaranteeClass::ExactOnce);
         let node = Node::new(NodeId::new(), "original".to_string(), NodeKind::Pure);
         let node_id = node.id.clone();
         workflow.add_node(node);

@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use std::time::{Duration, Instant};
 use vo_core::circuit_breaker::rate_limiter::{
     check_rate_limit, TokenBucketConfig, TokenBucketRateLimiter,
@@ -259,7 +259,8 @@ fn bench_workflow_version(c: &mut Criterion) {
         })
     });
 
-    let version = WorkflowVersion::new(name.clone(), hash.clone(), ts, vo_types::VERSION_BASE_PATH).unwrap();
+    let version =
+        WorkflowVersion::new(name.clone(), hash.clone(), ts, vo_types::VERSION_BASE_PATH).unwrap();
     group.bench_function("serde_roundtrip", |b| {
         b.iter(|| {
             let json = serde_json::to_string(black_box(&version)).unwrap();

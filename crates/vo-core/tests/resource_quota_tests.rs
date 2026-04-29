@@ -1,6 +1,8 @@
 //! ResourceQuota integration tests.
 
-use vo_core::resource_quota::{NamespaceQuota, NamespaceRegistry, OvercommitPolicy, QuotaEnforcer, QuotaUsage, ResourceKind};
+use vo_core::resource_quota::{
+    NamespaceQuota, NamespaceRegistry, OvercommitPolicy, QuotaEnforcer, QuotaUsage, ResourceKind,
+};
 
 #[test]
 fn resource_quota_usage_tracking() {

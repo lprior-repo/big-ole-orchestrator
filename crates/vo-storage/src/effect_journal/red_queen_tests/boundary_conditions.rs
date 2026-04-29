@@ -3,7 +3,10 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use super::super::{decode_effect_key, encode_effect_key, EffectId, EffectJournal, InMemoryEffectJournal, InstanceId};
+use super::super::{
+    decode_effect_key, encode_effect_key, EffectId, EffectJournal, InMemoryEffectJournal,
+    InstanceId,
+};
 use serde_json::json;
 use vo_types::{EffectIntent, EffectKind};
 

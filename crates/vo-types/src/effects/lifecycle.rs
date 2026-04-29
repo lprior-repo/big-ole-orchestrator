@@ -284,8 +284,14 @@ mod tests {
 
     #[rstest]
     #[case(crate::effects::EffectIntent::Prepared, None)]
-    #[case(crate::effects::EffectIntent::Committed, Some(crate::types::TimestampMs(1000)))]
-    #[case(crate::effects::EffectIntent::RolledBack, Some(crate::types::TimestampMs(2000)))]
+    #[case(
+        crate::effects::EffectIntent::Committed,
+        Some(crate::types::TimestampMs(1000))
+    )]
+    #[case(
+        crate::effects::EffectIntent::RolledBack,
+        Some(crate::types::TimestampMs(2000))
+    )]
     fn effectrecord_compress_decompress_roundtrip_preserves_all_intents(
         #[case] status: crate::effects::EffectIntent,
         #[case] committed_at: Option<crate::types::TimestampMs>,
@@ -307,9 +313,7 @@ mod tests {
     #[case(EffectKind::HttpCall)]
     #[case(EffectKind::SqlQuery)]
     #[case(EffectKind::BlobWrite)]
-    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
-        #[case] kind: EffectKind,
-    ) {
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(#[case] kind: EffectKind) {
         let record = EffectRecord::new(
             "fx-test-kind".to_string(),
             kind,

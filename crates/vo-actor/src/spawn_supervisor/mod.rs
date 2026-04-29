@@ -16,6 +16,7 @@ pub mod actor;
 pub mod cycle;
 pub mod health;
 pub mod metrics;
+pub mod process;
 pub mod pure;
 pub mod traits;
 pub mod types;
@@ -29,6 +30,7 @@ pub(crate) use actor::SpawnSupervisor as Actor;
 // Re-export commonly used types
 pub use actor::{SpawnSupervisor, SpawnSupervisorHandle};
 pub use metrics::{Counter, SpawnSupervisorMetrics};
+pub use process::ProcessHandle;
 pub use pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
-pub use traits::{ProcessHandle, ProcessManager, SpawnStorage, WorkQueue};
+pub use traits::{ProcessManager, SpawnStorage, WorkQueue};
 pub use types::{CycleResult, SpawnPhase, SpawnRecord, SpawnSupervisorError, SpawnSupervisorState};

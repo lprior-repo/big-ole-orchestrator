@@ -2,9 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::workspace_swap::fs::{sync_dir, write_journal_at};
-use crate::workspace_swap::types::{
-    RecoveryOutcome, SwapError, SwapPhase, SwapStatus,
-};
+use crate::workspace_swap::types::{RecoveryOutcome, SwapError, SwapPhase, SwapStatus};
 
 pub struct AtomicSwap {
     workspace: PathBuf,
@@ -83,8 +81,8 @@ impl AtomicSwap {
             source: e,
         })?;
 
-        let phase =
-            SwapPhase::from_str_lossy(&content).ok_or_else(|| SwapError::InvalidJournal(content.clone()))?;
+        let phase = SwapPhase::from_str_lossy(&content)
+            .ok_or_else(|| SwapError::InvalidJournal(content.clone()))?;
 
         match phase {
             SwapPhase::Complete => Ok(SwapStatus::Complete),
@@ -198,10 +196,12 @@ impl AtomicSwap {
                     }
                     SwapPhase::Swapping => {
                         if backup.exists() && !self.workspace.exists() {
-                            fs::rename(&backup, &self.workspace).map_err(|e| SwapError::RenameFailed {
-                                from: backup.clone(),
-                                to: self.workspace.clone(),
-                                source: e,
+                            fs::rename(&backup, &self.workspace).map_err(|e| {
+                                SwapError::RenameFailed {
+                                    from: backup.clone(),
+                                    to: self.workspace.clone(),
+                                    source: e,
+                                }
                             })?;
                             sync_dir(self.workspace.parent().unwrap_or(Path::new(".")))?;
                         } else if backup.exists() && self.workspace.exists() {

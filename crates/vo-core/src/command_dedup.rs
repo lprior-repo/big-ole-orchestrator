@@ -33,7 +33,9 @@ pub enum CommandDedupResult {
 ///
 /// Returns `CommandDedupError::InvalidCommandId` if the command_id is empty
 /// or exceeds the `DedupeKey` max length of 256 characters.
-pub fn dedupe_key_from_envelope(envelope: &CommandEnvelope) -> Result<DedupeKey, CommandDedupError> {
+pub fn dedupe_key_from_envelope(
+    envelope: &CommandEnvelope,
+) -> Result<DedupeKey, CommandDedupError> {
     let cmd_id = envelope.metadata.command_id.as_str();
     if cmd_id.is_empty() {
         return Err(CommandDedupError::InvalidCommandId {
@@ -69,11 +71,9 @@ pub fn check_command_duplicate(
     let key = dedupe_key_from_envelope(envelope)?;
     match store.check_and_insert(&key, instance_id, ttl_ms) {
         Ok(AdmissionResult::Admitted) => Ok(CommandDedupResult::Admitted),
-        Ok(AdmissionResult::Duplicate { instance_id }) => {
-            Ok(CommandDedupResult::Duplicate {
-                original_instance_id: instance_id,
-            })
-        }
+        Ok(AdmissionResult::Duplicate { instance_id }) => Ok(CommandDedupResult::Duplicate {
+            original_instance_id: instance_id,
+        }),
         Err(e) => Err(CommandDedupError::DedupeStore {
             reason: e.to_string(),
         }),
@@ -93,9 +93,11 @@ pub fn is_command_duplicate(
     store: &dyn DedupeStore,
 ) -> Result<bool, CommandDedupError> {
     let key = dedupe_key_from_envelope(envelope)?;
-    store.contains(&key).map_err(|e| CommandDedupError::DedupeStore {
-        reason: e.to_string(),
-    })
+    store
+        .contains(&key)
+        .map_err(|e| CommandDedupError::DedupeStore {
+            reason: e.to_string(),
+        })
 }
 
 // ---------------------------------------------------------------------------

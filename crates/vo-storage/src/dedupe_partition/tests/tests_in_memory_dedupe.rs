@@ -204,9 +204,7 @@ fn in_memory_eviction_cycle_replaces_instance_id_after_expiry() {
     let iid_old = InstanceId::from_bytes([0xEEu8; 16]);
     let iid_new = InstanceId::from_bytes([0xFFu8; 16]);
 
-    store
-        .check_and_insert(&key, &iid_old, 100)
-        .unwrap();
+    store.check_and_insert(&key, &iid_old, 100).unwrap();
 
     assert!(matches!(
         store.check_and_insert(&key, &iid_new, 5000),

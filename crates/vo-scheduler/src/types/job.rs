@@ -65,7 +65,10 @@ impl ScheduledJob {
         })
     }
 
-    pub fn transition_to_retrying(&mut self, error: impl Into<String>) -> Result<(), SchedulerError> {
+    pub fn transition_to_retrying(
+        &mut self,
+        error: impl Into<String>,
+    ) -> Result<(), SchedulerError> {
         if self.state != JobState::Running {
             return Err(SchedulerError::InvalidTransition);
         }

@@ -11,7 +11,8 @@ use vo_frontend::ui::graph::{node_kind_to_category, Node, NodeId, Workflow};
 
 #[test]
 fn config_update_overwrites_existing_key() {
-    let mut node = Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
     node.apply_config_update(&serde_json::json!({"port": 8080}));
     node.apply_config_update(&serde_json::json!({"port": -1}));
     assert_eq!(
@@ -22,7 +23,8 @@ fn config_update_overwrites_existing_key() {
 
 #[test]
 fn config_update_with_empty_object_is_noop() {
-    let mut node = Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
     let before = node.config.clone();
     node.apply_config_update(&serde_json::json!({}));
     assert_eq!(node.config, before, "empty object merge must be identity");
@@ -42,18 +44,17 @@ fn workflow_name_with_null_bytes_roundtrips() {
 #[test]
 fn workflow_name_with_emoji_does_not_panic() {
     let mut wf = Workflow::new("🦀🔥💣".into());
-    wf.add_node(Node::new(
-        NodeId::new(),
-        "node".into(),
-        vo_types::NodeKind::Pure,
-    ).expect("valid name"));
+    wf.add_node(
+        Node::new(NodeId::new(), "node".into(), vo_types::NodeKind::Pure).expect("valid name"),
+    );
     let json = serde_json::to_string(&wf).unwrap();
     let _: Workflow = serde_json::from_str(&json).unwrap();
 }
 
 #[test]
 fn badge_class_invariant_after_kind_flips() {
-    let mut node = Node::new(NodeId::new(), "mutant".into(), vo_types::NodeKind::Pure).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "mutant".into(), vo_types::NodeKind::Pure).expect("valid name");
     let kinds = [
         vo_types::NodeKind::Pure,
         vo_types::NodeKind::ManagedEffect,
@@ -126,7 +127,9 @@ fn rq_skeleton_parallel_node_still_gets_linear_depends_on() {
         .copied()
         .collect();
     assert!(
-        parallel_block.iter().any(|l| l.contains("depends_on: [step-1]")),
+        parallel_block
+            .iter()
+            .any(|l| l.contains("depends_on: [step-1]")),
         "parallel node receives linear depends_on — this is a known invalid default: \
          parallel should branch, not chain"
     );
@@ -319,14 +322,9 @@ fn rq_skeleton_newline_in_label_does_not_corrupt_yaml_structure() {
 
 #[test]
 fn rq_skeleton_single_parallel_produces_invalid_workflow_topology() {
-    let nodes = vec![
-        SketchNode::new(NodeTemplateId::Parallel),
-    ];
+    let nodes = vec![SketchNode::new(NodeTemplateId::Parallel)];
     let skeleton = generate_skeleton(&nodes);
-    assert!(
-        skeleton.contains("type: parallel"),
-        "parallel node emitted"
-    );
+    assert!(skeleton.contains("type: parallel"), "parallel node emitted");
     assert!(
         !skeleton.contains("depends_on"),
         "lone parallel has no deps — but parallel with one branch is \
@@ -690,7 +688,10 @@ fn deep_nesting_skeleton_mixed_realistic_large_workflow() {
         "step-20 in realistic workflow depends on step-19"
     );
     assert_eq!(
-        skeleton.lines().filter(|l| l.starts_with("  - id:")).count(),
+        skeleton
+            .lines()
+            .filter(|l| l.starts_with("  - id:"))
+            .count(),
         20,
         "exactly 20 step id lines"
     );
@@ -700,7 +701,10 @@ fn deep_nesting_skeleton_mixed_realistic_large_workflow() {
         "exactly 20 config entries"
     );
     assert_eq!(
-        skeleton.lines().filter(|l| l.contains("depends_on")).count(),
+        skeleton
+            .lines()
+            .filter(|l| l.contains("depends_on"))
+            .count(),
         19,
         "exactly 19 depends_on entries (step-1 has none)"
     );
@@ -746,7 +750,9 @@ fn deep_nesting_skeleton_config_empty_braces_on_all_steps_regardless_of_size() {
     );
     let lines: Vec<&str> = skeleton.lines().collect();
     assert!(
-        !lines.iter().any(|l| l.contains("config:") && !l.contains("config: {}")),
+        !lines
+            .iter()
+            .any(|l| l.contains("config:") && !l.contains("config: {}")),
         "no config key must have non-empty value in 100-node skeleton"
     );
 }

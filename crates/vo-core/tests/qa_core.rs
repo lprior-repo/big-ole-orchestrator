@@ -189,6 +189,9 @@ fn circuit_breaker_quarantine_after_threshold() {
     }
     let hash3 = vo_types::BinaryHash::parse("aabbccd3").unwrap();
     let event = record_failure(&wf, &hash3, &config, &state, now).unwrap();
-    assert!(event.is_some(), "quarantine after threshold (4th unique hash)");
+    assert!(
+        event.is_some(),
+        "quarantine after threshold (4th unique hash)"
+    );
     assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
 }

@@ -10,8 +10,7 @@ use vo_core::circuit_breaker::{
     record_failure, CircuitBreakerConfig, CircuitBreakerState, FailureWindow, RegistrationStatus,
 };
 use vo_storage::failure_window_store::{
-    load_all_failure_windows, persist_failure_window, FailureRecordView,
-    FAILURE_WINDOWS_PARTITION,
+    load_all_failure_windows, persist_failure_window, FailureRecordView, FAILURE_WINDOWS_PARTITION,
 };
 use vo_types::{BinaryHash, WorkflowName};
 
@@ -30,9 +29,14 @@ fn default_config() -> CircuitBreakerConfig {
 
 fn setup_fjall() -> (tempfile::TempDir, fjall::Database, fjall::Keyspace) {
     let dir = tempfile::tempdir().expect("temp dir");
-    let db = fjall::Database::builder(dir.path()).open().expect("fjall open");
+    let db = fjall::Database::builder(dir.path())
+        .open()
+        .expect("fjall open");
     let partition = db
-        .keyspace(FAILURE_WINDOWS_PARTITION, fjall::KeyspaceCreateOptions::default)
+        .keyspace(
+            FAILURE_WINDOWS_PARTITION,
+            fjall::KeyspaceCreateOptions::default,
+        )
         .expect("partition create");
     (dir, db, partition)
 }
@@ -79,8 +83,7 @@ fn given_deployment_failures_when_runtime_restarts_then_failure_window_is_persis
         .collect();
     drop(window_guard);
 
-    persist_failure_window(&partition, &wf, &persist_view)
-        .expect("persist should succeed");
+    persist_failure_window(&partition, &wf, &persist_view).expect("persist should succeed");
 
     // Also persist the quarantine status if not Active
     if state_v1.get_status(&wf) != RegistrationStatus::Active {
@@ -99,8 +102,8 @@ fn given_deployment_failures_when_runtime_restarts_then_failure_window_is_persis
     let restart_now = Instant::now();
 
     // Load failure windows from Fjall into fresh state
-    let all_windows = load_all_failure_windows(&partition, restart_now)
-        .expect("load should succeed");
+    let all_windows =
+        load_all_failure_windows(&partition, restart_now).expect("load should succeed");
 
     for (wf_name, records) in all_windows {
         let mut window = FailureWindow::new();
@@ -133,7 +136,11 @@ fn given_deployment_failures_when_runtime_restarts_then_failure_window_is_persis
     // Record a 4th failure — should NOT quarantine (threshold is 5)
     let hash4 = make_hash("000000aa");
     let result4 = record_failure(&wf, &hash4, &config, &state_v2, restart_now);
-    assert_eq!(result4, Ok(None), "4th failure should not trigger quarantine");
+    assert_eq!(
+        result4,
+        Ok(None),
+        "4th failure should not trigger quarantine"
+    );
     assert_eq!(state_v2.get_failure_count(&wf), 4);
 
     // Record the 5th failure — SHOULD quarantine

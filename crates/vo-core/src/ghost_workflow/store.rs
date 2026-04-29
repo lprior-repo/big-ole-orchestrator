@@ -5,14 +5,15 @@
 
 use std::sync::Arc;
 
-use vo_types::{WorkflowName, TimestampMs};
+use thiserror::Error;
+use vo_types::{TimestampMs, WorkflowName};
 
 use super::{GhostWorkflowError, WorkflowRegistration};
 use vo_types::RegistrationStatus;
 
 const WORKFLOW_REGISTRATIONS_PARTITION: &str = "workflow_registrations";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum GhostStoreError {
     #[error("registration not found: {workflow}")]
     NotFound { workflow: String },
@@ -23,19 +24,15 @@ pub enum GhostStoreError {
 impl From<GhostStoreError> for GhostWorkflowError {
     fn from(err: GhostStoreError) -> Self {
         match err {
-            GhostStoreError::NotFound { workflow } => {
-                GhostWorkflowError::InvalidTransition {
-                    workflow,
-                    from: RegistrationStatus::Deleted,
-                    to: RegistrationStatus::Deactivated,
-                }
-            }
-            GhostStoreError::Storage { reason } => {
-                GhostWorkflowError::ReaperNotDeactivated {
-                    workflow: reason.clone(),
-                    status: RegistrationStatus::Active,
-                }
-            }
+            GhostStoreError::NotFound { workflow } => GhostWorkflowError::InvalidTransition {
+                workflow,
+                from: RegistrationStatus::Deleted,
+                to: RegistrationStatus::Deactivated,
+            },
+            GhostStoreError::Storage { reason } => GhostWorkflowError::ReaperNotDeactivated {
+                workflow: reason.clone(),
+                status: RegistrationStatus::Active,
+            },
         }
     }
 }
@@ -47,10 +44,9 @@ pub struct GhostLifecycleStore {
 impl GhostLifecycleStore {
     pub fn open(db: &fjall::Database) -> Result<Self, GhostStoreError> {
         let partition = db
-            .keyspace(
-                WORKFLOW_REGISTRATIONS_PARTITION,
-                fjall::KeyspaceCreateOptions::default(),
-            )
+            .keyspace(WORKFLOW_REGISTRATIONS_PARTITION, || {
+                fjall::KeyspaceCreateOptions::default()
+            })
             .map_err(|e| GhostStoreError::Storage {
                 reason: format!("failed to open workflow_registrations partition: {e}"),
             })?;
@@ -112,11 +108,12 @@ impl GhostLifecycleStore {
     pub fn list_all(&self) -> Result<Vec<WorkflowRegistration>, GhostStoreError> {
         let mut registrations = Vec::new();
         for item in self.partition.iter() {
-            let (_key_bytes, value_bytes) = item.into_inner().map_err(|e| GhostStoreError::Storage {
-                reason: e.to_string(),
-            })?;
-            let reg: WorkflowRegistration = serde_json::from_slice(&value_bytes)
-                .map_err(|e| GhostStoreError::Storage {
+            let (_key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| GhostStoreError::Storage {
+                    reason: e.to_string(),
+                })?;
+            let reg: WorkflowRegistration =
+                serde_json::from_slice(&value_bytes).map_err(|e| GhostStoreError::Storage {
                     reason: format!("failed to deserialize registration: {e}"),
                 })?;
             registrations.push(reg);
@@ -131,7 +128,8 @@ mod tests {
     use vo_types::{BinaryHash, TimestampMs, WorkflowName};
 
     fn make_hash() -> BinaryHash {
-        BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap()
+        BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap()
     }
 
     fn make_name(s: &str) -> WorkflowName {

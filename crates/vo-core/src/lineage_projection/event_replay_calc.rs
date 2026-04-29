@@ -63,7 +63,7 @@ pub fn continue_as_new_7step(
     let workflow_started = WorkflowStarted {
         lineage_id: lineage_id.clone(),
         epoch_id: new_epoch_id,
-        carried_state: computed.operational.clone(),
+        carried_state: CarriedState::new(computed.operational.clone(), serde_json::Value::Null),
         parent_epoch_id: old_epoch_id,
     };
     let event = CanonicalEvent {
@@ -86,7 +86,7 @@ pub fn continue_as_new_7step(
         lineage_id,
         old_epoch_id,
         new_epoch_id,
-        carried_state: computed.operational,
+        carried_state: CarriedState::new(computed.operational, serde_json::Value::Null),
         events_written,
         steps_completed,
         step_count: 7,
@@ -108,8 +108,8 @@ pub fn compute_carried_state(state: &CarriedState) -> CarriedStateResult {
 
 /// Validate carried state before rollover.
 pub fn validate_carried_state(_operational: &serde_json::Value) -> Result<(), RolloverError> {
-    let serialized = serde_json::to_string(_operational)
-        .map_err(|_| RolloverError::CarriedStateInvalid)?;
+    let serialized =
+        serde_json::to_string(_operational).map_err(|_| RolloverError::CarriedStateInvalid)?;
 
     if serialized.len() > 1_048_576 {
         return Err(RolloverError::CarriedStateInvalid);
@@ -126,19 +126,16 @@ pub fn determine_rebuild_scope(
     last_known_sequence: u64,
 ) -> RebuildScope {
     match corruption {
-        ProjectionCorruption::ChecksumMismatch { .. }
-        | ProjectionCorruption::Unknown => {
+        ProjectionCorruption::ChecksumMismatch { .. } | ProjectionCorruption::Unknown => {
             RebuildScope::FullEpoch {
                 lineage_id: lineage_id.clone(),
                 epoch_id,
             }
         }
-        ProjectionCorruption::SchemaVersionMismatch { .. } => {
-            RebuildScope::FullEpoch {
-                lineage_id: lineage_id.clone(),
-                epoch_id,
-            }
-        }
+        ProjectionCorruption::SchemaVersionMismatch { .. } => RebuildScope::FullEpoch {
+            lineage_id: lineage_id.clone(),
+            epoch_id,
+        },
         ProjectionCorruption::SequenceGap { gap_at } => {
             if *gap_at == 0 {
                 RebuildScope::FullEpoch {
@@ -162,18 +159,10 @@ pub fn determine_projection_class(
     projection_class: &ProjectionClass,
 ) -> (ProjectionClass, bool) {
     match corruption {
-        ProjectionCorruption::SchemaVersionMismatch { .. } => {
-            (*projection_class, true)
-        }
-        ProjectionCorruption::ChecksumMismatch { .. } => {
-            (*projection_class, false)
-        }
-        ProjectionCorruption::SequenceGap { .. } => {
-            (*projection_class, false)
-        }
-        ProjectionCorruption::Unknown => {
-            (*projection_class, true)
-        }
+        ProjectionCorruption::SchemaVersionMismatch { .. } => (projection_class.clone(), true),
+        ProjectionCorruption::ChecksumMismatch { .. } => (projection_class.clone(), false),
+        ProjectionCorruption::SequenceGap { .. } => (projection_class.clone(), false),
+        ProjectionCorruption::Unknown => (projection_class.clone(), true),
     }
 }
 
@@ -191,9 +180,10 @@ pub fn build_projection(
     if events.is_empty() {
         return Ok(RebuildResult {
             scope: RebuildScope::FullEpoch {
-                lineage_id: events.first().map(|e| e.lineage_id.clone()).unwrap_or_else(|| {
-                    LineageId(String::new())
-                }),
+                lineage_id: events
+                    .first()
+                    .map(|e| e.lineage_id.clone())
+                    .unwrap_or_else(|| LineageId(String::new())),
                 epoch_id: EpochId(0),
             },
             events_applied: 0,
@@ -376,18 +366,12 @@ mod tests {
         let result = compute_carried_state(&state);
         assert!(result.is_valid);
         assert!(result.operator_discarded);
-        assert_eq!(
-            result.operational,
-            serde_json::json!({"work_item": "abc"})
-        );
+        assert_eq!(result.operational, serde_json::json!({"work_item": "abc"}));
     }
 
     #[test]
     fn compute_carried_state_null_operational_invalid() {
-        let state = CarriedState::new(
-            serde_json::Value::Null,
-            serde_json::json!({"ui": true}),
-        );
+        let state = CarriedState::new(serde_json::Value::Null, serde_json::json!({"ui": true}));
         let result = compute_carried_state(&state);
         assert!(!result.is_valid);
     }
@@ -498,7 +482,10 @@ mod tests {
         let result = build_projection(&events, ProjectionState::Building);
         assert!(result.is_err());
         match result.unwrap_err() {
-            RebuildError::SequenceGap { expected: 2, actual: 3 } => {}
+            RebuildError::SequenceGap {
+                expected: 2,
+                actual: 3,
+            } => {}
             other => panic!("expected SequenceGap(2,3), got {:?}", other),
         }
     }
@@ -547,8 +534,7 @@ mod tests {
 
     #[test]
     fn rollover_trigger_event_count() {
-        let trigger =
-            evaluate_rollover_trigger(150, 1, 1, 100, 100, 100, false);
+        let trigger = evaluate_rollover_trigger(150, 1, 1, 100, 100, 100, false);
         assert!(matches!(
             trigger,
             Some(ContinuedAsNewTrigger::EventCountThreshold {
@@ -560,8 +546,7 @@ mod tests {
 
     #[test]
     fn rollover_trigger_no_trigger() {
-        let trigger =
-            evaluate_rollover_trigger(50, 50, 50, 100, 100, 100, false);
+        let trigger = evaluate_rollover_trigger(50, 50, 50, 100, 100, 100, false);
         assert!(trigger.is_none());
     }
 
@@ -622,15 +607,9 @@ mod tests {
     #[test]
     fn rollover_7step_invalid_carried_state_fails() {
         let mut epoch_map = EpochMap::new();
-        epoch_map.register_epoch(
-            test_lineage("wf-1"),
-            test_epoch(1),
-        );
+        epoch_map.register_epoch(test_lineage("wf-1"), test_epoch(1));
         let mut buffer = SignalBuffer::new();
-        let carried = CarriedState::new(
-            serde_json::Value::Null,
-            serde_json::json!({}),
-        );
+        let carried = CarriedState::new(serde_json::Value::Null, serde_json::json!({}));
 
         let result = continue_as_new_7step(
             &mut epoch_map,

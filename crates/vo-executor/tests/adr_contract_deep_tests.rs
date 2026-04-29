@@ -13,13 +13,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use vo_executor::{
-    cancel_execution, clear_error, execute_step, execute_step_with_retry,
-    get_execution_status, get_last_error, reset_all_state, set_error,
-    scheduler::SchedulerConfig, ExecuteNodeError, ExecutionStatus, RetryPolicy,
-    RetryPolicyError, StepId, StepResult,
-};
 use vo_executor::state::{set_state, StepState};
+use vo_executor::{
+    cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
+    get_last_error, reset_all_state, scheduler::SchedulerConfig, set_error, ExecuteNodeError,
+    ExecutionStatus, RetryPolicy, RetryPolicyError, StepId, StepResult,
+};
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -117,7 +116,10 @@ mod semaphore_async_acquire_tests {
 
         let step_id = StepId::new("step-good".to_string());
         let result = execute_step(step_id, 5000).await;
-        assert!(result.is_ok(), "Execution should succeed even when semaphore is full");
+        assert!(
+            result.is_ok(),
+            "Execution should succeed even when semaphore is full"
+        );
 
         drop(p1);
         drop(p2);
@@ -174,7 +176,10 @@ mod invalid_transition_guard_tests {
         let result = execute_step(step_id.clone(), 5000).await;
         match &result {
             Err(ExecuteNodeError::InvalidTransition { from_state, .. }) => {
-                assert_eq!(from_state, "Executing", "Should reject execution during Executing state");
+                assert_eq!(
+                    from_state, "Executing",
+                    "Should reject execution during Executing state"
+                );
             }
             other => panic!("Expected InvalidTransition, got {:?}", other),
         }
@@ -477,7 +482,10 @@ mod stderr_stress_tests {
             let _ = execute_step(step_id.clone(), 5000).await;
             if let Some(err) = get_last_error(&step_id) {
                 let err_str = format!("{:?}", err);
-                assert!(err_str.len() < 10_000, "Error should stay compact under rapid loop");
+                assert!(
+                    err_str.len() < 10_000,
+                    "Error should stay compact under rapid loop"
+                );
             }
         }
     }
@@ -493,7 +501,10 @@ mod stderr_stress_tests {
             let _ = execute_step(bad.clone(), 5000).await;
         }
 
-        assert!(get_last_error(&good).is_none(), "Good step should never accumulate error");
+        assert!(
+            get_last_error(&good).is_none(),
+            "Good step should never accumulate error"
+        );
     }
 
     #[tokio::test]
@@ -502,11 +513,24 @@ mod stderr_stress_tests {
         let step_id = StepId::new("step-slow".to_string());
         let result = execute_step(step_id.clone(), 1).await;
 
-        if let Err(ExecuteNodeError::TimeoutExceeded { elapsed_ms, limit_ms }) = result {
+        if let Err(ExecuteNodeError::TimeoutExceeded {
+            elapsed_ms,
+            limit_ms,
+        }) = result
+        {
             assert_eq!(elapsed_ms, 3000);
             assert_eq!(limit_ms, 1);
-            let display = format!("{:?}", ExecuteNodeError::TimeoutExceeded { elapsed_ms, limit_ms });
-            assert!(display.len() < 200, "Timeout error display should be compact");
+            let display = format!(
+                "{:?}",
+                ExecuteNodeError::TimeoutExceeded {
+                    elapsed_ms,
+                    limit_ms
+                }
+            );
+            assert!(
+                display.len() < 200,
+                "Timeout error display should be compact"
+            );
         }
     }
 
@@ -570,7 +594,10 @@ mod stale_overwrite_tests {
         assert!(matches!(status, ExecutionStatus::Cancelled { .. }));
 
         let error = get_last_error(&step_id);
-        assert!(error.is_some(), "Error from transient should persist through cancel");
+        assert!(
+            error.is_some(),
+            "Error from transient should persist through cancel"
+        );
     }
 
     #[tokio::test]
@@ -653,7 +680,10 @@ mod crash_dashmap_tests {
         assert!(matches!(status, ExecutionStatus::Cancelled { .. }));
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(result.is_ok(), "Should recover from injected Cancelled state");
+        assert!(
+            result.is_ok(),
+            "Should recover from injected Cancelled state"
+        );
     }
 
     #[tokio::test]
@@ -669,7 +699,10 @@ mod crash_dashmap_tests {
         );
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(result.is_ok(), "Should recover from injected Completed state");
+        assert!(
+            result.is_ok(),
+            "Should recover from injected Completed state"
+        );
     }
 
     #[tokio::test]
@@ -723,7 +756,11 @@ mod crash_dashmap_tests {
 
         for handle in handles {
             let (sid, result) = handle.await.unwrap();
-            assert!(result.is_ok(), "Step {} should recover from crash state", sid);
+            assert!(
+                result.is_ok(),
+                "Step {} should recover from crash state",
+                sid
+            );
             assert!(get_last_error(&sid).is_none());
         }
     }
@@ -736,7 +773,10 @@ mod crash_dashmap_tests {
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         assert!(
-            matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 7, .. })),
+            matches!(
+                result,
+                Err(ExecuteNodeError::RetryExhausted { attempts: 7, .. })
+            ),
             "Should report exact attempt count"
         );
     }
@@ -783,11 +823,17 @@ mod crash_dashmap_tests {
 
         reset_all_state();
 
-        assert!(scheduler.try_acquire().is_none(), "Scheduler permits unaffected by state reset");
+        assert!(
+            scheduler.try_acquire().is_none(),
+            "Scheduler permits unaffected by state reset"
+        );
 
         drop(p1);
         drop(p2);
-        assert!(scheduler.try_acquire().is_some(), "Permit released correctly after crash recovery");
+        assert!(
+            scheduler.try_acquire().is_some(),
+            "Permit released correctly after crash recovery"
+        );
     }
 }
 
@@ -960,8 +1006,14 @@ mod retry_backoff_precision_tests {
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         let elapsed = start.elapsed();
 
-        assert!(matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })));
-        assert!(elapsed >= Duration::from_millis(50), "Should wait at least one backoff");
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })
+        ));
+        assert!(
+            elapsed >= Duration::from_millis(50),
+            "Should wait at least one backoff"
+        );
     }
 }
 
@@ -983,16 +1035,25 @@ mod execution_status_comprehensive_tests {
     #[test]
     fn execution_status_all_variants_debug() {
         let ready = format!("{:?}", ExecutionStatus::Ready);
-        let executing = format!("{:?}", ExecutionStatus::Executing {
-            step_id: StepId::new("x".to_string()),
-            elapsed_ms: 42,
-        });
-        let completed = format!("{:?}", ExecutionStatus::Completed {
-            output: "out".to_string(),
-        });
-        let cancelled = format!("{:?}", ExecutionStatus::Cancelled {
-            reason: "r".to_string(),
-        });
+        let executing = format!(
+            "{:?}",
+            ExecutionStatus::Executing {
+                step_id: StepId::new("x".to_string()),
+                elapsed_ms: 42,
+            }
+        );
+        let completed = format!(
+            "{:?}",
+            ExecutionStatus::Completed {
+                output: "out".to_string(),
+            }
+        );
+        let cancelled = format!(
+            "{:?}",
+            ExecutionStatus::Cancelled {
+                reason: "r".to_string(),
+            }
+        );
 
         assert!(ready.contains("Ready"));
         assert!(executing.contains("Executing"));
@@ -1004,11 +1065,17 @@ mod execution_status_comprehensive_tests {
     fn execution_status_partial_eq_different_variants() {
         assert_ne!(
             ExecutionStatus::Ready,
-            ExecutionStatus::Completed { output: String::new() }
+            ExecutionStatus::Completed {
+                output: String::new()
+            }
         );
         assert_ne!(
-            ExecutionStatus::Cancelled { reason: "a".to_string() },
-            ExecutionStatus::Cancelled { reason: "b".to_string() }
+            ExecutionStatus::Cancelled {
+                reason: "a".to_string()
+            },
+            ExecutionStatus::Cancelled {
+                reason: "b".to_string()
+            }
         );
         assert_eq!(
             ExecutionStatus::Executing {

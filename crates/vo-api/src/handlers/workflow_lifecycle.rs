@@ -6,12 +6,14 @@ use axum::{
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::{OrchestratorMsg, TerminateError};
 use vo_core::circuit_breaker::{unquarantine, CircuitBreakerError, CircuitBreakerState};
 use vo_types::WorkflowName;
 
 use crate::handlers::helpers::split_path_id;
+use crate::handlers::{compensate_rejection, persist_lifecycle_event};
 use crate::types::ApiError;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -264,11 +266,17 @@ pub async fn unquarantine_workflow(
             StatusCode::NOT_FOUND,
             Json(ApiError::new(
                 "workflow_not_found",
-                format!("workflow '{}' not found in circuit breaker state", workflow_name),
+                format!(
+                    "workflow '{}' not found in circuit breaker state",
+                    workflow_name
+                ),
             )),
         )
             .into_response(),
-        Err(CircuitBreakerError::NotQuarantined { workflow_name, current_status }) => (
+        Err(CircuitBreakerError::NotQuarantined {
+            workflow_name,
+            current_status,
+        }) => (
             StatusCode::CONFLICT,
             Json(ApiError::new(
                 "not_quarantined",

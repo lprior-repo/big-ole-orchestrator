@@ -11,9 +11,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use crate::upcaster::UpcasterRegistry;
-use super::{ProjectionError, ProjectionRecord, ProjectionState, RebuildContext, StaleReason};
 use super::throttle::{RebuildThrottleConfig, RebuildThrottleState};
+use super::{ProjectionError, ProjectionRecord, ProjectionState, RebuildContext, StaleReason};
+use crate::upcaster::UpcasterRegistry;
 
 // =====================================================================
 

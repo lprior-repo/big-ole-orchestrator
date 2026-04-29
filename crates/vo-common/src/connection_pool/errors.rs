@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use crate::integer_types::TimestampMs;
+use crate::pool::TimestampMs;
 
 use super::types::{ConnectionId, PoolId};
 

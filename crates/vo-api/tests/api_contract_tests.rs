@@ -212,7 +212,7 @@ mod v3_types {
 
 mod v1_types {
     use super::json;
-    
+
     use vo_api::types::v1::*;
 
     mod workflow_status_value {

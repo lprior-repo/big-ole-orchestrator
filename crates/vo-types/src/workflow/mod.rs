@@ -307,10 +307,7 @@ fn dfs_cycle<'a>(
     }
 }
 
-fn validate_connectivity(
-    nodes: &[DagNode],
-    edges: &[Edge],
-) -> Result<(), WorkflowDefinitionError> {
+fn validate_connectivity(nodes: &[DagNode], edges: &[Edge]) -> Result<(), WorkflowDefinitionError> {
     if nodes.len() <= 1 || edges.is_empty() {
         return Ok(());
     }
@@ -349,7 +346,9 @@ fn validate_connectivity(
 
     let mut adj: HashMap<&NodeName, Vec<&NodeName>> = HashMap::new();
     for edge in edges {
-        adj.entry(&edge.source_node).or_default().push(&edge.target_node);
+        adj.entry(&edge.source_node)
+            .or_default()
+            .push(&edge.target_node);
     }
 
     let mut reachable: HashSet<&NodeName> = HashSet::new();

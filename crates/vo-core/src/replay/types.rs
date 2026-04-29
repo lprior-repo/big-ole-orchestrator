@@ -1,6 +1,22 @@
 //! Result and error types for the replay engine.
 
+use std::error::Error as StdError;
+use thiserror::Error;
 use vo_types::state::LifecycleState;
+
+/// Wrapper for String that implements std::error::Error for use with thiserror.
+/// This allows storing error details in error fields without requiring the inner
+/// type to implement Error directly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorString(pub String);
+
+impl std::fmt::Display for ErrorString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl StdError for ErrorString {}
 
 /// Categorizes replay errors to determine system behavior.
 /// Deterministic errors mark state as permanently blocked/corrupt.
@@ -27,39 +43,34 @@ pub struct ReplayResult {
 }
 
 /// Errors that can occur during event replay.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ReplayError {
-    InstanceMismatch {
-        expected: String,
-        actual: String,
-    },
+    #[error("instance mismatch: expected {expected}, actual {actual}")]
+    InstanceMismatch { expected: String, actual: String },
+    #[error("sequence gap at index {at_index}: expected {expected}, actual {actual}")]
     SequenceGap {
         expected: u64,
         actual: u64,
         at_index: usize,
     },
+    #[error("duplicate sequence {sequence} at indices {first_at_index} and {second_at_index}")]
     SequenceDuplicate {
         sequence: u64,
         first_at_index: usize,
         second_at_index: usize,
     },
-    PayloadDecodeFailed {
-        sequence: u64,
-        source: String,
-    },
+    #[error("payload decode failed at sequence {sequence}: {source}")]
+    PayloadDecodeFailed { sequence: u64, source: ErrorString },
+    #[error("transition failed at sequence {sequence}: {reason}")]
     TransitionFailed {
         sequence: u64,
         state: LifecycleState,
         reason: String,
     },
-    UnexpectedEventType {
-        payload_type: String,
-        sequence: u64,
-    },
-    UpcastingFailed {
-        sequence: u64,
-        reason: String,
-    },
+    #[error("unexpected event type {payload_type} at sequence {sequence}")]
+    UnexpectedEventType { payload_type: String, sequence: u64 },
+    #[error("upcasting failed at sequence {sequence}: {reason}")]
+    UpcastingFailed { sequence: u64, reason: String },
     /// Blob publication failed for a required output (ADR-040 §3).
     /// The step stays incomplete and may be retried or failed.
     #[error("Blob publication failed at sequence {sequence} for step {step_id}: blob {blob_id}")]

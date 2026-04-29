@@ -67,6 +67,14 @@ impl WorkloadClass {
         matches!(self, WorkloadClass::UnsafeBulk)
     }
 
+    /// Returns true if this workload class is non-critical and can be rejected
+    /// during degraded operation. Standard and UnsafeBulk workloads can be safely
+    /// throttled; ExactCritical and Recovery workloads cannot.
+    #[must_use]
+    pub fn is_non_critical(self) -> bool {
+        matches!(self, WorkloadClass::Standard | WorkloadClass::UnsafeBulk)
+    }
+
     pub fn parse(s: &str) -> Result<WorkloadClass, WorkloadClassError> {
         match s {
             "exact_critical" => Ok(WorkloadClass::ExactCritical),

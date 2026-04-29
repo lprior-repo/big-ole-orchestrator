@@ -1,10 +1,10 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
+use vo_cli::commands::rebuild::{RebuildReport, RebuildStatus};
 use vo_cli::{
     format_report, format_report_json, BinaryFormat, CategoryReport, CheckCategory, CheckResult,
     DoctorReport, Severity,
 };
-use vo_cli::commands::rebuild::{RebuildReport, RebuildStatus};
 
 #[test]
 fn format_report_healthy_project_output() {

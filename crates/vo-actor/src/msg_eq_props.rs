@@ -2,8 +2,9 @@
 
 use crate::{
     control_msgs::ControlActorMessage, instance_msgs::InstanceActorMessage,
-    signal_messages::NodeName, InstanceId, WorkflowName,
+    signal_messages::NodeName,
 };
+use vo_types::{InstanceId, WorkflowName};
 
 mod eq_properties_instance_actor_message {
     use super::*;

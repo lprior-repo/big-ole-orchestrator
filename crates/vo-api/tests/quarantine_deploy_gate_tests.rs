@@ -129,7 +129,9 @@ fn given_quarantined_workflow_when_multiple_deploys_arrive_then_all_are_rejected
     for i in 0..5 {
         let request = RegistrationRequest {
             workflow_name: wf.clone(),
-            binary_hash: make_hash(&format!("{i:04x}000000000000000000000000000000000000000000000000000000000000")),
+            binary_hash: make_hash(&format!(
+                "{i:04x}000000000000000000000000000000000000000000000000000000000000"
+            )),
             force: false,
         };
 

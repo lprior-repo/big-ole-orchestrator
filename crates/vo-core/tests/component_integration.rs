@@ -34,7 +34,11 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force: if force { Some("test-operator-token".into()) } else { None },
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -1447,7 +1451,8 @@ fn make_version(wf: &str, hash: &str) -> WorkflowVersion {
     let name = vo_types::WorkflowName::parse(wf).expect("workflow name should be valid");
     let hash = vo_types::BinaryHash::parse(hash).expect("hash should be valid");
     let ts = vo_types::TimestampMs::try_from(1712200000000u64).unwrap();
-    WorkflowVersion::new(name, hash, ts, vo_types::VERSION_BASE_PATH).expect("version should be created")
+    WorkflowVersion::new(name, hash, ts, vo_types::VERSION_BASE_PATH)
+        .expect("version should be created")
 }
 
 #[test]

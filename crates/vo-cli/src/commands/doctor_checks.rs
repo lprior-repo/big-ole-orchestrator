@@ -763,17 +763,12 @@ pub fn format_report(report: &DoctorReport) -> (String, String) {
             };
             let line = format!("  {} {}: {}", icon, check.check, check.message);
             match check.severity {
-<<<<<<< Updated upstream
-                Severity::Info => writeln!(stdout, "{line}").unwrap(),
-                Severity::Warn | Severity::Error => writeln!(stderr, "{line}").unwrap(),
-=======
                 Severity::Info => {
                     let _ = writeln!(stdout, "{line}");
                 }
                 Severity::Warn | Severity::Error => {
                     let _ = writeln!(stderr, "{line}");
                 }
->>>>>>> Stashed changes
             }
         }
         let _ = writeln!(stdout);

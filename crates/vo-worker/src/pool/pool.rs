@@ -13,7 +13,7 @@ use vo_common::connection_pool::{
     ErrorCategory, ErrorContext, ErrorDetail, EvictionReason, HealthCheckResult,
     PoolConfig as VoPoolConfig, PoolId, PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
-use vo_common::connection_pool::TimestampMs;
+use vo_types::TimestampMs;
 
 use super::circuit_breaker::CircuitBreaker;
 use super::config::{PoolConfig, PoolConfigError};
@@ -175,7 +175,7 @@ impl ConnectionPool {
                 },
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
+                    timestamp: TimestampMs::now().into(),
                     operation: "acquire",
                     connection_id: None,
                 },
@@ -219,8 +219,8 @@ impl ConnectionPool {
             let connection_id = ConnectionId::new();
             let now = TimestampMs::now();
 
-            let pooled =
-                PooledConnection::new(connection_id, now).with_status(ConnectionStatus::CheckedOut);
+            let pooled = PooledConnection::new(connection_id, now.into())
+                .with_status(ConnectionStatus::CheckedOut);
 
             self.state.connections.insert(connection_id, pooled.clone());
 
@@ -247,7 +247,7 @@ impl ConnectionPool {
                 },
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
+                    timestamp: TimestampMs::now().into(),
                     operation: "acquire",
                     connection_id: None,
                 },
@@ -260,7 +260,7 @@ impl ConnectionPool {
 
         let wait_handle = WaitHandle {
             request_id: self.state.pending_acquires.len() as u64 + 1,
-            enqueued_at: TimestampMs::now(),
+            enqueued_at: TimestampMs::now().into(),
             pool_id: self.pool_id.clone(),
         };
         self.state.pending_acquires.push_back(wait_handle.clone());
@@ -357,9 +357,10 @@ impl ConnectionPool {
 
     pub fn health_check_connection(&mut self, connection_id: ConnectionId) -> bool {
         if let Some(conn) = self.state.connections.get(&connection_id) {
+            let last_used = vo_types::TimestampMs::new_unchecked(conn.last_used_at);
             let current_time = TimestampMs::now();
             let result = self.state.health_check.check_connection(
-                conn.last_used_at,
+                last_used,
                 self.state.config.idle_timeout_ms,
                 current_time,
             );

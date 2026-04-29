@@ -8,8 +8,8 @@ use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, SpawnSupervisorMetrics};
 use super::{ProcessManager, WorkQueue};
+use super::{SpawnStorage, SpawnSupervisorMetrics};
 use crate::semaphore::ExecutionSemaphore;
 
 // =============================================================================

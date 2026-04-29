@@ -68,8 +68,7 @@ impl<'de> serde::Deserialize<'de> for ProbeId {
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        ProbeId::from_string(&s)
-            .ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
+        ProbeId::from_string(&s).ok_or_else(|| serde::de::Error::custom("Invalid probe ID format"))
     }
 }
 

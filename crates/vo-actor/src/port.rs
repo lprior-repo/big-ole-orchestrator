@@ -128,7 +128,10 @@ mod tests {
         let result = router
             .register_channel(channel_id, test_destination())
             .await;
-        assert!(result.is_err(), "duplicate channel registration should fail");
+        assert!(
+            result.is_err(),
+            "duplicate channel registration should fail"
+        );
     }
 
     #[tokio::test]

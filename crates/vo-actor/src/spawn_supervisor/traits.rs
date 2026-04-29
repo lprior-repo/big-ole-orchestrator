@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use vo_types::InstanceId;
 
-use super::{ProcessHandle, SpawnPhase, SpawnRecord, SpawnSupervisorError};
+use super::process::ProcessHandle;
+use super::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 
 #[async_trait]
 pub trait SpawnStorage: Send + Sync {
@@ -25,7 +26,11 @@ pub trait SpawnStorage: Send + Sync {
 
 #[async_trait]
 pub trait ProcessManager: Send + Sync {
-    async fn spawn_process(&self, command: &str) -> Result<ProcessHandle, SpawnSupervisorError>;
+    async fn spawn_process(
+        &self,
+        executable: &str,
+        args: &[String],
+    ) -> Result<ProcessHandle, SpawnSupervisorError>;
 
     async fn check_health(&self, pid: u32) -> Result<bool, SpawnSupervisorError>;
 
@@ -41,7 +46,8 @@ pub trait WorkQueue: Send + Sync {
     async fn enqueue_spawn(
         &self,
         instance_id: InstanceId,
-        command: String,
+        executable: String,
+        args: Vec<String>,
     ) -> Result<(), SpawnSupervisorError>;
 
     async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError>;

@@ -3,11 +3,14 @@
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
 
-use super::super::{decode_effect_key, EffectId, EffectJournal, EffectJournalError, InMemoryEffectJournal, InstanceId};
+use super::super::{
+    decode_effect_key, EffectId, EffectJournal, EffectJournalError, InMemoryEffectJournal,
+    InstanceId,
+};
 use serde_json::json;
-use vo_types::{EffectIntent, EffectKind};
 use std::sync::Arc;
 use std::thread;
+use vo_types::{EffectIntent, EffectKind};
 
 fn sample_instance_id() -> InstanceId {
     InstanceId::from_bytes([1u8; 16])
@@ -37,8 +40,7 @@ fn red_queen_concurrent_prepare_same_intent_id_is_idempotent() {
         })
         .collect();
 
-    let mut effect_ids: Vec<EffectId> =
-        handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let mut effect_ids: Vec<EffectId> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
     let first = effect_ids.pop().unwrap();
     for eid in &effect_ids {

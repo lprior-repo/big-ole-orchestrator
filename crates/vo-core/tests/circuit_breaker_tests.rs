@@ -7,7 +7,7 @@ use vo_core::circuit_breaker::{
     RegistrationOutcome, RegistrationRequest, RegistrationStatus,
 };
 
-use crate::helpers::{make_wf, make_hash};
+use crate::helpers::{make_hash, make_wf};
 
 fn default_config() -> CircuitBreakerConfig {
     CircuitBreakerConfig::new(Duration::from_secs(60), Duration::from_secs(600), 5)

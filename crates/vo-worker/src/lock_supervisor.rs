@@ -109,7 +109,10 @@ impl LockManagerSupervisorError {
     /// Returns true if this is a transient error that may resolve on retry.
     #[must_use]
     pub fn is_transient(&self) -> bool {
-        matches!(self, Self::LockOperationFailed(_) | Self::HealthCheckFailed(_))
+        matches!(
+            self,
+            Self::LockOperationFailed(_) | Self::HealthCheckFailed(_)
+        )
     }
 
     /// Returns true if this is a fatal error requiring intervention.
@@ -123,7 +126,10 @@ impl LockManagerSupervisorError {
     pub fn is_operational(&self) -> bool {
         matches!(
             self,
-            Self::AlreadyRunning | Self::NotRunning | Self::ShutdownTimeout(_) | Self::DrainTimeout { .. }
+            Self::AlreadyRunning
+                | Self::NotRunning
+                | Self::ShutdownTimeout(_)
+                | Self::DrainTimeout { .. }
         )
     }
 }
@@ -324,10 +330,13 @@ impl LockManagerSupervisor {
         let mut locks_held = 0usize;
         let mut pending_operations = 0usize;
 
-        let response = self.lock_manager.query(crate::LockQuery {
-            lock_id: None,
-            owner: None,
-        }).await;
+        let response = self
+            .lock_manager
+            .query(crate::LockQuery {
+                lock_id: None,
+                owner: None,
+            })
+            .await;
 
         locks_held = response.locks.len();
         for lock in &response.locks {
@@ -378,13 +387,18 @@ impl LockManagerSupervisor {
 
     /// Counts the number of pending operations.
     async fn count_pending_operations(&self) -> usize {
-        let response = self.lock_manager
+        let response = self
+            .lock_manager
             .query(crate::LockQuery {
                 lock_id: None,
                 owner: None,
             })
             .await;
-        response.locks.iter().filter(|l| l.status == crate::LockStatus::Pending).count()
+        response
+            .locks
+            .iter()
+            .filter(|l| l.status == crate::LockStatus::Pending)
+            .count()
     }
 
     /// The main loop implementation.
@@ -505,10 +519,14 @@ impl LockManagerSupervisorHandle {
 
             match tokio::time::timeout(
                 remaining,
-                receiver.wait_for(|state| *state != LockManagerSupervisorState::Running
-                    && *state != LockManagerSupervisorState::Degraded
-                    && *state != LockManagerSupervisorState::Starting),
-            ).await {
+                receiver.wait_for(|state| {
+                    *state != LockManagerSupervisorState::Running
+                        && *state != LockManagerSupervisorState::Degraded
+                        && *state != LockManagerSupervisorState::Starting
+                }),
+            )
+            .await
+            {
                 Ok(Ok(state)) => {
                     if *state == LockManagerSupervisorState::Stopped {
                         break;
@@ -586,11 +604,26 @@ mod tests {
 
     #[test]
     fn supervisor_state_display() {
-        assert_eq!(format!("{}", LockManagerSupervisorState::Starting), "starting");
-        assert_eq!(format!("{}", LockManagerSupervisorState::Running), "running");
-        assert_eq!(format!("{}", LockManagerSupervisorState::Degraded), "degraded");
-        assert_eq!(format!("{}", LockManagerSupervisorState::Stopping), "stopping");
-        assert_eq!(format!("{}", LockManagerSupervisorState::Stopped), "stopped");
+        assert_eq!(
+            format!("{}", LockManagerSupervisorState::Starting),
+            "starting"
+        );
+        assert_eq!(
+            format!("{}", LockManagerSupervisorState::Running),
+            "running"
+        );
+        assert_eq!(
+            format!("{}", LockManagerSupervisorState::Degraded),
+            "degraded"
+        );
+        assert_eq!(
+            format!("{}", LockManagerSupervisorState::Stopping),
+            "stopping"
+        );
+        assert_eq!(
+            format!("{}", LockManagerSupervisorState::Stopped),
+            "stopped"
+        );
     }
 
     #[test]
@@ -611,9 +644,13 @@ mod tests {
     fn error_is_operational() {
         assert!(LockManagerSupervisorError::AlreadyRunning.is_operational());
         assert!(LockManagerSupervisorError::NotRunning.is_operational());
-        assert!(LockManagerSupervisorError::ShutdownTimeout(Duration::from_secs(30)).is_operational());
+        assert!(
+            LockManagerSupervisorError::ShutdownTimeout(Duration::from_secs(30)).is_operational()
+        );
         assert!(LockManagerSupervisorError::DrainTimeout { pending: 5 }.is_operational());
-        assert!(!LockManagerSupervisorError::LockOperationFailed("test".to_string()).is_operational());
+        assert!(
+            !LockManagerSupervisorError::LockOperationFailed("test".to_string()).is_operational()
+        );
     }
 
     #[test]
@@ -696,10 +733,21 @@ mod tests {
                     error: None,
                 }
             }
-            async fn demote(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String) -> Result<crate::LockMode, crate::LockError> {
+            async fn demote(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+            ) -> Result<crate::LockMode, crate::LockError> {
                 Ok(crate::LockMode::Shared)
             }
-            async fn extend_ttl(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String, _ttl_ms: u64) -> Result<chrono::DateTime<chrono::Utc>, crate::LockError> {
+            async fn extend_ttl(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+                _ttl_ms: u64,
+            ) -> Result<chrono::DateTime<chrono::Utc>, crate::LockError> {
                 Ok(chrono::Utc::now())
             }
             async fn is_locked(&self, _lock_id: &LockId) -> bool {
@@ -751,10 +799,21 @@ mod tests {
                     error: None,
                 }
             }
-            async fn demote(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String) -> Result<crate::LockMode, crate::LockError> {
+            async fn demote(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+            ) -> Result<crate::LockMode, crate::LockError> {
                 Ok(crate::LockMode::Shared)
             }
-            async fn extend_ttl(&self, _lock_id: LockId, _owner: OwnerId, _hold_token: String, _ttl_ms: u64) -> Result<chrono::DateTime<chrono::Utc>, crate::LockError> {
+            async fn extend_ttl(
+                &self,
+                _lock_id: LockId,
+                _owner: OwnerId,
+                _hold_token: String,
+                _ttl_ms: u64,
+            ) -> Result<chrono::DateTime<chrono::Utc>, crate::LockError> {
                 Ok(chrono::Utc::now())
             }
             async fn is_locked(&self, _lock_id: &LockId) -> bool {

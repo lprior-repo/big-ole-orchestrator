@@ -12,6 +12,13 @@ use thiserror::Error;
 pub use vo_types::NodeKind;
 use vo_types::{GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
 
+/// Construct a default [`RetryPolicy`] with 3 attempts, 100ms base backoff, and 2.0 multiplier.
+#[must_use]
+pub fn default_retry_policy() -> RetryPolicy {
+    // unwrap is safe: 3 attempts, 100ms backoff, 2.0 multiplier are all valid
+    RetryPolicy::new(3, 100, 2.0).expect("valid default retry policy")
+}
+
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct GraphArgs;
@@ -88,10 +95,6 @@ pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
     }
 }
 
-/// Metadata for Signal/Wait nodes in a workflow graph.
-pub type SignalNodeMeta = SignalScope;
-use vo_types::signal::SignalScope;
-
 /// Specification of a single workflow node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeSpec {
@@ -162,7 +165,8 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
 
         let node_names: HashSet<&str> = raw.nodes.iter().map(|n| n.name.as_str()).collect();
 
-        let mut seen_edges: std::collections::HashSet<(&str, &str)> = std::collections::HashSet::new();
+        let mut seen_edges: std::collections::HashSet<(&str, &str)> =
+            std::collections::HashSet::new();
         for edge in &raw.edges {
             if edge.from == edge.to {
                 return Err(serde::de::Error::custom(format!(
@@ -261,7 +265,8 @@ impl WorkflowSpec {
 
         let node_names: std::collections::HashSet<&str> =
             self.nodes.iter().map(|n| n.name.as_str()).collect();
-        let mut seen_edges: std::collections::HashSet<(&str, &str)> = std::collections::HashSet::new();
+        let mut seen_edges: std::collections::HashSet<(&str, &str)> =
+            std::collections::HashSet::new();
         for edge in &self.edges {
             if !node_names.contains(edge.from.as_str()) {
                 return Err(ValidationError::MissingEdgeSource {
@@ -685,7 +690,7 @@ mod tests {
                     retry_policy: default_retry_policy(),
                 },
             ],
-            vec![
+            edges: vec![
                 edge("start", "left"),
                 edge("start", "right"),
                 edge("left", "end"),
@@ -742,7 +747,10 @@ mod tests {
 
         let deserialized: WorkflowSpec =
             serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
-        assert_eq!(original, deserialized, "guarantee_class must round-trip through serialization");
+        assert_eq!(
+            original, deserialized,
+            "guarantee_class must round-trip through serialization"
+        );
     }
 
     #[test]
@@ -808,55 +816,18 @@ mod tests {
             deserialized.nodes[1].retry_policy.max_backoff_ms, 5000,
             "max_backoff_ms must round-trip"
         );
-        assert_eq!(original, deserialized, "full retry_policy must round-trip through serialization");
+        assert_eq!(
+            original, deserialized,
+            "full retry_policy must round-trip through serialization"
+        );
 
         let json_bytes = original.to_json_bytes();
         let from_bytes: WorkflowSpec =
             serde_json::from_slice(&json_bytes).expect("deserialize from to_json_bytes output");
-        assert_eq!(original, from_bytes, "retry_policy preserved through to_json_bytes emission path");
-    }
-}
-
-/// Emit the workflow spec as JSON to stdout and exit.
-///
-/// This function is called when the binary is invoked with `--graph`.
-/// It serializes the `WorkflowSpec` to JSON, prints it to stdout,
-/// and exits with code 0.
-///
-/// # Example
-///
-/// ```ignore
-/// fn main() {
-///     let args: Vec<String> = std::env::args().collect();
-///     if let Err(()) = vo_sdk::emit_graph_if_requested(&args, workflow_spec) {
-///         std::process::exit(1);
-///     }
-/// }
-/// ```
-///
-/// # Errors
-///
-/// Returns `()` if `--graph` was not present. If `--graph` was present,
-/// this function always terminates the process.
-#[allow(clippy::result_unit_err)]
-pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(), ()> {
-    match parse_graph_args(args) {
-        Ok(_graph_args) => {
-            if let Some(cycle) = spec.detect_cycle() {
-                eprintln!("error: cycle detected: {}", cycle);
-                std::process::exit(1);
-            }
-            let json = spec.to_json_bytes();
-            std::io::stdout()
-                .write_all(&json)
-                .expect("stdout write should not fail");
-            std::process::exit(0);
-        }
-        Err(GraphArgsError::NoGraphFlag) => Ok(()),
-        Err(e) => {
-            eprintln!("error: {e}");
-            Err(())
-        }
+        assert_eq!(
+            original, from_bytes,
+            "retry_policy preserved through to_json_bytes emission path"
+        );
     }
 }
 
@@ -879,7 +850,10 @@ pub enum ExecuteError {
 ///
 /// Returns `ExecuteError::NodeNotFound` if the node does not exist in the spec.
 /// Returns `ExecuteError::NotExecutable` if the node is not a task-executable kind.
-pub fn find_executable_node(spec: &WorkflowSpec, node_name: &str) -> Result<&NodeSpec, ExecuteError> {
+pub fn find_executable_node<'a>(
+    spec: &'a WorkflowSpec,
+    node_name: &str,
+) -> Result<&'a NodeSpec, ExecuteError> {
     spec.nodes
         .iter()
         .find(|n| n.name.as_str() == node_name)
@@ -891,8 +865,6 @@ pub fn find_executable_node(spec: &WorkflowSpec, node_name: &str) -> Result<&Nod
 pub fn is_node_executable(node: &NodeSpec) -> bool {
     matches!(
         node.kind,
-        vo_types::NodeKind::Pure
-            | vo_types::NodeKind::ManagedEffect
-            | vo_types::NodeKind::Unsafe
+        vo_types::NodeKind::Pure | vo_types::NodeKind::ManagedEffect | vo_types::NodeKind::Unsafe
     )
 }

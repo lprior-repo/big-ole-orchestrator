@@ -23,7 +23,7 @@ pub mod init {
 pub mod dispatch_mod;
 pub mod dispatch_v2;
 pub mod handler;
-pub mod lint_targets;
+
 pub mod parse;
 pub mod registry;
 pub mod utils;

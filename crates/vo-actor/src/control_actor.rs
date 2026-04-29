@@ -5,7 +5,7 @@ use vo_types::InstanceId;
 pub use crate::signal_messages::{
     AcceptResumeError, AcceptResumeOutcome, BinaryHash, CancelError, CancelRequested,
     ContinueAsNewError, InstanceResumed, LifecycleState, NodeName, ResumeError, SecretId,
-    SignalAccepted, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
+    SignalAccepted, SignalName, SignalPayload, SignalStorage, SignalStorageError, SignalWorkQueue,
     SignalWorkQueueError, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued,
 };
 
@@ -179,13 +179,13 @@ impl ControlActor {
                 "nodenotfound" => {
                     return Err(ResumeError::NodeNotFound {
                         instance_id,
-                        node_name: NodeName::new("node-X"),
+                        node_name: NodeName::parse("node-X").unwrap(),
                     });
                 }
                 "nopathtoterminal" => {
                     return Err(ResumeError::NoPathToTerminal {
                         instance_id,
-                        current_node: NodeName::new("node-Y"),
+                        current_node: NodeName::parse("node-Y").unwrap(),
                     });
                 }
                 _ => {}
@@ -195,8 +195,8 @@ impl ControlActor {
         let now = TimestampMs::now();
         Ok(InstanceResumed {
             instance_id,
-            previous_binary_hash: BinaryHash::new("abcd1234"),
-            resumed_binary_hash: BinaryHash::new("efgh5678"),
+            previous_binary_hash: BinaryHash::parse("abcd1234").unwrap(),
+            resumed_binary_hash: BinaryHash::parse("efgh5678").unwrap(),
             resumed_at: now,
         })
     }
@@ -262,14 +262,14 @@ impl ControlActor {
         let accepted = SignalAccepted {
             instance_id: instance_id.clone(),
             wait_key,
-            signal_id,
+            signal_id: SignalName::from(signal_id),
             payload,
             accepted_at: now,
         };
         let resumed = InstanceResumed {
             instance_id: instance_id.clone(),
-            previous_binary_hash: BinaryHash::new("pre-signal-hash"),
-            resumed_binary_hash: BinaryHash::new("post-signal-hash"),
+            previous_binary_hash: BinaryHash::parse("pre-signal-hash").unwrap(),
+            resumed_binary_hash: BinaryHash::parse("post-signal-hash").unwrap(),
             resumed_at: now,
         };
 
@@ -282,7 +282,7 @@ impl ControlActor {
             }
 
             if let Err(e) = queue.enqueue_resume(instance_id.clone()) {
-                let _ = storage.remove_signal_accepted(&instance_id, &accepted.signal_id);
+                let _ = storage.remove_signal_accepted(&instance_id, accepted.signal_id.as_str());
                 return Err(AcceptResumeError::StorageError {
                     instance_id,
                     reason: format!("enqueue_resume failed: {}", e),

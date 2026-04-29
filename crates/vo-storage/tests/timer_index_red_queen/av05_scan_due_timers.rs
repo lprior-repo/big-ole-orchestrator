@@ -1,4 +1,6 @@
-use crate::helpers::{make_test_instance_id, make_test_timer_id, scan_due_timers, timer_set, MockStorage};
+use crate::helpers::{
+    make_test_instance_id, make_test_timer_id, scan_due_timers, timer_set, MockStorage,
+};
 
 #[test]
 fn rq_scan_due_timers_empty_when_no_timers() {

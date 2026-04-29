@@ -15,7 +15,7 @@ use std::sync::MutexGuard;
 use std::time::Duration;
 
 use vo_executor::{
-    reset_all_state, run_subprocess, scheduler::Scheduler, SubprocessConfig, SchedulerConfig,
+    reset_all_state, run_subprocess, scheduler::Scheduler, SchedulerConfig, SubprocessConfig,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -183,15 +183,17 @@ mod concurrent_subprocess_bounds {
             let semaphore = semaphore.clone();
 
             handles.push(tokio::spawn(async move {
-                let _permit = semaphore
-                    .acquire()
-                    .await
-                    .expect("semaphore acquire failed");
+                let _permit = semaphore.acquire().await.expect("semaphore acquire failed");
 
                 let current = spawn_count.fetch_add(1, Ordering::SeqCst) + 1;
                 let prev = max_seen.load(Ordering::SeqCst);
                 if current > prev {
-                    let _ = max_seen.compare_exchange(prev, current, Ordering::SeqCst, Ordering::SeqCst);
+                    let _ = max_seen.compare_exchange(
+                        prev,
+                        current,
+                        Ordering::SeqCst,
+                        Ordering::SeqCst,
+                    );
                 }
 
                 let config = fast_config(&helper);
@@ -231,7 +233,11 @@ mod concurrent_subprocess_bounds {
         for _ in 0..iterations {
             let config = fast_config(&helper);
             let result = run_subprocess(config).await;
-            assert!(result.is_ok(), "Sequential spawn must succeed: {:?}", result);
+            assert!(
+                result.is_ok(),
+                "Sequential spawn must succeed: {:?}",
+                result
+            );
         }
     }
 
@@ -255,15 +261,16 @@ mod concurrent_subprocess_bounds {
             let max_active = max_active.clone();
 
             handles.push(tokio::spawn(async move {
-                let _permit = semaphore
-                    .acquire()
-                    .await
-                    .expect("semaphore acquire failed");
+                let _permit = semaphore.acquire().await.expect("semaphore acquire failed");
 
                 let current = active_count.fetch_add(1, Ordering::SeqCst) + 1;
                 loop {
                     let prev = max_active.load(Ordering::SeqCst);
-                    if current <= prev || max_active.compare_exchange(prev, current, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                    if current <= prev
+                        || max_active
+                            .compare_exchange(prev, current, Ordering::SeqCst, Ordering::SeqCst)
+                            .is_ok()
+                    {
                         break;
                     }
                 }
@@ -284,7 +291,10 @@ mod concurrent_subprocess_bounds {
             }
         }
 
-        assert_eq!(success, total_spawns, "All long-running spawns must succeed");
+        assert_eq!(
+            success, total_spawns,
+            "All long-running spawns must succeed"
+        );
 
         let peak = max_active.load(Ordering::SeqCst);
         assert!(
@@ -446,7 +456,11 @@ mod scheduler_prevents_resource_exhaustion {
                 let cur = current_concurrent.fetch_add(1, Ordering::SeqCst) + 1;
                 loop {
                     let prev = peak_concurrent.load(Ordering::SeqCst);
-                    if cur <= prev || peak_concurrent.compare_exchange(prev, cur, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                    if cur <= prev
+                        || peak_concurrent
+                            .compare_exchange(prev, cur, Ordering::SeqCst, Ordering::SeqCst)
+                            .is_ok()
+                    {
                         break;
                     }
                 }
@@ -490,7 +504,11 @@ mod subprocess_timeout_resource_release {
 
         let config = SubprocessConfig::new(
             helper,
-            vec!["sleep-exit".to_string(), "10000".to_string(), "0".to_string()],
+            vec![
+                "sleep-exit".to_string(),
+                "10000".to_string(),
+                "0".to_string(),
+            ],
             200,
             vec![],
         );
@@ -512,7 +530,11 @@ mod subprocess_timeout_resource_release {
         for _ in 0..10 {
             let config = SubprocessConfig::new(
                 helper.clone(),
-                vec!["sleep-exit".to_string(), "10000".to_string(), "0".to_string()],
+                vec![
+                    "sleep-exit".to_string(),
+                    "10000".to_string(),
+                    "0".to_string(),
+                ],
                 100,
                 vec![],
             );
@@ -540,7 +562,11 @@ mod subprocess_timeout_resource_release {
 
                 let config = SubprocessConfig::new(
                     helper,
-                    vec!["sleep-exit".to_string(), "10000".to_string(), "0".to_string()],
+                    vec![
+                        "sleep-exit".to_string(),
+                        "10000".to_string(),
+                        "0".to_string(),
+                    ],
                     200,
                     vec![],
                 );
@@ -599,7 +625,11 @@ mod spawn_storm_resistance {
                 let cur = active.fetch_add(1, Ordering::SeqCst) + 1;
                 loop {
                     let prev = peak.load(Ordering::SeqCst);
-                    if cur <= prev || peak.compare_exchange(prev, cur, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
+                    if cur <= prev
+                        || peak
+                            .compare_exchange(prev, cur, Ordering::SeqCst, Ordering::SeqCst)
+                            .is_ok()
+                    {
                         break;
                     }
                 }
@@ -650,7 +680,11 @@ mod spawn_storm_resistance {
                 let config = if i % 3 == 0 {
                     SubprocessConfig::new(
                         helper,
-                        vec!["sleep-exit".to_string(), "10000".to_string(), "0".to_string()],
+                        vec![
+                            "sleep-exit".to_string(),
+                            "10000".to_string(),
+                            "0".to_string(),
+                        ],
                         200,
                         vec![],
                     )

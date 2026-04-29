@@ -249,9 +249,7 @@ async fn update_schedule_immediate_on_pending_succeeds() {
 #[test]
 fn double_schedule_update_no_heap_corruption() {
     let mut q = SchedulerQueue::new(10);
-    let id = q
-        .insert(make_job(JobPriority::Normal, past_due()))
-        .unwrap();
+    let id = q.insert(make_job(JobPriority::Normal, past_due())).unwrap();
     q.update_schedule(&id, future_due()).unwrap();
     q.update_schedule(&id, past_due()).unwrap();
     let popped = q.pop_due(Utc::now());

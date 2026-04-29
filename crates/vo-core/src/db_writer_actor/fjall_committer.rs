@@ -44,14 +44,17 @@ impl FjallDbWriter {
 
     fn open_keyspace(&self, name: &str) -> Result<fjall::Keyspace, TransactionError> {
         self.db
-            .keyspace(name, fjall::KeyspaceCreateOptions::default())
+            .keyspace(name, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| TransactionError::StorageCommitFailed(format!("keyspace {name}: {e}")))
     }
 
-    fn encode_event_key(instance_id: &InstanceId, sequence: &SequenceNumber) -> Result<Vec<u8>, TransactionError> {
-        let id_bytes = instance_id
-            .to_bytes()
-            .map_err(|_| TransactionError::StorageCommitFailed("invalid instance_id".to_string()))?;
+    fn encode_event_key(
+        instance_id: &InstanceId,
+        sequence: &SequenceNumber,
+    ) -> Result<Vec<u8>, TransactionError> {
+        let id_bytes = instance_id.to_bytes().map_err(|_| {
+            TransactionError::StorageCommitFailed("invalid instance_id".to_string())
+        })?;
         let seq_bytes = sequence.as_u64().to_be_bytes();
         let mut key = Vec::with_capacity(24);
         key.extend_from_slice(&id_bytes);
@@ -59,10 +62,13 @@ impl FjallDbWriter {
         Ok(key)
     }
 
-    fn encode_timer_key(instance_id: &InstanceId, timer_id: &TimerId) -> Result<Vec<u8>, TransactionError> {
-        let id_bytes = instance_id
-            .to_bytes()
-            .map_err(|_| TransactionError::StorageCommitFailed("invalid instance_id".to_string()))?;
+    fn encode_timer_key(
+        instance_id: &InstanceId,
+        timer_id: &TimerId,
+    ) -> Result<Vec<u8>, TransactionError> {
+        let id_bytes = instance_id.to_bytes().map_err(|_| {
+            TransactionError::StorageCommitFailed("invalid instance_id".to_string())
+        })?;
         let timer_bytes = timer_id.as_bytes();
         let mut key = Vec::with_capacity(16 + timer_bytes.len());
         key.extend_from_slice(&id_bytes);
@@ -70,10 +76,13 @@ impl FjallDbWriter {
         Ok(key)
     }
 
-    fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Result<Vec<u8>, TransactionError> {
-        let id_bytes = instance_id
-            .to_bytes()
-            .map_err(|_| TransactionError::StorageCommitFailed("invalid instance_id".to_string()))?;
+    fn encode_lease_key(
+        instance_id: &InstanceId,
+        step_id: &StepId,
+    ) -> Result<Vec<u8>, TransactionError> {
+        let id_bytes = instance_id.to_bytes().map_err(|_| {
+            TransactionError::StorageCommitFailed("invalid instance_id".to_string())
+        })?;
         let step_bytes = step_id.as_bytes();
         let mut key = Vec::with_capacity(16 + step_bytes.len());
         key.extend_from_slice(&id_bytes);
@@ -94,8 +103,9 @@ impl FjallDbWriter {
             } => {
                 let ks = self.open_keyspace(EVENTS_PARTITION)?;
                 let key = Self::encode_event_key(instance_id, sequence_number)?;
-                let value = serde_json::to_vec(&idempotency_key)
-                    .map_err(|e| TransactionError::StorageCommitFailed(format!("serialize: {e}")))?;
+                let value = serde_json::to_vec(&idempotency_key).map_err(|e| {
+                    TransactionError::StorageCommitFailed(format!("serialize: {e}"))
+                })?;
                 batch.insert(&ks, &key, &value);
             }
             DbWriterMessage::RecordInstanceStatus {
@@ -103,9 +113,9 @@ impl FjallDbWriter {
                 status_byte,
             } => {
                 let ks = self.open_keyspace(INSTANCES_PARTITION)?;
-                let key = instance_id
-                    .to_bytes()
-                    .map_err(|_| TransactionError::StorageCommitFailed("invalid instance_id".to_string()))?;
+                let key = instance_id.to_bytes().map_err(|_| {
+                    TransactionError::StorageCommitFailed("invalid instance_id".to_string())
+                })?;
                 let mut value = Vec::with_capacity(1);
                 value.push(*status_byte);
                 batch.insert(&ks, &key, &value);
@@ -120,7 +130,10 @@ impl FjallDbWriter {
                 let value = fence.as_u64().to_be_bytes().to_vec();
                 batch.insert(&ks, &key, &value);
             }
-            DbWriterMessage::ReleaseLease { instance_id, step_id } => {
+            DbWriterMessage::ReleaseLease {
+                instance_id,
+                step_id,
+            } => {
                 let ks = self.open_keyspace(LEASES_PARTITION)?;
                 let key = Self::encode_lease_key(instance_id, step_id)?;
                 batch.delete(&ks, &key);
@@ -135,7 +148,10 @@ impl FjallDbWriter {
                 let value = fire_at.as_u64().to_be_bytes().to_vec();
                 batch.insert(&ks, &key, &value);
             }
-            DbWriterMessage::DeleteTimer { instance_id, timer_id } => {
+            DbWriterMessage::DeleteTimer {
+                instance_id,
+                timer_id,
+            } => {
                 let ks = self.open_keyspace(TIMERS_PARTITION)?;
                 let key = Self::encode_timer_key(instance_id, timer_id)?;
                 batch.delete(&ks, &key);
@@ -143,8 +159,9 @@ impl FjallDbWriter {
             DbWriterMessage::RecordEffect { effect } => {
                 let ks = self.open_keyspace(EFFECTS_PARTITION)?;
                 let key = effect.intent_id.as_bytes();
-                let value = serde_json::to_vec(effect)
-                    .map_err(|e| TransactionError::StorageCommitFailed(format!("serialize effect: {e}")))?;
+                let value = serde_json::to_vec(effect).map_err(|e| {
+                    TransactionError::StorageCommitFailed(format!("serialize effect: {e}"))
+                })?;
                 batch.insert(&ks, &key, &value);
             }
             DbWriterMessage::TakeSnapshot {
@@ -176,7 +193,10 @@ impl FjallDbWriter {
 
                 if let Some(ref step) = step_id {
                     let ks = self.open_keyspace(LEASES_PARTITION)?;
-                    let key = Self::encode_lease_key(&InstanceId::parse(&event.instance_id).unwrap(), step)?;
+                    let key = Self::encode_lease_key(
+                        &InstanceId::parse(&event.instance_id).unwrap(),
+                        step,
+                    )?;
                     let value = vec![];
                     batch.insert(&ks, &key, &value);
                 }
@@ -218,11 +238,14 @@ impl FjallDbWriter {
                     &InstanceId::parse(&event.instance_id).unwrap(),
                     &SequenceNumber::new_unchecked(event.sequence),
                 )?;
-                let value = serde_json::to_vec(event)
-                    .map_err(|e| TransactionError::StorageCommitFailed(format!("serialize event: {e}")))?;
+                let value = serde_json::to_vec(event).map_err(|e| {
+                    TransactionError::StorageCommitFailed(format!("serialize event: {e}"))
+                })?;
                 batch.insert(&ks, &key, &value);
 
-                batch.commit().map_err(|e| TransactionError::StorageCommitFailed(format!("batch commit: {e}")))?;
+                batch.commit().map_err(|e| {
+                    TransactionError::StorageCommitFailed(format!("batch commit: {e}"))
+                })?;
                 return Ok(());
             }
         }
@@ -256,8 +279,7 @@ mod tests {
 
     fn create_test_db() -> (Arc<fjall::Database>, TempDir) {
         let temp_dir = TempDir::new().expect("create temp dir");
-        let db = fjall::Database::open(fjall::Config::new(temp_dir.path()))
-            .expect("open test db");
+        let db = fjall::Database::open(fjall::Config::new(temp_dir.path())).expect("open test db");
         (Arc::new(db), temp_dir)
     }
 

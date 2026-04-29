@@ -561,16 +561,12 @@ fn concurrent_acquire_on_same_pair_exactly_one_wins() {
     let iid_clone = instance_id.clone();
     let sid_clone = step_id.clone();
     let store_clone = Arc::clone(&store);
-    let handle_a = thread::spawn(move || {
-        store_clone.acquire(&iid_clone, &sid_clone, 5_000)
-    });
+    let handle_a = thread::spawn(move || store_clone.acquire(&iid_clone, &sid_clone, 5_000));
 
     let iid_clone = instance_id.clone();
     let sid_clone = step_id.clone();
     let store_clone = Arc::clone(&store);
-    let handle_b = thread::spawn(move || {
-        store_clone.acquire(&iid_clone, &sid_clone, 5_000)
-    });
+    let handle_b = thread::spawn(move || store_clone.acquire(&iid_clone, &sid_clone, 5_000));
 
     let result_a = handle_a.join().unwrap();
     let result_b = handle_b.join().unwrap();

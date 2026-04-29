@@ -377,8 +377,7 @@ fn dequeue_prioritized_returns_critical_first() {
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
-            event,
-            100,
+            event, 100,
         )))
         .unwrap();
 

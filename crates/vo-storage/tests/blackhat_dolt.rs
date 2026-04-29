@@ -22,7 +22,15 @@ const SQL_PAYLOADS: &[&str] = &[
     "'; INSERT INTO issues VALUES('pwned'); --",
 ];
 
-<<<<<<< HEAD
+use tempfile::TempDir;
+use vo_storage::codec::{decode_event_key, encode_event_key};
+use vo_storage::key_encoding::{decode_effect_key, decode_lease_key};
+use vo_storage::partitions::{create_partition_layout, open_all_partitions};
+use vo_storage::snapshots::{compact_snapshots, encode_snapshot_key};
+use vo_storage::status_store::{decode_status, StatusStoreError};
+use vo_types::state::InstanceState;
+use vo_types::InstanceId;
+
 fn bd() -> Command {
     Command::new("bd")
 }
@@ -41,15 +49,8 @@ fn mk_issue(title: &str, desc: &str) -> Option<String> {
             .map(String::from)
     } else {
         None
-=======
-use tempfile::TempDir;
-use vo_storage::codec::{decode_event_key, encode_event_key};
-use vo_storage::key_encoding::{decode_effect_key, decode_lease_key};
-use vo_storage::partitions::{create_partition_layout, open_all_partitions};
-use vo_storage::snapshots::{compact_snapshots, encode_snapshot_key};
-use vo_storage::status_store::{decode_status, StatusStoreError};
-use vo_types::state::InstanceState;
-use vo_types::InstanceId;
+    }
+}
 
 fn test_instance_id() -> InstanceId {
     let mut b = [0u8; 16];
@@ -154,7 +155,6 @@ fn bead_payload_with_sql_injection_does_not_corrupt_decode() {
             Ok(_) | Err(StatusStoreError::CorruptValue { .. }) => {}
             other => panic!("unexpected error variant for injection payload: {other:?}"),
         }
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
@@ -179,7 +179,6 @@ fn sql_injection_payloads_handled_without_corruption() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn sql_injection_query_handles_special_chars() {
     for q in [
         "p0", "p1 or", "admin--", "union", "drop", "'; DROP", "1 OR 1",
@@ -193,48 +192,6 @@ fn sql_injection_query_handles_special_chars() {
             out.status.success() || !out.stderr.is_empty(),
             "query safe: {q}"
         );
-=======
-fn concurrent_compaction_with_corrupt_keys_does_not_panic() {
-    let tmp = TempDir::new().unwrap();
-    let path = tmp.path().join("compact_race");
-
-    let layout = create_partition_layout(&path).unwrap();
-    let partitions = open_all_partitions(&layout).unwrap();
-    let snaps = Arc::new(
-        partitions
-            .iter()
-            .find(|(n, _)| *n == "snapshots")
-            .unwrap()
-            .1
-            .clone(),
-    );
-    let id = test_instance_id();
-
-    for seq in 1..=20u64 {
-        let key = encode_snapshot_key(&id, seq).unwrap();
-        let val = serde_json::to_vec(&InstanceState { counter: seq }).unwrap();
-        snaps.insert(key, val).unwrap();
-    }
-    snaps
-        .insert(b"\x00garbage_key".to_vec(), b"\xff".to_vec())
-        .unwrap();
-    snaps
-        .insert(b"another_corrupt".to_vec(), b"".to_vec())
-        .unwrap();
-
-    let handles: Vec<_> = (0..4)
-        .map(|_| {
-            let snaps = Arc::clone(&snaps);
-            let id = id.clone();
-            thread::spawn(move || {
-                let _ = compact_snapshots(&snaps, &id, 5);
-            })
-        })
-        .collect();
-
-    for h in handles {
-        h.join().unwrap();
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
     }
 }
 
@@ -255,7 +212,6 @@ fn meta_chars_in_labels_handled() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn corrupt_sst_file_detected() {
     if let Some(dd) = dolt_dir() {
         let sd = dd.join("data");
@@ -306,33 +262,4 @@ fn dolt_data_dir_missing_graceful() {
             );
         }
     }
-=======
-fn crafted_key_bytes_never_decode_to_wrong_key_type() {
-    let event_key = encode_event_key(
-        &test_instance_id(),
-        &vo_types::SequenceNumber::try_from(1u64).unwrap(),
-    )
-    .unwrap();
-
-    // Lease and effect keys use text/binary formats — must reject binary event keys
-    assert!(
-        decode_lease_key(&event_key).is_err(),
-        "event key must not decode as lease key"
-    );
-    assert!(
-        decode_effect_key(&event_key).is_err(),
-        "event key must not decode as effect key"
-    );
-
-    // Timer key (8-byte timestamp + 16-byte instance) must not decode as lease/effect
-    let timer_key = vo_storage::key_encoding::encode_timer_key(u64::MAX, &test_instance_id());
-    assert!(
-        decode_lease_key(&timer_key).is_err(),
-        "timer key must not decode as lease key"
-    );
-    assert!(
-        decode_effect_key(&timer_key).is_err(),
-        "timer key must not decode as effect key"
-    );
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 }

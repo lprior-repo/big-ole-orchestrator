@@ -14,8 +14,8 @@ fn workflow_spec_json_uses_snake_case() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").unwrap(),
             kind: NodeKind::Pure,
-        retry_policy: None,
-                signal_scope: None,
+            retry_policy: None,
+            signal_scope: None,
         }],
         edges: vec![],
         dedupe_scope: DedupeScope::default(),

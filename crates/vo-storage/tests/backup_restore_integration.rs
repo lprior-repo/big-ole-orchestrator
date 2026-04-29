@@ -179,9 +179,7 @@ fn restore_selects_latest_sequence() {
             &partition,
             id.clone(),
             i,
-            &InstanceState {
-                counter: i * 10,
-            },
+            &InstanceState { counter: i * 10 },
         )
         .unwrap();
     }

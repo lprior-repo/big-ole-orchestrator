@@ -1,18 +1,13 @@
 //! Health check implementation for pooled connections.
 
-use vo_common::connection_pool::{HealthCheckResult, TimestampMs};
+use vo_common::connection_pool::HealthCheckResult;
+use vo_types::TimestampMs;
 
 pub trait TimestampLike {
     fn timestamp_ms(self) -> u64;
 }
 
 impl TimestampLike for TimestampMs {
-    fn timestamp_ms(self) -> u64 {
-        self.as_u64()
-    }
-}
-
-impl TimestampLike for vo_types::TimestampMs {
     fn timestamp_ms(self) -> u64 {
         self.as_u64()
     }

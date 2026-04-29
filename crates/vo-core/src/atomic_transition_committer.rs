@@ -206,7 +206,11 @@ mod tests {
 
         let batches = committer.committed.borrow();
         assert_eq!(batches.len(), 1, "exactly one batch must be committed");
-        assert_eq!(batches[0].len(), 7, "all 7 partition writes must be in the single batch");
+        assert_eq!(
+            batches[0].len(),
+            7,
+            "all 7 partition writes must be in the single batch"
+        );
 
         assert_eq!(batches[0][0], event_msg);
         assert_eq!(batches[0][1], status_msg);

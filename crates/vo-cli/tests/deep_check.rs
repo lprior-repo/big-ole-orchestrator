@@ -1,6 +1,6 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{BinaryFormat, CheckError, validate_binary_header};
+use vo_cli::{validate_binary_header, BinaryFormat, CheckError};
 
 #[test]
 fn check_valid_elf_binary() {

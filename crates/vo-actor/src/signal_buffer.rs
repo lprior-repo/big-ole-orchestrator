@@ -62,10 +62,11 @@
 //! - [`crate::lifecycle`] — Actor lifecycle states that determine buffering behavior
 //! - [`crate::timers`] — Timer wait-keys, complementary to signal wait-keys
 
+use crate::signal_messages::SignalName;
 use crate::WaitKey;
 use std::collections::{HashMap, VecDeque};
 use vo_types::{BufferPolicy, SignalDelivery};
-use vo_types::{InstanceId, SignalName, TimestampMs};
+use vo_types::{InstanceId, TimestampMs};
 
 /// A signal that has been buffered for later delivery to a waiting actor.
 ///
@@ -421,7 +422,7 @@ impl SignalBuffer {
     ///
     /// This is a convenience wrapper around [`buffered_count`](Self::buffered_count).
     ///
-   /// # Example
+    /// # Example
     ///
     /// ```
     /// use vo_actor::signal_buffer::{SignalBuffer, BufferedSignal};
@@ -462,7 +463,7 @@ impl SignalBuffer {
     ///   queue is full (`max_buffered_per_key`). If the key previously had a `Single`
     ///   entry, it is upgraded to a `Many` queue containing both signals.
     ///
-   /// # Example
+    /// # Example
     ///
     /// ```
     /// use vo_actor::signal_buffer::{SignalBuffer, BufferedSignal, BufferResult};

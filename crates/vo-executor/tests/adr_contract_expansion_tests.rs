@@ -9,22 +9,21 @@
 //! - Stale completion: Concurrent rejection, interleaved reset
 //! - Crash injection: Orphaned state, mid-retry crash, error overwrite
 
+use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
-use std::sync::atomic::AtomicUsize;
 use std::time::{Duration, Instant};
 
-use vo_executor::{
-    cancel_execution, clear_error, execute_step, execute_step_with_retry,
-    get_execution_status, get_last_error, reset_all_state, set_error,
-    scheduler::SchedulerConfig, ExecuteNodeError, ExecutionStatus, RetryPolicy,
-    StepId, StepResult,
-};
 use vo_executor::state::set_state;
 use vo_executor::state::StepState;
+use vo_executor::{
+    cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
+    get_last_error, reset_all_state, scheduler::SchedulerConfig, set_error, ExecuteNodeError,
+    ExecutionStatus, RetryPolicy, StepId, StepResult,
+};
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -83,7 +82,11 @@ mod semaphore_contention_tests {
         }
 
         let acquired = acquired_count.load(Ordering::SeqCst);
-        assert!(acquired <= 3, "At most 3 permits should be acquired, got {}", acquired);
+        assert!(
+            acquired <= 3,
+            "At most 3 permits should be acquired, got {}",
+            acquired
+        );
         assert!(
             acquired + rejected_count.load(Ordering::SeqCst) == 20,
             "All tasks should be accounted for"
@@ -117,7 +120,10 @@ mod semaphore_contention_tests {
             assert!(p.is_some(), "Should reacquire after drain");
             refilled.push(p);
         }
-        assert!(scheduler.try_acquire().is_none(), "6th acquire should be blocked after refill");
+        assert!(
+            scheduler.try_acquire().is_none(),
+            "6th acquire should be blocked after refill"
+        );
     }
 
     #[tokio::test]
@@ -162,8 +168,16 @@ mod semaphore_contention_tests {
 
         for cycle in 0..50 {
             let permit = scheduler.try_acquire();
-            assert!(permit.is_some(), "Cycle {}: should acquire single permit", cycle);
-            assert!(scheduler.try_acquire().is_none(), "Cycle {}: second acquire blocked", cycle);
+            assert!(
+                permit.is_some(),
+                "Cycle {}: should acquire single permit",
+                cycle
+            );
+            assert!(
+                scheduler.try_acquire().is_none(),
+                "Cycle {}: second acquire blocked",
+                cycle
+            );
             drop(permit);
         }
     }
@@ -242,9 +256,18 @@ mod subprocess_boundary_expansion_tests {
 
     #[tokio::test]
     async fn step_id_parse_special_chars_rejected() {
-        for invalid in ["step with spaces", "step/with/slash", "step.with.dot", "step@hash"] {
+        for invalid in [
+            "step with spaces",
+            "step/with/slash",
+            "step.with.dot",
+            "step@hash",
+        ] {
             let result = StepId::parse(invalid);
-            assert!(result.is_err(), "StepId::parse({:?}) should be rejected", invalid);
+            assert!(
+                result.is_err(),
+                "StepId::parse({:?}) should be rejected",
+                invalid
+            );
         }
     }
 
@@ -310,7 +333,10 @@ mod subprocess_boundary_expansion_tests {
     async fn retry_with_zero_attempts_rejected() {
         let _guard = state_guard();
         let policy = RetryPolicy::new(0, 100, 2.0).unwrap_err();
-        assert!(matches!(policy, vo_executor::RetryPolicyError::ZeroAttempts));
+        assert!(matches!(
+            policy,
+            vo_executor::RetryPolicyError::ZeroAttempts
+        ));
     }
 
     #[tokio::test]
@@ -383,15 +409,27 @@ mod fd3_contract_expansion_tests {
 
     #[tokio::test]
     async fn fd3_step_result_is_success_correctness() {
-        assert!(StepResult::Success { output: "x".to_string() }.is_success());
-        assert!(!StepResult::Failure { output: "x".to_string() }.is_success());
+        assert!(StepResult::Success {
+            output: "x".to_string()
+        }
+        .is_success());
+        assert!(!StepResult::Failure {
+            output: "x".to_string()
+        }
+        .is_success());
     }
 
     #[tokio::test]
     async fn fd3_step_result_equality() {
-        let a = StepResult::Success { output: "done".to_string() };
-        let b = StepResult::Success { output: "done".to_string() };
-        let c = StepResult::Failure { output: "done".to_string() };
+        let a = StepResult::Success {
+            output: "done".to_string(),
+        };
+        let b = StepResult::Success {
+            output: "done".to_string(),
+        };
+        let c = StepResult::Failure {
+            output: "done".to_string(),
+        };
 
         assert_eq!(a, b);
         assert_ne!(a, c);
@@ -399,12 +437,16 @@ mod fd3_contract_expansion_tests {
 
     #[tokio::test]
     async fn fd3_step_result_serialization_roundtrip() {
-        let result = StepResult::Success { output: "test-output".to_string() };
+        let result = StepResult::Success {
+            output: "test-output".to_string(),
+        };
         let json = serde_json::to_string(&result).unwrap();
         let deserialized: StepResult = serde_json::from_str(&json).unwrap();
         assert_eq!(result, deserialized);
 
-        let failure = StepResult::Failure { output: "err".to_string() };
+        let failure = StepResult::Failure {
+            output: "err".to_string(),
+        };
         let json_fail = serde_json::to_string(&failure).unwrap();
         let deserialized_fail: StepResult = serde_json::from_str(&json_fail).unwrap();
         assert_eq!(failure, deserialized_fail);
@@ -413,7 +455,13 @@ mod fd3_contract_expansion_tests {
     #[tokio::test]
     async fn fd3_multiple_success_steps_identical_output() {
         let _guard = state_guard();
-        let ids = ["step-1", "step-good", "step-valid", "step-retry", "workflow-step-1"];
+        let ids = [
+            "step-1",
+            "step-good",
+            "step-valid",
+            "step-retry",
+            "workflow-step-1",
+        ];
 
         for id in ids {
             let result = execute_step(StepId::new(id.to_string()), 5000).await;
@@ -453,7 +501,11 @@ mod stderr_bounds_expansion_tests {
         let result = execute_step(StepId::new("step-1".to_string()), 5000).await;
         if let Ok(StepResult::Success { output }) = result {
             assert!(output.len() < MAX_STDERR_BYTES);
-            assert!(output.len() < 1000, "Success output should be small, got {} bytes", output.len());
+            assert!(
+                output.len() < 1000,
+                "Success output should be small, got {} bytes",
+                output.len()
+            );
         }
     }
 
@@ -463,7 +515,11 @@ mod stderr_bounds_expansion_tests {
         let result = execute_step(StepId::new("step-fail".to_string()), 5000).await;
         if let Ok(StepResult::Failure { output }) = result {
             assert!(output.len() < MAX_STDERR_BYTES);
-            assert!(output.len() < 1000, "Failure output should be small, got {} bytes", output.len());
+            assert!(
+                output.len() < 1000,
+                "Failure output should be small, got {} bytes",
+                output.len()
+            );
         }
     }
 
@@ -476,7 +532,11 @@ mod stderr_bounds_expansion_tests {
             get_last_error(&StepId::new("step-transient".to_string()))
         {
             assert!(reason.len() < MAX_STDERR_BYTES);
-            assert!(reason.len() < 1000, "Error reason should be small, got {} bytes", reason.len());
+            assert!(
+                reason.len() < 1000,
+                "Error reason should be small, got {} bytes",
+                reason.len()
+            );
         }
     }
 
@@ -530,7 +590,11 @@ mod stderr_bounds_expansion_tests {
     async fn stderr_rapid_sequential_all_bounded() {
         let _guard = state_guard();
         let step_ids = [
-            "step-1", "step-good", "step-fail", "step-transient", "step-valid",
+            "step-1",
+            "step-good",
+            "step-fail",
+            "step-transient",
+            "step-valid",
         ];
 
         for id in step_ids {
@@ -567,7 +631,10 @@ mod termination_signal_expansion_tests {
         execute_step(step_id.clone(), 5000).await.unwrap();
 
         let cancel_result = cancel_execution(step_id.clone()).await;
-        assert!(cancel_result.is_ok(), "Cancel after completion should be no-op");
+        assert!(
+            cancel_result.is_ok(),
+            "Cancel after completion should be no-op"
+        );
     }
 
     #[tokio::test]
@@ -606,7 +673,11 @@ mod termination_signal_expansion_tests {
             );
 
             let result = execute_step(step_id.clone(), 5000).await;
-            assert!(result.is_ok(), "Cycle {}: should succeed after cancel", cycle);
+            assert!(
+                result.is_ok(),
+                "Cycle {}: should succeed after cancel",
+                cycle
+            );
         }
     }
 
@@ -761,7 +832,10 @@ mod stale_completion_expansion_tests {
 
         clear_error(step_a.as_str());
 
-        assert!(get_last_error(&step_a).is_none(), "Error A should be cleared");
+        assert!(
+            get_last_error(&step_a).is_none(),
+            "Error A should be cleared"
+        );
         assert!(get_last_error(&step_b).is_some(), "Error B should persist");
     }
 
@@ -784,7 +858,10 @@ mod stale_completion_expansion_tests {
         assert!(get_last_error(&step_id).is_none());
 
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
-        assert!(matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })));
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::RetryExhausted { attempts: 3, .. })
+        ));
     }
 
     #[tokio::test]
@@ -793,7 +870,9 @@ mod stale_completion_expansion_tests {
         let step_a = StepId::new("step-transient".to_string());
         let step_b = StepId::new("step-1".to_string());
 
-        execute_step(step_a.clone(), 5000).await.expect_err("transient fails");
+        execute_step(step_a.clone(), 5000)
+            .await
+            .expect_err("transient fails");
         execute_step(step_b.clone(), 5000).await.unwrap();
 
         assert!(get_last_error(&step_a).is_some());
@@ -828,7 +907,10 @@ mod crash_injection_expansion_tests {
         reset_all_state();
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(result.is_ok(), "Should recover from orphaned executing state");
+        assert!(
+            result.is_ok(),
+            "Should recover from orphaned executing state"
+        );
     }
 
     #[tokio::test]
@@ -845,7 +927,10 @@ mod crash_injection_expansion_tests {
         );
 
         let result = execute_step(step_id.clone(), 5000).await;
-        assert!(result.is_ok(), "Should overwrite crash error on successful reexecution");
+        assert!(
+            result.is_ok(),
+            "Should overwrite crash error on successful reexecution"
+        );
         assert!(
             get_last_error(&step_id).is_none(),
             "Error should be cleared after successful execution"
@@ -873,9 +958,7 @@ mod crash_injection_expansion_tests {
 
         let handles: Vec<_> = steps
             .into_iter()
-            .map(|sid| {
-                tokio::spawn(async move { execute_step(sid, 5000).await })
-            })
+            .map(|sid| tokio::spawn(async move { execute_step(sid, 5000).await }))
             .collect();
 
         for handle in handles {
@@ -894,8 +977,14 @@ mod crash_injection_expansion_tests {
         let result = execute_step_with_retry(step_id.clone(), 5000, policy).await;
         let elapsed = start.elapsed();
 
-        assert!(matches!(result, Err(ExecuteNodeError::RetryExhausted { attempts: 5, .. })));
-        assert!(elapsed < Duration::from_secs(2), "Should not hang on crash during retry");
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::RetryExhausted { attempts: 5, .. })
+        ));
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "Should not hang on crash during retry"
+        );
     }
 
     #[tokio::test]
@@ -990,7 +1079,11 @@ mod crash_injection_expansion_tests {
             assert!(r_timeout.is_err(), "Cycle {}: should timeout", cycle);
 
             let r_success = execute_step(step_slow.clone(), 5000).await;
-            assert!(r_success.is_ok(), "Cycle {}: should succeed with adequate timeout", cycle);
+            assert!(
+                r_success.is_ok(),
+                "Cycle {}: should succeed with adequate timeout",
+                cycle
+            );
         }
     }
 
@@ -1115,23 +1208,30 @@ mod execution_status_edge_cases {
 
     #[test]
     fn execution_status_equality() {
+        assert_eq!(ExecutionStatus::Ready, ExecutionStatus::Ready);
         assert_eq!(
-            ExecutionStatus::Ready,
-            ExecutionStatus::Ready
-        );
-        assert_eq!(
-            ExecutionStatus::Cancelled { reason: "x".to_string() },
-            ExecutionStatus::Cancelled { reason: "x".to_string() }
+            ExecutionStatus::Cancelled {
+                reason: "x".to_string()
+            },
+            ExecutionStatus::Cancelled {
+                reason: "x".to_string()
+            }
         );
         assert_ne!(
-            ExecutionStatus::Cancelled { reason: "a".to_string() },
-            ExecutionStatus::Cancelled { reason: "b".to_string() }
+            ExecutionStatus::Cancelled {
+                reason: "a".to_string()
+            },
+            ExecutionStatus::Cancelled {
+                reason: "b".to_string()
+            }
         );
     }
 
     #[test]
     fn execution_status_completed_with_empty_output() {
-        let status = ExecutionStatus::Completed { output: String::new() };
+        let status = ExecutionStatus::Completed {
+            output: String::new(),
+        };
         assert!(!status.is_ready());
         let debug = format!("{:?}", status);
         assert!(debug.contains("Completed"));
@@ -1153,8 +1253,15 @@ mod execution_status_edge_cases {
         if let ExecutionStatus::Executing { elapsed_ms, .. } = status {
             std::thread::sleep(Duration::from_millis(10));
             let status2 = get_execution_status(&step_id);
-            if let ExecutionStatus::Executing { elapsed_ms: elapsed_ms2, .. } = status2 {
-                assert!(elapsed_ms2 >= elapsed_ms, "Elapsed should be monotonically increasing");
+            if let ExecutionStatus::Executing {
+                elapsed_ms: elapsed_ms2,
+                ..
+            } = status2
+            {
+                assert!(
+                    elapsed_ms2 >= elapsed_ms,
+                    "Elapsed should be monotonically increasing"
+                );
             }
         }
 

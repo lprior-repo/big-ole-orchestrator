@@ -2,7 +2,7 @@
 
 use std::collections::VecDeque;
 use vo_common::connection_pool::CircuitBreakerState;
-use vo_common::connection_pool::TimestampMs;
+use vo_types::TimestampMs;
 
 const FAILURE_WINDOW_MS: u64 = 30000;
 
@@ -382,7 +382,9 @@ mod circuit_breaker_tests {
         cb.transition_to(CircuitBreakerState::Open);
         // Set last transition exactly FAILURE_WINDOW_MS ago
         cb.last_transition_at = Some(TimestampMs::new_unchecked(
-            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS),
+            TimestampMs::now()
+                .as_u64()
+                .saturating_sub(FAILURE_WINDOW_MS),
         ));
 
         let result = cb.try_transition_to_half_open(TimestampMs::now());
@@ -398,7 +400,9 @@ mod circuit_breaker_tests {
         let mut cb = CircuitBreaker::new();
         cb.transition_to(CircuitBreakerState::Open);
         cb.last_transition_at = Some(TimestampMs::new_unchecked(
-            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS + 1),
+            TimestampMs::now()
+                .as_u64()
+                .saturating_sub(FAILURE_WINDOW_MS + 1),
         ));
 
         let result = cb.try_transition_to_half_open(TimestampMs::now());
@@ -414,7 +418,9 @@ mod circuit_breaker_tests {
         let mut cb = CircuitBreaker::new();
         cb.transition_to(CircuitBreakerState::Open);
         cb.last_transition_at = Some(TimestampMs::new_unchecked(
-            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS - 1),
+            TimestampMs::now()
+                .as_u64()
+                .saturating_sub(FAILURE_WINDOW_MS - 1),
         ));
 
         let result = cb.try_transition_to_half_open(TimestampMs::now());
@@ -452,7 +458,9 @@ mod circuit_breaker_tests {
 
         // Advance past timeout
         cb.last_transition_at = Some(TimestampMs::new_unchecked(
-            TimestampMs::now().as_u64().saturating_sub(FAILURE_WINDOW_MS + 1),
+            TimestampMs::now()
+                .as_u64()
+                .saturating_sub(FAILURE_WINDOW_MS + 1),
         ));
         assert!(cb.try_transition_to_half_open(TimestampMs::now()));
         assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);

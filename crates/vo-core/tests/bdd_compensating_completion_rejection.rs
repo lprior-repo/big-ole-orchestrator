@@ -4,8 +4,8 @@
 //! state, normal StepCompleted events are rejected to prevent stale normal work
 //! from interfering with saga compensation.
 
-use vo_types::state::{lifecycle::LifecycleState, TransitionEvent};
 use vo_types::state::transition::apply;
+use vo_types::state::{lifecycle::LifecycleState, TransitionEvent};
 use vo_types::LifecycleSuperstate;
 
 // ============================================================================
@@ -49,10 +49,7 @@ fn given_compensating_instance_when_normal_completion_arrives_then_completion_is
     // Verify Compensating is a valid superstate
     let compensating = LifecycleSuperstate::Compensating;
     assert!(
-        matches!(
-            compensating,
-            LifecycleSuperstate::Compensating
-        ),
+        matches!(compensating, LifecycleSuperstate::Compensating),
         "Compensating superstate must exist"
     );
 
@@ -92,20 +89,25 @@ fn given_compensating_instance_when_normal_completion_arrives_then_completion_is
         "CompleteStep from Pending should be rejected"
     );
 
-    let result_from_running = apply(LifecycleState::RunningDecision, TransitionEvent::CompleteStep);
+    let result_from_running = apply(
+        LifecycleState::RunningDecision,
+        TransitionEvent::CompleteStep,
+    );
     assert!(
         result_from_running.is_err(),
         "CompleteStep from RunningDecision should be rejected"
     );
 
-    let result_from_step_scheduled = apply(LifecycleState::StepScheduled, TransitionEvent::CompleteStep);
+    let result_from_step_scheduled =
+        apply(LifecycleState::StepScheduled, TransitionEvent::CompleteStep);
     assert!(
         result_from_step_scheduled.is_err(),
         "CompleteStep from StepScheduled should be rejected"
     );
 
     // CompleteStep IS valid from StepExecuting
-    let result_from_step_executing = apply(LifecycleState::StepExecuting, TransitionEvent::CompleteStep);
+    let result_from_step_executing =
+        apply(LifecycleState::StepExecuting, TransitionEvent::CompleteStep);
     assert!(
         result_from_step_executing.is_ok(),
         "CompleteStep from StepExecuting should succeed"
@@ -140,10 +142,7 @@ fn given_compensating_instance_when_normal_completion_rejected_then_state_unchan
     // THEN: Instance remains in Compensating state (no transition)
 
     // For now, verify that terminal states reject all transitions and remain unchanged
-    let terminal_states = [
-        LifecycleState::Completed,
-        LifecycleState::Cancelled,
-    ];
+    let terminal_states = [LifecycleState::Completed, LifecycleState::Cancelled];
 
     for state in terminal_states {
         let result = apply(state, TransitionEvent::CompleteStep);

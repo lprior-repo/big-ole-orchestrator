@@ -784,11 +784,13 @@ mod signal_correct_wait_state {
         .expect("valid wait record");
 
         // Signal epoch 0 should match (wait_epoch_for_instance returns ZERO)
-        let result_0 = vo_types::signal::signal_match(&signal_epoch_0, &wait, &lineage_id, Epoch::ZERO);
+        let result_0 =
+            vo_types::signal::signal_match(&signal_epoch_0, &wait, &lineage_id, Epoch::ZERO);
         assert!(result_0.is_matched(), "Signal epoch 0 should match");
 
         // Signal epoch 5 should NOT match
-        let result_5 = vo_types::signal::signal_match(&signal_epoch_5, &wait, &lineage_id, Epoch::ZERO);
+        let result_5 =
+            vo_types::signal::signal_match(&signal_epoch_5, &wait, &lineage_id, Epoch::ZERO);
         assert!(result_5.is_mismatch(), "Signal epoch 5 should NOT match");
     }
 
@@ -863,7 +865,8 @@ mod signal_correct_wait_state {
         );
 
         // Rejection signal should NOT match
-        let result_reject = vo_types::signal::signal_match(&signal_key_reject, &wait, &lineage_id, Epoch::ZERO);
+        let result_reject =
+            vo_types::signal::signal_match(&signal_key_reject, &wait, &lineage_id, Epoch::ZERO);
         assert!(
             result_reject.is_mismatch(),
             "Rejection signal should NOT match approval wait"

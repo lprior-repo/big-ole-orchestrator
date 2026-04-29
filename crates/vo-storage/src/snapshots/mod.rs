@@ -1,5 +1,4 @@
 use crate::codec::StorageError;
-use fjall::PartitionHandle;
 use serde::{Deserialize, Serialize};
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
@@ -49,8 +48,8 @@ impl SnapshotPolicy {
 }
 
 pub struct AtomicSnapshotWriter<'a> {
-    keyspace: &'a fjall::Keyspace,
-    snapshot_partition: PartitionHandle,
+    db: &'a fjall::Database,
+    snapshot_partition: fjall::Keyspace,
 }
 
 impl<'a> AtomicSnapshotWriter<'a> {
@@ -59,12 +58,12 @@ impl<'a> AtomicSnapshotWriter<'a> {
     /// # Errors
     ///
     /// Returns `StorageError::Storage` if the snapshots partition cannot be opened.
-    pub fn new(keyspace: &'a fjall::Keyspace) -> Result<Self, StorageError> {
-        let snapshot_partition = keyspace
-            .open_partition("snapshots", fjall::PartitionCreateOptions::default())
+    pub fn new(db: &'a fjall::Database) -> Result<Self, StorageError> {
+        let snapshot_partition = db
+            .keyspace("snapshots", || fjall::KeyspaceCreateOptions::default())
             .map_err(|_| StorageError::Storage)?;
         Ok(Self {
-            keyspace,
+            db,
             snapshot_partition,
         })
     }
@@ -77,7 +76,7 @@ impl<'a> AtomicSnapshotWriter<'a> {
     /// Returns `StorageError::SerializationFailed` if serialization fails.
     pub fn write_snapshot(
         &self,
-        batch: &mut fjall::Batch,
+        batch: &mut fjall::OwnedWriteBatch,
         instance_id: InstanceId,
         sequence: u64,
         state: &InstanceState,
@@ -109,7 +108,7 @@ impl<'a> AtomicSnapshotWriter<'a> {
         sequence: u64,
         state: &InstanceState,
     ) -> Result<(), StorageError> {
-        let mut batch = self.keyspace.batch();
+        let mut batch = self.db.batch();
         self.write_snapshot(&mut batch, instance_id, sequence, state)?;
         batch.commit().map_err(|_| StorageError::BatchCommitFailed)
     }
@@ -177,7 +176,7 @@ impl RecoveryThrottle {
 /// Returns `StorageError::FjallError` if the storage engine fails.
 /// Returns `StorageError::InvalidKey` if a stored key is not exactly 24 bytes.
 pub fn compact_snapshots(
-    partition: &PartitionHandle,
+    partition: &fjall::Keyspace,
     instance_id: &InstanceId,
     keep_last_n: u64,
 ) -> Result<u64, StorageError> {
@@ -186,7 +185,7 @@ pub fn compact_snapshots(
         .map_err(|_| StorageError::CorruptKey)?;
     let mut snapshots: Vec<(u64, Vec<u8>)> = Vec::new();
     for item in partition.prefix(&prefix) {
-        let (key, value) = item.map_err(|_| StorageError::FjallError)?;
+        let (key, value) = item.into_inner().map_err(|_| StorageError::FjallError)?;
         let (_, seq) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
         snapshots.push((seq, value.to_vec()));
     }
@@ -213,7 +212,7 @@ pub fn compact_snapshots(
 /// Returns `StorageError::FjallError` if the storage engine fails.
 /// Returns `StorageError::InvalidKey` if a stored key is not exactly 24 bytes.
 pub fn get_all_snapshot_sequences(
-    partition: &PartitionHandle,
+    partition: &fjall::Keyspace,
     instance_id: &InstanceId,
 ) -> Result<Vec<u64>, StorageError> {
     let prefix = instance_id
@@ -221,7 +220,7 @@ pub fn get_all_snapshot_sequences(
         .map_err(|_| StorageError::CorruptKey)?;
     let mut sequences = Vec::new();
     for item in partition.prefix(&prefix) {
-        let (key, _) = item.map_err(|_| StorageError::FjallError)?;
+        let (key, _) = item.into_inner().map_err(|_| StorageError::FjallError)?;
         let (_, seq) = decode_snapshot_key(&key).map_err(|_| StorageError::InvalidKey)?;
         sequences.push(seq);
     }
@@ -240,7 +239,7 @@ pub fn get_all_snapshot_sequences(
 /// Returns `StorageError::FjallError` if the storage engine fails.
 #[allow(clippy::needless_pass_by_value)]
 pub fn snapshot_write(
-    partition: &PartitionHandle,
+    partition: &fjall::Keyspace,
     instance_id: InstanceId,
     sequence: u64,
     state: &InstanceState,
@@ -269,7 +268,7 @@ pub fn snapshot_write(
 /// Returns `StorageError::DeserializationFailed` if the stored value is not valid JSON
 /// or checksum verification fails.
 pub fn snapshot_load_latest(
-    partition: &PartitionHandle,
+    partition: &fjall::Keyspace,
     instance_id: &InstanceId,
 ) -> Result<Option<(u64, InstanceState)>, StorageError> {
     let prefix = instance_id
@@ -279,8 +278,9 @@ pub fn snapshot_load_latest(
     partition
         .prefix(&prefix)
         .next_back()
-        .map_or(Ok(None), |result| {
-            result
+        .map_or(Ok(None), |guard| {
+            guard
+                .into_inner()
                 .map_err(|_| StorageError::FjallError)
                 .and_then(|(key, value)| {
                     decode_snapshot_key(&key).and_then(|(_, sequence)| {

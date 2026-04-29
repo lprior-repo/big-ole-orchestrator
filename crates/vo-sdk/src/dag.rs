@@ -7,7 +7,7 @@
 use std::any::Any;
 
 use thiserror::Error;
-use vo_types::{NodeKind, NodeName, WorkflowName};
+use vo_types::{GuaranteeClass, NodeKind, NodeName, WorkflowName};
 
 use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;

@@ -1,7 +1,7 @@
 #![allow(clippy::redundant_pattern_matching)]
 use common::make_temp_dir;
-use vo_cli::{CheckCategory, DoctorConfig, DoctorError};
 use vo_cli::commands::rebuild::{RebuildConfig, RebuildError, RebuildStatus};
+use vo_cli::{CheckCategory, DoctorConfig, DoctorError};
 
 #[test]
 fn doctor_fails_without_vo_dir() {

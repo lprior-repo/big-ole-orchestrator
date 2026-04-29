@@ -153,10 +153,7 @@ fn snapshot_during_concurrent_mutations_is_consistent_point_in_time() {
     match loaded_5 {
         CompatSnapshotLoad::Loaded { sequence, state } => {
             assert_eq!(sequence, 5, "snapshot sequence must be 5");
-            assert_eq!(
-                state.counter, 5,
-                "snapshot counter must be 5 at sequence 5"
-            );
+            assert_eq!(state.counter, 5, "snapshot counter must be 5 at sequence 5");
         }
         CompatSnapshotLoad::Discarded { .. } => {
             panic!("snapshot at 5 should not be discarded");
@@ -188,7 +185,9 @@ fn snapshot_during_concurrent_mutations_is_consistent_point_in_time() {
         for (snap_seq, counter_val) in sequences {
             // Wait a bit to allow some events to accumulate
             std::thread::sleep(std::time::Duration::from_micros(100));
-            let state = InstanceState { counter: counter_val };
+            let state = InstanceState {
+                counter: counter_val,
+            };
             snapshot_write(&snaps_clone, id_clone.clone(), snap_seq, &state).unwrap();
             snapshot_count.fetch_add(1, Ordering::SeqCst);
         }
@@ -219,10 +218,7 @@ fn snapshot_during_concurrent_mutations_is_consistent_point_in_time() {
                 sequence, 20,
                 "latest snapshot should be at seq 20 (highest written)"
             );
-            assert_eq!(
-                state.counter, 20,
-                "latest snapshot should have counter=20"
-            );
+            assert_eq!(state.counter, 20, "latest snapshot should have counter=20");
         }
         CompatSnapshotLoad::Discarded { .. } => {
             panic!("snapshot should not be discarded");

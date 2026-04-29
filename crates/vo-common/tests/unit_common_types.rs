@@ -5,8 +5,8 @@
 //! - VoError From conversions
 //! - WorkflowEvent and EventDedup through public API
 
-use vo_common::{EventId, VoError, WorkflowEvent};
 use vo_common::types::TimestampMs;
+use vo_common::{EventId, VoError, WorkflowEvent};
 
 #[cfg(test)]
 mod timestamp_ms_tests {
@@ -147,7 +147,7 @@ mod vo_error_from_tests {
 #[cfg(test)]
 mod workflow_event_public_tests {
     use super::*;
-    use vo_common::events::{EventDedup, DuplicateResult};
+    use vo_common::events::{DuplicateResult, EventDedup};
 
     fn make_event(event_id: &str, timer_id: &str, timestamp_ms: u64) -> WorkflowEvent {
         WorkflowEvent::TimerFired {
@@ -184,7 +184,10 @@ mod workflow_event_public_tests {
     #[test]
     fn event_dedup_check_and_track_new() {
         let mut dedup = EventDedup::new();
-        assert_eq!(dedup.check_and_track("evt-new".into()), DuplicateResult::New);
+        assert_eq!(
+            dedup.check_and_track("evt-new".into()),
+            DuplicateResult::New
+        );
         assert_eq!(dedup.len(), 1);
     }
 

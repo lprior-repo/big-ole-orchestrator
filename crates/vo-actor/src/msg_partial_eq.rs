@@ -2,8 +2,9 @@
 
 use crate::{
     control_msgs::ControlActorMessage, instance_msgs::InstanceActorMessage,
-    signal_messages::NodeName, InstanceId, SequenceNumber, WorkflowName,
+    signal_messages::NodeName,
 };
+use vo_types::{InstanceId, SequenceNumber, WorkflowName};
 
 mod partial_eq_instance_actor_message {
     use super::*;

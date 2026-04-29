@@ -20,7 +20,8 @@ fn write_failure_user_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
+    let written: Value =
+        serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "failure");
     assert_eq!(written["kind"], "User");
     assert_eq!(written["message"], "bad input");
@@ -39,7 +40,8 @@ fn write_failure_system_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
+    let written: Value =
+        serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "System");
     assert_eq!(written["message"], "internal error");
 }
@@ -57,7 +59,8 @@ fn write_failure_timeout_kind() {
     );
 
     assert_eq!(result, Ok(()));
-    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
+    let written: Value =
+        serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["kind"], "Timeout");
     assert_eq!(written["message"], "timed out");
 }

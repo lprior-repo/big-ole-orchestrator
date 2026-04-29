@@ -118,7 +118,12 @@ impl VersionPinnedInstance {
         if hash.as_str().len() < 64 {
             return Err(WorkflowVersionError::HashTooShort);
         }
-        let binary_path = format!("{}/{}/{}", version_base_path, hash.as_str(), workflow_name.as_str());
+        let binary_path = format!(
+            "{}/{}/{}",
+            version_base_path,
+            hash.as_str(),
+            workflow_name.as_str()
+        );
         Ok(Self {
             instance_id,
             workflow_name,
@@ -217,12 +222,12 @@ impl WorkflowVersionRegistry {
         created_at: TimestampMs,
         version_base_path: &str,
     ) -> Result<VersionPinnedInstance, VersionPinError> {
-        let hash = self
-            .active_versions
-            .get(workflow_name)
-            .ok_or(VersionPinError::NoActiveVersion {
-                workflow_name: workflow_name.as_str().to_string(),
-            })?;
+        let hash =
+            self.active_versions
+                .get(workflow_name)
+                .ok_or(VersionPinError::NoActiveVersion {
+                    workflow_name: workflow_name.as_str().to_string(),
+                })?;
 
         VersionPinnedInstance::new(
             instance_id,
@@ -245,9 +250,7 @@ impl WorkflowVersionRegistry {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VersionPinError {
     /// Workflow has no active version registered.
-    NoActiveVersion {
-        workflow_name: String,
-    },
+    NoActiveVersion { workflow_name: String },
     /// Hash is shorter than 64 hex characters.
     HashTooShort,
 }
@@ -267,7 +270,7 @@ impl std::error::Error for VersionPinError {}
 
 #[cfg(test)]
 mod tests {
-    use vo_types::{BinaryHash, TimestampMs, VERSION_BASE_PATH, WorkflowName};
+    use vo_types::{BinaryHash, TimestampMs, WorkflowName, VERSION_BASE_PATH};
     #[test]
     fn new_creates_version_with_correct_binary_path_format() {
         let hash =
@@ -276,7 +279,8 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let version = super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
+        let version =
+            super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
 
         let expected = format!("{}/{}/{}", VERSION_BASE_PATH, hash.as_str(), name.as_str());
         assert_eq!(version.binary_path(), expected);
@@ -303,7 +307,8 @@ mod tests {
         let name = WorkflowName::parse("my-workflow").unwrap();
         let ts = TimestampMs::try_from(1712200000000u64).unwrap();
 
-        let original = super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
+        let original =
+            super::WorkflowVersion::new(name.clone(), hash.clone(), ts, VERSION_BASE_PATH).unwrap();
 
         let json = serde_json::to_string(&original).unwrap();
         let deserialized: super::WorkflowVersion = serde_json::from_str(&json).unwrap();

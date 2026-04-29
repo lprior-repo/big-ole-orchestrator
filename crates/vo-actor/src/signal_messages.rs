@@ -1,5 +1,6 @@
+use vo_types::InstanceId;
+pub use vo_types::TimestampMs;
 pub use vo_types::{BinaryHash, NodeName};
-use vo_types::{InstanceId, TimestampMs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LifecycleState {

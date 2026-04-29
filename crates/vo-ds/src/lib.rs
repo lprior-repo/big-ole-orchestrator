@@ -18,14 +18,15 @@
 //! - **Quadtree** — 2D spatial index
 //! - **NonEmptyVec** — `Vec<T>` guaranteed non-empty
 
-pub mod btree;
 pub mod binomial_heap;
+pub mod btree;
 pub mod clique_tree;
 pub mod euler_tour_tree;
 pub mod fenwick;
 pub mod interval_tree;
 pub mod kdtree;
 pub mod link_cut_tree;
+pub mod node;
 pub mod non_empty_vec;
 pub mod octree;
 pub mod pairing_heap;

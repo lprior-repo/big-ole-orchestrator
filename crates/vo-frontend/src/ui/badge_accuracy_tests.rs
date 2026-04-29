@@ -19,7 +19,8 @@ fn given_pure_node_kind_when_displaying_badge_then_shows_flow_category() {
 
 #[test]
 fn given_managed_effect_kind_when_displaying_badge_then_shows_durable_category() {
-    let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
+    let node =
+        Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
     assert_eq!(node.category, NodeCategory::Durable);
 }
 
@@ -47,7 +48,8 @@ fn given_unsafe_kind_when_displaying_badge_then_shows_flow_category() {
 
 #[test]
 fn given_node_when_kind_changes_from_pure_to_managed_effect_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
     assert_eq!(node.category, NodeCategory::Flow);
 
     node.set_kind(NodeKind::ManagedEffect);
@@ -56,7 +58,8 @@ fn given_node_when_kind_changes_from_pure_to_managed_effect_then_category_update
 
 #[test]
 fn given_node_when_kind_changes_from_wait_to_signal_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "test".to_string(), NodeKind::Wait).expect("valid name");
     assert_eq!(node.category, NodeCategory::Timing);
 
     node.set_kind(NodeKind::Signal);
@@ -65,7 +68,8 @@ fn given_node_when_kind_changes_from_wait_to_signal_then_category_updates() {
 
 #[test]
 fn given_node_when_kind_changes_from_managed_effect_to_unsafe_then_category_updates() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "test".to_string(), NodeKind::ManagedEffect).expect("valid name");
     assert_eq!(node.category, NodeCategory::Durable);
 
     node.set_kind(NodeKind::Unsafe);
@@ -78,7 +82,8 @@ fn given_node_when_kind_changes_from_managed_effect_to_unsafe_then_category_upda
 
 #[test]
 fn given_sequential_kind_changes_then_each_category_matches_current_kind() {
-    let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+    let mut node =
+        Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
 
     // Sequential changes: Pure -> ManagedEffect -> Wait -> Signal -> Unsafe -> Pure
     let sequence = [
@@ -160,20 +165,32 @@ fn given_workflow_with_multiple_nodes_when_displaying_all_badges_then_all_catego
 #[test]
 fn given_exact_once_when_badge_class_then_uses_emerald_green() {
     let cls = GuaranteeClass::ExactOnce.badge_class();
-    assert!(cls.contains("emerald"), "exact-once badge must use emerald, got: {cls}");
-    assert!(cls.contains("border-"), "badge class must include border, got: {cls}");
+    assert!(
+        cls.contains("emerald"),
+        "exact-once badge must use emerald, got: {cls}"
+    );
+    assert!(
+        cls.contains("border-"),
+        "badge class must include border, got: {cls}"
+    );
 }
 
 #[test]
 fn given_at_least_once_when_badge_class_then_uses_amber() {
     let cls = GuaranteeClass::AtLeastOnce.badge_class();
-    assert!(cls.contains("amber"), "at-least-once badge must use amber, got: {cls}");
+    assert!(
+        cls.contains("amber"),
+        "at-least-once badge must use amber, got: {cls}"
+    );
 }
 
 #[test]
 fn given_best_effort_when_badge_class_then_uses_red() {
     let cls = GuaranteeClass::BestEffort.badge_class();
-    assert!(cls.contains("red"), "best-effort badge must use red, got: {cls}");
+    assert!(
+        cls.contains("red"),
+        "best-effort badge must use red, got: {cls}"
+    );
 }
 
 #[test]
@@ -182,9 +199,15 @@ fn guarantee_badge_classes_are_all_distinct() {
     let atleast = GuaranteeClass::AtLeastOnce.badge_class();
     let best = GuaranteeClass::BestEffort.badge_class();
 
-    assert_ne!(exact, atleast, "exact-once and at-least-once badges must differ");
+    assert_ne!(
+        exact, atleast,
+        "exact-once and at-least-once badges must differ"
+    );
     assert_ne!(exact, best, "exact-once and best-effort badges must differ");
-    assert_ne!(atleast, best, "at-least-once and best-effort badges must differ");
+    assert_ne!(
+        atleast, best,
+        "at-least-once and best-effort badges must differ"
+    );
 }
 
 #[test]
@@ -193,7 +216,10 @@ fn guarantee_icons_are_all_distinct_shield_variants() {
     let atleast = GuaranteeClass::AtLeastOnce.icon();
     let best = GuaranteeClass::BestEffort.icon();
 
-    assert!(exact.contains("shield"), "icon must be shield variant, got: {exact}");
+    assert!(
+        exact.contains("shield"),
+        "icon must be shield variant, got: {exact}"
+    );
     assert_ne!(exact, atleast);
     assert_ne!(exact, best);
     assert_ne!(atleast, best);

@@ -272,7 +272,10 @@ mod serialization_bomb {
     fn timestamp_diff_distinguishes_replay() {
         let e1 = make_event("same-id", "same-id", 100);
         let e2 = make_event("same-id", "same-id", 101);
-        assert_ne!(e1, e2, "replayed event with different timestamp must be distinct");
+        assert_ne!(
+            e1, e2,
+            "replayed event with different timestamp must be distinct"
+        );
     }
 
     #[test]

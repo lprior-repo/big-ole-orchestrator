@@ -1,4 +1,6 @@
-use vo_types::credentials::{AccessPolicy, Permission, Principal};
+use crate::vault::Permission;
+use vo_types::credentials::AccessPolicy;
+use vo_types::credentials::Principal;
 
 pub struct AccessChecker<'a> {
     policy: &'a AccessPolicy,

@@ -19,10 +19,10 @@
 
 use std::collections::HashMap;
 
-use vo_types::CommandEnvelope;
+use vo_types::command_metadata::CommandMetadata;
 use vo_types::events::envelope::EventEnvelope;
 use vo_types::events::metadata::EventMetadata;
-use vo_types::command_metadata::CommandMetadata;
+use vo_types::CommandEnvelope;
 use vo_types::{IdempotencyKey, Issuer, TimestampMs};
 
 fn make_cmd_meta(
@@ -103,7 +103,8 @@ fn lifecycle_workflow_start_links_to_trigger() {
         Issuer::System,
     );
 
-    let trigger_event = make_event_envelope("inst-workflow-1", 1, trigger_meta, "WorkflowTriggered");
+    let trigger_event =
+        make_event_envelope("inst-workflow-1", 1, trigger_meta, "WorkflowTriggered");
     let start_event = make_event_envelope("inst-workflow-1", 2, start_meta, "WorkflowStarted");
 
     let start_causation = start_event
@@ -182,7 +183,8 @@ fn lifecycle_timer_fired_links_to_wait_command() {
     let wait_event = make_event_envelope("inst-workflow-1", 10, wait_meta, "WaitForTimer");
 
     // Timer fires - child of wait command
-    let timer_fired_meta = make_cmd_meta("cmd-timer-fired-1", corr_id, "cmd-wait-1", Issuer::System);
+    let timer_fired_meta =
+        make_cmd_meta("cmd-timer-fired-1", corr_id, "cmd-wait-1", Issuer::System);
     let timer_event = make_event_envelope("inst-workflow-1", 11, timer_fired_meta, "TimerFired");
 
     let timer_causation = timer_event
@@ -217,7 +219,12 @@ fn lifecycle_signal_handler_links_to_signal() {
     let signal_event = make_event_envelope("inst-workflow-1", 20, signal_meta, "SignalReceived");
 
     // Signal is processed - child of signal receipt
-    let process_meta = make_cmd_meta("cmd-process-signal-1", corr_id, "cmd-signal-1", Issuer::System);
+    let process_meta = make_cmd_meta(
+        "cmd-process-signal-1",
+        corr_id,
+        "cmd-signal-1",
+        Issuer::System,
+    );
     let process_event = make_event_envelope("inst-workflow-1", 21, process_meta, "SignalProcessed");
 
     let process_causation = process_event
@@ -252,7 +259,12 @@ fn lifecycle_retry_preserves_causation_to_original_command() {
     let _original_event = make_event_envelope("inst-workflow-1", 30, original_meta, "StepFailed");
 
     // Retry command - its causation still links to the parent step, not the failure
-    let retry_meta = make_cmd_meta("cmd-step-retry-1", corr_id, "cmd-step-1", Issuer::RecoveryLoop);
+    let retry_meta = make_cmd_meta(
+        "cmd-step-retry-1",
+        corr_id,
+        "cmd-step-1",
+        Issuer::RecoveryLoop,
+    );
     let retry_event = make_event_envelope("inst-workflow-1", 31, retry_meta, "StepScheduled");
 
     // The retry's causation points to the workflow parent (step-1), NOT the failed command
@@ -390,7 +402,12 @@ fn lifecycle_correlation_id_enables_event_filtering() {
         make_event_envelope(
             instance_id,
             1,
-            make_cmd_meta("cmd-trigger-A", target_corr, "external-A", Issuer::ApiClient),
+            make_cmd_meta(
+                "cmd-trigger-A",
+                target_corr,
+                "external-A",
+                Issuer::ApiClient,
+            ),
             "WorkflowTriggered",
         ),
         make_event_envelope(
@@ -426,7 +443,11 @@ fn lifecycle_correlation_id_enables_event_filtering() {
         })
         .collect();
 
-    assert_eq!(filtered.len(), 2, "Should find exactly 2 events for target correlation");
+    assert_eq!(
+        filtered.len(),
+        2,
+        "Should find exactly 2 events for target correlation"
+    );
     assert_eq!(
         filtered[0]
             .metadata
@@ -567,7 +588,14 @@ fn lifecycle_all_issuer_types_can_appear_in_causation_chain() {
 
     let causations: Vec<&str> = events
         .iter()
-        .map(|e| e.metadata.command_metadata.as_ref().unwrap().causation_id.as_str())
+        .map(|e| {
+            e.metadata
+                .command_metadata
+                .as_ref()
+                .unwrap()
+                .causation_id
+                .as_str()
+        })
         .collect();
 
     assert_eq!(issuers[0], Issuer::ApiClient);

@@ -35,7 +35,10 @@ fn executor_with_max_backoff_accepts_valid_configuration() {
 #[test]
 fn executor_with_max_backoff_rejects_too_small_max() {
     let err = RetryPolicy::with_max_backoff(3, 500, 2.0, 100).unwrap_err();
-    assert!(matches!(err, RetryPolicyError::MaxBackoffTooSmall { max: 100, ms: 500 }));
+    assert!(matches!(
+        err,
+        RetryPolicyError::MaxBackoffTooSmall { max: 100, ms: 500 }
+    ));
 }
 
 #[test]
@@ -58,8 +61,16 @@ fn executor_with_max_backoff_rejects_nan_multiplier() {
 fn executor_retry_policy_error_max_backoff_too_small_display() {
     let err = RetryPolicyError::MaxBackoffTooSmall { max: 50, ms: 200 };
     let display = err.to_string();
-    assert!(display.contains("50"), "Display should contain max: got '{}'", display);
-    assert!(display.contains("200"), "Display should contain ms: got '{}'", display);
+    assert!(
+        display.contains("50"),
+        "Display should contain max: got '{}'",
+        display
+    );
+    assert!(
+        display.contains("200"),
+        "Display should contain ms: got '{}'",
+        display
+    );
 }
 
 // ============================================================================
@@ -102,8 +113,15 @@ async fn retry_with_zero_backoff_ms_completes_quickly() {
     .await;
     let elapsed = start.elapsed().as_millis() as u64;
     let err = result.unwrap_err();
-    assert!(matches!(err, vo_executor::ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
-    assert!(elapsed < 50, "Zero backoff should complete quickly, got {}ms", elapsed);
+    assert!(matches!(
+        err,
+        vo_executor::ExecuteNodeError::RetryExhausted { attempts: 3, .. }
+    ));
+    assert!(
+        elapsed < 50,
+        "Zero backoff should complete quickly, got {}ms",
+        elapsed
+    );
 }
 
 // ============================================================================
@@ -125,8 +143,15 @@ async fn retry_timing_with_max_backoff_cap() {
     .await;
     let elapsed = start.elapsed().as_millis() as u64;
     let err = result.unwrap_err();
-    assert!(matches!(err, vo_executor::ExecuteNodeError::RetryExhausted { attempts: 3, .. }));
-    assert!(elapsed >= 500, "Expected >= 550ms with capped backoff, got {}ms", elapsed);
+    assert!(matches!(
+        err,
+        vo_executor::ExecuteNodeError::RetryExhausted { attempts: 3, .. }
+    ));
+    assert!(
+        elapsed >= 500,
+        "Expected >= 550ms with capped backoff, got {}ms",
+        elapsed
+    );
 }
 
 // ============================================================================
@@ -145,7 +170,13 @@ async fn retry_exhausted_last_error_is_transient() {
     match result.unwrap_err() {
         vo_executor::ExecuteNodeError::RetryExhausted { last_error, .. } => {
             assert!(
-                matches!(*last_error, vo_executor::ExecuteNodeError::TransientError { recoverable: true, .. }),
+                matches!(
+                    *last_error,
+                    vo_executor::ExecuteNodeError::TransientError {
+                        recoverable: true,
+                        ..
+                    }
+                ),
                 "last_error should be TransientError with recoverable=true"
             );
         }
@@ -174,7 +205,11 @@ async fn retry_with_single_attempt_returns_immediately() {
         }
         other => panic!("Expected RetryExhausted, got {:?}", other),
     }
-    assert!(elapsed < 50, "max_attempts=1 should not sleep, got {}ms", elapsed);
+    assert!(
+        elapsed < 50,
+        "max_attempts=1 should not sleep, got {}ms",
+        elapsed
+    );
 }
 
 // ============================================================================
@@ -189,7 +224,10 @@ async fn flaky_retry_stores_transient_error() {
     let error = vo_executor::get_last_error(&step_id);
     assert!(error.is_some(), "Error should be stored for step-flaky");
     match error.unwrap() {
-        vo_executor::ExecuteNodeError::TransientError { reason, recoverable } => {
+        vo_executor::ExecuteNodeError::TransientError {
+            reason,
+            recoverable,
+        } => {
             assert!(reason.contains("network timeout"));
             assert!(recoverable);
         }
@@ -232,7 +270,10 @@ async fn nonexistent_step_returns_step_not_found() {
     )
     .await;
     assert!(
-        matches!(result, Err(vo_executor::ExecuteNodeError::StepNotFound { .. })),
+        matches!(
+            result,
+            Err(vo_executor::ExecuteNodeError::StepNotFound { .. })
+        ),
         "Expected StepNotFound, got {:?}",
         result
     );
@@ -292,7 +333,10 @@ async fn mt_07_max_attempts_2_exactly_one_sleep() {
     .await;
     let elapsed = start.elapsed().as_millis() as u64;
     let err = result.unwrap_err();
-    assert!(matches!(err, vo_executor::ExecuteNodeError::RetryExhausted { attempts: 2, .. }));
+    assert!(matches!(
+        err,
+        vo_executor::ExecuteNodeError::RetryExhausted { attempts: 2, .. }
+    ));
     // With 1 sleep: ~100ms. With 2 sleeps (mutant): ~300ms.
     assert!(
         (80..200).contains(&elapsed),
@@ -321,6 +365,13 @@ async fn mt_08_max_attempts_2_enters_retry_loop() {
     let err = result.unwrap_err();
     // If mutant: attempts would be 1 and elapsed ~0ms
     // Correct: attempts=2 and elapsed ~100ms (1 sleep)
-    assert!(matches!(err, vo_executor::ExecuteNodeError::RetryExhausted { attempts: 2, .. }));
-    assert!(elapsed >= 80, "Should have 1 sleep (~100ms), got {}ms", elapsed);
+    assert!(matches!(
+        err,
+        vo_executor::ExecuteNodeError::RetryExhausted { attempts: 2, .. }
+    ));
+    assert!(
+        elapsed >= 80,
+        "Should have 1 sleep (~100ms), got {}ms",
+        elapsed
+    );
 }

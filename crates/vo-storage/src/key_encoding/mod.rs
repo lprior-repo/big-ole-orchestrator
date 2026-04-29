@@ -311,12 +311,13 @@ pub fn decode_timer_key(bytes: &[u8]) -> Result<(u64, InstanceId), KeyEncodingEr
             actual: bytes.len(),
         });
     }
-    let iid_bytes: [u8; 16] = bytes[10..10 + iid_len]
-        .try_into()
-        .map_err(|_| KeyEncodingError::InvalidLength {
-            expected: 16,
-            actual: iid_len,
-        })?;
+    let iid_bytes: [u8; 16] =
+        bytes[10..10 + iid_len]
+            .try_into()
+            .map_err(|_| KeyEncodingError::InvalidLength {
+                expected: 16,
+                actual: iid_len,
+            })?;
     Ok((
         u64::from_be_bytes(ts_bytes),
         InstanceId::from_bytes(iid_bytes),

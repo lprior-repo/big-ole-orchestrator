@@ -681,7 +681,10 @@ mod priority_inheritance_tests {
             .copied()
             .collect();
 
-        assert_eq!(never_starved, vec![WorkloadClass::Live, WorkloadClass::Recovery]);
+        assert_eq!(
+            never_starved,
+            vec![WorkloadClass::Live, WorkloadClass::Recovery]
+        );
 
         // These are exactly the classes that survive Critical mode
         for class in &never_starved {

@@ -1,12 +1,12 @@
 //! ControlActor Cancel and Resume test suite.
 
+use crate::control_actor::ControlActor;
 use crate::signal_messages::{
     BinaryHash, CancelError, ContinueAsNewError, InstanceResumed, LifecycleState, NodeName,
     ResumeError, SecretId, SignalAccepted, SignalName, SignalPayload, SignalStorage,
     SignalWorkQueue, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued,
 };
-use crate::{InstanceId};
-use crate::control_actor::ControlActor;
+use crate::InstanceId;
 
 // ========================================================================
 // Behavior: cancel_on_running_instance_emits_cancelrequested_then_workflowcancelled_in_order
@@ -46,7 +46,9 @@ async fn cancel_returns_alreadyterminal_error_when_instance_is_completed() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00C000").unwrap();
     let actor = ControlActor::new();
     match actor.handle_cancel(instance_id) {
-        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Completed, .. }) => {}
+        Err(CancelError::AlreadyTerminal {
+            current_state: LifecycleState::Completed,
+        }) => {}
         other => panic!("Expected AlreadyTerminal(Completed), got {:?}", other),
     }
 }
@@ -56,7 +58,9 @@ async fn cancel_returns_alreadyterminal_error_when_instance_is_cancelled() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00X000").unwrap();
     let actor = ControlActor::new();
     match actor.handle_cancel(instance_id) {
-        Err(CancelError::AlreadyTerminal { current_state: LifecycleState::Cancelled, .. }) => {}
+        Err(CancelError::AlreadyTerminal {
+            current_state: LifecycleState::Cancelled,
+        }) => {}
         other => panic!("Expected AlreadyTerminal(Cancelled), got {:?}", other),
     }
 }
@@ -103,7 +107,7 @@ async fn cancel_returns_storageerror_when_event_append_fails() {
 async fn resume_on_failed_instance_emits_instanceresumed_and_actor_re_enters_decision() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9B00F000").unwrap();
     let actor = ControlActor::new();
-    let instance_resumed = actor.handle_resume(instance_id.clone()).unwrap();
+    let instance_resumed = actor.handle_resume(instance_id).unwrap();
     assert_eq!(instance_resumed.instance_id, instance_id);
     assert_ne!(
         instance_resumed.previous_binary_hash,
@@ -141,7 +145,10 @@ async fn resume_returns_invalidlifecyclestate_error_when_instance_is_running() {
             assert_eq!(actual, LifecycleState::Running);
             assert_eq!(expected, LifecycleState::Failed);
         }
-        other => panic!("Expected InvalidLifecycleState(Running, Failed), got {:?}", other),
+        other => panic!(
+            "Expected InvalidLifecycleState(Running, Failed), got {:?}",
+            other
+        ),
     }
 }
 
@@ -154,7 +161,10 @@ async fn resume_returns_invalidlifecyclestate_error_when_instance_is_completed()
             assert_eq!(actual, LifecycleState::Completed);
             assert_eq!(expected, LifecycleState::Failed);
         }
-        other => panic!("Expected InvalidLifecycleState(Completed, Failed), got {:?}", other),
+        other => panic!(
+            "Expected InvalidLifecycleState(Completed, Failed), got {:?}",
+            other
+        ),
     }
 }
 
@@ -167,7 +177,10 @@ async fn resume_returns_invalidlifecyclestate_error_when_instance_is_cancelled()
             assert_eq!(actual, LifecycleState::Cancelled);
             assert_eq!(expected, LifecycleState::Failed);
         }
-        other => panic!("Expected InvalidLifecycleState(Cancelled, Failed), got {:?}", other),
+        other => panic!(
+            "Expected InvalidLifecycleState(Cancelled, Failed), got {:?}",
+            other
+        ),
     }
 }
 
@@ -176,7 +189,9 @@ async fn resume_returns_missingsecrets_error_when_secrets_absent() {
     let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BM0F000").unwrap();
     let actor = ControlActor::new();
     match actor.handle_resume(instance_id) {
-        Err(ResumeError::MissingSecrets { missing_secret_ids, .. }) => {
+        Err(ResumeError::MissingSecrets {
+            missing_secret_ids, ..
+        }) => {
             assert!(!missing_secret_ids.is_empty());
         }
         other => panic!("Expected MissingSecrets, got {:?}", other),
@@ -238,7 +253,8 @@ async fn resume_error_precondition_classification_is_correct() {
     use ResumeError::*;
     let precondition_errors: Vec<ResumeError> = vec![
         InvalidLifecycleState {
-            actual: LifecycleState::Running, expected: LifecycleState::Failed,
+            actual: LifecycleState::Running,
+            expected: LifecycleState::Failed,
         },
         MissingSecrets {
             instance_id: InstanceId::parse("01H5JYV4XHGSR2F8KZ9B000000").unwrap(),

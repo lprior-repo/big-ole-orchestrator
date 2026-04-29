@@ -1,4 +1,4 @@
-use crate::replay::projection::RebuildThrottleConfig;
+use crate::replay::projection::throttle::RebuildThrottleConfig;
 
 #[derive(Debug, Clone, Copy)]
 pub struct EventSourcingConfig {

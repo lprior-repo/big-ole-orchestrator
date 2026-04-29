@@ -105,8 +105,10 @@ mod tests {
         let result = validate_json_payload_size(&large_obj);
         assert!(result.is_some());
         let err = result.unwrap();
-        assert!(matches!(err, JsonPayloadError::ExceedsMaxSize { max_size, actual_size } 
-            if max_size == MAX_JSON_PAYLOAD_SIZE && actual_size > MAX_JSON_PAYLOAD_SIZE));
+        assert!(
+            matches!(err, JsonPayloadError::ExceedsMaxSize { max_size, actual_size } 
+            if max_size == MAX_JSON_PAYLOAD_SIZE && actual_size > MAX_JSON_PAYLOAD_SIZE)
+        );
     }
 
     #[test]

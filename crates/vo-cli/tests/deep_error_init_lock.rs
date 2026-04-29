@@ -1,9 +1,7 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    DoctorError, InitError, LockError,
-};
 use vo_cli::commands::rebuild::RebuildError;
+use vo_cli::{DoctorError, InitError, LockError};
 
 #[test]
 fn init_error_dir_not_found_display() {

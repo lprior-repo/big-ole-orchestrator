@@ -461,17 +461,16 @@ mod redqueen_failure_mode_tests {
 
         // Fail operations
         storage.set_should_fail(true).await;
-        assert!(
-            storage.scan_due_timers(ts_ms(0), ts_ms(1000), 100).await.is_err()
-        );
+        assert!(storage
+            .scan_due_timers(ts_ms(0), ts_ms(1000), 100)
+            .await
+            .is_err());
 
         // Recover
         storage.set_should_fail(false).await;
 
         // Should work again
-        let result = storage
-            .scan_due_timers(ts_ms(0), ts_ms(1000), 100)
-            .await;
+        let result = storage.scan_due_timers(ts_ms(0), ts_ms(1000), 100).await;
         assert!(result.is_ok());
     }
 
@@ -510,7 +509,11 @@ mod redqueen_edge_case_tests {
         // Timer with fire_at=1000, scan to 1000 should include it
         let result = storage.scan_due_timers(ts_ms(0), ts_ms(1000), 100).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 1, "Timer at exact boundary should be included");
+        assert_eq!(
+            result.unwrap().len(),
+            1,
+            "Timer at exact boundary should be included"
+        );
 
         // Timer with fire_at=1000, scan to 999 should NOT include it
         let result = storage.scan_due_timers(ts_ms(0), ts_ms(999), 100).await;
@@ -595,7 +598,11 @@ mod redqueen_edge_case_tests {
         // Request more results than available
         let result = storage.scan_due_timers(ts_ms(0), ts_ms(2000), 1000).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().len(), 1, "Should return all available timers");
+        assert_eq!(
+            result.unwrap().len(),
+            1,
+            "Should return all available timers"
+        );
     }
 
     #[tokio::test]
@@ -605,7 +612,10 @@ mod redqueen_edge_case_tests {
 
         // Deleting non-existent timer should succeed (idempotent)
         let result = storage.delete_timer(&instance_id, ts_ms(1000)).await;
-        assert!(result.is_ok(), "Delete of non-existent timer should not error");
+        assert!(
+            result.is_ok(),
+            "Delete of non-existent timer should not error"
+        );
     }
 
     #[tokio::test]
@@ -631,12 +641,7 @@ mod redqueen_deduplication_tests {
         let storage = Arc::new(MockTimerStorage::empty());
 
         // Add same timer multiple times (simulating scan returning duplicates)
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(1000),
-            None,
-            ts_ms(500),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(1000), None, ts_ms(500));
         storage.add_timer(timer.clone()).await;
         storage.add_timer(timer.clone()).await;
         storage.add_timer(timer.clone()).await;
@@ -657,12 +662,7 @@ mod redqueen_deduplication_tests {
         let storage = Arc::new(MockTimerStorage::empty());
 
         // Add same timer multiple times
-        let timer = TimerRecord::new(
-            instance_id.clone(),
-            ts_ms(1000),
-            None,
-            ts_ms(500),
-        );
+        let timer = TimerRecord::new(instance_id.clone(), ts_ms(1000), None, ts_ms(500));
         storage.add_timer(timer.clone()).await;
         storage.add_timer(timer.clone()).await;
 
@@ -757,7 +757,11 @@ mod redqueen_pending_timer_tests {
             .unwrap();
 
         let pending = storage.scan_pending_timers(100).await.unwrap();
-        assert_eq!(pending.len(), 2, "Both instances should have pending timers");
+        assert_eq!(
+            pending.len(),
+            2,
+            "Both instances should have pending timers"
+        );
 
         // Complete only instance1
         storage

@@ -1,9 +1,7 @@
 //! InstanceActorMessage clone tests.
 
-use crate::{
-    instance_msgs::InstanceActorMessage, signal_messages::NodeName, InstanceId, SequenceNumber,
-    TimerId, WorkflowName,
-};
+use crate::{instance_msgs::InstanceActorMessage, signal_messages::NodeName};
+use vo_types::{InstanceId, SequenceNumber, TimerId, WorkflowName};
 
 mod clone_instance_actor_message {
     use super::*;

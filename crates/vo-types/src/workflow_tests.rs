@@ -1492,8 +1492,8 @@ fn parse_detects_cycle_in_disconnected_component_when_first_node_is_isolated(
 // Two disconnected components: a→b and c (orphan with no edges).
 // Orphan detection now rejects this.
 #[test]
-fn parse_rejects_disconnected_component_with_orphan_node(
-) -> Result<(), Box<dyn std::error::Error>> {
+fn parse_rejects_disconnected_component_with_orphan_node() -> Result<(), Box<dyn std::error::Error>>
+{
     let json = serde_json::json!({
         "workflow_name": "disconnected-ok",
         "nodes": [

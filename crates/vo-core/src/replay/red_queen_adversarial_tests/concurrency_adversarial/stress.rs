@@ -1,14 +1,26 @@
 use super::super::*;
+use std::sync::Arc;
 use vo_types::events::EventEnvelope;
 use vo_types::state::LifecycleState;
-use std::sync::Arc;
 
 fn build_completed_lifecycle(instance_id: &str, start_seq: u64) -> Vec<EventEnvelope> {
     vec![
         make_event(instance_id, start_seq, workflow_started_payload("wf-1")),
-        make_event(instance_id, start_seq + 1, step_scheduled_payload("wf-1", "step-1")),
-        make_event(instance_id, start_seq + 2, step_started_payload("wf-1", "step-1")),
-        make_event(instance_id, start_seq + 3, step_completed_payload("wf-1", "step-1")),
+        make_event(
+            instance_id,
+            start_seq + 1,
+            step_scheduled_payload("wf-1", "step-1"),
+        ),
+        make_event(
+            instance_id,
+            start_seq + 2,
+            step_started_payload("wf-1", "step-1"),
+        ),
+        make_event(
+            instance_id,
+            start_seq + 3,
+            step_completed_payload("wf-1", "step-1"),
+        ),
     ]
 }
 
@@ -32,10 +44,26 @@ fn replay_concurrent_large_sequences_independent_results() {
         let mut seq = 2u64;
         for step in 0..num_steps {
             let step_id = format!("step-{}", step);
-            events.push(make_event(instance_id, seq, step_scheduled_payload("wf-1", &step_id)));
-            events.push(make_event(instance_id, seq + 1, step_started_payload("wf-1", &step_id)));
-            events.push(make_event(instance_id, seq + 2, step_failed_payload("wf-1", &step_id)));
-            events.push(make_event(instance_id, seq + 3, instance_resumed_payload("wf-1")));
+            events.push(make_event(
+                instance_id,
+                seq,
+                step_scheduled_payload("wf-1", &step_id),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 1,
+                step_started_payload("wf-1", &step_id),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 2,
+                step_failed_payload("wf-1", &step_id),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 3,
+                instance_resumed_payload("wf-1"),
+            ));
             seq += 4;
         }
         events
@@ -53,8 +81,15 @@ fn replay_concurrent_large_sequences_independent_results() {
         .collect();
 
     for (i, handle) in handles.into_iter().enumerate() {
-        let result = handle.join().expect("thread should not panic").expect("replay should succeed");
-        assert_eq!(result.events_applied, 501, "thread {} should apply all events", i);
+        let result = handle
+            .join()
+            .expect("thread should not panic")
+            .expect("replay should succeed");
+        assert_eq!(
+            result.events_applied, 501,
+            "thread {} should apply all events",
+            i
+        );
     }
 }
 
@@ -81,12 +116,18 @@ fn replay_concurrent_error_streams_dont_crash_others() {
         })
     };
 
-    let good_result = good_handle.join().expect("thread should not panic").expect("good stream should succeed");
+    let good_result = good_handle
+        .join()
+        .expect("thread should not panic")
+        .expect("good stream should succeed");
     assert_eq!(good_result.final_state, Some(LifecycleState::Completed));
 
     let bad_result = bad_handle.join().expect("thread should not panic");
     assert!(bad_result.is_err(), "bad stream should fail");
-    assert!(matches!(bad_result.unwrap_err(), ReplayError::SequenceGap { .. }));
+    assert!(matches!(
+        bad_result.unwrap_err(),
+        ReplayError::SequenceGap { .. }
+    ));
 }
 
 #[test]
@@ -103,7 +144,11 @@ fn replay_concurrent_with_instance_mismatch_errors() {
                 } else {
                     let events = [
                         make_event("inst-mismatch-a", 1, workflow_started_payload("wf-1")),
-                        make_event("inst-mismatch-b", 2, step_scheduled_payload("wf-1", "step-1")),
+                        make_event(
+                            "inst-mismatch-b",
+                            2,
+                            step_scheduled_payload("wf-1", "step-1"),
+                        ),
                     ];
                     engine.replay(&events)
                 }
@@ -116,7 +161,11 @@ fn replay_concurrent_with_instance_mismatch_errors() {
         if i % 2 == 0 {
             assert!(result.is_ok(), "even thread {} should succeed", i);
         } else {
-            assert!(result.is_err(), "odd thread {} should fail with mismatch", i);
+            assert!(
+                result.is_err(),
+                "odd thread {} should fail with mismatch",
+                i
+            );
         }
     }
 }
@@ -148,7 +197,10 @@ fn replay_concurrent_with_payload_decode_errors() {
         })
     };
 
-    let good_result = good_handle.join().expect("thread should not panic").expect("good should succeed");
+    let good_result = good_handle
+        .join()
+        .expect("thread should not panic")
+        .expect("good should succeed");
     assert_eq!(good_result.final_state, Some(LifecycleState::Completed));
 
     let corrupt_result = corrupt_handle.join().expect("thread should not panic");
@@ -164,10 +216,26 @@ fn replay_concurrent_interleaved_failure_recovery_cycles() {
         events.push(make_event(instance_id, 1, workflow_started_payload("wf-1")));
         let mut seq = 2u64;
         for _ in 0..cycles {
-            events.push(make_event(instance_id, seq, step_scheduled_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 1, step_started_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 2, step_failed_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 3, instance_resumed_payload("wf-1")));
+            events.push(make_event(
+                instance_id,
+                seq,
+                step_scheduled_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 1,
+                step_started_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 2,
+                step_failed_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 3,
+                instance_resumed_payload("wf-1"),
+            ));
             seq += 4;
         }
         events
@@ -185,7 +253,10 @@ fn replay_concurrent_interleaved_failure_recovery_cycles() {
         .collect();
 
     for handle in handles {
-        let result = handle.join().expect("thread should not panic").expect("multi-recovery replay should succeed");
+        let result = handle
+            .join()
+            .expect("thread should not panic")
+            .expect("multi-recovery replay should succeed");
         assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
         assert_eq!(result.events_applied, 1 + 5 * 4);
     }
@@ -210,14 +281,20 @@ fn replay_shared_engine_produces_deterministic_results_across_threads() {
             .collect();
 
         for handle in handles {
-            let result = handle.join().expect("thread should not panic").expect("replay should succeed");
+            let result = handle
+                .join()
+                .expect("thread should not panic")
+                .expect("replay should succeed");
             all_results.push(result);
         }
     }
 
     let first = &all_results[0];
     for result in &all_results {
-        assert_eq!(result, first, "all concurrent replays must produce identical results");
+        assert_eq!(
+            result, first,
+            "all concurrent replays must produce identical results"
+        );
     }
 }
 
@@ -247,11 +324,17 @@ fn replay_concurrent_with_continued_as_new_interleaved() {
         })
     };
 
-    let r1 = h1.join().expect("thread should not panic").expect("replay should succeed");
+    let r1 = h1
+        .join()
+        .expect("thread should not panic")
+        .expect("replay should succeed");
     assert_eq!(r1.final_state, Some(LifecycleState::Completed));
     assert_eq!(r1.events_applied, 5);
 
-    let r2 = h2.join().expect("thread should not panic").expect("replay should succeed");
+    let r2 = h2
+        .join()
+        .expect("thread should not panic")
+        .expect("replay should succeed");
     assert_eq!(r2.final_state, Some(LifecycleState::Completed));
     assert_eq!(r2.events_applied, 4);
 }
@@ -265,10 +348,26 @@ fn replay_concurrent_does_not_observably_share_state() {
         events.push(make_event(instance_id, 1, workflow_started_payload("wf-1")));
         let mut seq = 2u64;
         for _ in 0..cycles {
-            events.push(make_event(instance_id, seq, step_scheduled_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 1, step_started_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 2, step_failed_payload("wf-1", "step-1")));
-            events.push(make_event(instance_id, seq + 3, instance_resumed_payload("wf-1")));
+            events.push(make_event(
+                instance_id,
+                seq,
+                step_scheduled_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 1,
+                step_started_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 2,
+                step_failed_payload("wf-1", "step-1"),
+            ));
+            events.push(make_event(
+                instance_id,
+                seq + 3,
+                instance_resumed_payload("wf-1"),
+            ));
             seq += 4;
         }
         events
@@ -290,11 +389,17 @@ fn replay_concurrent_does_not_observably_share_state() {
         })
     };
 
-    let r1 = h1.join().expect("thread should not panic").expect("short replay should succeed");
+    let r1 = h1
+        .join()
+        .expect("thread should not panic")
+        .expect("short replay should succeed");
     assert_eq!(r1.events_applied, 9);
     assert_eq!(r1.final_state, Some(LifecycleState::RunningDecision));
 
-    let r2 = h2.join().expect("thread should not panic").expect("long replay should succeed");
+    let r2 = h2
+        .join()
+        .expect("thread should not panic")
+        .expect("long replay should succeed");
     assert_eq!(r2.events_applied, 201);
     assert_eq!(r2.final_state, Some(LifecycleState::RunningDecision));
 }

@@ -360,8 +360,8 @@ fn spawn_record_transition_to_health_check() {
 #[test]
 fn spawn_record_transition_to_running() {
     let instance_id = test_instance_id();
-    let record =
-        SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None).transition_to_health_check();
+    let record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None)
+        .transition_to_health_check();
     let transitioned = record.transition_to_running();
 
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Running);

@@ -1,21 +1,25 @@
 use axum::{
     extract::{Extension, Json},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::IntoResponse,
 };
 use bytes::Bytes;
 use ractor::rpc::CallResult;
 use ractor::ActorRef;
+use std::sync::Arc;
 use std::time::Duration;
 use ulid::Ulid;
 use vo_actor::{OrchestratorMsg, StartError};
-use vo_common::NamespaceId;
-use vo_core::admission::{PressureGuardResult, WriterPressureGuard};
+use vo_core::admission::WriterPressureGuard;
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::dedupe_partition::DedupeStore;
 use vo_types::CommandEnvelope;
 
 use crate::handlers::helpers::parse_paradigm;
+use crate::handlers::{
+    persist_workflow_start_rejected_event, persist_workflow_started_event, request_namespace,
+    start_error_response,
+};
 use crate::types::{ApiError, V3StartRequest, V3StartResponse, WorkloadRejectionError};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -113,22 +117,21 @@ pub async fn start_workflow(
     };
 
     let instance_id = match req.instance_id {
-        Some(ref id) => {
-            match vo_types::InstanceId::parse(id) {
-                Ok(id) => id,
-                Err(e) => {
-                    return (
-                        StatusCode::BAD_REQUEST,
-                        Json(ApiError::new("invalid_instance_id", format!("invalid instance_id format: {e}"))),
-                    )
-                        .into_response();
-                }
+        Some(ref id) => match vo_types::InstanceId::parse(id) {
+            Ok(id) => id,
+            Err(e) => {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(ApiError::new(
+                        "invalid_instance_id",
+                        format!("invalid instance_id format: {e}"),
+                    )),
+                )
+                    .into_response();
             }
-        }
+        },
         None => vo_types::InstanceId::from_bytes(Ulid::new().0.to_be_bytes()),
     };
-    let instance_id =
-        vo_types::InstanceId::parse(&instance_id.to_string()).expect("generated ULID should be valid");
 
     let input = match serde_json::to_vec(&req.input) {
         Ok(v) => Bytes::from(v),

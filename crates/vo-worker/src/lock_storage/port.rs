@@ -79,7 +79,10 @@ impl std::fmt::Display for LockStorageError {
                     lock_id, expected, got
                 )
             }
-            Self::InvalidHoldToken { lock_id, hold_token } => {
+            Self::InvalidHoldToken {
+                lock_id,
+                hold_token,
+            } => {
                 write!(
                     f,
                     "Invalid hold token '{}' for lock {}",

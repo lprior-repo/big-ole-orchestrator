@@ -45,7 +45,9 @@ impl Default for ReaperConfig {
 }
 
 fn binary_path(reg: &WorkflowRegistration, versions_path: &PathBuf) -> PathBuf {
-    versions_path.join(reg.version_hash().as_str()).join(reg.name().as_str())
+    versions_path
+        .join(reg.version_hash().as_str())
+        .join(reg.name().as_str())
 }
 
 pub async fn spawn_reaper(
@@ -53,7 +55,10 @@ pub async fn spawn_reaper(
     lifecycle: Arc<tokio::sync::RwLock<GhostLifecycle>>,
     store: Arc<GhostLifecycleStore>,
 ) {
-    tracing::info!("spawning ghost workflow reaper with interval {:?}", config.sweep_interval());
+    tracing::info!(
+        "spawning ghost workflow reaper with interval {:?}",
+        config.sweep_interval()
+    );
     let mut ticker = interval(config.sweep_interval());
 
     loop {
@@ -73,7 +78,9 @@ pub async fn spawn_reaper(
                 if bin_path.exists() {
                     match tokio::fs::remove_file(&bin_path).await {
                         Ok(_) => tracing::info!(path = ?bin_path, "deleted workflow binary"),
-                        Err(e) => tracing::error!(path = ?bin_path, error = %e, "failed to delete binary"),
+                        Err(e) => {
+                            tracing::error!(path = ?bin_path, error = %e, "failed to delete binary")
+                        }
                     }
                 }
 

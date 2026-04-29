@@ -7,11 +7,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// Stable identifier for a workflow lineage (logical long-lived workflow).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct LineageId(pub String);
 
 /// Monotonically increasing epoch sequence number within a lineage.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EpochId(pub u64);
 
 impl EpochId {
@@ -201,25 +201,17 @@ impl SignalBuffer {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionCorruption {
     /// Checksum mismatch on loaded projection state.
-    ChecksumMismatch {
-        expected: String,
-        actual: String,
-    },
+    ChecksumMismatch { expected: String, actual: String },
     /// Schema version mismatch.
-    SchemaVersionMismatch {
-        expected: u8,
-        actual: u8,
-    },
+    SchemaVersionMismatch { expected: u8, actual: u8 },
     /// Sequence gap detected during incremental update.
-    SequenceGap {
-        gap_at: u64,
-    },
+    SequenceGap { gap_at: u64 },
     /// Unknown corruption type.
     Unknown,
 }
 
 /// The state of a projection.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProjectionState {
     Building,
     Ready {
@@ -270,20 +262,11 @@ pub struct ContinuedAsNew {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ContinuedAsNewTrigger {
     /// Event count exceeded threshold.
-    EventCountThreshold {
-        event_count: u64,
-        threshold: u64,
-    },
+    EventCountThreshold { event_count: u64, threshold: u64 },
     /// Signal count exceeded threshold.
-    SignalCountThreshold {
-        signal_count: u64,
-        threshold: u64,
-    },
+    SignalCountThreshold { signal_count: u64, threshold: u64 },
     /// Payload blob references became too numerous.
-    BlobReferencesThreshold {
-        blob_count: u64,
-        threshold: u64,
-    },
+    BlobReferencesThreshold { blob_count: u64, threshold: u64 },
     /// Workflow explicitly requested rollover.
     Explicit,
 }
@@ -355,7 +338,7 @@ pub struct CarriedStateResult {
 }
 
 /// Result of a projection rebuild.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RebuildResult {
     pub scope: RebuildScope,
     pub events_applied: u64,
@@ -364,7 +347,7 @@ pub struct RebuildResult {
 }
 
 /// Result of an atomic projection swap.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectionSwapResult {
     pub projection_id: String,
     pub old_state: ProjectionState,

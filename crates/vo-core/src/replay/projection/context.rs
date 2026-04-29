@@ -31,7 +31,8 @@ impl RebuildContext {
     }
 
     pub fn update_progress(&self, processed: u64) {
-        self.events_processed.store(processed as usize, Ordering::Relaxed);
+        self.events_processed
+            .store(processed as usize, Ordering::Relaxed);
         let total = self.events_total.load(Ordering::Relaxed);
         if total > 0 {
             let percent = (processed as f64 / total as f64 * 100.0) as usize;

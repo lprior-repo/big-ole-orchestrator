@@ -57,6 +57,9 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
         Command::Workspace { .. } => Some("workspace"),
+        Command::Hardline { .. } => Some("hardline"),
+        Command::Serve { .. } => Some("serve"),
+        Command::History { .. } => Some("history"),
     }
 }
 
@@ -79,7 +82,11 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Purge { ref instance, ref storage_path } = cli.command else {
+            let Command::Purge {
+                ref instance,
+                ref storage_path,
+            } = cli.command
+            else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a purge command".to_string()))
                 });
@@ -165,12 +172,11 @@ mod handlers {
             let engine_url = engine_url.clone();
             let workflow_id = workflow_id.clone();
             Box::pin(async move {
-                if !force
-                    && !crate::commands::compensate::prompt_confirmation(&workflow_id) {
-                        return Err(CliError::Compensate(
-                            crate::commands::compensate::CompensateError::Aborted,
-                        ));
-                    }
+                if !force && !crate::commands::compensate::prompt_confirmation(&workflow_id) {
+                    return Err(CliError::Compensate(
+                        crate::commands::compensate::CompensateError::Aborted,
+                    ));
+                }
                 let config = crate::commands::compensate::CompensateConfig {
                     engine_url,
                     workflow_id,
@@ -440,7 +446,10 @@ mod handlers {
             "workspace"
         }
 
-        fn execute(&self, cli: &Cli) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Workspace { ref action } = cli.command else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a workspace command".to_string()))

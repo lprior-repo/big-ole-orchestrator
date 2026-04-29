@@ -15,7 +15,9 @@
 ///   on failure but does not deduplicate ingress or guarantee idempotent replay.
 /// - **BestEffort**: No delivery guarantees. Fire-and-forget semantics with no
 ///   retry or recovery. Useful for logging, telemetry, and non-critical paths.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Default, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 #[allow(dead_code)]
 pub enum GuaranteeClass {
@@ -25,7 +27,6 @@ pub enum GuaranteeClass {
     /// At-least-once execution — retries possible, duplicates may occur.
     AtLeastOnce,
     /// Best-effort execution — no guarantees, fire-and-forget.
-    #[default]
     BestEffort,
 }
 
@@ -68,29 +69,6 @@ impl GuaranteeClass {
             GuaranteeClass::BestEffort => "best-effort",
         }
     }
-
-    /// Returns the Tailwind CSS badge class for this guarantee tier (ADR-007).
-    #[must_use]
-    #[allow(dead_code)]
-    pub const fn badge_class(self) -> &'static str {
-        match self {
-            GuaranteeClass::ExactOnce => "bg-emerald-100 text-emerald-700 border-emerald-300",
-            GuaranteeClass::AtLeastOnce => "bg-amber-100 text-amber-700 border-amber-300",
-            GuaranteeClass::BestEffort => "bg-red-100 text-red-700 border-red-300",
-        }
-    }
-
-    /// Returns the icon name for this guarantee tier (ADR-007).
-    #[must_use]
-    #[allow(dead_code)]
-    pub const fn icon(self) -> &'static str {
-        match self {
-            GuaranteeClass::ExactOnce => "shield-check",
-            GuaranteeClass::AtLeastOnce => "shield-alert",
-            GuaranteeClass::BestEffort => "shield-off",
-        }
-    }
-}
 
     /// Returns the Tailwind CSS badge class for this guarantee tier (ADR-007).
     #[must_use]

@@ -11,10 +11,7 @@ fn red_queen_decode_key_rejects_truncated_utf8() {
     let result = decode_effect_key(&truncated);
     assert!(result.is_err(), "BUG: accepted truncated UTF-8");
     assert!(
-        matches!(
-            result.unwrap_err(),
-            EffectJournalError::Codec { .. }
-        ),
+        matches!(result.unwrap_err(), EffectJournalError::Codec { .. }),
         "BUG: wrong error variant for truncated UTF-8"
     );
 }
@@ -25,10 +22,7 @@ fn red_queen_decode_record_rejects_truncated_json() {
     let result = decode_effect_record(truncated);
     assert!(result.is_err(), "BUG: accepted truncated JSON");
     assert!(
-        matches!(
-            result.unwrap_err(),
-            EffectJournalError::Codec { .. }
-        ),
+        matches!(result.unwrap_err(), EffectJournalError::Codec { .. }),
         "BUG: wrong error variant for truncated JSON"
     );
 }

@@ -1,6 +1,5 @@
 use crate::helpers::{
-    make_test_instance_id, make_test_timer_id, scan_all_timers_for_instance, timer_set,
-    MockStorage,
+    make_test_instance_id, make_test_timer_id, scan_all_timers_for_instance, timer_set, MockStorage,
 };
 
 #[test]

@@ -281,7 +281,10 @@ mod scenario_4_disconnected_subgraph {
             "edges": [edge_json("A", "B", "Always")]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
             assert!(orphan_nodes.contains(&NodeName("C".into())));
         }

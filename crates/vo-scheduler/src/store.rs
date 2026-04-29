@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::error::SchedulerError;
-use crate::job::ScheduledJob;
+use crate::types::job::ScheduledJob;
 use crate::types::JobId;
 
 pub trait SchedulerStore {
@@ -141,7 +141,9 @@ mod store_tests {
         let id = job.id;
         store.put(job).unwrap();
         let mut retrieved = store.get(&id).unwrap().unwrap();
-        retrieved.transition(crate::types::JobState::Running).unwrap();
+        retrieved
+            .transition(crate::types::JobState::Running)
+            .unwrap();
         store.update(retrieved).unwrap();
         let after = store.get(&id).unwrap().unwrap();
         assert_eq!(after.state, crate::types::JobState::Running);

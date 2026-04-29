@@ -1,12 +1,8 @@
 use super::*;
-use vo_types::events::EventEnvelope;
 use proptest::prelude::*;
+use vo_types::events::EventEnvelope;
 
-fn corrupt_payload_at_position(
-    events: &mut [EventEnvelope],
-    position: usize,
-    corruption: &str,
-) {
+fn corrupt_payload_at_position(events: &mut [EventEnvelope], position: usize, corruption: &str) {
     if position < events.len() {
         events[position].payload = serde_json::json!({
             "type": corruption,

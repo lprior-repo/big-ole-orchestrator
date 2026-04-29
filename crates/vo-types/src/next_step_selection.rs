@@ -82,7 +82,10 @@ impl ExecutionHistory {
     }
 
     pub fn records_for_step(&self, step_id: &NodeName) -> Vec<&StepSchedulingRecord> {
-        self.records.iter().filter(|r| &r.step_id == step_id).collect()
+        self.records
+            .iter()
+            .filter(|r| &r.step_id == step_id)
+            .collect()
     }
 }
 
@@ -127,11 +130,7 @@ pub fn compute_attempt_and_fence(step_id: &NodeName, history: &ExecutionHistory)
         return (1, 1);
     }
 
-    let max_attempt = step_records
-        .iter()
-        .map(|r| r.attempt)
-        .max()
-        .unwrap_or(1);
+    let max_attempt = step_records.iter().map(|r| r.attempt).max().unwrap_or(1);
 
     let max_fence = step_records.iter().map(|r| r.fence).max().unwrap_or(0);
 
@@ -313,6 +312,11 @@ pub fn select_next_step(
     // Select first node in definition order (deterministic tiebreaker)
     #[allow(clippy::unwrap_used)]
     let selected = ready_nodes.into_iter().next().unwrap();
+
+    // Compute attempt and fence from history if provided
+    let (attempt, fence) = history
+        .map(|h| compute_attempt_and_fence(&selected, h))
+        .unwrap_or((1, 1));
 
     Ok(Some(NextStep {
         step_id: selected,

@@ -7,10 +7,7 @@ use crate::lineage_projection::types::*;
 /// Route an incoming event to the correct epoch.
 ///
 /// Returns RouteResult indicating how the event should be handled.
-pub fn route_event(
-    epoch_map: &EpochMap,
-    event: &CanonicalEvent,
-) -> RouteResult {
+pub fn route_event(epoch_map: &EpochMap, event: &CanonicalEvent) -> RouteResult {
     if epoch_map.is_rollover_in_progress() {
         if let Some(active) = epoch_map.active_epoch(&event.lineage_id) {
             if active != event.epoch_id {
@@ -50,7 +47,11 @@ pub fn route_event(
 }
 
 /// Check if an epoch is historical (not the active epoch).
-pub fn is_historical_epoch(epoch_map: &EpochMap, lineage_id: &LineageId, epoch_id: EpochId) -> bool {
+pub fn is_historical_epoch(
+    epoch_map: &EpochMap,
+    lineage_id: &LineageId,
+    epoch_id: EpochId,
+) -> bool {
     epoch_map.is_old_epoch(lineage_id, epoch_id)
 }
 
@@ -217,12 +218,7 @@ mod tests {
     #[test]
     fn signal_buffer_buffers_and_drains() {
         let mut buffer = SignalBuffer::new();
-        let event = test_event(
-            test_lineage("wf-1"),
-            test_epoch(1),
-            42,
-            "test",
-        );
+        let event = test_event(test_lineage("wf-1"), test_epoch(1), 42, "test");
         buffer.buffer(event.clone());
         assert!(buffer.has_pending(&event.lineage_id));
         assert_eq!(buffer.pending_count(), 1);

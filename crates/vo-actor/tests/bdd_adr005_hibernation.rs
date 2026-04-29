@@ -14,18 +14,18 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_actor::lifecycle::{
-    ActorLifecycleState, compute_next_state, is_valid_transition, LifecycleTransition,
+    compute_next_state, is_valid_transition, ActorLifecycleState, LifecycleTransition,
 };
 use vo_actor::reanimator::{
     FairnessBudget, MockTimerStorage, MockWorkQueue, ReanimatorConfig, ReanimatorLoop,
     ReanimatorState, TimerRecord,
 };
 use vo_actor::signal_messages::LifecycleState;
+use vo_actor::timer_lifecycle::TimerLifecycleError;
 use vo_actor::timer_lifecycle::{
     cancel_timers_for_instance, has_pending_timers, scan_instance_timers,
     validate_timer_for_cancellation,
 };
-use vo_actor::timer_lifecycle::TimerLifecycleError;
 use vo_types::{InstanceId, TimestampMs};
 
 fn make_instance_id(seed: u8) -> InstanceId {
@@ -158,7 +158,9 @@ async fn bdd_005_s1_hibernation_timer_persisted_in_timers_partition() {
     let storage = Arc::new(MockTimerStorage::empty());
 
     // When: the actor hibernates and persists the timer
-    storage.add_timer(make_timer(instance_id.clone(), fire_at)).await;
+    storage
+        .add_timer(make_timer(instance_id.clone(), fire_at))
+        .await;
 
     // Then: the timer is retrievable from storage
     let timers = scan_instance_timers(&storage, &instance_id, 100)
@@ -333,7 +335,9 @@ async fn bdd_005_s3_reanimator_deletes_timer_after_firing() {
     // Then: the timer is deleted from storage (preventing double-fire)
     let delete_calls = storage.delete_calls().await;
     assert!(
-        delete_calls.iter().any(|(id, ts)| *id == instance_id && *ts.as_u64() == past_fire_at),
+        delete_calls
+            .iter()
+            .any(|(id, ts)| *id == instance_id && *ts.as_u64() == past_fire_at),
         "reanimator should have deleted the timer after firing"
     );
 
@@ -542,8 +546,8 @@ fn bdd_005_s4_full_hibernation_lifecycle() {
     let mut state = ActorLifecycleState::Running;
 
     // Step 1: Hibernate (Stop)
-    state = compute_next_state(state, LifecycleTransition::Stop)
-        .expect("Running→Stop should be valid");
+    state =
+        compute_next_state(state, LifecycleTransition::Stop).expect("Running→Stop should be valid");
     assert_eq!(state, ActorLifecycleState::Stopping);
 
     // Step 2: Children stopped

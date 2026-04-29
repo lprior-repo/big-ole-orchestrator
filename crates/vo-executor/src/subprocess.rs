@@ -118,29 +118,40 @@ pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> 
     })
 }
 
-/// Resolve a binary path: if already pinned, return as-is; otherwise pin it.
+/// Validates that an executable path is safe to execute.
 ///
-/// This allows callers to pass either an original path or an already-pinned
-/// versioned path transparently.
-pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> {
-    if path.starts_with(VERSION_BASE_PATH) && std::path::Path::new(path).exists() {
-        // Already pinned - reconstruct pin info from path
-        // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
-        let hash = path
-            .strip_prefix(VERSION_BASE_PATH)
-            .unwrap_or("")
-            .split('/')
-            .next()
-            .unwrap_or("")
-            .to_string();
-        Ok(PinnedBinary {
-            original_path: path.to_string(),
-            sha256_hex: hash,
-            versioned_path: path.to_string(),
-        })
-    } else {
-        pin_binary(path)
+/// # Errors
+///
+/// Returns `SubprocessError` if:
+/// - Path is not absolute
+/// - File does not exist
+/// - File is world-writable (security risk)
+fn validate_executable(path: &str) -> Result<(), SubprocessError> {
+    // Check if path is absolute
+    if !std::path::Path::new(path).is_absolute() {
+        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
     }
+
+    // Check if file exists
+    let metadata = std::fs::metadata(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            SubprocessError::ExecutableNotFound(path.to_string())
+        } else {
+            SubprocessError::ExecutableValidationFailed(format!("failed to stat {}: {e}", path))
+        }
+    })?;
+
+    // Check if world-writable (security risk)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = metadata.permissions().mode();
+        if mode & 0o002 != 0 {
+            return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -223,9 +234,12 @@ pub enum SubprocessError {
     ExecutableWorldWritable(String),
     #[error("executable validation failed: {0}")]
     ExecutableValidationFailed(String),
+    #[error("binary versioning failed: {0}")]
+    BinaryVersioningFailed(String),
+    #[error("input payload too large: {actual} bytes (max {max})")]
+    InputPayloadTooLarge { actual: usize, max: usize },
 }
 
-const BOUNDED_BUFFER_SIZE: usize = 65536;
 const MAX_STDERR_BYTES: usize = 1_048_576;
 const STDERR_TRUNCATION_MARKER: &[u8] = b"\n[... TRUNCATED AT 1MB ...]";
 
@@ -261,8 +275,11 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         });
     }
 
-    let fd3_read_raw = fd3_read.into_raw_fd();
-    let fd4_write_raw = fd4_write.into_raw_fd();
+    let (fd3_read, fd3_write) = fd3_pipe;
+    let (fd4_read, fd4_write) = fd4_pipe;
+
+    let fd3_read_raw = fd3_read;
+    let fd4_write_raw = fd4_write;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
@@ -270,11 +287,6 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.stdin(std::process::Stdio::null());
     command.stdout(std::process::Stdio::null());
     command.stderr(std::process::Stdio::piped());
-
-    let fd3_read = fd3_pipe.read_fd;
-    let fd3_write = fd3_pipe.write_fd;
-    let fd4_read = fd4_pipe.read_fd;
-    let fd4_write = fd4_pipe.write_fd;
 
     unsafe {
         command.pre_exec(move || {
@@ -304,13 +316,12 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         .spawn()
         .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
 
-    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write.into_raw_fd())) };
-    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read.into_raw_fd())) };
+    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
+    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
 
-    let stderr_reader = child
-        .stderr
-        .take()
-        .ok_or_else(|| SubprocessError::PipeSetupFailed("Failed to take stderr pipe".to_string()))?;
+    let stderr_reader = child.stderr.take().ok_or_else(|| {
+        SubprocessError::PipeSetupFailed("Failed to take stderr pipe".to_string())
+    })?;
 
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;

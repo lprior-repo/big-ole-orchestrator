@@ -54,4 +54,3 @@ impl Appender {
         self.queues.dequeue(WriteClass::BulkBlob)
     }
 }
-

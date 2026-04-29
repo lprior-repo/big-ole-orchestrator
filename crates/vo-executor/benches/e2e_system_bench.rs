@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use std::hint::black_box;
 use std::time::Instant;
 use tokio::runtime::Runtime;
 use vo_executor::{
@@ -310,7 +310,9 @@ fn bench_e2e_state_read_throughput(c: &mut Criterion) {
             b.to_async(&runtime).iter(move || async move {
                 for i in 0..100 {
                     let step_id = StepId::new(format!("bench-state-read-{}", i));
-                    execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                    execute_step(step_id, 5000)
+                        .await
+                        .expect("execute_step succeeded");
                 }
 
                 let start = Instant::now();
@@ -403,7 +405,9 @@ fn bench_e2e_memory_state_growth(c: &mut Criterion) {
                 let initial_count = get_state_count();
                 for i in 0..num_steps {
                     let step_id = StepId::new(format!("growth-{}-{}", i, uuid::Uuid::new_v4()));
-                    execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                    execute_step(step_id, 5000)
+                        .await
+                        .expect("execute_step succeeded");
                 }
                 let final_count = get_state_count();
                 let growth = final_count.saturating_sub(initial_count);
@@ -428,7 +432,9 @@ fn bench_e2e_memory_sustained_operations(c: &mut Criterion) {
             for batch in 0..10 {
                 for i in 0..1000 {
                     let step_id = StepId::new(format!("sustained-{}-{}", batch, i));
-                    execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                    execute_step(step_id, 5000)
+                        .await
+                        .expect("execute_step succeeded");
                 }
                 let current_count = get_state_count();
                 peaks.push(current_count);
@@ -600,7 +606,9 @@ fn bench_e2e_warm_state_latency(c: &mut Criterion) {
     runtime.block_on(async {
         for i in 0..1000 {
             let step_id = StepId::new(format!("warm-{}-{}", i, uuid::Uuid::new_v4()));
-            execute_step(step_id, 5000).await.expect("execute_step succeeded");
+            execute_step(step_id, 5000)
+                .await
+                .expect("execute_step succeeded");
         }
     });
 
@@ -609,7 +617,9 @@ fn bench_e2e_warm_state_latency(c: &mut Criterion) {
             let start = Instant::now();
             for i in 0..1000 {
                 let step_id = StepId::new(format!("warm-{}-{}", i, uuid::Uuid::new_v4()));
-                execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                execute_step(step_id, 5000)
+                    .await
+                    .expect("execute_step succeeded");
             }
             start.elapsed()
         })

@@ -77,8 +77,7 @@ mod admission_boundary {
             compaction_stall_active: false,
             storage_stall_active: false,
         };
-        let result =
-            crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(result.is_err());
     }
 
@@ -96,8 +95,7 @@ mod admission_boundary {
             compaction_stall_active: false,
             storage_stall_active: false,
         };
-        let result =
-            crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(result.is_ok());
     }
 

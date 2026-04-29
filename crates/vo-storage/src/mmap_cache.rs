@@ -201,9 +201,11 @@ impl MmapCache {
     pub fn prefetch(&self, key: &str) -> Result<(), MmapCacheError> {
         let file_path = {
             let _guard = self.lock.lock();
-            self.entries.get(key).map(|e| (e.region.file_path.clone(), e.region.size))
+            self.entries
+                .get(key)
+                .map(|e| (e.region.file_path.clone(), e.region.size))
         };
-        if let Some((path, size)) = file_path_and_size {
+        if let Some((path, size)) = file_path {
             let file = File::open(&path)?;
             let metadata = file.metadata()?;
             if metadata.len() != size {
@@ -802,7 +804,10 @@ mod tests {
         // to lag by 1. tokio::broadcast returns Err(Lagged(n)) which, once resumed,
         // delivers the latest value.
         let result = runtime.block_on(receiver.recv());
-        assert!(result.is_err(), "expected Lagged error when buffer overflows");
+        assert!(
+            result.is_err(),
+            "expected Lagged error when buffer overflows"
+        );
         // After lag recovery, the receiver gets the current value (key2, which was
         // in the buffer). key3 was sent after the lag recovery point.
         let event = runtime.block_on(receiver.recv()).unwrap();

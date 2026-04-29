@@ -31,15 +31,11 @@ pub enum EventStoreError {
 impl From<EventStoreError> for vo_types::events::Error {
     fn from(e: EventStoreError) -> Self {
         match e {
-            EventStoreError::OccConflict { .. } => {
-                vo_types::events::Error::PayloadDecodeSkipped
-            }
+            EventStoreError::OccConflict { .. } => vo_types::events::Error::PayloadDecodeSkipped,
             EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed {
                 source: Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
             },
-            EventStoreError::InvalidArgument { .. } => {
-                Self::InvalidEnvelopeFormat
-            }
+            EventStoreError::InvalidArgument { .. } => Self::InvalidEnvelopeFormat,
         }
     }
 }
@@ -52,10 +48,7 @@ pub trait EventStore: Send + Sync {
         events: Vec<EventEnvelope>,
     ) -> Result<u64, EventStoreError>;
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError>;
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError>;
 }
 
 #[derive(Debug, Clone)]
@@ -75,11 +68,7 @@ impl InMemoryEventStore {
 
     #[cfg(test)]
     #[must_use]
-    pub fn with_events(
-        self,
-        instance_id: InstanceId,
-        events: Vec<EventEnvelope>,
-    ) -> Self {
+    pub fn with_events(self, instance_id: InstanceId, events: Vec<EventEnvelope>) -> Self {
         if let Some(last) = events.last() {
             self.sequences.insert(instance_id.clone(), last.sequence);
         }
@@ -103,159 +92,6 @@ fn encode_sequence_key(instance_id: &InstanceId) -> Vec<u8> {
     key
 }
 
-pub struct FjallEventStore {
-    partition: Arc<fjall::Keyspace>,
-}
-
-impl std::fmt::Debug for FjallEventStore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("FjallEventStore").finish()
-    }
-}
-
-impl FjallEventStore {
-    pub fn open(db: &fjall::Database) -> Result<Self, EventStoreError> {
-        let partition = db
-            .keyspace(EVENTS_PARTITION, || {
-                fjall::KeyspaceCreateOptions::default()
-            })
-            .map_err(|e| EventStoreError::Storage {
-                reason: format!("failed to open events partition: {e}"),
-            })?;
-        Ok(Self {
-            partition: Arc::new(partition),
-        })
-    }
-
-    fn get_sequence_sync(partition: &fjall::Keyspace, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
-        let key = encode_sequence_key(instance_id);
-        match partition.get(&key) {
-            Ok(Some(bytes)) => {
-                let bytes: &[u8] = bytes.as_ref();
-                if bytes.len() != 8 {
-                    return Err(EventStoreError::Storage {
-                        reason: format!("invalid sequence bytes length: {}", bytes.len()),
-                    });
-                }
-                let arr: [u8; 8] = bytes
-                    .try_into()
-                    .map_err(|_| EventStoreError::Storage {
-                        reason: "failed to decode sequence bytes".to_string(),
-                    })?;
-                Ok(u64::from_be_bytes(arr))
-            }
-            Ok(None) => Ok(0),
-            Err(e) => Err(EventStoreError::Storage {
-                reason: e.to_string(),
-            }),
-        }
-    }
-}
-
-#[async_trait]
-impl EventStore for FjallEventStore {
-    async fn append(
-        &self,
-        instance_id: &InstanceId,
-        events: Vec<EventEnvelope>,
-    ) -> Result<u64, EventStoreError> {
-        if events.is_empty() {
-            return Err(EventStoreError::InvalidArgument {
-                reason: "events batch cannot be empty".to_string(),
-            });
-        }
-
-        let partition = self.partition.clone();
-        let iid = instance_id.clone();
-
-        let expected_sequence = tokio::task::spawn_blocking(move || {
-            Self::get_sequence_sync(&partition, &iid)
-        })
-        .await
-        .map_err(|e| EventStoreError::Storage {
-            reason: format!("join error: {}", e),
-        })??;
-
-        let first_sequence = events
-            .first()
-            .ok_or(EventStoreError::InvalidArgument {
-                reason: "events batch cannot be empty".to_string(),
-            })?
-            .sequence;
-
-        if first_sequence != expected_sequence + 1 {
-            return Err(EventStoreError::OccConflict {
-                instance_id: instance_id.to_string(),
-                expected_sequence: expected_sequence + 1,
-                actual_sequence: expected_sequence,
-            });
-        }
-
-        for window in events.windows(2) {
-            if let [a, b] = window {
-                if b.sequence != a.sequence + 1 {
-                    return Err(EventStoreError::InvalidArgument {
-                        reason: format!(
-                            "events are not sequentially ordered: {} followed by {}",
-                            a.sequence, b.sequence
-                        ),
-                    });
-                }
-            }
-        }
-
-        let final_sequence = events.last().unwrap().sequence;
-
-        let partition = self.partition.clone();
-        let iid = instance_id.clone();
-        let events_data: Vec<(u64, Vec<u8>)> = events
-            .into_iter()
-            .map(|e| {
-                let seq = e.sequence;
-                let bytes = serde_json::to_vec(&e).map_err(|err| EventStoreError::Storage {
-                    reason: format!("failed to serialize event: {}", err),
-                })?;
-                Ok((seq, bytes))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        tokio::task::spawn_blocking(move || {
-            for (seq, bytes) in &events_data {
-                let key = encode_event_key(&iid, vo_types::SequenceNumber::new_unchecked(*seq));
-                partition.insert(&key, bytes).map_err(|e| EventStoreError::Storage {
-                    reason: format!("failed to persist event: {}", e),
-                })?;
-            }
-            let meta_key = encode_sequence_key(&iid);
-            partition.insert(&meta_key, &final_sequence.to_be_bytes()).map_err(|e| EventStoreError::Storage {
-                reason: format!("failed to persist sequence: {}", e),
-            })?;
-            Ok::<(), EventStoreError>(())
-        })
-        .await
-        .map_err(|e| EventStoreError::Storage {
-            reason: format!("join error: {}", e),
-        })??;
-
-        Ok(final_sequence)
-    }
-
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError> {
-        let partition = self.partition.clone();
-        let iid = instance_id.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::get_sequence_sync(&partition, &iid)
-        })
-        .await
-        .map_err(|e| EventStoreError::Storage {
-            reason: format!("join error: {}", e),
-        })?
-    }
-}
-
 #[async_trait]
 impl EventStore for InMemoryEventStore {
     async fn append(
@@ -270,8 +106,8 @@ impl EventStore for InMemoryEventStore {
         }
 
         let expected_sequence = {
-            let sequences = self.sequences.read().unwrap();
-            sequences.get(instance_id).copied().unwrap_or(0)
+            let sequences = self.sequences.get(instance_id);
+            sequences.map(|g| *g).unwrap_or(0)
         };
 
         let first_sequence = events
@@ -282,13 +118,9 @@ impl EventStore for InMemoryEventStore {
             .sequence;
 
         if first_sequence != expected_sequence + 1 {
-            let actual_sequence = {
-                let events_store = self.events.read().unwrap();
-                events_store
-                    .get(instance_id)
-                    .and_then(|e| e.last())
-                    .map(|e| e.sequence)
-                    .unwrap_or(0)
+            let actual_sequence = match self.events.get(instance_id) {
+                Some(events) => events.last().map(|e| e.sequence).unwrap_or(0),
+                None => 0,
             };
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
@@ -313,13 +145,11 @@ impl EventStore for InMemoryEventStore {
         let final_sequence = events.last().unwrap().sequence;
 
         {
-            let mut sequences = self.sequences.write().unwrap();
-            let mut events_store = self.events.write().unwrap();
-            sequences.insert(instance_id.clone(), final_sequence);
-            events_store
+            self.sequences.insert(instance_id.clone(), final_sequence);
+            self.events
                 .entry(instance_id.clone())
                 .or_insert_with(Vec::new);
-            if let Some(existing) = events_store.get_mut(instance_id) {
+            if let Some(mut existing) = self.events.get_mut(instance_id) {
                 existing.extend(events);
             }
         }
@@ -327,10 +157,7 @@ impl EventStore for InMemoryEventStore {
         Ok(final_sequence)
     }
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError> {
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
         Ok(self.sequences.get(instance_id).map_or(0, |r| *r))
     }
 }
@@ -518,10 +345,7 @@ mod tests {
         let events = vec![make_envelope(&instance_id, 1)];
 
         let result = store.append(&instance_id, events).await;
-        assert!(matches!(
-            result,
-            Err(EventStoreError::Storage { .. })
-        ));
+        assert!(matches!(result, Err(EventStoreError::Storage { .. })));
     }
 }
 

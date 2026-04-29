@@ -8,9 +8,9 @@ use vo_cli::commands::init::InitError;
 use vo_cli::commands::lock::LockError;
 use vo_cli::commands::rebuild::RebuildError;
 use vo_cli::{
-    CliError, Command, CommandDispatcherV2, DefaultDispatchContext, DispatchContext,
-    HandlerRegistry, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
-    interpret_cli_from, map_error_to_exit_code,
+    interpret_cli_from, map_error_to_exit_code, CliError, Command, CommandDispatcherV2,
+    DefaultDispatchContext, DispatchContext, HandlerRegistry, LoggingMiddlewareV2,
+    MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
 };
 
 struct AbortMiddleware;

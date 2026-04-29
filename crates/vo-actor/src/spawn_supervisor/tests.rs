@@ -12,8 +12,10 @@ use vo_types::InstanceId;
 
 use super::actor::{SpawnSupervisor, SpawnSupervisorHandle};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{SpawnStorage, ProcessManager, WorkQueue, CycleResult, SpawnSupervisorMetrics, Counter, ProcessHandle, SpawnPhase, SpawnRecord};
-use crate::semaphore::ExecutionSemaphore;
+use super::{
+    Counter, CycleResult, ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase,
+    SpawnRecord, SpawnStorage, SpawnSupervisorMetrics, WorkQueue,
+};
 
 fn test_instance_id() -> InstanceId {
     let ulid = Ulid::new();
@@ -171,7 +173,8 @@ fn spawn_supervisor_debug_format() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
-    ).unwrap();
+    )
+    .unwrap();
 
     let debug_str = format!("{:?}", supervisor);
     assert!(debug_str.contains("SpawnSupervisor"));

@@ -52,6 +52,9 @@ pub enum ParseError {
         min: u64,
         max: u64,
     },
+
+    #[error("internal error: {0}")]
+    InternalError(String),
 }
 
 #[cfg(test)]

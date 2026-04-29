@@ -11,9 +11,9 @@ mod structures;
 pub mod types;
 
 pub use error::{ExecutionError, RetryExhaustedError, SchedulerError, VoError};
-pub use events::{DuplicateResult, EventDedup, WorkflowEvent};
+pub use events::WorkflowEvent;
 pub use structures::{Bounds, Octree, Vec3};
-pub use types::{EventId, InstanceId, NamespaceId, TimerId};
+pub use types::{InstanceId, NamespaceId, TimerId};
 
 #[cfg(feature = "telemetry")]
 pub mod telemetry;

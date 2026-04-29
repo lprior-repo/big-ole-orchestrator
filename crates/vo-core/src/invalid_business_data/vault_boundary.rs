@@ -84,8 +84,7 @@ mod vault_boundary {
 
     #[test]
     fn credential_error_all_variants_have_display() {
-        let id =
-            vo_types::credentials::CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let id = vo_types::credentials::CredentialId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
 
         let errs: Vec<CredentialError> = vec![
             CredentialError::CredentialNotFound(id.clone()),

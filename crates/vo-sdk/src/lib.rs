@@ -73,9 +73,10 @@ mod signal;
 
 pub use dag::Workflow;
 pub use graph::{
-    emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
-    SignalNodeMeta, ValidationError, WorkflowSpec,
+    default_retry_policy, emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs,
+    GraphArgsError, NodeSpec, SignalNodeMeta, ValidationError, WorkflowSpec,
 };
+pub use vo_types::{GuaranteeClass, RetryPolicy, TaskFailureKind};
 pub mod io;
 
 // Re-export the macro for use as #[vo_task]

@@ -45,8 +45,7 @@ impl MockMutationAdmissionCheck {
 
 impl AdmissionCheck for MockMutationAdmissionCheck {
     fn check_deduplicate(&self, dedupe_key: &DedupeKey) -> AdmissionResult {
-        if let Some((instance_id, _mutation_type)) =
-            self.admitted_commands.get(dedupe_key.as_str())
+        if let Some((instance_id, _mutation_type)) = self.admitted_commands.get(dedupe_key.as_str())
         {
             AdmissionResult::Duplicate {
                 original_instance_id: instance_id.clone(),
@@ -92,7 +91,9 @@ fn given_duplicate_command_id_when_mutation_replayed_then_original_outcome_is_re
 
     let err = result.expect_err("duplicate mutation should return error");
     match err {
-        vo_core::admission::AdmissionError::Duplicate { original_instance_id } => {
+        vo_core::admission::AdmissionError::Duplicate {
+            original_instance_id,
+        } => {
             assert_eq!(
                 original_instance_id, original_instance_id,
                 "original instance ID should be returned for duplicate mutation"

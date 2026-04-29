@@ -65,13 +65,13 @@ impl ElfMachine {
     }
 
     #[must_use]
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> String {
         match self {
-            Self::X86_64 => "x86_64",
-            Self::AArch64 => "AArch64",
-            Self::Arm => "ARM",
-            Self::X86 => "x86",
-            Self::Unknown(n) => &format!("unknown-machine-{n}"),
+            Self::X86_64 => "x86_64".to_string(),
+            Self::AArch64 => "AArch64".to_string(),
+            Self::Arm => "ARM".to_string(),
+            Self::X86 => "x86".to_string(),
+            Self::Unknown(n) => format!("unknown-machine-{n}"),
         }
     }
 }
@@ -229,14 +229,10 @@ pub fn detect_elf_architecture(path: &Path) -> Result<Option<ElfMachine>, CheckE
 
     // Skip to offset 18 where ELF e_machine field is located
     let mut header = [0u8; 20];
-    let bytes_read = reader.read_exact(&mut header).map_err(|e| CheckError::Io {
+    reader.read_exact(&mut header).map_err(|e| CheckError::Io {
         path: path.to_path_buf(),
         source: e,
     })?;
-
-    if bytes_read < 20 {
-        return Ok(None);
-    }
 
     // ELF machine type is little-endian u16 at offset 18
     let machine = u16::from_le_bytes([header[18], header[19]]);
@@ -297,10 +293,7 @@ mod tests {
 
     #[test]
     fn elf_machine_from_u16_returns_x86_64_for_correct_value() {
-        assert_eq!(
-            ElfMachine::from_u16(ELF_MACHINE_X86_64),
-            ElfMachine::X86_64
-        );
+        assert_eq!(ElfMachine::from_u16(ELF_MACHINE_X86_64), ElfMachine::X86_64);
     }
 
     #[test]
@@ -333,7 +326,10 @@ mod tests {
         assert_eq!(ElfMachine::AArch64.display_name(), "AArch64");
         assert_eq!(ElfMachine::Arm.display_name(), "ARM");
         assert_eq!(ElfMachine::X86.display_name(), "x86");
-        assert_eq!(ElfMachine::Unknown(123).display_name(), "unknown-machine-123");
+        assert_eq!(
+            ElfMachine::Unknown(123).display_name(),
+            "unknown-machine-123"
+        );
     }
 
     #[test]

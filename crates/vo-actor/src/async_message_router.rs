@@ -319,9 +319,7 @@ mod tests {
             let channel_id = channel_ids[i].clone();
             let destination = destinations[i].clone();
             handles.push(tokio::spawn(async move {
-                router_clone
-                    .register_channel(channel_id, destination)
-                    .await
+                router_clone.register_channel(channel_id, destination).await
             }));
         }
 
@@ -412,20 +410,17 @@ mod tests {
             .register_channel(channel_id.clone(), dest1)
             .await
             .unwrap();
-        router
-            .add_destination(&channel_id, dest2)
-            .await
-            .unwrap();
-        router
-            .add_destination(&channel_id, dest3)
-            .await
-            .unwrap();
+        router.add_destination(&channel_id, dest2).await.unwrap();
+        router.add_destination(&channel_id, dest3).await.unwrap();
 
         let result = router
             .route_broadcast(&channel_id, "broadcast-message")
             .await;
 
-        assert!(result.is_ok(), "Broadcast should succeed with multiple destinations");
+        assert!(
+            result.is_ok(),
+            "Broadcast should succeed with multiple destinations"
+        );
         assert_eq!(router.total_destinations().await, 3);
     }
 }

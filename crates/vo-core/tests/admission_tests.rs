@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use vo_core::admission::metrics::{Gauge, BoolGauge, WritePressureMetrics};
+use vo_core::admission::metrics::{BoolGauge, Gauge, WritePressureMetrics};
 use vo_core::admission::types::WritePressureState;
 
 #[test]

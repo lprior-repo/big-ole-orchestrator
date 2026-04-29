@@ -88,7 +88,10 @@ fn given_duplicate_webhook_with_same_idempotency_key_when_processed_then_idempot
     let instance = make_instance_id(0x03);
 
     let created_first = ingress.try_create(&key, instance.clone());
-    assert!(created_first, "first webhook with idempotency key must create instance");
+    assert!(
+        created_first,
+        "first webhook with idempotency key must create instance"
+    );
 
     let created_second = ingress.try_create(&key, instance.clone());
     assert!(
@@ -110,8 +113,14 @@ fn given_different_idempotency_keys_when_processed_then_both_create() {
 
     let created_a = ingress.try_create(&key_a, inst_a);
     let created_b = ingress.try_create(&key_b, inst_b);
-    assert!(created_a, "first unique idempotency key must create instance");
-    assert!(created_b, "second unique idempotency key must create instance");
+    assert!(
+        created_a,
+        "first unique idempotency key must create instance"
+    );
+    assert!(
+        created_b,
+        "second unique idempotency key must create instance"
+    );
     assert_eq!(ingress.created_instances.len(), 2);
 }
 
@@ -126,7 +135,10 @@ fn given_similar_idempotency_keys_with_different_suffix_when_processed_then_both
     let created_1 = ingress.try_create(&key_1, inst_1);
     let created_2 = ingress.try_create(&key_2, inst_2);
     assert!(created_1, "first event must create instance");
-    assert!(created_2, "second event with different key must create instance");
+    assert!(
+        created_2,
+        "second event with different key must create instance"
+    );
     assert_eq!(ingress.created_instances.len(), 2);
 }
 
@@ -142,7 +154,10 @@ fn given_idempotency_key_survives_serde_roundtrip_when_processed_then_dedup_stil
     let instance = make_instance_id(0x10);
 
     let first = ingress.try_create(&recovered, instance.clone());
-    assert!(first, "first delivery with recovered key must create instance");
+    assert!(
+        first,
+        "first delivery with recovered key must create instance"
+    );
 
     let deserialized_again: IdempotencyKey = serde_json::from_str(&json).unwrap();
     let second = ingress.try_create(&deserialized_again, instance.clone());
@@ -162,7 +177,10 @@ fn given_idempotency_key_parse_validation_when_empty_string_then_error() {
 fn given_idempotency_key_parse_validation_when_too_long_then_error() {
     let long_key = "a".repeat(1025);
     let result = IdempotencyKey::parse(&long_key);
-    assert!(result.is_err(), "key exceeding 1024 chars must fail parsing");
+    assert!(
+        result.is_err(),
+        "key exceeding 1024 chars must fail parsing"
+    );
 }
 
 #[test]

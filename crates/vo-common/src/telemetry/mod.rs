@@ -8,16 +8,16 @@
 //! - [`traces`] - Span-based tracing with log correlation
 //! - [`export`] - OTLP export pipeline
 
+pub mod export;
 pub mod metrics;
 pub mod traces;
-pub mod export;
 
+pub use export::{OtlpEndpoint, TelemetryConfig, TelemetryExporter};
 pub use metrics::{Counter, Gauge, Histogram, TelemetryMetrics};
 pub use traces::TelemetryTracer;
-pub use export::{TelemetryExporter, OtlpEndpoint, TelemetryConfig};
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub struct TelemetryState {

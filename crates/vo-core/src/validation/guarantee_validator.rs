@@ -88,8 +88,7 @@ mod tests {
             },
         ];
 
-        let result =
-            validate_exact_workflow_node_kinds(GuaranteeClass::ExactOnce, &nodes);
+        let result = validate_exact_workflow_node_kinds(GuaranteeClass::ExactOnce, &nodes);
 
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -133,8 +132,7 @@ mod tests {
             kind: NodeKind::Unsafe,
         }];
 
-        let result =
-            validate_exact_workflow_node_kinds(GuaranteeClass::AtLeastOnce, &nodes);
+        let result = validate_exact_workflow_node_kinds(GuaranteeClass::AtLeastOnce, &nodes);
         assert!(result.is_err());
     }
 
@@ -147,8 +145,7 @@ mod tests {
             kind: NodeKind::Unsafe,
         }];
 
-        let result =
-            validate_exact_workflow_node_kinds(GuaranteeClass::BestEffort, &nodes);
+        let result = validate_exact_workflow_node_kinds(GuaranteeClass::BestEffort, &nodes);
         assert!(result.is_ok());
     }
 

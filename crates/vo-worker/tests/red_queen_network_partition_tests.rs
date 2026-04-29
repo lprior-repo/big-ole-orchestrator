@@ -1119,7 +1119,9 @@ mod red_queen_connector_registry_split_brain_tests {
         fn clone(&self) -> Self {
             Self {
                 name: self.name.clone(),
-                id: std::sync::atomic::AtomicUsize::new(self.id.load(std::sync::atomic::Ordering::SeqCst)),
+                id: std::sync::atomic::AtomicUsize::new(
+                    self.id.load(std::sync::atomic::Ordering::SeqCst),
+                ),
             }
         }
     }
@@ -1155,7 +1157,9 @@ mod red_queen_connector_registry_split_brain_tests {
         }
 
         async fn commit(&self, _prepared: PreparedEffect) -> Result<CommitOutcome, ConnectorError> {
-            Ok(CommitOutcome::Committed { receipt: "ok".into() })
+            Ok(CommitOutcome::Committed {
+                receipt: "ok".into(),
+            })
         }
 
         async fn reconcile(&self, _effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
@@ -1174,7 +1178,11 @@ mod red_queen_connector_registry_split_brain_tests {
         registry.register("http".to_string(), Box::new(connector1));
         registry.register("http".to_string(), Box::new(connector2));
 
-        assert_eq!(registry.len(), 1, "registry should have only 1 connector (overwrite)");
+        assert_eq!(
+            registry.len(),
+            1,
+            "registry should have only 1 connector (overwrite)"
+        );
         assert_eq!(registry.list(), vec!["http"]);
     }
 
@@ -1190,7 +1198,11 @@ mod red_queen_connector_registry_split_brain_tests {
 
         let retrieved = registry.get("http");
         assert!(retrieved.is_some());
-        assert_eq!(registry.len(), 1, "re-registering same connector should not create duplicate");
+        assert_eq!(
+            registry.len(),
+            1,
+            "re-registering same connector should not create duplicate"
+        );
     }
 
     #[tokio::test]
@@ -1202,7 +1214,11 @@ mod red_queen_connector_registry_split_brain_tests {
         registry.register("sqs".to_string(), Box::new(TestConnector::new("sqs")));
         registry.register("s3".to_string(), Box::new(TestConnector::new("s3")));
 
-        assert_eq!(registry.len(), 3, "registry should have 3 different connectors");
+        assert_eq!(
+            registry.len(),
+            3,
+            "registry should have 3 different connectors"
+        );
         assert!(registry.list().contains(&"http"));
         assert!(registry.list().contains(&"sqs"));
         assert!(registry.list().contains(&"s3"));
@@ -1219,7 +1235,11 @@ mod red_queen_connector_registry_split_brain_tests {
             registry.register("http".to_string(), Box::new(connector.clone()));
         }
 
-        assert_eq!(registry.len(), 1, "repeated registration should overwrite, not duplicate");
+        assert_eq!(
+            registry.len(),
+            1,
+            "repeated registration should overwrite, not duplicate"
+        );
     }
 
     #[tokio::test]
@@ -1235,7 +1255,11 @@ mod red_queen_connector_registry_split_brain_tests {
         let connector2 = TestConnector::new("http");
         registry.register("http".to_string(), Box::new(connector2));
 
-        assert_eq!(registry.len(), 1, "registration during 'partition' should overwrite, not split-brain");
+        assert_eq!(
+            registry.len(),
+            1,
+            "registration during 'partition' should overwrite, not split-brain"
+        );
     }
 
     #[tokio::test]
@@ -1247,7 +1271,11 @@ mod red_queen_connector_registry_split_brain_tests {
         registry.register("http".to_string(), Box::new(TestConnector::new("http")));
         registry.register("http".to_string(), Box::new(TestConnector::new("http")));
 
-        assert_eq!(registry.len(), 1, "multiple overwrites should maintain single entry");
+        assert_eq!(
+            registry.len(),
+            1,
+            "multiple overwrites should maintain single entry"
+        );
 
         let retrieved = registry.get("http");
         assert!(retrieved.is_some());
@@ -1268,7 +1296,11 @@ mod red_queen_connector_registry_split_brain_tests {
             registry.register("http".to_string(), Box::new(connector_clone));
         }
 
-        assert_eq!(registry.len(), 1, "retry-after-check should not create duplicate");
+        assert_eq!(
+            registry.len(),
+            1,
+            "retry-after-check should not create duplicate"
+        );
     }
 
     #[tokio::test]
@@ -1285,7 +1317,11 @@ mod red_queen_connector_registry_split_brain_tests {
 
         for name in &["z", "a", "m"] {
             assert!(list.contains(name), "connector {} should be in list", name);
-            assert!(registry.get(name).is_some(), "connector {} should be retrievable", name);
+            assert!(
+                registry.get(name).is_some(),
+                "connector {} should be retrievable",
+                name
+            );
         }
     }
 }

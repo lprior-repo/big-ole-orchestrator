@@ -5,7 +5,7 @@ pub enum CliError {
     #[error("{0}")]
     Clap(#[from] clap::Error),
     #[error(transparent)]
-    Purge(#[from] PurgeError),
+    Purge(#[from] crate::commands::purge::PurgeError),
     #[error("invalid numeric: {0}")]
     InvalidNumeric(String),
     #[error("dispatch error: {0}")]
@@ -24,6 +24,8 @@ pub enum CliError {
     Doctor(#[from] crate::commands::doctor::DoctorError),
     #[error(transparent)]
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
+    #[error(transparent)]
+    Serve(#[from] crate::commands::serve::ServeError),
     #[error(transparent)]
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
@@ -576,8 +578,7 @@ where
 pub fn map_error_to_exit_code(err: &CliError) -> i32 {
     match err {
         CliError::Clap(e) => match e.kind() {
-            clap::error::ErrorKind::DisplayHelp
-            | clap::error::ErrorKind::DisplayVersion => 0,
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => 0,
             _ => 2,
         },
         CliError::Dispatch(_)
@@ -589,6 +590,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
+        | CliError::Serve(_)
         | CliError::Status(_)
         | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,

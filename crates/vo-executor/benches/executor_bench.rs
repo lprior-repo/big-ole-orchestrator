@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use vo_executor::scheduler::PriorityQueue;
 use vo_executor::scheduler::{Job, JobId, Schedule};
 use vo_executor::types::RetryPolicy;

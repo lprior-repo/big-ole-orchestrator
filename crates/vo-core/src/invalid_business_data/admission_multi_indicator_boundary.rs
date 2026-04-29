@@ -17,8 +17,7 @@ mod admission_multi_indicator_boundary {
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
         };
-        let result =
-            crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(matches!(
             result,
             Err(AdmissionError::MultiplePressureIndicators { .. })
@@ -44,8 +43,7 @@ mod admission_multi_indicator_boundary {
             batch_commit_latency_ms_threshold: 1000,
             blob_queue_depth_threshold: 50,
         };
-        let result =
-            crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(matches!(
             result,
             Err(AdmissionError::MultiplePressureIndicators { .. })
@@ -69,8 +67,7 @@ mod admission_multi_indicator_boundary {
             batch_commit_latency_ms_threshold: 0,
             blob_queue_depth_threshold: 0,
         };
-        let result =
-            crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
+        let result = crate::admission::check::check_admission_with_thresholds(&state, &thresholds);
         assert!(result.is_ok());
     }
 }

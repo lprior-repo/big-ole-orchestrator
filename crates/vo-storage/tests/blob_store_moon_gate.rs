@@ -345,12 +345,10 @@ fn moon_gate_output_ref_cannot_publish_from_pending() {
         err,
         BlobStoreError::InvalidPublicationStatus { .. }
     ));
-    assert!(
-        !protocol
-            .get_status(&addr)
-            .unwrap()
-            .can_transition_to(BlobStatus::Published)
-    );
+    assert!(!protocol
+        .get_status(&addr)
+        .unwrap()
+        .can_transition_to(BlobStatus::Published));
 }
 
 #[test]

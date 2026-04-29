@@ -1,7 +1,8 @@
+use crate::vault::Permission;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
-use vo_types::credentials::{CredentialId, CredentialVersionId, Permission, Principal};
+use vo_types::credentials::{CredentialId, CredentialVersionId, Principal};
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CredentialError {

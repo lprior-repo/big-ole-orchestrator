@@ -17,7 +17,7 @@ use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
-use crate::projection::ProjectionService;
+use crate::handlers::{wtf_ui, wtf_ui_asset};
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -45,8 +45,6 @@ pub struct AppState {
     pub dedupe_store: Arc<dyn DedupeStore>,
     /// Writer pressure guard for ADR-006/ADR-015 ingress load shedding.
     pub writer_pressure: Arc<dyn WriterPressureGuard>,
-    /// Operator projection service for ADR-025 dual-representation privacy.
-    pub projection: Arc<ProjectionService>,
 }
 
 // ---------------------------------------------------------------------------
@@ -205,17 +203,9 @@ mod tests {
         let workspace_index = Arc::new(std::sync::RwLock::new(
             vo_types::workspace::WorkspaceIndex::new(),
         ));
-        let search_engine = Arc::new(std::sync::RwLock::new(
-            vo_types::search::SearchEngine::new(),
-        ));
+        let search_engine = Arc::new(std::sync::RwLock::new(vo_types::search::SearchEngine::new()));
 
-        let projection = Arc::new(ProjectionService::new());
-
-        let query_state = QueryState {
-            db: db_handle.clone(),
-            workspace_index,
-            projection: projection.clone(),
-        };
+        let query_state = QueryState::new(db_handle.clone(), workspace_index, search_engine);
 
         let (master_ref, _handle) =
             ractor::Actor::spawn(Some("test-orchestrator".to_string()), DummyOrchestrator, ())
@@ -230,10 +220,7 @@ mod tests {
             master: master.clone(),
             circuit_breaker: circuit_breaker.clone(),
             dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
-            writer_pressure: Arc::new(
-                vo_core::admission::WatchdogPressureGuard::permissive(),
-            ),
-            projection: projection.clone(),
+            writer_pressure: Arc::new(vo_core::admission::WatchdogPressureGuard::permissive()),
         };
 
         let _router = create_router(state.clone());
@@ -250,10 +237,6 @@ mod tests {
         assert!(
             Arc::ptr_eq(&cloned.master, &master),
             "workflow/signal/event handlers must share the same orchestrator actor ref"
-        );
-        assert!(
-            Arc::ptr_eq(&cloned.projection, &projection),
-            "projection service must be shared"
         );
 
         let mut sse_rx = cloned.sse.broadcaster.subscribe();

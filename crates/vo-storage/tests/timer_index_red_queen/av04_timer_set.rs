@@ -26,9 +26,9 @@ fn rq_timer_set_rejects_past_fire_time() {
         &mut storage,
         instance_id.clone(),
         timer_id.clone(),
-        999,  // fire_at_ms < now_ms
-        499,  // trigger_time_ms
-        500,  // duration_ms
+        999, // fire_at_ms < now_ms
+        499, // trigger_time_ms
+        500, // duration_ms
         now_ms,
     );
     assert_eq!(
@@ -48,10 +48,10 @@ fn rq_timer_set_accepts_future_fire_time() {
         &mut storage,
         instance_id.clone(),
         timer_id.clone(),
-        2000,  // fire_at_ms > now_ms
-        1500,  // trigger_time_ms
-        500,   // duration_ms
-        1000,  // now_ms
+        2000, // fire_at_ms > now_ms
+        1500, // trigger_time_ms
+        500,  // duration_ms
+        1000, // now_ms
     );
     assert!(result.is_ok(), "Future fire_at_ms should be accepted");
 }
@@ -66,12 +66,15 @@ fn rq_timer_set_accepts_fire_at_ms_one_ms_in_future() {
         &mut storage,
         instance_id.clone(),
         timer_id.clone(),
-        1001,  // fire_at_ms = now_ms + 1
-        501,   // trigger_time_ms
-        500,   // duration_ms
-        1000,  // now_ms
+        1001, // fire_at_ms = now_ms + 1
+        501,  // trigger_time_ms
+        500,  // duration_ms
+        1000, // now_ms
     );
-    assert!(result.is_ok(), "fire_at_ms one ms in future should be accepted");
+    assert!(
+        result.is_ok(),
+        "fire_at_ms one ms in future should be accepted"
+    );
 }
 
 #[test]
@@ -85,10 +88,10 @@ fn rq_timer_set_rejects_invalid_dual_clock() {
         &mut storage,
         instance_id.clone(),
         timer_id.clone(),
-        1000,  // fire_at_ms
-        500,   // trigger_time_ms
-        400,   // duration_ms (500 + 400 = 900, not 1000)
-        0,     // now_ms
+        1000, // fire_at_ms
+        500,  // trigger_time_ms
+        400,  // duration_ms (500 + 400 = 900, not 1000)
+        0,    // now_ms
     );
     assert_eq!(
         result,
@@ -108,10 +111,10 @@ fn rq_timer_set_accepts_valid_dual_clock() {
         &mut storage,
         instance_id.clone(),
         timer_id.clone(),
-        1000,  // fire_at_ms
-        500,   // trigger_time_ms
-        500,   // duration_ms
-        0,     // now_ms
+        1000, // fire_at_ms
+        500,  // trigger_time_ms
+        500,  // duration_ms
+        0,    // now_ms
     );
     assert!(result.is_ok(), "Valid dual-clock should be accepted");
 }

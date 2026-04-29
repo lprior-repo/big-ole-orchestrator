@@ -7,11 +7,11 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
-pub mod health;
 pub mod circuit_breaker;
+pub mod health;
 
-pub use health::HealthCheckResult;
 pub use circuit_breaker::CircuitBreakerState;
+pub use health::HealthCheckResult;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PoolConfig {
@@ -214,16 +214,34 @@ pub enum ErrorCategory {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorDetail {
-    MaxConnectionsReached { max: u32 },
-    PendingAcquiresExceeded { max: u32 },
-    AcquireTimeout { waited_ms: u64, timeout_ms: u64 },
-    NatsConnectionError { connection_id: ConnectionId, reason: String },
-    HealthCheckTimeout { connection_id: ConnectionId },
-    ConnectionCorrupted { connection_id: ConnectionId },
-    InvalidRelease { reason: &'static str },
+    MaxConnectionsReached {
+        max: u32,
+    },
+    PendingAcquiresExceeded {
+        max: u32,
+    },
+    AcquireTimeout {
+        waited_ms: u64,
+        timeout_ms: u64,
+    },
+    NatsConnectionError {
+        connection_id: ConnectionId,
+        reason: String,
+    },
+    HealthCheckTimeout {
+        connection_id: ConnectionId,
+    },
+    ConnectionCorrupted {
+        connection_id: ConnectionId,
+    },
+    InvalidRelease {
+        reason: &'static str,
+    },
     PoolNotInitialized,
     AlreadyShutdown,
-    CircuitBreakerOpen { consecutive_failures: u32 },
+    CircuitBreakerOpen {
+        consecutive_failures: u32,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -251,10 +269,16 @@ impl ErrorDetail {
             ErrorDetail::PendingAcquiresExceeded { max } => {
                 format!("Pending acquires exceeded: {max}")
             }
-            ErrorDetail::AcquireTimeout { waited_ms, timeout_ms } => {
+            ErrorDetail::AcquireTimeout {
+                waited_ms,
+                timeout_ms,
+            } => {
                 format!("Acquire timed out after {waited_ms}ms (timeout: {timeout_ms}ms)")
             }
-            ErrorDetail::NatsConnectionError { connection_id: _, reason } => {
+            ErrorDetail::NatsConnectionError {
+                connection_id: _,
+                reason,
+            } => {
                 format!("NATS connection error: {reason}")
             }
             ErrorDetail::HealthCheckTimeout { connection_id } => {
@@ -266,7 +290,9 @@ impl ErrorDetail {
             ErrorDetail::InvalidRelease { reason } => format!("Invalid release: {reason}"),
             ErrorDetail::PoolNotInitialized => "Pool not initialized".to_string(),
             ErrorDetail::AlreadyShutdown => "Pool already shutdown".to_string(),
-            ErrorDetail::CircuitBreakerOpen { consecutive_failures } => {
+            ErrorDetail::CircuitBreakerOpen {
+                consecutive_failures,
+            } => {
                 format!("Circuit breaker open: {consecutive_failures} consecutive failures")
             }
         }
@@ -487,7 +513,10 @@ mod tests {
             };
             match result {
                 ReleaseResult::Evicted { reason } => {
-                    assert_eq!(reason, EvictionReason::HealthCheckFailed(HealthCheckResult::Stale));
+                    assert_eq!(
+                        reason,
+                        EvictionReason::HealthCheckFailed(HealthCheckResult::Stale)
+                    );
                 }
                 _ => panic!("Expected Evicted variant"),
             }
@@ -541,7 +570,10 @@ mod tests {
 
         #[test]
         fn test_error_category_display() {
-            assert_eq!(format!("{}", ErrorCategory::PoolExhaustion), "PoolExhaustion");
+            assert_eq!(
+                format!("{}", ErrorCategory::PoolExhaustion),
+                "PoolExhaustion"
+            );
             assert_eq!(format!("{}", ErrorCategory::Timeout), "Timeout");
         }
     }
@@ -565,7 +597,9 @@ mod tests {
 
         #[test]
         fn test_error_detail_circuit_breaker_open() {
-            let detail = ErrorDetail::CircuitBreakerOpen { consecutive_failures: 5 };
+            let detail = ErrorDetail::CircuitBreakerOpen {
+                consecutive_failures: 5,
+            };
             let msg = detail.to_string();
             assert!(msg.contains("5"));
             assert!(msg.contains("Circuit breaker open"));

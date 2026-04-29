@@ -116,7 +116,8 @@ fn serde_deserialization_missing_max_backoff_defaults_to_u64_max() {
 
 #[test]
 fn serde_deserialization_explicit_max_backoff_preserves_value() {
-    let json = r#"{"max_attempts":3,"backoff_ms":100,"backoff_multiplier":2.0,"max_backoff_ms":5000}"#;
+    let json =
+        r#"{"max_attempts":3,"backoff_ms":100,"backoff_multiplier":2.0,"max_backoff_ms":5000}"#;
     let policy: RetryPolicy = serde_json::from_str(json).unwrap();
     assert_eq!(policy.max_backoff_ms, 5000);
 }
@@ -132,7 +133,10 @@ fn serde_round_trip_with_custom_max_backoff() {
     let round_tripped: RetryPolicy = serde_json::from_str(&json).unwrap();
     assert_eq!(original.max_attempts, round_tripped.max_attempts);
     assert_eq!(original.backoff_ms, round_tripped.backoff_ms);
-    assert_eq!(original.backoff_multiplier, round_tripped.backoff_multiplier);
+    assert_eq!(
+        original.backoff_multiplier,
+        round_tripped.backoff_multiplier
+    );
     assert_eq!(original.max_backoff_ms, round_tripped.max_backoff_ms);
 }
 
@@ -159,8 +163,16 @@ fn serde_serialization_produces_correct_json_structure() {
 fn retry_policy_error_max_backoff_too_small_display_format() {
     let err = RetryPolicyError::MaxBackoffTooSmall { max: 50, ms: 200 };
     let display = err.to_string();
-    assert!(display.contains("50"), "Display should contain max value 50: got '{}'", display);
-    assert!(display.contains("200"), "Display should contain ms value 200: got '{}'", display);
+    assert!(
+        display.contains("50"),
+        "Display should contain max value 50: got '{}'",
+        display
+    );
+    assert!(
+        display.contains("200"),
+        "Display should contain ms value 200: got '{}'",
+        display
+    );
 }
 
 // ============================================================================
@@ -169,7 +181,10 @@ fn retry_policy_error_max_backoff_too_small_display_format() {
 
 #[test]
 fn retry_policy_error_partial_eq_same_variants_equal() {
-    assert_eq!(RetryPolicyError::ZeroAttempts, RetryPolicyError::ZeroAttempts);
+    assert_eq!(
+        RetryPolicyError::ZeroAttempts,
+        RetryPolicyError::ZeroAttempts
+    );
     assert_eq!(
         RetryPolicyError::InvalidMultiplier { got: 0.5 },
         RetryPolicyError::InvalidMultiplier { got: 0.5 }
@@ -182,7 +197,10 @@ fn retry_policy_error_partial_eq_same_variants_equal() {
 
 #[test]
 fn retry_policy_error_partial_eq_different_variants_not_equal() {
-    assert_ne!(RetryPolicyError::ZeroAttempts, RetryPolicyError::InvalidMultiplier { got: 0.5 });
+    assert_ne!(
+        RetryPolicyError::ZeroAttempts,
+        RetryPolicyError::InvalidMultiplier { got: 0.5 }
+    );
     assert_ne!(
         RetryPolicyError::InvalidMultiplier { got: 0.5 },
         RetryPolicyError::MaxBackoffTooSmall { max: 1, ms: 2 }
@@ -391,7 +409,10 @@ fn mt_01_multiplier_exactly_one_is_accepted() {
 #[test]
 fn mt_02_max_backoff_equals_backoff_ms_is_accepted() {
     let result = RetryPolicy::with_max_backoff(3, 100, 2.0, 100);
-    assert!(result.is_ok(), "max_backoff_ms == backoff_ms should be accepted");
+    assert!(
+        result.is_ok(),
+        "max_backoff_ms == backoff_ms should be accepted"
+    );
 }
 
 #[test]
@@ -411,14 +432,26 @@ fn mt_04_saturating_sub_prevents_wrap_for_attempt_zero() {
 fn mt_05_min_not_max_in_double_cap() {
     let policy = RetryPolicy::with_max_backoff(10, 100, 2.0, 300).unwrap();
     let delay = policy.calculate_backoff_delay(10);
-    assert!(delay <= 300, "Delay should NOT exceed max_backoff_ms (300), got {}", delay);
+    assert!(
+        delay <= 300,
+        "Delay should NOT exceed max_backoff_ms (300), got {}",
+        delay
+    );
 }
 
 #[test]
 fn mt_06_attempt_zero_and_zero_backoff_both_return_zero() {
     let policy = RetryPolicy::new(5, 100, 2.0).unwrap();
-    assert_eq!(policy.calculate_backoff_delay(0), 0, "attempt=0 with non-zero backoff_ms must return 0");
+    assert_eq!(
+        policy.calculate_backoff_delay(0),
+        0,
+        "attempt=0 with non-zero backoff_ms must return 0"
+    );
 
     let policy_zero = RetryPolicy::new(5, 0, 2.0).unwrap();
-    assert_eq!(policy_zero.calculate_backoff_delay(1), 0, "attempt=1 with backoff_ms=0 must return 0");
+    assert_eq!(
+        policy_zero.calculate_backoff_delay(1),
+        0,
+        "attempt=1 with backoff_ms=0 must return 0"
+    );
 }

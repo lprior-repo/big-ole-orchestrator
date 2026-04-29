@@ -2,9 +2,8 @@ use super::*;
 
 #[test]
 fn binary_hash_accepts_valid_lowercase_hex_when_input_is_wellformed() {
-    let bh =
-        BinaryHash::parse("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
-            .expect("valid");
+    let bh = BinaryHash::parse("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+        .expect("valid");
     assert_eq!(
         bh.as_str(),
         "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
@@ -140,9 +139,8 @@ fn binary_hash_display_equals_inner_string() {
 
 #[test]
 fn binary_hash_display_round_trips_through_parse_when_valid() {
-    let bh =
-        BinaryHash::parse("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
-            .expect("valid");
+    let bh = BinaryHash::parse("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789")
+        .expect("valid");
     let s = format!("{bh}");
     assert_eq!(BinaryHash::parse(&s), Ok(bh));
 }

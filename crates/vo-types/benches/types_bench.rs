@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use std::hint::black_box;
 use vo_types::{DedupeKey, EventEnvelope, InstanceId};
 
 fn bench_instance_id_parse(c: &mut Criterion) {

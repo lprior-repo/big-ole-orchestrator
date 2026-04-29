@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use ulid::Ulid;
-use vo_types::workspace::{WorkspaceId, WorkspaceIndex, WorkspaceMetadata, WorkspaceName, WorkspaceIndexError};
+use vo_types::workspace::{
+    WorkspaceId, WorkspaceIndex, WorkspaceIndexError, WorkspaceMetadata, WorkspaceName,
+};
 use vo_types::TimestampMs;
 
 #[derive(Debug, thiserror::Error)]
@@ -58,19 +60,18 @@ pub async fn list_workspaces(config: WorkspaceConfig) -> Result<(), WorkspaceErr
     }
     println!("Workspaces:");
     for root_id in &roots {
-        let node = index.find_by_id(*root_id).map_err(|e| WorkspaceError::NotFound(e.to_string()))?;
+        let node = index
+            .find_by_id(*root_id)
+            .map_err(|e| WorkspaceError::NotFound(e.to_string()))?;
         println!("  {} ({})", node.name, root_id);
     }
     Ok(())
 }
 
-pub async fn create_workspace(
-    config: WorkspaceConfig,
-    name: String,
-) -> Result<(), WorkspaceError> {
+pub async fn create_workspace(config: WorkspaceConfig, name: String) -> Result<(), WorkspaceError> {
     let mut index = load_index(&config.storage_path)?;
-    let ws_name = WorkspaceName::parse(&name)
-        .map_err(|_| WorkspaceError::InvalidName(name.clone()))?;
+    let ws_name =
+        WorkspaceName::parse(&name).map_err(|_| WorkspaceError::InvalidName(name.clone()))?;
     let metadata = WorkspaceMetadata::empty();
     let now = TimestampMs::now();
     let id = index.insert(None, ws_name, metadata, now)?;
@@ -93,10 +94,7 @@ pub async fn delete_workspace(
     Ok(())
 }
 
-pub async fn show_workspace(
-    config: WorkspaceConfig,
-    id_str: String,
-) -> Result<(), WorkspaceError> {
+pub async fn show_workspace(config: WorkspaceConfig, id_str: String) -> Result<(), WorkspaceError> {
     let index = load_index(&config.storage_path)?;
     let ulid = Ulid::from_string(&id_str)
         .map_err(|_| WorkspaceError::NotFound(format!("invalid workspace ID: {}", id_str)))?;

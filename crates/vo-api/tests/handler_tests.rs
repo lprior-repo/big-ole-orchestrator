@@ -66,10 +66,7 @@ async fn stub_start_workflow(req: Request<Body>) -> (StatusCode, Json<Value>) {
         );
     }
 
-    let namespace = body
-        .get("namespace")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let namespace = body.get("namespace").and_then(|v| v.as_str()).unwrap_or("");
     if namespace.is_empty() {
         return err(
             StatusCode::BAD_REQUEST,
@@ -78,10 +75,7 @@ async fn stub_start_workflow(req: Request<Body>) -> (StatusCode, Json<Value>) {
         );
     }
 
-    let paradigm = body
-        .get("paradigm")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let paradigm = body.get("paradigm").and_then(|v| v.as_str()).unwrap_or("");
     if !["fsm", "dag", "procedural"].contains(&paradigm) {
         return err(
             StatusCode::BAD_REQUEST,
@@ -247,15 +241,15 @@ async fn stub_compensate_workflow(Path(id): Path<String>) -> (StatusCode, Json<V
 
 fn app() -> Router {
     Router::new()
-        .route("/api/v1/workflows", post(stub_start_workflow).get(stub_list_workflows))
+        .route(
+            "/api/v1/workflows",
+            post(stub_start_workflow).get(stub_list_workflows),
+        )
         .route(
             "/api/v1/workflows/{id}",
             get(stub_get_workflow).delete(stub_terminate_workflow),
         )
-        .route(
-            "/api/v1/workflows/{id}/events",
-            get(stub_get_events),
-        )
+        .route("/api/v1/workflows/{id}/events", get(stub_get_events))
         .route(
             "/api/v1/workflows/{id}/status",
             get(stub_get_workflow_status),
@@ -264,10 +258,7 @@ fn app() -> Router {
             "/api/v1/workflows/{id}/unquarantine",
             post(stub_unquarantine_workflow),
         )
-        .route(
-            "/api/v1/workflows/{id}/signals",
-            post(stub_send_signal),
-        )
+        .route("/api/v1/workflows/{id}/signals", post(stub_send_signal))
         .route(
             "/api/v1/workflows/{id}/compensate",
             post(stub_compensate_workflow),
@@ -568,9 +559,7 @@ mod signal {
             .method("POST")
             .uri("/api/v1/workflows/noslash/signals")
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(
-                r#"{"signal_name":"approve","payload":{}}"#,
-            ))
+            .body(Body::from(r#"{"signal_name":"approve","payload":{}}"#))
             .unwrap();
         let (status, body) = send(req).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -895,7 +884,11 @@ mod helpers {
     #[test]
     fn paradigm_roundtrip() {
         use vo_actor::WorkflowParadigm;
-        for p in [WorkflowParadigm::Fsm, WorkflowParadigm::Dag, WorkflowParadigm::Procedural] {
+        for p in [
+            WorkflowParadigm::Fsm,
+            WorkflowParadigm::Dag,
+            WorkflowParadigm::Procedural,
+        ] {
             let s = paradigm_to_str(p.clone());
             let back = parse_paradigm(s).unwrap();
             assert_eq!(back, p);
@@ -967,7 +960,10 @@ mod error_envelope {
             let v: Value = serde_json::from_str(&body)
                 .unwrap_or_else(|e| panic!("URI {uri}: body not valid JSON: {e}\nbody: {body}"));
             assert!(v.get("error").is_some(), "URI {uri}: missing 'error' field");
-            assert!(v.get("message").is_some(), "URI {uri}: missing 'message' field");
+            assert!(
+                v.get("message").is_some(),
+                "URI {uri}: missing 'message' field"
+            );
         }
     }
 }

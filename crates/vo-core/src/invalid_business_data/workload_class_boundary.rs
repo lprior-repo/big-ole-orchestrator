@@ -1,6 +1,8 @@
 mod workload_class_boundary {
     use super::*;
-    use crate::workload_class::{RejectionDetail, WorkloadBudget, WorkloadClass, WorkloadClassError};
+    use crate::workload_class::{
+        RejectionDetail, WorkloadBudget, WorkloadClass, WorkloadClassError,
+    };
 
     #[test]
     fn parse_whitespace_string_returns_unknown() {

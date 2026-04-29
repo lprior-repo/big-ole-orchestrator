@@ -11,7 +11,7 @@ use std::fmt;
 
 use ulid::Ulid;
 
-use crate::integer_types::TimestampMs;
+use crate::pool::TimestampMs;
 
 /// Configuration for the connection pool.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

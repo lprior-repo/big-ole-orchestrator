@@ -37,7 +37,11 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force: if force { Some("test-operator-token".into()) } else { None },
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -659,7 +663,11 @@ fn attack_inv010_concurrent_evaluate_registration_no_panics() {
             let request = RegistrationRequest {
                 workflow_name: WorkflowName::parse(&wf_name).unwrap(),
                 binary_hash: BinaryHash::parse(&hash).unwrap(),
-                force: if i % 5 == 0 { Some("test-operator-token".into()) } else { None },
+                force: if i % 5 == 0 {
+                    Some("test-operator-token".into())
+                } else {
+                    None
+                },
             };
             let now = t0 + Duration::from_millis(i as u64 * 10);
             let _val = evaluate_registration(&request, &config, &state, now);

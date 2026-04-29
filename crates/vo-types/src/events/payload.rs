@@ -1,11 +1,36 @@
 //! Event payload types and parsing.
 
+use std::str::FromStr;
+
 use crate::events::error::Error;
 use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
 use crate::WorkflowVersionHash;
+
+/// Represents the kind of effect sink for an effect-prepared event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SinkKind {
+    BlobWrite,
+    TimerWrite,
+    SignalWrite,
+}
+
+impl FromStr for SinkKind {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "BlobWrite" => Ok(SinkKind::BlobWrite),
+            "TimerWrite" => Ok(SinkKind::TimerWrite),
+            "SignalWrite" => Ok(SinkKind::SignalWrite),
+            other => Err(Error::InvalidPayloadField(format!(
+                "unknown sink kind: {other}"
+            ))),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct RoutingProjection {}
@@ -92,7 +117,7 @@ pub enum EventPayload {
         timer_id: String,
         fired_at_ms: u64,
     },
-   CancelRequested {
+    CancelRequested {
         workflow_id: String,
         requested_by: String,
     },

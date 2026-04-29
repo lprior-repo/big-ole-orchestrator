@@ -28,8 +28,8 @@ use std::time::Duration;
 
 use vo_actor::lifecycle::{ActorLifecycleState, ParentChildRegistry};
 use vo_actor::spawn_supervisor::{
-    ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
-    SpawnSupervisor, SpawnSupervisorError, WorkQueue,
+    ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor,
+    SpawnSupervisorError, WorkQueue,
 };
 use vo_types::InstanceId;
 
@@ -574,7 +574,8 @@ fn rq_003_lifecycle_failed_state_rejects_all_transitions() {
         let next = compute_next_state(failed, t);
         assert!(
             next.is_none(),
-            "Failed state should reject {:?} transition (terminal)", t
+            "Failed state should reject {:?} transition (terminal)",
+            t
         );
     }
 }

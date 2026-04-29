@@ -1,8 +1,6 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    CheckError, CliError, GcError, map_error_to_exit_code, parse_strict_numeric,
-};
+use vo_cli::{map_error_to_exit_code, parse_strict_numeric, CheckError, CliError, GcError};
 
 #[test]
 fn check_error_file_not_found_display() {
@@ -159,11 +157,9 @@ fn exit_code_doctor_error_is_1() {
 
 #[test]
 fn exit_code_rebuild_error_is_1() {
-    let err = CliError::Rebuild(
-        vo_cli::commands::rebuild::RebuildError::NotInitialized {
-            path: PathBuf::from("/x"),
-        },
-    );
+    let err = CliError::Rebuild(vo_cli::commands::rebuild::RebuildError::NotInitialized {
+        path: PathBuf::from("/x"),
+    });
     assert_eq!(map_error_to_exit_code(&err), 1);
 }
 

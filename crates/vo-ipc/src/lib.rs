@@ -24,6 +24,7 @@ pub mod bus;
 pub mod config;
 pub mod envelope;
 pub mod error;
+pub mod pipe;
 pub mod run;
 pub mod spsc;
 pub mod stderr;

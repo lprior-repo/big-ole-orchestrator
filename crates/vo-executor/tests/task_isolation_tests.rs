@@ -1,4 +1,9 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::await_holding_lock)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::await_holding_lock
+)]
 
 //! Red Queen adversarial tests for task isolation (rq-007).
 //!
@@ -17,11 +22,11 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
+use vo_executor::state::{get_state, set_state, StepState};
 use vo_executor::{
     cancel_execution, execute_step, get_execution_status, get_last_error, reset_all_state,
     set_error, set_executing_state_for_test, StepId,
 };
-use vo_executor::state::{get_state, set_state, StepState};
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -98,10 +103,7 @@ mod panic_isolation_tests {
         );
 
         // THEN: New operations still work
-        set_state(
-            "post-panic-step",
-            StepState::Ready,
-        );
+        set_state("post-panic-step", StepState::Ready);
         let post_state = get_state("post-panic-step");
         assert!(
             matches!(post_state, StepState::Ready),
@@ -203,9 +205,18 @@ mod state_leakage_tests {
         assert!(result_c.is_ok());
 
         // THEN: Each step returns to Ready independently
-        assert!(matches!(get_execution_status(&step_a), vo_executor::ExecutionStatus::Ready));
-        assert!(matches!(get_execution_status(&step_b), vo_executor::ExecutionStatus::Ready));
-        assert!(matches!(get_execution_status(&step_c), vo_executor::ExecutionStatus::Ready));
+        assert!(matches!(
+            get_execution_status(&step_a),
+            vo_executor::ExecutionStatus::Ready
+        ));
+        assert!(matches!(
+            get_execution_status(&step_b),
+            vo_executor::ExecutionStatus::Ready
+        ));
+        assert!(matches!(
+            get_execution_status(&step_c),
+            vo_executor::ExecutionStatus::Ready
+        ));
     }
 
     #[tokio::test]
@@ -245,19 +256,28 @@ mod state_leakage_tests {
 
         // THEN: Step A is cancelled
         assert!(
-            matches!(get_execution_status(&step_a), vo_executor::ExecutionStatus::Cancelled { .. }),
+            matches!(
+                get_execution_status(&step_a),
+                vo_executor::ExecutionStatus::Cancelled { .. }
+            ),
             "step A should be cancelled"
         );
 
         // THEN: Step B is still Ready (not affected)
         assert!(
-            matches!(get_execution_status(&step_b), vo_executor::ExecutionStatus::Ready),
+            matches!(
+                get_execution_status(&step_b),
+                vo_executor::ExecutionStatus::Ready
+            ),
             "step B should remain Ready — cancel leaked"
         );
 
         // THEN: Step B can still execute
         let result = execute_step(step_b, 5000).await;
-        assert!(result.is_ok(), "step B should execute after step A cancelled");
+        assert!(
+            result.is_ok(),
+            "step B should execute after step A cancelled"
+        );
     }
 
     #[tokio::test]
@@ -342,7 +362,10 @@ mod concurrent_contention_tests {
 
         // THEN: Re-execution succeeds because state returns to Ready after completion
         let result2 = execute_step(step.clone(), 5000).await;
-        assert!(result2.is_ok(), "re-execution after completion should succeed");
+        assert!(
+            result2.is_ok(),
+            "re-execution after completion should succeed"
+        );
     }
 
     #[tokio::test]
@@ -475,7 +498,8 @@ mod subprocess_isolation_tests {
         std::fs::write(&script, "#!/bin/sh\nkill -9 $$\n").unwrap();
         make_executable(&script);
 
-        let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+        let config =
+            SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
         let _ = run_subprocess(config).await;
 
         // THEN: Host state is unchanged
@@ -528,7 +552,8 @@ mod subprocess_isolation_tests {
         std::fs::write(&script, "#!/bin/sh\nsleep 60\n").unwrap();
         make_executable(&script);
 
-        let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]);
+        let config =
+            SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]);
         let result = run_subprocess(config).await;
         assert!(matches!(result, Err(SubprocessError::Timeout { .. })));
 
@@ -630,10 +655,7 @@ mod resource_sharing_tests {
                     let state = get_state("torn-read-victim");
                     match state {
                         StepState::Completed { output } => {
-                            assert!(
-                                !output.is_empty(),
-                                "output should never be empty/torn"
-                            );
+                            assert!(!output.is_empty(), "output should never be empty/torn");
                             READ_OK_COUNT.fetch_add(1, Ordering::SeqCst);
                         }
                         StepState::Ready => {

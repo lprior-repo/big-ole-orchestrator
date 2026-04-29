@@ -176,7 +176,8 @@ fn encode_decode_record_roundtrip_for_rolledback_status() {
 
 #[test]
 fn schema_evolution_old_format_without_committed_at_through_codec() {
-    let old_json = br#"{"intent_id":"fx-codec-old","kind":"HttpCall","params_json":{},"status":"Prepared"}"#;
+    let old_json =
+        br#"{"intent_id":"fx-codec-old","kind":"HttpCall","params_json":{},"status":"Prepared"}"#;
     let record = decode_effect_record(old_json).unwrap();
     assert_eq!(record.intent_id(), "fx-codec-old");
     assert_eq!(record.kind(), EffectKind::HttpCall);

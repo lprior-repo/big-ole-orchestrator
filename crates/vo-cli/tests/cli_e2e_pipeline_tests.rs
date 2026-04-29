@@ -22,9 +22,9 @@ use vo_cli::commands::rebuild::{
 use vo_cli::utils::{file_hash, sha256_hex};
 use vo_cli::{
     create_dispatcher_v2, dispatch, dispatch_v2, interpret_cli_from, map_error_to_exit_code,
-    parse_strict_numeric, CliError, Command,
-    CommandDispatcherV2, DefaultDispatchContext, DispatchContext, HandlerRegistry,
-    LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult, MiddlewareV2,
+    parse_strict_numeric, CliError, Command, CommandDispatcherV2, DefaultDispatchContext,
+    DispatchContext, HandlerRegistry, LoggingMiddlewareV2, MetricsMiddlewareV2, MiddlewareResult,
+    MiddlewareV2,
 };
 
 fn setup_project(dir: &Path) {
@@ -261,7 +261,8 @@ fn parse_init_all_defaults() {
 
 #[test]
 fn parse_init_custom_project_dir() {
-    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/custom/dir"]).expect("valid CLI input");
+    let cli = interpret_cli_from(vec!["vo", "init", "--project-dir", "/custom/dir"])
+        .expect("valid CLI input");
     match cli.command {
         Command::Init { project_dir, .. } => {
             assert_eq!(project_dir, PathBuf::from("/custom/dir"));
@@ -318,7 +319,8 @@ fn parse_rebuild_defaults() {
 
 #[test]
 fn parse_rebuild_with_projection_id() {
-    let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "my-proj"]).expect("valid CLI input");
+    let cli = interpret_cli_from(vec!["vo", "rebuild", "--projection-id", "my-proj"])
+        .expect("valid CLI input");
     match cli.command {
         Command::Rebuild { projection_id, .. } => {
             assert_eq!(projection_id, Some("my-proj".to_string()));
@@ -394,7 +396,8 @@ fn parse_rebuild_all_flags() {
 
 #[test]
 fn parse_purge_basic() {
-    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123"]).expect("valid CLI input");
+    let cli =
+        interpret_cli_from(vec!["vo", "purge", "--instance", "inst-123"]).expect("valid CLI input");
     assert_eq!(
         cli.command,
         Command::Purge {
@@ -416,7 +419,8 @@ fn parse_purge_empty_instance() {
 
 #[test]
 fn parse_purge_special_chars_instance() {
-    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-àéïôü-测试"]).expect("valid CLI input");
+    let cli = interpret_cli_from(vec!["vo", "purge", "--instance", "inst-àéïôü-测试"])
+        .expect("valid CLI input");
     match cli.command {
         Command::Purge { instance } => {
             assert_eq!(instance, "inst-àéïôü-测试");
@@ -438,7 +442,8 @@ fn parse_lock_defaults() {
 
 #[test]
 fn parse_lock_custom_dir() {
-    let cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", "/my/project"]).expect("valid CLI input");
+    let cli = interpret_cli_from(vec!["vo", "lock", "--project-dir", "/my/project"])
+        .expect("valid CLI input");
     match cli.command {
         Command::Lock { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/my/project"));
@@ -460,7 +465,8 @@ fn parse_doctor_defaults() {
 
 #[test]
 fn parse_doctor_custom_dir() {
-    let cli = interpret_cli_from(vec!["vo", "doctor", "--project-dir", "/health"]).expect("valid CLI input");
+    let cli = interpret_cli_from(vec!["vo", "doctor", "--project-dir", "/health"])
+        .expect("valid CLI input");
     match cli.command {
         Command::Doctor { project_dir } => {
             assert_eq!(project_dir, PathBuf::from("/health"));
@@ -501,7 +507,8 @@ fn parse_unknown_subcommand() {
 
 #[test]
 fn parse_check_path_with_spaces() {
-    let cli = interpret_cli_from(vec!["vo", "check", "/path/with spaces/bin"]).expect("valid CLI input");
+    let cli =
+        interpret_cli_from(vec!["vo", "check", "/path/with spaces/bin"]).expect("valid CLI input");
     match cli.command {
         Command::Check {
             workflow: false,
@@ -746,7 +753,10 @@ fn format_report_json_structure() {
     assert_eq!(parsed["project_dir"].as_str(), Some("/tmp/json-test"));
     assert!(parsed["healthy"].as_bool().expect("valid JSON"));
     assert_eq!(parsed["error_count"].as_u64().expect("valid JSON"), 0);
-    assert_eq!(parsed["categories"].as_array().expect("valid JSON").len(), 1);
+    assert_eq!(
+        parsed["categories"].as_array().expect("valid JSON").len(),
+        1
+    );
 
     let cat_val = &parsed["categories"][0];
     assert_eq!(cat_val["category"].as_str(), Some("lock-state"));
@@ -930,7 +940,9 @@ fn config_readonly_permissions() {
     let dir = tempfile::tempdir().expect("temp dir creation");
     setup_project(dir.path());
     let config_path = dir.path().join(CONFIG_FILE_NAME);
-    let mut perms = fs::metadata(&config_path).expect("read metadata").permissions();
+    let mut perms = fs::metadata(&config_path)
+        .expect("read metadata")
+        .permissions();
     perms.set_readonly(true);
     fs::set_permissions(&config_path, perms).expect("set permissions");
 
@@ -1189,7 +1201,17 @@ fn registry_names_sorted() {
     names.sort();
     assert_eq!(
         names,
-        vec!["check", "compensate", "doctor", "gc", "init", "lock", "purge", "rebuild", "status"]
+        vec![
+            "check",
+            "compensate",
+            "doctor",
+            "gc",
+            "init",
+            "lock",
+            "purge",
+            "rebuild",
+            "status"
+        ]
     );
 }
 
@@ -1325,7 +1347,9 @@ fn doctor_lockstate_unreadable_lockfile() {
     setup_project(dir.path());
     let lock_path = dir.path().join(LOCK_FILE_NAME);
     fs::write(&lock_path, "test hash123\n").expect("write file");
-    let mut perms = fs::metadata(&lock_path).expect("read metadata").permissions();
+    let mut perms = fs::metadata(&lock_path)
+        .expect("read metadata")
+        .permissions();
     perms.set_mode(0o000);
     fs::set_permissions(&lock_path, perms).expect("set permissions");
 
@@ -1335,7 +1359,9 @@ fn doctor_lockstate_unreadable_lockfile() {
         .iter()
         .any(|c| c.check == "lockfile" && c.severity == Severity::Error));
 
-    let mut perms = fs::metadata(&lock_path).expect("read metadata").permissions();
+    let mut perms = fs::metadata(&lock_path)
+        .expect("read metadata")
+        .permissions();
     perms.set_mode(0o644);
     fs::set_permissions(&lock_path, perms).expect("set permissions");
 }
@@ -1488,7 +1514,10 @@ fn check_category_display_all() {
 fn parse_strict_numeric_valid_numbers() {
     assert_eq!(parse_strict_numeric("0").expect("valid numeric"), 0);
     assert_eq!(parse_strict_numeric("1").expect("valid numeric"), 1);
-    assert_eq!(parse_strict_numeric("999999").expect("valid numeric"), 999999);
+    assert_eq!(
+        parse_strict_numeric("999999").expect("valid numeric"),
+        999999
+    );
     assert_eq!(
         parse_strict_numeric("18446744073709551615").expect("valid numeric"),
         u64::MAX

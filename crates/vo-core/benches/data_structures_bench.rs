@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use vo_core::quadtree::{Point as QtPoint, Quadtree, AABB as QtAABB};
 use vo_core::segment_tree::{LazySegmentTree, SegmentTree};
 

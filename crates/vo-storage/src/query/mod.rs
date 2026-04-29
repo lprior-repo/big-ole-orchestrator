@@ -101,7 +101,7 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
 
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
-    let epoch_bytes = epoch.get().to_be_bytes();
+    let epoch_bytes = epoch.value().to_be_bytes();
     let mut prefix = lineage_prefix;
     prefix.extend_from_slice(&epoch_bytes);
     Ok(prefix)
@@ -197,7 +197,7 @@ impl IteratorState {
 
 pub struct EventReplayIterator {
     state: IteratorState,
-    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Result<fjall::KvPair>>>>,
+    inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Guard>>>,
     init_error: Option<StorageError>,
 }
 
@@ -226,6 +226,16 @@ impl Iterator for EventReplayIterator {
 }
 
 impl EventReplayIterator {
+    /// Create an iterator that immediately returns an error.
+    #[must_use]
+    pub fn error(error: StorageError) -> Self {
+        Self {
+            state: IteratorState::new(),
+            inner: None,
+            init_error: Some(error),
+        }
+    }
+
     fn process_kv(
         &mut self,
         k_bytes: &fjall::Slice,
@@ -278,7 +288,7 @@ impl EventReplayIterator {
 }
 
 #[must_use]
-pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> EventReplayIterator {
+pub fn replay_events(db: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
     let prefix = match prefix_generator(instance_id) {
         Ok(p) => p,
         Err(e) => {
@@ -289,8 +299,7 @@ pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> Ev
             };
         }
     };
-    let Ok(partition) = keyspace.open_partition("events", fjall::PartitionCreateOptions::default())
-    else {
+    let Ok(partition) = db.keyspace("events", || fjall::KeyspaceCreateOptions::default()) else {
         return EventReplayIterator {
             state: IteratorState::new(),
             inner: None,
@@ -310,6 +319,41 @@ pub fn replay_events(keyspace: &fjall::Keyspace, instance_id: &InstanceId) -> Ev
             inner: None,
             init_error: Some(StorageError::Storage),
         };
+    };
+    let mut start = prefix.clone();
+    start.extend_from_slice(&min_seq);
+    let mut end = prefix;
+    end.extend_from_slice(&max_seq);
+    let iter = partition.range(start..=end);
+    EventReplayIterator {
+        state: IteratorState::new(),
+        inner: Some(Box::new(iter)),
+        init_error: None,
+    }
+}
+
+/// Replay events using a pre-computed prefix key.
+///
+/// This is used by `vo_storage::event_log` to replay namespaced event streams.
+#[must_use]
+pub fn replay_events_by_prefix(db: &fjall::Database, prefix: Vec<u8>) -> EventReplayIterator {
+    let partition = match db.keyspace("events", || fjall::KeyspaceCreateOptions::default()) {
+        Ok(p) => p,
+        Err(e) => {
+            return EventReplayIterator::error(e.into());
+        }
+    };
+    let min_seq = match encode_key(1) {
+        Ok(s) => s,
+        Err(e) => {
+            return EventReplayIterator::error(e);
+        }
+    };
+    let max_seq = match encode_key(u64::MAX) {
+        Ok(s) => s,
+        Err(e) => {
+            return EventReplayIterator::error(e);
+        }
     };
     let mut start = prefix.clone();
     start.extend_from_slice(&min_seq);
@@ -343,12 +387,12 @@ impl Iterator for LineageReplayIterator {
 
 #[must_use]
 pub fn replay_events_for_lineage(
-    keyspace: &fjall::Keyspace,
+    db: &fjall::Database,
     query: &LineageQuery,
 ) -> LineageReplayIterator {
     match query {
         LineageQuery::InstanceId(instance_id) => {
-            let iter = replay_events(keyspace, instance_id);
+            let iter = replay_events(db, instance_id);
             LineageReplayIterator {
                 instance_iter: Some(iter),
                 lineage_id: None,

@@ -31,7 +31,11 @@ fn make_request(workflow: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(workflow),
         binary_hash: make_hash("abcdef01"),
-        force: if force { Some("test-operator-token".into()) } else { None },
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -39,7 +43,11 @@ fn make_request_with_hash(workflow: &str, hash: &str, force: bool) -> Registrati
     RegistrationRequest {
         workflow_name: make_wf(workflow),
         binary_hash: make_hash(hash),
-        force: if force { Some("test-operator-token".into()) } else { None },
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 

@@ -275,7 +275,8 @@ fn rq_signal_buffer_concurrent_fifo_order_preserved() {
 
     // Should have 1 initial + 10 concurrent = 11 signals
     assert_eq!(
-        all_signals.len(), 11,
+        all_signals.len(),
+        11,
         "INV VIOLATION: Expected 11 signals, got {}. Buffer corrupted.",
         all_signals.len()
     );

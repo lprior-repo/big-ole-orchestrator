@@ -9,8 +9,6 @@ pub mod upcaster;
 
 #[cfg(test)]
 mod tests;
-#[cfg(feature = "proptest")]
-pub mod proptests;
 
 pub const MAX_SUPPORTED_VERSION: u8 = 1;
 

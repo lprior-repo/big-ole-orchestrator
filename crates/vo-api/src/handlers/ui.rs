@@ -37,7 +37,9 @@ pub async fn wtf_ui() -> impl IntoResponse {
         }
         None => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::from("UI assets not built. Run: cd crates/vo-frontend && dx build"))
+            .body(Body::from(
+                "UI assets not built. Run: cd crates/vo-frontend && dx build",
+            ))
             .unwrap(),
     }
 }

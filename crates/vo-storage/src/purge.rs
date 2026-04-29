@@ -71,7 +71,10 @@ pub fn purge_instance(db: &fjall::Database, instance_id_str: &str) -> Result<u64
     let mut event_count = 0u64;
 
     // Scan events by instance key prefix (2-byte len prefix + 16-byte instance ID = 18 bytes)
-    let event_prefix_bytes = encode_key(&parsed_id, SequenceNumber::try_from(1_u64).expect("1 is a valid SequenceNumber"));
+    let event_prefix_bytes = encode_key(
+        &parsed_id,
+        SequenceNumber::try_from(1_u64).expect("1 is a valid SequenceNumber"),
+    );
     let event_prefix = event_prefix_bytes[..18].to_vec();
 
     for guard in events_p.prefix(event_prefix) {

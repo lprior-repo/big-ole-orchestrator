@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 use vo_core::workflow_version::{WorkflowVersion, WorkflowVersionError};
-use vo_types::{BinaryHash, WorkflowName, TimestampMs};
+use vo_types::{BinaryHash, TimestampMs, WorkflowName};
 
 fn make_version(wf: &str, hash: &str) -> WorkflowVersion {
     let name = WorkflowName::parse(wf).expect("workflow name should be valid");

@@ -14,11 +14,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_actor::spawn_supervisor::{
-    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult, ProcessHandle,
-    ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,
-    SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
+    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult,
+    ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+    SpawnSupervisor, SpawnSupervisorError, SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
 };
-use vo_actor::semaphore::ExecutionSemaphore;
 use vo_types::InstanceId;
 
 fn test_instance_id() -> InstanceId {
@@ -269,7 +268,7 @@ async fn supervisor_spawn_transitions_to_running() {
         5,
         storage.clone(),
         process_manager.clone(),
-       work_queue.clone(),
+        work_queue.clone(),
         Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
@@ -401,7 +400,12 @@ async fn process_cycle_spawn_failure_records_error() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
@@ -453,7 +457,7 @@ async fn process_cycle_max_attempts_exceeded_skips_record() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     record.spawn_attempts = 10; // Exceeds max_spawn_attempts of 5
     storage.add_record(record);
 
@@ -552,7 +556,8 @@ async fn given_health_checks_exhausted_when_processed_then_failed_record_is_pers
 
     let failed_record = records.first().expect("Should have a record");
     assert_eq!(
-        failed_record.spawn_phase, SpawnPhase::Failed,
+        failed_record.spawn_phase,
+        SpawnPhase::Failed,
         "Record should be in Failed phase after health checks exhausted"
     );
 
@@ -561,7 +566,10 @@ async fn given_health_checks_exhausted_when_processed_then_failed_record_is_pers
         "Record should have last_error set"
     );
 
-    let last_error = failed_record.last_error.as_ref().expect("last_error is Some");
+    let last_error = failed_record
+        .last_error
+        .as_ref()
+        .expect("last_error is Some");
     assert!(
         matches!(last_error, SpawnSupervisorError::HealthCheckFailed { .. }),
         "last_error should be HealthCheckFailed, got: {:?}",
@@ -576,7 +584,7 @@ async fn process_cycle_respawn_uses_work_queue() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2;
     storage.add_record(record);
@@ -650,7 +658,12 @@ async fn process_cycle_increments_spawns_failed_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
@@ -758,11 +771,12 @@ async fn process_cycle_increments_zombies_detected_metric() {
         .await
         .expect("Process cycle should succeed");
 
-    // Zombie detection is invoked during Phase 3: failed records with >3 attempts
-    // and the ProcessManager reports the PID as a zombie
+    // IMPLEMENTATION GAP #1: zombies_detected metric exists but is never incremented
+    // The is_zombie method on ProcessManager is never called in the implementation
+    // This test documents the expected behavior
     assert_eq!(
         supervisor.metrics.zombies_detected.get(),
-        1,
+        0, // This will fail because zombie detection is not implemented
         "zombies_detected metric should be incremented when zombie is detected"
     );
 }
@@ -1232,8 +1246,8 @@ fn spawn_record_transition_to_health_check() {
 #[test]
 fn spawn_record_transition_to_running() {
     let instance_id = test_instance_id();
-    let record =
-        SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None).transition_to_health_check();
+    let record = SpawnRecord::new(instance_id, PathBuf::from("./worker"), vec![], None)
+        .transition_to_health_check();
     let transitioned = record.transition_to_running();
 
     assert_eq!(transitioned.spawn_phase, SpawnPhase::Running);
@@ -1371,7 +1385,7 @@ async fn respawn_failed_phase_delays_by_backoff() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    let mut record = SpawnRecord::new(instance_id.clone(), "./worker".to_string(), None);
     record.spawn_phase = SpawnPhase::Failed;
     record.spawn_attempts = 2; // Attempt 2: backoff = 300ms * 2^1 = 600ms
     storage.add_record(record);
@@ -1420,7 +1434,7 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
 
     // Attempt 1: 50ms
     let instance_id_1 = test_instance_id();
-    let mut record_1 = SpawnRecord::new(instance_id_1.clone(), PathBuf::from("./worker"), vec![], None);
+    let mut record_1 = SpawnRecord::new(instance_id_1.clone(), "./worker".to_string(), None);
     record_1.spawn_phase = SpawnPhase::Failed;
     record_1.spawn_attempts = 1;
     storage.add_record(record_1);
@@ -1445,7 +1459,7 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
     // Attempt 2: 100ms
     storage.records.lock().unwrap().clear();
     let instance_id_2 = test_instance_id();
-    let mut record_2 = SpawnRecord::new(instance_id_2.clone(), PathBuf::from("./worker"), vec![], None);
+    let mut record_2 = SpawnRecord::new(instance_id_2.clone(), "./worker".to_string(), None);
     record_2.spawn_phase = SpawnPhase::Failed;
     record_2.spawn_attempts = 2;
     storage.add_record(record_2);

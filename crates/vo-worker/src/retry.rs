@@ -25,52 +25,82 @@ use crate::{
     LockRelease, LockRequest, LockResponse, OwnerId,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct RetryCircuitBreaker {
-    consecutive_failures: u32,
+    is_open: std::sync::atomic::AtomicBool,
+    consecutive_failures: AtomicU32,
+    last_failure_at: std::sync::Mutex<Option<Instant>>,
     threshold: u32,
-    tripped: bool,
 }
 
 impl RetryCircuitBreaker {
     pub fn new(threshold: u32) -> Self {
         Self {
-            consecutive_failures: 0,
+            is_open: std::sync::atomic::AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            last_failure_at: std::sync::Mutex::new(None),
             threshold,
-            tripped: false,
         }
     }
 
     pub fn without_circuit_breaker() -> Self {
         Self {
-            consecutive_failures: 0,
+            is_open: std::sync::atomic::AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            last_failure_at: std::sync::Mutex::new(None),
             threshold: u32::MAX,
-            tripped: false,
         }
     }
 
     pub fn is_tripped(&self) -> bool {
-        self.tripped
-    }
-
-    pub fn record_failure(&mut self) {
-        self.consecutive_failures += 1;
-        if self.consecutive_failures >= self.threshold {
-            self.tripped = true;
-        }
-    }
-
-    pub fn record_success(&mut self) {
-        self.consecutive_failures = 0;
-        self.tripped = false;
+        self.is_open.load(Ordering::SeqCst)
     }
 
     pub fn failures(&self) -> u32 {
-        self.consecutive_failures
+        self.consecutive_failures.load(Ordering::SeqCst)
     }
 
     pub fn threshold(&self) -> u32 {
         self.threshold
+    }
+
+    pub fn record_failure(&self) {
+        let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = Some(Instant::now());
+        }
+        if count >= self.threshold {
+            self.is_open.store(true, Ordering::SeqCst);
+        }
+    }
+
+    pub fn record_success(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+    }
+
+    pub fn should_allow_request(&self, recovery_timeout: Duration) -> bool {
+        if !self.is_open.load(Ordering::SeqCst) {
+            return true;
+        }
+        let Ok(guard) = self.last_failure_at.lock() else {
+            return false;
+        };
+        if let Some(last_failure) = *guard {
+            if last_failure.elapsed() >= recovery_timeout {
+                self.is_open.store(false, Ordering::SeqCst);
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn reset(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = None;
+        }
     }
 }
 
@@ -80,7 +110,7 @@ impl Default for RetryCircuitBreaker {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RetryError {
     CircuitTripped,
     MaxAttemptsExceeded,
@@ -143,6 +173,11 @@ impl RetryConfig {
         self
     }
 
+    pub fn with_circuit_breaker(mut self, threshold: u32) -> Self {
+        self.cb_failure_threshold = threshold;
+        self
+    }
+
     pub fn calculate_backoff(&self, attempt: u32) -> Duration {
         let exponent = attempt.saturating_sub(1) as f64;
         let multiplier_pow = self.backoff_multiplier.powf(exponent);
@@ -160,68 +195,6 @@ impl RetryConfig {
         let jitter_ms = rand_jitter(jitter_range);
         let total_ms = (base_ms + jitter_ms).abs() as u64;
         Duration::from_millis(total_ms)
-    }
-}
-
-#[derive(Debug)]
-struct RetryCircuitBreaker {
-    is_open: std::sync::atomic::AtomicBool,
-    consecutive_failures: AtomicU32,
-    last_failure_at: std::sync::Mutex<Option<Instant>>,
-}
-
-impl RetryCircuitBreaker {
-    fn new() -> Self {
-        Self {
-            is_open: std::sync::atomic::AtomicBool::new(false),
-            consecutive_failures: AtomicU32::new(0),
-            last_failure_at: std::sync::Mutex::new(None),
-        }
-    }
-
-    fn record_failure(&self) {
-        let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
-        if let Ok(mut guard) = self.last_failure_at.lock() {
-            *guard = Some(Instant::now());
-        }
-        if count >= 5 {
-            self.is_open.store(true, Ordering::SeqCst);
-        }
-    }
-
-    fn record_success(&self) {
-        self.consecutive_failures.store(0, Ordering::SeqCst);
-        self.is_open.store(false, Ordering::SeqCst);
-    }
-
-    fn should_allow_request(&self, recovery_timeout: Duration) -> bool {
-        if !self.is_open.load(Ordering::SeqCst) {
-            return true;
-        }
-        let Ok(guard) = self.last_failure_at.lock() else {
-            return false;
-        };
-        if let Some(last_failure) = *guard {
-            if last_failure.elapsed() >= recovery_timeout {
-                self.is_open.store(false, Ordering::SeqCst);
-                return true;
-            }
-        }
-        false
-    }
-
-    fn reset(&self) {
-        self.consecutive_failures.store(0, Ordering::SeqCst);
-        self.is_open.store(false, Ordering::SeqCst);
-        if let Ok(mut guard) = self.last_failure_at.lock() {
-            *guard = None;
-        }
-    }
-}
-
-impl Default for RetryCircuitBreaker {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -261,7 +234,7 @@ impl<'a, T: LockManager> LockManagerRetryWrapper<'a, T> {
         Self {
             inner,
             config,
-            circuit: Arc::new(RetryCircuitBreaker::new()),
+            circuit: Arc::new(RetryCircuitBreaker::without_circuit_breaker()),
         }
     }
 }
@@ -330,7 +303,7 @@ impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'
                 };
             }
 
-            if circuit_breaker.is_tripped() {
+            if self.circuit.is_tripped() {
                 return LockResponse {
                     request_id: response.request_id,
                     lock_id: response.lock_id,

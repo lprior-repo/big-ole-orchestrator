@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 use vo_actor::semaphore::{
-    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated,
-    BackpressureStatus, ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
+    calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated, BackpressureStatus,
+    ExecutionSemaphore, SemaphoreConfig, WorkflowSemaphoreMap,
 };
 use vo_types::WorkflowName;
 
@@ -23,7 +23,10 @@ async fn execution_semaphore_fairness_fifo_order() {
     let results: Vec<Result<(usize, _), _>> = futures::future::join_all(handles).await;
     for result in results {
         let (_i, decision) = result.unwrap();
-        assert!(matches!(decision, vo_actor::semaphore::AdmissionDecision::Admitted));
+        assert!(matches!(
+            decision,
+            vo_actor::semaphore::AdmissionDecision::Admitted
+        ));
     }
 }
 

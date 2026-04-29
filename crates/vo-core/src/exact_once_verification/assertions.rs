@@ -315,8 +315,7 @@ where
 mod tests {
     use super::*;
     use crate::replay::test_helpers::{
-        make_event, step_scheduled_payload, step_started_payload,
-        workflow_started_payload,
+        make_event, step_scheduled_payload, step_started_payload, workflow_started_payload,
     };
 
     #[test]

@@ -71,7 +71,7 @@ mod tests {
     fn pooled_connection_type_accessible_from_vo_worker() {
         let conn = PooledConnection::new(
             ConnectionId::new(),
-            vo_common::connection_pool::TimestampMs::try_from(1000u64).unwrap(),
+            vo_types::TimestampMs::try_from(1000u64).unwrap(),
         );
         assert!(conn.is_idle());
     }

@@ -2,12 +2,6 @@ use serde::{Deserialize, Serialize};
 
 use super::node::{BTreeNode, DEFAULT_ORDER};
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum BTreeError {
-    #[error("key not found")]
-    KeyNotFound,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BTree<K, V> {
     root: Option<BTreeNode<K, V>>,
@@ -21,6 +15,12 @@ pub enum BTreeError {
     KeyNotFound,
     #[error("internal invariant violated: {0}")]
     InvariantViolated(&'static str),
+}
+
+enum InsertResult<K, V> {
+    Done(BTreeNode<K, V>),
+    Updated(BTreeNode<K, V>),
+    Split(BTreeNode<K, V>, K, V, BTreeNode<K, V>),
 }
 
 impl<K, V> BTree<K, V> {
@@ -176,22 +176,18 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         }
 
         let root = self.root.take().ok_or(BTreeError::KeyNotFound)?;
-        let (updated_root, removed) = self
-            .delete_recursive(root, key)
-            .map_err(|_| BTreeError::InvariantViolated("delete_recursive failed on confirmed key"))?;
+        let (updated_root, removed) = self.delete_recursive(root, key).map_err(|_| {
+            BTreeError::InvariantViolated("delete_recursive failed on confirmed key")
+        })?;
         self.len = self.len.saturating_sub(1);
 
         if updated_root.keys.is_empty() {
             if updated_root.is_leaf() {
                 self.root = None;
             } else {
-                self.root = Some(
-                    updated_root
-                        .children
-                        .into_iter()
-                        .next()
-                        .ok_or(BTreeError::InvariantViolated("internal node has no children"))?,
-                );
+                self.root = Some(updated_root.children.into_iter().next().ok_or(
+                    BTreeError::InvariantViolated("internal node has no children"),
+                )?);
             }
         } else {
             self.root = Some(updated_root);
@@ -300,7 +296,11 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         Ok((succ_key, succ_val, node))
     }
 
-    fn ensure_child_has_minimum(&self, node: &mut BTreeNode<K, V>, idx: usize) -> Result<(), BTreeError> {
+    fn ensure_child_has_minimum(
+        &self,
+        node: &mut BTreeNode<K, V>,
+        idx: usize,
+    ) -> Result<(), BTreeError> {
         if idx > 0 && node.children[idx - 1].keys.len() > self.min_keys() {
             self.borrow_from_left(node, idx)?;
         } else if idx < node.children.len() - 1
@@ -517,7 +517,12 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
                 }
                 if !root.is_leaf() {
                     for child in &root.children {
-                        if !Self::verify_node_for_children(child, self.min_keys(), self.max_keys(), h - 1) {
+                        if !Self::verify_node_for_children(
+                            child,
+                            self.min_keys(),
+                            self.max_keys(),
+                            h - 1,
+                        ) {
                             return false;
                         }
                     }
@@ -553,41 +558,6 @@ impl<K: Ord + Clone, V: Clone> BTree<K, V> {
         if !node.is_leaf() {
             for child in &node.children {
                 if !Self::verify_node_for_children(child, min_keys, max_keys, expected_height - 1) {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-
-    fn verify_node(
-        node: &BTreeNode<K, V>,
-        min_keys: usize,
-        max_keys: usize,
-        expected_height: usize,
-    ) -> bool {
-        if node.keys.len() > max_keys {
-            return false;
-        }
-        if !is_root && !node.is_leaf() && node.keys.len() < min_keys {
-            return Err(format!(
-                "non-root keys.len {} < min_keys {}",
-                node.keys.len(),
-                min_keys
-            ));
-        }
-        if !node.children.is_empty() && node.children.len() != node.keys.len() + 1 {
-            return false;
-        }
-        if node.is_leaf() && expected_height != 1 {
-            return false;
-        }
-        if !node.is_leaf() && expected_height <= 1 {
-            return false;
-        }
-        if !node.is_leaf() {
-            for child in &node.children {
-                if !Self::verify_node(child, min_keys, max_keys, expected_height - 1) {
                     return false;
                 }
             }

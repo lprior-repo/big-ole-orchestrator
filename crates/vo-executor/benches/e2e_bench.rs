@@ -18,7 +18,8 @@ fn bench_execute_step_success_latency(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| async {
             let start = std::time::Instant::now();
             for _ in 0..100 {
-                black_box(execute_step(step_id.clone(), 5000).await).expect("execute_step succeeded");
+                black_box(execute_step(step_id.clone(), 5000).await)
+                    .expect("execute_step succeeded");
             }
             start.elapsed()
         })
@@ -39,7 +40,11 @@ fn bench_execute_step_concurrent_throughput(c: &mut Criterion) {
                     let step_id = StepId::new(format!("workflow-step-{}", t % 10));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move { execute_step(step_id, 5000).await.expect("execute_step succeeded") }
+                        async move {
+                            execute_step(step_id, 5000)
+                                .await
+                                .expect("execute_step succeeded")
+                        }
                     }));
                 }
                 for handle in handles {
@@ -74,7 +79,9 @@ fn bench_get_execution_status_no_contention(c: &mut Criterion) {
     let step_id = StepId::new("step-1".to_string());
 
     runtime.block_on(async {
-        execute_step(step_id.clone(), 5000).await.expect("execute_step succeeded");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect("execute_step succeeded");
     });
 
     c.bench_function("get_execution_status_no_contention", |b| {
@@ -92,7 +99,9 @@ fn bench_get_execution_status_concurrent(c: &mut Criterion) {
         group.bench_function(format!("{}_readers", num_readers), |b| {
             b.to_async(&runtime).iter(move || async move {
                 let step_id = StepId::new("step-1".to_string());
-                execute_step(step_id.clone(), 5000).await.expect("execute_step succeeded");
+                execute_step(step_id.clone(), 5000)
+                    .await
+                    .expect("execute_step succeeded");
 
                 let start = std::time::Instant::now();
                 let mut handles = Vec::with_capacity(num_readers);
@@ -155,7 +164,11 @@ fn bench_execute_step_scaling(c: &mut Criterion) {
                     let step_id = StepId::new(format!("step-{}-{}", batch_size, t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move { execute_step(step_id, 5000).await.expect("execute_step succeeded") }
+                        async move {
+                            execute_step(step_id, 5000)
+                                .await
+                                .expect("execute_step succeeded")
+                        }
                     }));
                 }
                 for handle in handles {
@@ -173,7 +186,9 @@ fn bench_cancel_execution_no_op(c: &mut Criterion) {
     let step_id = StepId::new("step-1".to_string());
 
     runtime.block_on(async {
-        execute_step(step_id.clone(), 5000).await.expect("execute_step succeeded");
+        execute_step(step_id.clone(), 5000)
+            .await
+            .expect("execute_step succeeded");
     });
 
     c.bench_function("cancel_execution_no_op", |b| {
@@ -190,7 +205,9 @@ fn bench_reset_all_state(c: &mut Criterion) {
     runtime.block_on(async {
         for i in 0..1000 {
             let step_id = StepId::new(format!("step-{}", i % 10));
-            execute_step(step_id, 5000).await.expect("execute_step succeeded");
+            execute_step(step_id, 5000)
+                .await
+                .expect("execute_step succeeded");
         }
     });
 
@@ -209,7 +226,8 @@ fn bench_execute_step_success_sequential(c: &mut Criterion) {
         b.to_async(&runtime).iter(|| async {
             let start = std::time::Instant::now();
             for _ in 0..1000 {
-                black_box(execute_step(step_id.clone(), 5000).await).expect("execute_step succeeded");
+                black_box(execute_step(step_id.clone(), 5000).await)
+                    .expect("execute_step succeeded");
             }
             start.elapsed()
         })
@@ -279,7 +297,9 @@ fn bench_execute_step_concurrent_latency_percentiles(c: &mut Criterion) {
                             let step_id = step_id.clone();
                             async move {
                                 let start = std::time::Instant::now();
-                                execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                                execute_step(step_id, 5000)
+                                    .await
+                                    .expect("execute_step succeeded");
                                 start.elapsed()
                             }
                         }));
@@ -322,7 +342,11 @@ fn bench_sustained_load_throughput(c: &mut Criterion) {
                         StepId::new(format!("sustained-step-{}", total_completed + t as u64));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move { execute_step(step_id, 5000).await.expect("execute_step succeeded") }
+                        async move {
+                            execute_step(step_id, 5000)
+                                .await
+                                .expect("execute_step succeeded")
+                        }
                     }));
                 }
                 for handle in handles {
@@ -351,7 +375,11 @@ fn bench_high_concurrency_stress(c: &mut Criterion) {
                     let step_id = StepId::new(format!("stress-step-{}", t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move { execute_step(step_id, 5000).await.expect("execute_step succeeded") }
+                        async move {
+                            execute_step(step_id, 5000)
+                                .await
+                                .expect("execute_step succeeded")
+                        }
                     }));
                 }
                 for handle in handles {
@@ -418,7 +446,9 @@ fn bench_memory_leak_state_growth(c: &mut Criterion) {
                     let initial_count = get_state_count();
                     for i in 0..num_distinct_steps {
                         let step_id = StepId::new(format!("leak-step-{}", i));
-                        execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                        execute_step(step_id, 5000)
+                            .await
+                            .expect("execute_step succeeded");
                     }
                     let final_count = get_state_count();
                     let growth = final_count.saturating_sub(initial_count);
@@ -468,7 +498,9 @@ fn bench_memory_leak_sustained_load(c: &mut Criterion) {
             for batch in 0..10 {
                 for i in 0..1000 {
                     let step_id = StepId::new(format!("sustained-{}-{}", batch, i));
-                    execute_step(step_id, 5000).await.expect("execute_step succeeded");
+                    execute_step(step_id, 5000)
+                        .await
+                        .expect("execute_step succeeded");
                 }
                 let current_count = get_state_count();
                 total_growth = current_count.saturating_sub(initial_count);
@@ -494,7 +526,11 @@ fn bench_memory_leak_concurrent_distinct(c: &mut Criterion) {
                     let step_id = StepId::new(format!("concurrent-leak-{}", t));
                     handles.push(tokio::spawn({
                         let step_id = step_id.clone();
-                        async move { execute_step(step_id, 5000).await.expect("execute_step succeeded") }
+                        async move {
+                            execute_step(step_id, 5000)
+                                .await
+                                .expect("execute_step succeeded")
+                        }
                     }));
                 }
                 for handle in handles {

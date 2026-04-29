@@ -188,9 +188,21 @@ fn encode_event_key_produces_26_byte_key_with_length_prefix() {
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let key = encode_event_key(&id, seq);
     assert_eq!(key.len(), 26);
-    assert_eq!(&key[0..2], &[0, 16], "instance ID length prefix should be 16");
-    assert_eq!(&key[2..18], &id.to_bytes().unwrap(), "instance ID bytes should start at offset 2");
-    assert_eq!(&key[18..26], &seq.as_u64().to_be_bytes(), "sequence number should be at offset 18");
+    assert_eq!(
+        &key[0..2],
+        &[0, 16],
+        "instance ID length prefix should be 16"
+    );
+    assert_eq!(
+        &key[2..18],
+        &id.to_bytes().unwrap(),
+        "instance ID bytes should start at offset 2"
+    );
+    assert_eq!(
+        &key[18..26],
+        &seq.as_u64().to_be_bytes(),
+        "sequence number should be at offset 18"
+    );
 }
 
 #[test]
@@ -332,7 +344,11 @@ fn encode_effect_key_produces_27_byte_key_with_length_prefix() {
     let seq = SequenceNumber::try_from(1u64).unwrap();
     let key = encode_effect_key(&id, seq);
     assert_eq!(key.len(), 27);
-    assert_eq!(&key[0..2], &[0, 16], "instance ID length prefix should be 16");
+    assert_eq!(
+        &key[0..2],
+        &[0, 16],
+        "instance ID length prefix should be 16"
+    );
     assert_eq!(&key[2..18], &id.to_bytes().unwrap());
     assert_eq!(&key[18..26], &seq.as_u64().to_be_bytes());
     assert_eq!(key[26], 0xFF);
@@ -731,8 +747,14 @@ fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
 
     // Then: the timestamp is the leading 8 bytes for lexicographic ordering
     assert!(key_a_1000 < key_a_2000, "earlier timestamps sort first");
-    assert!(key_a_1000 < key_b_1000, "same timestamp: lexicographic on instance ID");
-    assert!(key_c_1000 < key_b_1000, "middle < max for instance IDs at same timestamp");
+    assert!(
+        key_a_1000 < key_b_1000,
+        "same timestamp: lexicographic on instance ID"
+    );
+    assert!(
+        key_c_1000 < key_b_1000,
+        "middle < max for instance IDs at same timestamp"
+    );
 
     // And: decoding recovers the original components exactly (unambiguous)
     let (decoded_ts, decoded_id) = decode_timer_key(&key_a_1000).unwrap();
@@ -745,7 +767,19 @@ fn given_timer_key_when_encoded_then_components_are_unambiguous_and_ordered() {
 
     // And: the length prefix is correctly encoded and decoded
     let expected_len_bytes = 16u16.to_be_bytes();
-    assert_eq!(&key_a_1000[8..10], &expected_len_bytes, "length prefix must be 16 for 16-byte ULID");
-    assert_eq!(&key_a_1000[..8], &1000u64.to_be_bytes(), "timestamp must be first 8 bytes");
-    assert_eq!(&key_a_1000[10..26], &id_a.to_bytes().unwrap(), "instance ID bytes start after length prefix");
+    assert_eq!(
+        &key_a_1000[8..10],
+        &expected_len_bytes,
+        "length prefix must be 16 for 16-byte ULID"
+    );
+    assert_eq!(
+        &key_a_1000[..8],
+        &1000u64.to_be_bytes(),
+        "timestamp must be first 8 bytes"
+    );
+    assert_eq!(
+        &key_a_1000[10..26],
+        &id_a.to_bytes().unwrap(),
+        "instance ID bytes start after length prefix"
+    );
 }

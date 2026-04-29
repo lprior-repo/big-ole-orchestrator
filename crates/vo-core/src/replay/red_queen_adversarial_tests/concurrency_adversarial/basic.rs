@@ -1,14 +1,26 @@
 use super::super::*;
+use std::sync::Arc;
 use vo_types::events::EventEnvelope;
 use vo_types::state::LifecycleState;
-use std::sync::Arc;
 
 fn build_completed_lifecycle(instance_id: &str, start_seq: u64) -> Vec<EventEnvelope> {
     vec![
         make_event(instance_id, start_seq, workflow_started_payload("wf-1")),
-        make_event(instance_id, start_seq + 1, step_scheduled_payload("wf-1", "step-1")),
-        make_event(instance_id, start_seq + 2, step_started_payload("wf-1", "step-1")),
-        make_event(instance_id, start_seq + 3, step_completed_payload("wf-1", "step-1")),
+        make_event(
+            instance_id,
+            start_seq + 1,
+            step_scheduled_payload("wf-1", "step-1"),
+        ),
+        make_event(
+            instance_id,
+            start_seq + 2,
+            step_started_payload("wf-1", "step-1"),
+        ),
+        make_event(
+            instance_id,
+            start_seq + 3,
+            step_completed_payload("wf-1", "step-1"),
+        ),
     ]
 }
 
@@ -45,7 +57,10 @@ fn replay_is_safe_under_concurrent_identical_streams() {
         .collect();
 
     for handle in handles {
-        let result = handle.join().expect("thread should not panic").expect("replay should succeed");
+        let result = handle
+            .join()
+            .expect("thread should not panic")
+            .expect("replay should succeed");
         assert_eq!(result.final_state, Some(LifecycleState::Completed));
         assert_eq!(result.events_applied, 4);
     }
@@ -72,7 +87,11 @@ fn replay_is_safe_under_concurrent_different_streams() {
 
     let results: Vec<_> = handles
         .into_iter()
-        .map(|h| h.join().expect("thread should not panic").expect("replay should succeed"))
+        .map(|h| {
+            h.join()
+                .expect("thread should not panic")
+                .expect("replay should succeed")
+        })
         .collect();
 
     assert_eq!(results.len(), 8);
@@ -110,11 +129,17 @@ fn replay_concurrent_empty_and_nonempty_streams() {
         full_engine.replay(&events)
     });
 
-    let empty_result = empty_handle.join().expect("thread should not panic").expect("empty replay should succeed");
+    let empty_result = empty_handle
+        .join()
+        .expect("thread should not panic")
+        .expect("empty replay should succeed");
     assert_eq!(empty_result.final_state, None);
     assert_eq!(empty_result.events_applied, 0);
 
-    let full_result = full_handle.join().expect("thread should not panic").expect("full replay should succeed");
+    let full_result = full_handle
+        .join()
+        .expect("thread should not panic")
+        .expect("full replay should succeed");
     assert_eq!(full_result.final_state, Some(LifecycleState::Completed));
     assert_eq!(full_result.events_applied, 4);
 }
@@ -124,7 +149,10 @@ fn replay_concurrent_determinism_under_contention() {
     let engine = Arc::new(ReplayEngine::new());
     let events = build_completed_lifecycle("inst-1", 1);
     let events = Arc::new(events);
-    let expected = engine.replay(&events).clone().expect("baseline should succeed");
+    let expected = engine
+        .replay(&events)
+        .clone()
+        .expect("baseline should succeed");
 
     let num_threads = 16;
     let results: Vec<_> = (0..num_threads)
@@ -135,11 +163,18 @@ fn replay_concurrent_determinism_under_contention() {
         })
         .collect::<Vec<_>>()
         .into_iter()
-        .map(|h| h.join().expect("thread should not panic").expect("replay should succeed"))
+        .map(|h| {
+            h.join()
+                .expect("thread should not panic")
+                .expect("replay should succeed")
+        })
         .collect();
 
     for result in &results {
-        assert_eq!(result, &expected, "concurrent replay must produce identical results");
+        assert_eq!(
+            result, &expected,
+            "concurrent replay must produce identical results"
+        );
     }
 }
 
@@ -159,7 +194,10 @@ fn replay_concurrent_with_different_sequence_starts() {
         .collect();
 
     for handle in handles {
-        let result = handle.join().expect("thread should not panic").expect("replay should succeed");
+        let result = handle
+            .join()
+            .expect("thread should not panic")
+            .expect("replay should succeed");
         assert_eq!(result.final_state, Some(LifecycleState::Completed));
         assert_eq!(result.events_applied, 4);
     }
@@ -183,7 +221,10 @@ fn replay_concurrent_stress_many_threads_short_sequences() {
 
     let mut success_count = 0;
     for handle in handles {
-        let result = handle.join().expect("thread should not panic").expect("replay should succeed");
+        let result = handle
+            .join()
+            .expect("thread should not panic")
+            .expect("replay should succeed");
         assert_eq!(result.final_state, Some(LifecycleState::Completed));
         assert_eq!(result.events_applied, 4);
         success_count += 1;

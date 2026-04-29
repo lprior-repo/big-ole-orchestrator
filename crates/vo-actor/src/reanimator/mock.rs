@@ -1,6 +1,6 @@
 //! Mock implementations for testing the Reanimator Loop.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use tokio::sync::Mutex;
 use vo_types::{InstanceId, TimestampMs};
 
@@ -48,11 +48,6 @@ impl MockTimerStorage {
     /// Adds a timer to the storage.
     pub async fn add_timer(&self, timer: TimerRecord) {
         self.timers.lock().await.push_back(timer);
-    }
-
-    /// Adds a pending timer to the storage.
-    pub async fn add_pending_timer(&self, timer: PendingTimer) {
-        self.pending_timers.lock().await.insert(timer.instance_id.clone(), timer);
     }
 
     /// Sets whether operations should fail.
@@ -276,10 +271,7 @@ impl TimerStorage for MockTimerStorage {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));
         }
 
-        self.delete_all_calls
-            .lock()
-            .await
-            .push(instance_id.clone());
+        self.delete_all_calls.lock().await.push(instance_id.clone());
 
         let mut timers = self.timers.lock().await;
         let before = timers.len();

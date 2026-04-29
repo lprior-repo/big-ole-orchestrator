@@ -12,8 +12,8 @@ use std::rc::Rc;
 use tempfile::tempdir;
 use vo_storage::snapshots::{
     compact_snapshots, decode_snapshot_key, encode_snapshot_key, get_all_snapshot_sequences,
-    snapshot_load_latest, snapshot_write, AtomicSnapshotWriter, SnapshotDiscardReason,
-    SnapshotPolicy, CompatSnapshotLoad,
+    snapshot_load_latest, snapshot_write, AtomicSnapshotWriter, CompatSnapshotLoad,
+    SnapshotDiscardReason, SnapshotPolicy,
 };
 use vo_types::state::InstanceState;
 use vo_types::InstanceId;
@@ -39,7 +39,7 @@ mod scenario_1_replay_from_snapshot {
         // Given
         let (_db, partition) = setup_storage();
         let instance_id = InstanceId::from_bytes([1u8; 16]);
-        
+
         // Write snapshot at sequence 100 with state counter=100
         snapshot_write(
             &partition,
@@ -61,10 +61,13 @@ mod scenario_1_replay_from_snapshot {
         // Conceptual: A replayer would start from sequence 101
         let replay_start = loaded_seq.saturating_add(1);
         assert_eq!(replay_start, 101);
-        
+
         // Events 1..99 are skipped (not replayed)
         // This is verified by the fact that replay starts at 101
-        assert_eq!(count_events_in_range(1, 99), count_events_in_range(replay_start, 1000));
+        assert_eq!(
+            count_events_in_range(1, 99),
+            count_events_in_range(replay_start, 1000)
+        );
     }
 
     #[test]
@@ -72,7 +75,7 @@ mod scenario_1_replay_from_snapshot {
         // Given
         let (_db, partition) = setup_storage();
         let instance_id = InstanceId::from_bytes([2u8; 16]);
-        
+
         snapshot_write(
             &partition,
             instance_id.clone(),
@@ -82,12 +85,14 @@ mod scenario_1_replay_from_snapshot {
         .unwrap();
 
         // When
-        let result = snapshot_load_latest(&partition, &instance_id).unwrap().unwrap();
+        let result = snapshot_load_latest(&partition, &instance_id)
+            .unwrap()
+            .unwrap();
 
         // Then
         assert_eq!(result.0, 500);
         assert_eq!(result.1.counter, 50000);
-        
+
         // Replayer would start from 501
         assert_eq!(result.0.saturating_add(1), 501);
     }
@@ -97,7 +102,7 @@ mod scenario_1_replay_from_snapshot {
         // Given
         let (_db, partition) = setup_storage();
         let instance_id = InstanceId::from_bytes([3u8; 16]);
-        
+
         // No snapshot written
 
         // When
@@ -108,7 +113,11 @@ mod scenario_1_replay_from_snapshot {
     }
 
     fn count_events_in_range(start: u64, end: u64) -> usize {
-        if start > end { 0 } else { (end - start + 1) as usize }
+        if start > end {
+            0
+        } else {
+            (end - start + 1) as usize
+        }
     }
 }
 
@@ -130,15 +139,21 @@ mod scenario_2_corrupted_snapshot_fallback {
         let instance_id = InstanceId::from_bytes([4u8; 16]);
 
         // Write a valid snapshot first
-        snapshot_write(&partition, instance_id.clone(), 100, &InstanceState { counter: 100 }).unwrap();
+        snapshot_write(
+            &partition,
+            instance_id.clone(),
+            100,
+            &InstanceState { counter: 100 },
+        )
+        .unwrap();
 
         // Now corrupt it by modifying the stored data
         let key = encode_snapshot_key(&instance_id, 100).unwrap();
-        
+
         // Read current value
         let value_guard = partition.get(&key).unwrap();
         let value = value_guard.map(|g| g.to_vec()).unwrap();
-        
+
         // Corrupt the state JSON portion (after the '|')
         if let Some(pos) = value.iter().position(|&b| b == b'|') {
             let mut corrupted = value;
@@ -165,13 +180,19 @@ mod scenario_2_corrupted_snapshot_fallback {
         let instance_id = InstanceId::from_bytes([5u8; 16]);
 
         // Write a valid snapshot
-        snapshot_write(&partition, instance_id.clone(), 100, &InstanceState { counter: 100 }).unwrap();
+        snapshot_write(
+            &partition,
+            instance_id.clone(),
+            100,
+            &InstanceState { counter: 100 },
+        )
+        .unwrap();
 
         // Corrupt the snapshot
         let key = encode_snapshot_key(&instance_id, 100).unwrap();
         let value_guard = partition.get(&key).unwrap();
         let value = value_guard.map(|g| g.to_vec()).unwrap();
-        
+
         if let Some(pos) = value.iter().position(|&b| b == b'|') {
             let mut corrupted = value;
             corrupted[pos + 1] = !corrupted[pos + 1];
@@ -183,7 +204,7 @@ mod scenario_2_corrupted_snapshot_fallback {
 
         // Then: Load fails, signaling fallback to replay
         assert!(load_result.is_err());
-        
+
         // The replayer would detect this error and fall back to full replay from sequence 0
         // This is verified by the fact that snapshot_load_latest returns an error
     }
@@ -217,11 +238,12 @@ mod scenario_3_atomic_consistency {
     use super::*;
 
     #[test]
-    fn given_concurrent_writes_across_partitions_when_snapshot_taken_then_atomic_consistency_maintained() {
+    fn given_concurrent_writes_across_partitions_when_snapshot_taken_then_atomic_consistency_maintained(
+    ) {
         // Given: Multiple partitions with related data
         let dir = tempdir().unwrap();
         let db = fjall::Config::new(dir.path()).open().unwrap();
-        
+
         let events_partition = db
             .keyspace("events", fjall::KeyspaceCreateOptions::default)
             .unwrap();
@@ -231,13 +253,13 @@ mod scenario_3_atomic_consistency {
         let instances_partition = db
             .keyspace("instances", fjall::KeyspaceCreateOptions::default)
             .unwrap();
-        
+
         let instance_id = InstanceId::from_bytes([7u8; 16]);
 
         // Simulate concurrent writes: event, snapshot, and instance state
         // In a real scenario, these would be written atomically via a batch
         // For this test, we verify that all three are written consistently
-        
+
         // Write event at sequence 100
         let event_key = encode_snapshot_key(&instance_id, 100);
         if let Ok(key) = event_key {
@@ -245,7 +267,13 @@ mod scenario_3_atomic_consistency {
         }
 
         // Write snapshot at sequence 100 (same sequence as event)
-        snapshot_write(&snapshot_partition, instance_id.clone(), 100, &InstanceState { counter: 100 }).unwrap();
+        snapshot_write(
+            &snapshot_partition,
+            instance_id.clone(),
+            100,
+            &InstanceState { counter: 100 },
+        )
+        .unwrap();
 
         // Write instance state
         instances_partition
@@ -262,7 +290,9 @@ mod scenario_3_atomic_consistency {
         assert_eq!(state.counter, 100);
 
         // Verify instance state exists (partition consistency check)
-        let instance_state = instances_partition.get(&instance_id.to_bytes().unwrap()).unwrap();
+        let instance_state = instances_partition
+            .get(&instance_id.to_bytes().unwrap())
+            .unwrap();
         assert!(instance_state.is_some());
     }
 
@@ -332,7 +362,13 @@ mod snapshot_lifecycle {
 
         // Write snapshots at sequences 10, 20, 30, 40, 50
         for seq in [10, 20, 30, 40, 50] {
-            snapshot_write(&partition, instance_id.clone(), seq, &InstanceState { counter: seq }).unwrap();
+            snapshot_write(
+                &partition,
+                instance_id.clone(),
+                seq,
+                &InstanceState { counter: seq },
+            )
+            .unwrap();
         }
 
         // When: Compact to keep only last 2
@@ -405,7 +441,7 @@ mod bdd_integration_scenarios {
     #[test]
     fn bdd_snapshot_replay_workflow() {
         // Scenario: Complete workflow of snapshot creation and replay
-        
+
         // SETUP
         let dir = tempdir().unwrap();
         let db = fjall::Config::new(dir.path()).open().unwrap();
@@ -416,7 +452,13 @@ mod bdd_integration_scenarios {
 
         // GIVEN: System runs and creates events 1-100
         // (simulated by writing a snapshot at sequence 100)
-        snapshot_write(&partition, instance_id.clone(), 100, &InstanceState { counter: 1000 }).unwrap();
+        snapshot_write(
+            &partition,
+            instance_id.clone(),
+            100,
+            &InstanceState { counter: 1000 },
+        )
+        .unwrap();
 
         // WHEN: Engine restarts and needs to replay
         let result = snapshot_load_latest(&partition, &instance_id).unwrap();
@@ -425,7 +467,7 @@ mod bdd_integration_scenarios {
         assert!(result.is_some());
         let (snapshot_seq, _state) = result.unwrap();
         assert_eq!(snapshot_seq, 100);
-        
+
         // The replayer would query events starting from 101
         let events_to_replay_start = snapshot_seq.saturating_add(1);
         assert_eq!(events_to_replay_start, 101);
@@ -434,7 +476,7 @@ mod bdd_integration_scenarios {
     #[test]
     fn bdd_snapshot_corruption_recovery() {
         // Scenario: System detects corrupted snapshot and recovers
-        
+
         // SETUP
         let dir = tempdir().unwrap();
         let db = fjall::Config::new(dir.path()).open().unwrap();
@@ -444,13 +486,19 @@ mod bdd_integration_scenarios {
         let instance_id = InstanceId::from_bytes([13u8; 16]);
 
         // GIVEN: A corrupted snapshot exists
-        snapshot_write(&partition, instance_id.clone(), 50, &InstanceState { counter: 500 }).unwrap();
-        
+        snapshot_write(
+            &partition,
+            instance_id.clone(),
+            50,
+            &InstanceState { counter: 500 },
+        )
+        .unwrap();
+
         // Corrupt the snapshot
         let key = encode_snapshot_key(&instance_id, 50).unwrap();
         let value_guard = partition.get(&key).unwrap();
         let value = value_guard.map(|g| g.to_vec()).unwrap();
-        
+
         if let Some(pos) = value.iter().position(|&b| b == b'|') {
             let mut corrupted = value;
             corrupted[pos + 1] = !corrupted[pos + 1];
@@ -462,7 +510,7 @@ mod bdd_integration_scenarios {
 
         // THEN: Corrupted snapshot is detected and rejected
         assert!(result.is_err());
-        
+
         // The replayer would detect this error and fall back to full replay from 0
         // (verified by the error being returned)
     }
@@ -470,11 +518,11 @@ mod bdd_integration_scenarios {
     #[test]
     fn bdd_concurrent_partition_consistency() {
         // Scenario: Multiple partitions maintain consistency during snapshot
-        
+
         // SETUP
         let dir = tempdir().unwrap();
         let db = fjall::Config::new(dir.path()).open().unwrap();
-        
+
         let events_partition = db
             .keyspace("events", fjall::KeyspaceCreateOptions::default)
             .unwrap();
@@ -488,8 +536,14 @@ mod bdd_integration_scenarios {
         // (In production, these would be in a single atomic batch)
         let event_key = encode_snapshot_key(&instance_id, 75).unwrap();
         events_partition.insert(&event_key, b"event_at_75").unwrap();
-        
-        snapshot_write(&snapshot_partition, instance_id.clone(), 75, &InstanceState { counter: 750 }).unwrap();
+
+        snapshot_write(
+            &snapshot_partition,
+            instance_id.clone(),
+            75,
+            &InstanceState { counter: 750 },
+        )
+        .unwrap();
 
         // WHEN: System loads snapshot after restart
         let result = snapshot_load_latest(&snapshot_partition, &instance_id).unwrap();

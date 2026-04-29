@@ -1,5 +1,5 @@
-pub use mocks::*;
 pub use helpers::*;
+pub use mocks::*;
 
 mod helpers {
     use vo_types::InstanceId;
@@ -61,7 +61,10 @@ mod mocks {
                 .cloned()
         }
 
-        async fn save_spawn_record(&self, record: &SpawnRecord) -> Result<(), SpawnSupervisorError> {
+        async fn save_spawn_record(
+            &self,
+            record: &SpawnRecord,
+        ) -> Result<(), SpawnSupervisorError> {
             if *self.should_fail.lock().unwrap() {
                 return Err(SpawnSupervisorError::StorageError(
                     "Mock storage failure".to_string(),
@@ -163,7 +166,11 @@ mod mocks {
             if let Some(err) = self.spawn_error.lock().unwrap().take() {
                 return Err(err);
             }
-            Ok(ProcessHandle::new(1234, executable.to_path_buf(), args.to_vec()))
+            Ok(ProcessHandle::new(
+                1234,
+                executable.to_path_buf(),
+                args.to_vec(),
+            ))
         }
 
         async fn check_health(&self, _pid: u32) -> Result<bool, SpawnSupervisorError> {
@@ -226,7 +233,10 @@ mod mocks {
             Ok(())
         }
 
-        async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
+        async fn enqueue_resume(
+            &self,
+            instance_id: InstanceId,
+        ) -> Result<(), SpawnSupervisorError> {
             if *self.should_fail.lock().unwrap() {
                 return Err(SpawnSupervisorError::DispatchError(
                     "Queue full".to_string(),

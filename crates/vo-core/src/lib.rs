@@ -26,7 +26,6 @@
 
 pub mod admission;
 pub mod atomic_transition_committer;
-pub mod calc;
 pub mod circuit_breaker;
 pub mod command_dedup;
 pub mod compensation_order;
@@ -36,10 +35,11 @@ pub mod db_writer_actor;
 pub mod db_writer_message;
 pub mod debounce;
 pub mod effects;
-pub mod lease_calc;
 pub mod exact_once_verification;
 pub mod ghost_workflow;
+pub mod lease_calc;
 pub mod lineage_projection;
+pub mod storage_watchdog;
 pub mod transaction;
 
 pub use exact_once_verification::assertions::{
@@ -58,7 +58,6 @@ pub mod resource_quota;
 pub mod segment_tree;
 pub mod shedding;
 pub mod snapshot_compat;
-pub mod transaction;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;
@@ -67,9 +66,11 @@ pub mod workload_budget;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
-pub mod shedding;
 
-pub use command_dedup::{check_command_duplicate, is_command_duplicate, CommandDedupError, CommandDedupResult, dedupe_key_from_envelope};
+pub use command_dedup::{
+    check_command_duplicate, dedupe_key_from_envelope, is_command_duplicate, CommandDedupError,
+    CommandDedupResult,
+};
 pub use validation::{
     validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
     UnsupportedSinkError, WorkflowSinkValidator,

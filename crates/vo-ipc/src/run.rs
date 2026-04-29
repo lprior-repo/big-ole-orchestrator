@@ -1,7 +1,6 @@
 use crate::config::SubprocessConfig;
 use crate::envelope;
 use crate::error::IpcError;
-use crate::pipe::create_pipe;
 use crate::stderr::{read_bounded_stderr, StderrCapture};
 use std::os::fd::{FromRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
@@ -36,9 +35,6 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.stderr(std::process::Stdio::piped());
 
     {
-        let fd3_read = pipe3.read_fd();
-        let fd4_write = pipe4.write_fd();
-
         // SAFETY: pre_exec is unsafe because it runs in the child before exec.
         // We set PR_SET_PDEATHSIG so the child dies if parent exits,
         // setpgid to prevent SIGTTIN, and dup2 to set up fd3/fd4.
@@ -74,12 +70,12 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     // Parent closes child's ends of the pipes.
     // The child now owns these FDs via dup2; parent must close them.
-    drop(pipe3.read_fd());
-    drop(pipe4.write_fd());
+    let _ = fd3_read;
+    let _ = fd4_write;
 
-    let fd3_writer = unsafe { std::fs::File::from_raw_fd(pipe3.write_fd()) };
+    let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
     let fd3_writer = tokio::fs::File::from_std(fd3_writer);
-    let fd4_reader = unsafe { std::fs::File::from_raw_fd(pipe4.read_fd()) };
+    let fd4_reader = unsafe { std::fs::File::from_raw_fd(fd4_read) };
     let fd4_reader = tokio::fs::File::from_std(fd4_reader);
     let stderr_reader = child
         .stderr

@@ -3,8 +3,8 @@ use std::collections::{BinaryHeap, HashMap};
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
-use crate::job::ScheduledJob;
 use crate::metrics;
+use crate::types::job::ScheduledJob;
 use crate::types::{JobId, JobPriority, JobState, SchedulePolicy};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -111,11 +111,11 @@ impl SchedulerQueue {
         if matches!(job.state, JobState::Running | JobState::Completed) {
             return Err(SchedulerError::InvalidTransition);
         }
-        job.schedule_policy = new_schedule;
+        job.schedule_policy = new_schedule.clone();
         match new_schedule {
             SchedulePolicy::At(t) => job.due_at = t,
             SchedulePolicy::After(d) => {
-                job.due_at = Utc::now() + chrono::Duration::from_std(*d).unwrap_or_default()
+                job.due_at = Utc::now() + chrono::Duration::from_std(d).unwrap_or_default()
             }
             SchedulePolicy::Immediate => job.due_at = Utc::now(),
             SchedulePolicy::Cron { expression: _ } => job.due_at = Utc::now(),
@@ -141,8 +141,9 @@ impl SchedulerQueue {
             self.heap.pop();
             if let Some(job) = self.jobs.get(&entry.job_id) {
                 if job.due_at <= now {
+                    let job_clone = job.clone();
                     self.jobs.remove(&entry.job_id);
-                    return Some(job.clone());
+                    return Some(job_clone);
                 }
             }
         }
@@ -153,7 +154,10 @@ impl SchedulerQueue {
         if matches!(job.state, JobState::Completed | JobState::Failed) {
             return Err(SchedulerError::InvalidTransition);
         }
-        let mut job_mut = self.jobs.get_mut(job_id).unwrap();
+        let job_mut = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
         job_mut.transition(JobState::Cancelled)
     }
 

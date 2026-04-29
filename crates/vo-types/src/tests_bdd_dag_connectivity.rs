@@ -13,8 +13,8 @@
 //! 8. No-start-node is impossible after cycle detection (defense in depth)
 
 use crate::{
-    DagNode, NodeName, NonEmptyVec, RetryPolicy, WorkflowDefinition,
-    WorkflowDefinitionError, WorkflowName,
+    DagNode, NodeName, NonEmptyVec, RetryPolicy, WorkflowDefinition, WorkflowDefinitionError,
+    WorkflowName,
 };
 
 fn node_json(name: &str) -> serde_json::Value {
@@ -55,7 +55,10 @@ mod scenario_1_single_orphan_node {
 
         let result = parse_workflow(json);
 
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
             assert_eq!(orphan_nodes, vec![NodeName("C".into())]);
         }
@@ -81,7 +84,10 @@ mod scenario_2_multiple_orphan_nodes {
 
         let result = parse_workflow(json);
 
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
             assert_eq!(orphan_nodes.len(), 2);
             assert!(orphan_nodes.contains(&NodeName("C".into())));
@@ -205,7 +211,10 @@ mod scenario_4_no_start_node {
         let result = parse_workflow(json);
 
         // Cycle is detected first (step 5), not NoStartNode (step 6)
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         Ok(())
     }
 }
@@ -241,7 +250,10 @@ mod scenario_5_single_node_valid {
             "edges": [edge_json("solo", "solo", "Always")]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::CycleDetected { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::CycleDetected { .. })
+        ));
         Ok(())
     }
 }
@@ -334,7 +346,10 @@ mod scenario_7_orphan_in_larger_graph {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
             assert_eq!(orphan_nodes, vec![NodeName("E".into())]);
         }
@@ -354,7 +369,10 @@ mod scenario_7_orphan_in_larger_graph {
             ]
         });
         let result = parse_workflow(json);
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         if let Err(WorkflowDefinitionError::OrphanNodes { orphan_nodes }) = result {
             assert_eq!(orphan_nodes, vec![NodeName("A".into())]);
         }
@@ -388,7 +406,10 @@ mod scenario_8_orphan_priority {
         });
         let result = parse_workflow(json);
         // C is orphan (no edges). A→B is fine. D→E is fine (D is start).
-        assert!(matches!(result, Err(WorkflowDefinitionError::OrphanNodes { .. })));
+        assert!(matches!(
+            result,
+            Err(WorkflowDefinitionError::OrphanNodes { .. })
+        ));
         Ok(())
     }
 }

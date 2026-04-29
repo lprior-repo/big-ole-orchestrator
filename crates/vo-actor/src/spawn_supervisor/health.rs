@@ -4,11 +4,9 @@
 
 use std::time::Duration;
 
-use super::Actor;
+use super::process::ProcessHandle;
 use super::types::SpawnSupervisorError;
-use super::traits::ProcessHandle;
-use super::types::SpawnSupervisorError;
-use super::Actor;
+use super::SpawnSupervisor as Actor;
 use super::SpawnSupervisorMetrics;
 use vo_types::InstanceId;
 

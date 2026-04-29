@@ -222,10 +222,7 @@ fn parse_no_args_returns_missing_subcommand() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert_eq!(
-        err.kind(),
-        clap::error::ErrorKind::MissingSubcommand
-    );
+    assert_eq!(err.kind(), clap::error::ErrorKind::MissingSubcommand);
 }
 
 // ============================================================

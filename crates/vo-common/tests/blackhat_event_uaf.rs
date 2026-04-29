@@ -70,9 +70,7 @@ mod clone_isolation {
         } = clone;
         timer_id.push_str("_mutated");
 
-        let WorkflowEvent::TimerFired {
-            ref timer_id, ..
-        } = ev;
+        let WorkflowEvent::TimerFired { ref timer_id, .. } = ev;
         assert_eq!(timer_id.len(), 10_000, "original was mutated through clone");
         assert_eq!(timer_id, &"X".repeat(10_000));
     }
@@ -205,10 +203,9 @@ mod serialization_independence {
 
     #[test]
     fn deserialized_event_owns_its_data() {
-        let ev: WorkflowEvent = serde_json::from_str(
-            r#"{"TimerFired":{"timer_id":"owned-data","timestamp_ms":555}}"#,
-        )
-        .unwrap();
+        let ev: WorkflowEvent =
+            serde_json::from_str(r#"{"TimerFired":{"timer_id":"owned-data","timestamp_ms":555}}"#)
+                .unwrap();
         // The &str source is a compile-time constant — event must own its own copy
         let WorkflowEvent::TimerFired {
             timer_id,
@@ -414,7 +411,6 @@ mod type_alias_ownership {
     }
 }
 
-
 #[cfg(test)]
 mod error_chain_safety {
     use super::*;
@@ -431,7 +427,10 @@ mod error_chain_safety {
     fn error_from_serde_error_owns_message() {
         let serde_err: Result<WorkflowEvent, _> = serde_json::from_str("{invalid}");
         let vo_err: VoError = serde_err.unwrap_err().into();
-        assert!(!vo_err.to_string().is_empty(), "serde error message was lost");
+        assert!(
+            !vo_err.to_string().is_empty(),
+            "serde error message was lost"
+        );
     }
 
     #[test]

@@ -2,10 +2,10 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::integer_types::TimestampMs;
+    use crate::pool::TimestampMs;
 
-    use super::super::types::*;
     use super::super::errors::*;
+    use super::super::types::*;
 
     // ========================================================================
     // ConnectionId Tests
@@ -127,7 +127,7 @@ mod tests {
         use super::*;
 
         fn create_test_connection() -> PooledConnection {
-            let timestamp = TimestampMs::new_unchecked(1000);
+            let timestamp = 1000u64;
             let conn_id = ConnectionId::new();
             PooledConnection::new(conn_id, timestamp)
         }
@@ -186,7 +186,7 @@ mod tests {
 
         #[test]
         fn test_pooled_connection_equality() {
-            let timestamp = TimestampMs::new_unchecked(1000);
+            let timestamp = 1000u64;
             let id1 = ConnectionId::new();
             let id2 = ConnectionId::new();
 
@@ -247,7 +247,7 @@ mod tests {
         #[test]
         fn test_wait_handle_creation() {
             let pool_id = PoolId::new("test-pool");
-            let timestamp = TimestampMs::new_unchecked(2000);
+            let timestamp = 2000u64;
 
             let handle = WaitHandle {
                 request_id: 1,
@@ -263,7 +263,7 @@ mod tests {
         #[test]
         fn test_wait_handle_equality() {
             let pool_id = PoolId::new("same-pool");
-            let timestamp = TimestampMs::new_unchecked(3000);
+            let timestamp = 3000u64;
 
             let handle1 = WaitHandle {
                 request_id: 1,
@@ -290,7 +290,7 @@ mod tests {
 
         #[test]
         fn test_acquire_result_available() {
-            let timestamp = TimestampMs::new_unchecked(1000);
+            let timestamp = 1000u64;
             let conn = PooledConnection::new(ConnectionId::new(), timestamp);
             let result = AcquireResult::Available { connection: conn };
 
@@ -303,7 +303,7 @@ mod tests {
         #[test]
         fn test_acquire_result_pending() {
             let pool_id = PoolId::new("pending-pool");
-            let timestamp = TimestampMs::new_unchecked(1000);
+            let timestamp = 1000u64;
             let handle = WaitHandle {
                 request_id: 1,
                 enqueued_at: timestamp,
@@ -685,7 +685,7 @@ mod tests {
         #[test]
         fn test_error_context_creation() {
             let pool_id = PoolId::new("error-pool");
-            let timestamp = TimestampMs::new_unchecked(5000);
+            let timestamp = 5000u64;
             let conn_id = ConnectionId::new();
 
             let context = ErrorContext {
@@ -704,7 +704,7 @@ mod tests {
         #[test]
         fn test_error_context_no_connection() {
             let pool_id = PoolId::new("no-conn-pool");
-            let timestamp = TimestampMs::new_unchecked(6000);
+            let timestamp = 6000u64;
 
             let context = ErrorContext {
                 pool_id,
@@ -848,7 +848,7 @@ mod tests {
         #[test]
         fn test_inv_003_idle_safety() {
             // A connection with Idle status should be safe to checkout
-            let conn = PooledConnection::new(ConnectionId::new(), TimestampMs::new_unchecked(1000));
+            let conn = PooledConnection::new(ConnectionId::new(), 1000u64);
             assert!(conn.is_idle());
             // Implementation should verify health before returning Idle connection
         }
@@ -856,8 +856,7 @@ mod tests {
         // INV-004: use_count monotonically increases
         #[test]
         fn test_inv_004_use_count_monotonic() {
-            let mut conn =
-                PooledConnection::new(ConnectionId::new(), TimestampMs::new_unchecked(1000));
+            let mut conn = PooledConnection::new(ConnectionId::new(), 1000u64);
             let initial_count = conn.use_count;
 
             conn.increment_use_count();
@@ -873,8 +872,8 @@ mod tests {
         fn test_inv_005_idle_timeout() {
             // This test documents the invariant
             // Implementation should check idle time and close connections that exceed idle_timeout_ms
-            let created_at = TimestampMs::new_unchecked(1000);
-            let _now = TimestampMs::new_unchecked(40000); // 39 seconds later
+            let created_at = 1000u64;
+            let _now = 40000u64; // 39 seconds later
             let _idle_timeout_ms = 30000;
 
             let conn = PooledConnection::new(ConnectionId::new(), created_at);
@@ -920,8 +919,7 @@ mod tests {
         #[test]
         fn test_inv_008_health_check_eviction() {
             // Failed health check connections should never return to Idle
-            let _conn =
-                PooledConnection::new(ConnectionId::new(), TimestampMs::new_unchecked(1000));
+            let _conn = PooledConnection::new(ConnectionId::new(), 1000u64);
 
             // After failed health check, should be evicted, not returned to Idle
             let eviction = ReleaseResult::Evicted {

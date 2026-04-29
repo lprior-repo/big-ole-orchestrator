@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion, Throughput};
+use std::hint::black_box;
 use vo_storage::crypto::{
     decrypt_blob, encrypt_blob, generate_dek, unwrap_dek, wrap_dek, KEK_SIZE_BYTES,
 };

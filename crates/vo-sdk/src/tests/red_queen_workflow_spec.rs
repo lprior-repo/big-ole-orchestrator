@@ -802,7 +802,11 @@ fn rq_workflow_spec_rejects_duplicate_edges_via_serde() {
         "version": 1
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "duplicate edges are rejected: {:?}", result);
+    assert!(
+        result.is_err(),
+        "duplicate edges are rejected: {:?}",
+        result
+    );
 }
 
 #[test]

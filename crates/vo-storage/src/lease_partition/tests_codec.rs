@@ -80,7 +80,10 @@ fn decode_lease_key_returns_original_ids_when_input_was_encoded() {
 #[test]
 fn decode_lease_key_returns_ids_when_given_encoded_key_bytes() {
     let encoded = encode_lease_key(&sample_instance_id(), &sample_step_id());
-    assert_eq!(decode_lease_key(&encoded), Ok((sample_instance_id(), sample_step_id())));
+    assert_eq!(
+        decode_lease_key(&encoded),
+        Ok((sample_instance_id(), sample_step_id()))
+    );
 }
 
 fn invalid_instance_reason(raw: &str) -> String {
@@ -108,7 +111,10 @@ fn decode_lease_key_rejects_empty_input() {
 #[test]
 fn decode_lease_key_rejects_too_short_input() {
     assert!(
-        matches!(decode_lease_key(&[0u8; 17]), Err(LeaseStoreError::Codec { .. })),
+        matches!(
+            decode_lease_key(&[0u8; 17]),
+            Err(LeaseStoreError::Codec { .. })
+        ),
         "input shorter than 18 bytes should be rejected"
     );
 }
@@ -530,17 +536,17 @@ fn given_lease_key_components_with_delimiters_when_encoded_then_no_collision_occ
     for i in 0..encoded_keys.len() {
         for j in (i + 1)..encoded_keys.len() {
             assert_ne!(
-                encoded_keys[i],
-                encoded_keys[j],
+                encoded_keys[i], encoded_keys[j],
                 "collision between pair[{}] and pair[{}]",
-                i,
-                j
+                i, j
             );
         }
     }
 
     // Then: every key round-trips correctly
-    for (idx, ((expected_iid, expected_sid), encoded)) in pairs.iter().zip(encoded_keys.iter()).enumerate() {
+    for (idx, ((expected_iid, expected_sid), encoded)) in
+        pairs.iter().zip(encoded_keys.iter()).enumerate()
+    {
         let (decoded_iid, decoded_sid) = decode_lease_key(encoded).unwrap();
         assert_eq!(
             decoded_iid, *expected_iid,

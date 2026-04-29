@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use crate::debouncer::Debouncer;
     use crate::debouncer::types::{Error, FileEvent};
+    use crate::debouncer::Debouncer;
     use std::future::Future;
     use std::path::PathBuf;
     use std::pin::Pin;
@@ -115,8 +115,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn
-        next_debounced_event_collapses_multiple_events_for_same_file_into_single_yield() {
+    async fn next_debounced_event_collapses_multiple_events_for_same_file_into_single_yield() {
         let duration = Duration::from_millis(100);
         let (tx, mut debouncer) = setup(duration);
         let path = PathBuf::from("workflow_a.bin");
@@ -387,8 +386,8 @@ mod tests {
 
 #[cfg(test)]
 mod proptests {
-    use crate::debouncer::Debouncer;
     use crate::debouncer::types::{Error, FileEvent};
+    use crate::debouncer::Debouncer;
     use proptest::prelude::*;
     use std::path::PathBuf;
     use std::time::Duration;
@@ -446,8 +445,8 @@ mod proptests {
 
 #[cfg(kani)]
 mod verification {
-    use crate::debouncer::Debouncer;
     use crate::debouncer::types::FileEvent;
+    use crate::debouncer::Debouncer;
 
     #[kani::proof]
     fn verify_event_tracking_state_bounds() {

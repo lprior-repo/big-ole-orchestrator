@@ -114,7 +114,8 @@ mod tests {
 
     #[test]
     fn envelope_parse_with_secrets() {
-        let json = r#"{"idempotency_key":"k1","data":{},"secrets":{"stripe_key":"sk_123","token":"abc"}}"#;
+        let json =
+            r#"{"idempotency_key":"k1","data":{},"secrets":{"stripe_key":"sk_123","token":"abc"}}"#;
         let env: TaskInputEnvelope = serde_json::from_str(json).unwrap();
         assert_eq!(env.secrets.len(), 2);
         assert_eq!(env.secrets.get("stripe_key"), Some(&"sk_123".to_string()));

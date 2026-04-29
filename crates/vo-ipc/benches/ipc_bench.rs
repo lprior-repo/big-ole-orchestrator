@@ -1,5 +1,5 @@
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 use vo_ipc::stderr::{finalize_capture, update_capture, StderrCapture, MAX_STDERR_BYTES};
 
 fn bench_update_capture_small(c: &mut Criterion) {

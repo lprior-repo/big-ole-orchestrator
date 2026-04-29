@@ -21,8 +21,8 @@ pub mod types;
 
 pub use data::{ExtensionBatchMetadata, HistoryEntry, WorkflowSnapshot};
 pub use types::{
-    BatchId, CommandHistoryError, CommandKind, ExtensionApplyMode, HistoryEntryStatus,
-    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH, SnapshotId,
+    BatchId, CommandHistoryError, CommandKind, ExtensionApplyMode, HistoryEntryStatus, SnapshotId,
+    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
 };
 
 use crate::workflow::{DagNode, Edge};
@@ -302,12 +302,12 @@ impl CommandHistory {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use self::data::WorkflowSnapshot;
     use self::types::{
         BatchId, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode,
         ExtensionBatchMetadata, HistoryEntryStatus, SnapshotId, MAX_HISTORY_DEPTH,
     };
+    use super::*;
 
     fn test_snapshot() -> WorkflowSnapshot {
         WorkflowSnapshot::new(

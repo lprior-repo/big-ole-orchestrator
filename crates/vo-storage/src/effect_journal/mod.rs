@@ -126,7 +126,7 @@ pub fn encode_effect_key(effect_id: &EffectId) -> Vec<u8> {
         }
     }
     // Fallback: length-prefixed raw string (for migration safety)
-    encode_length_prefixed(s.as_bytes())
+    encode_length_prefixed(s.as_bytes()).expect("effect key encoding should not fail")
 }
 
 /// Decode binary effect key bytes into an `EffectId` (ADR-020).
@@ -165,10 +165,11 @@ pub fn decode_effect_key(bytes: &[u8]) -> Result<EffectId, EffectJournalError> {
             ),
         });
     }
-    let intent_str = std::str::from_utf8(&bytes[18..18 + intent_len])
-        .map_err(|e| EffectJournalError::Codec {
+    let intent_str = std::str::from_utf8(&bytes[18..18 + intent_len]).map_err(|e| {
+        EffectJournalError::Codec {
             reason: format!("invalid intent_id UTF-8: {e}"),
-        })?;
+        }
+    })?;
     EffectId::new(&instance_id, intent_str).map_err(|_| EffectJournalError::Codec {
         reason: "empty intent_id in decoded key".to_string(),
     })

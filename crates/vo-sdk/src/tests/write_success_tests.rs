@@ -18,7 +18,8 @@ fn write_success_valid_output() {
     assert_eq!(result, Ok(()));
     assert!(is_written, "guard must be set after write");
 
-    let written: Value = serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
+    let written: Value =
+        serde_json::from_slice(&buf[4..]).expect("written bytes should be valid JSON");
     assert_eq!(written["status"], "success");
     assert_eq!(written["output"], json!({"result": 42}));
 }
@@ -395,9 +396,11 @@ fn envelope_keys_are_exactly_status_and_output() {
         .keys()
         .map(String::as_str)
         .collect();
-    let expected: std::collections::BTreeSet<&str> =
-        ["output", "status"].into_iter().collect();
-    assert_eq!(keys, expected, "envelope keys must be exactly {{status, output}}");
+    let expected: std::collections::BTreeSet<&str> = ["output", "status"].into_iter().collect();
+    assert_eq!(
+        keys, expected,
+        "envelope keys must be exactly {{status, output}}"
+    );
 }
 
 #[test]

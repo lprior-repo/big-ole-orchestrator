@@ -149,7 +149,11 @@ mod scenario_1_valid_parallel_fan_in {
 
         let ready = DependencyGraphResolver::ready_nodes_for_outcome(
             &def,
-            &[NodeName("A".into()), NodeName("B".into()), NodeName("C".into())],
+            &[
+                NodeName("A".into()),
+                NodeName("B".into()),
+                NodeName("C".into()),
+            ],
             StepOutcome::Success,
         );
         assert_eq!(ready.len(), 1);
@@ -205,8 +209,7 @@ mod scenario_2_exclusive_branches_with_always_merge {
     use super::*;
 
     #[test]
-    fn given_exclusive_branches_merging_with_always_edges_when_dag_validated_then_should_reject(
-    ) {
+    fn given_exclusive_branches_merging_with_always_edges_when_dag_validated_then_should_reject() {
         let json = serde_json::json!({
             "workflow_name": "deadlock-merge",
             "nodes": [node_json("A"), node_json("B"), node_json("C"), node_json("D")],
@@ -421,7 +424,9 @@ mod scenario_5_wide_fan_in_all_always {
 
     #[test]
     fn given_10_branches_all_always_merging_when_validated_then_valid() {
-        let mut nodes = vec![serde_json::json!({"node_name": "entry", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}})];
+        let mut nodes = vec![
+            serde_json::json!({"node_name": "entry", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}}),
+        ];
         for i in 0..10 {
             nodes.push(node_json(&format!("worker{}", i)));
         }
@@ -513,7 +518,11 @@ mod scenario_7_both_branches_taken_on_same_outcome {
 
         let ready_after_both_complete = DependencyGraphResolver::ready_nodes_for_outcome(
             &def,
-            &[NodeName("A".into()), NodeName("B".into()), NodeName("C".into())],
+            &[
+                NodeName("A".into()),
+                NodeName("B".into()),
+                NodeName("C".into()),
+            ],
             StepOutcome::Success,
         );
         assert_eq!(ready_after_both_complete.len(), 1);

@@ -3,7 +3,10 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy, ScheduledJob, SchedulerQueue};
+use crate::types::{
+    JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy, ScheduledJob,
+    SchedulerQueue,
+};
 
 fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
     ScheduledJob::new(
@@ -645,7 +648,10 @@ fn given_retryable_failure_when_transition_runs_then_retry_state_is_atomic() {
         .unwrap();
 
     let found = queue.lookup(&job_id).unwrap();
-    assert_eq!(found.attempt_count, 2, "attempt_count must be 2 after retry from attempt 1");
+    assert_eq!(
+        found.attempt_count, 2,
+        "attempt_count must be 2 after retry from attempt 1"
+    );
     assert_eq!(found.state, JobState::Retrying, "state must be Retrying");
     assert!(
         found.due_at > original_due_at,

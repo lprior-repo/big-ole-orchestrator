@@ -5,7 +5,9 @@
 //! CSS class injection, event handler abuse, HttpMethod::parse silent fallback.
 
 use vo_frontend::ui::domain_types::{HttpMethod, NodeTemplateId};
-use vo_frontend::ui::graph::{sanitize_text, validate_icon_name, validate_node_name, Node, NodeId, Workflow};
+use vo_frontend::ui::graph::{
+    sanitize_text, validate_icon_name, validate_node_name, Node, NodeId, Workflow,
+};
 use vo_frontend::ui::prototype_palette::{generate_skeleton, SketchNode};
 
 #[test]
@@ -93,7 +95,8 @@ fn valid_node_names_accepted() {
 
 #[test]
 fn node_set_name_rejects_xss() {
-    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    let mut node =
+        Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
     assert!(!node.set_name(r#"<script>alert(1)</script>"#));
     assert_eq!(node.name, "safe", "name must not change on invalid input");
     assert!(node.set_name("new-safe-name"));
@@ -102,7 +105,8 @@ fn node_set_name_rejects_xss() {
 
 #[test]
 fn node_set_description_strips_html() {
-    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    let mut node =
+        Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
     node.set_description(r#"Hello <b>world</b> <script>alert(1)</script>"#);
     assert!(
         !node.description.contains("<"),
@@ -112,12 +116,16 @@ fn node_set_description_strips_html() {
         !node.description.contains(">"),
         "no HTML tags must remain in description"
     );
-    assert!(node.description.contains("Hello world"), "safe text must be preserved");
+    assert!(
+        node.description.contains("Hello world"),
+        "safe text must be preserved"
+    );
 }
 
 #[test]
 fn node_set_icon_rejects_payloads() {
-    let mut node = Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    let mut node =
+        Node::new(NodeId::new(), "safe".to_string(), vo_types::NodeKind::Pure).expect("valid");
     assert!(!node.set_icon(r#"expression(alert(1))"#));
     assert!(node.set_icon("rocket"));
     assert_eq!(node.icon, "rocket");
@@ -186,7 +194,8 @@ fn workflow_deserialization_rejects_truncated_json() {
 
 #[test]
 fn workflow_with_malicious_config_key() {
-    let mut node = Node::new(NodeId::new(), "ok".to_string(), vo_types::NodeKind::Pure).expect("valid");
+    let mut node =
+        Node::new(NodeId::new(), "ok".to_string(), vo_types::NodeKind::Pure).expect("valid");
     let evil_config = serde_json::json!({
         "__proto__": {"admin": true},
         "constructor": {"prototype": {"polluted": true}}

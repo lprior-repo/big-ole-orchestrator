@@ -1,7 +1,4 @@
 mod error;
-mod inverted_index;
-mod query;
-mod scoring;
 pub mod inverted_index;
 pub mod query;
 pub mod scoring;
@@ -140,6 +137,10 @@ impl SearchEngine {
     ) {
         let _ = (id, text, tags);
     }
+
+    #[must_use]
+    pub fn remove_workspace(&mut self, _id: crate::workspace::WorkspaceId) -> bool {
+        // Stub implementation - workspace removal not yet implemented
+        true
+    }
 }
-pub struct SearchEngine;
-pub struct SearchResult;

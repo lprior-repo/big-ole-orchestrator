@@ -491,7 +491,9 @@ fn build_accepts_linear_chain() {
         .expect("valid");
     dag.connect(&a, &b).expect("a->b");
     dag.connect(&b, &c).expect("b->c");
-    let spec = dag.build("linear-workflow").expect("linear chain should build");
+    let spec = dag
+        .build("linear-workflow")
+        .expect("linear chain should build");
     assert_eq!(spec.nodes.len(), 3);
     assert_eq!(spec.edges.len(), 2);
 }
@@ -503,10 +505,14 @@ fn build_accepts_diamond_dag() {
         .add_node_with_kind("start", NodeKind::Pure, |_: ()| -> i32 { 0 })
         .expect("valid");
     let left: NodeHandle<i32, String> = dag
-        .add_node_with_kind("left", NodeKind::Pure, |_i: i32| -> String { "left".to_string() })
+        .add_node_with_kind("left", NodeKind::Pure, |_i: i32| -> String {
+            "left".to_string()
+        })
         .expect("valid");
     let right: NodeHandle<i32, String> = dag
-        .add_node_with_kind("right", NodeKind::Pure, |_i: i32| -> String { "right".to_string() })
+        .add_node_with_kind("right", NodeKind::Pure, |_i: i32| -> String {
+            "right".to_string()
+        })
         .expect("valid");
     let end: NodeHandle<String, ()> = dag
         .add_node_with_kind("end", NodeKind::Pure, |_s: String| {})
@@ -576,12 +582,8 @@ fn workflow_unsafe_node_adds_node_with_unsafe_kind() {
 #[test]
 fn workflow_connect_links_nodes() {
     let mut wf = Workflow::new("test");
-    let a: NodeHandle<String, i32> = wf
-        .pure("a", |_s: String| -> i32 { 0 })
-        .expect("a");
-    let b: NodeHandle<i32, ()> = wf
-        .effect("b", |_i: i32| {})
-        .expect("b");
+    let a: NodeHandle<String, i32> = wf.pure("a", |_s: String| -> i32 { 0 }).expect("a");
+    let b: NodeHandle<i32, ()> = wf.effect("b", |_i: i32| {}).expect("b");
     wf.connect(&a, &b).expect("connect should succeed");
     let spec = wf.build().expect("build should succeed");
     assert_eq!(spec.edges.len(), 1);
@@ -590,9 +592,7 @@ fn workflow_connect_links_nodes() {
 #[test]
 fn workflow_connect_rejects_unknown_nodes() {
     let mut wf = Workflow::new("test");
-    let a: NodeHandle<String, i32> = wf
-        .pure("a", |_s: String| -> i32 { 0 })
-        .expect("a");
+    let a: NodeHandle<String, i32> = wf.pure("a", |_s: String| -> i32 { 0 }).expect("a");
     let phantom: NodeHandle<(), String> =
         NodeHandle::new(vo_types::NodeName::parse("ghost").expect("valid"));
     let result = wf.connect(&phantom, &a);
@@ -606,7 +606,9 @@ fn workflow_connect_rejects_unknown_nodes() {
 fn workflow_build_rejects_cycle() {
     let mut wf = Workflow::new("test");
     let a: NodeHandle<String, i32> = wf.pure("a", |_s: String| -> i32 { 0 }).expect("a");
-    let b: NodeHandle<i32, String> = wf.pure("b", |_i: i32| -> String { "b".to_string() }).expect("b");
+    let b: NodeHandle<i32, String> = wf
+        .pure("b", |_i: i32| -> String { "b".to_string() })
+        .expect("b");
     wf.connect(&a, &b).expect("a->b");
     wf.connect(&b, &a).expect("b->a creates cycle");
     let result = wf.build();
@@ -711,7 +713,8 @@ fn build_with_single_orphan_reports_correctly() {
     let _orphan: NodeHandle<(), ()> = dag
         .add_node_with_kind("solo", NodeKind::Pure, |_: ()| {})
         .expect("valid");
-    dag.connect(&_connected1, &_connected2).expect("conn1->conn2");
+    dag.connect(&_connected1, &_connected2)
+        .expect("conn1->conn2");
     let result = dag.build("single-orphan");
     let err = result.unwrap_err();
     assert!(
@@ -778,7 +781,8 @@ fn build_accepts_deep_chain() {
         let next: NodeHandle<(), ()> = dag
             .add_node_with_kind(&format!("step-{}", i), NodeKind::Pure, |_: ()| {})
             .expect("valid");
-        dag.connect(&prev, &next).expect(&format!("step-{}->step-{}", i - 1, i));
+        dag.connect(&prev, &next)
+            .expect(&format!("step-{}->step-{}", i - 1, i));
         prev = next;
     }
     let spec = dag.build("deep-chain").expect("deep chain should build");
@@ -793,13 +797,17 @@ fn build_accepts_parallel_branches_merging() {
         .add_node_with_kind("split", NodeKind::Pure, |_: ()| -> i32 { 0 })
         .expect("valid");
     let left1: NodeHandle<i32, String> = dag
-        .add_node_with_kind("left-1", NodeKind::Pure, |i: i32| -> String { format!("l1:{}", i) })
+        .add_node_with_kind("left-1", NodeKind::Pure, |i: i32| -> String {
+            format!("l1:{}", i)
+        })
         .expect("valid");
     let left2: NodeHandle<String, ()> = dag
         .add_node_with_kind("left-2", NodeKind::Pure, |_: String| {})
         .expect("valid");
     let right1: NodeHandle<i32, String> = dag
-        .add_node_with_kind("right-1", NodeKind::Pure, |i: i32| -> String { format!("r1:{}", i) })
+        .add_node_with_kind("right-1", NodeKind::Pure, |i: i32| -> String {
+            format!("r1:{}", i)
+        })
         .expect("valid");
     let right2: NodeHandle<String, ()> = dag
         .add_node_with_kind("right-2", NodeKind::Pure, |_: String| {})
@@ -892,7 +900,8 @@ fn build_accepts_single_node_with_self_loop_rejected() {
     let node: NodeHandle<(), ()> = dag
         .add_node_with_kind("self-node", NodeKind::Pure, |_: ()| {})
         .expect("valid");
-    dag.connect(&node, &node).expect("self-loop should be allowed in connect");
+    dag.connect(&node, &node)
+        .expect("self-loop should be allowed in connect");
     let result = dag.build("self-loop-workflow");
     assert!(
         matches!(result, Err(DagError::CycleDetected { .. })),
@@ -948,7 +957,11 @@ fn workflow_connect_same_nodes_multiple_times() {
     dag.connect(&a, &b).expect("first connect");
     dag.connect(&a, &b).expect("second connect");
     dag.connect(&a, &b).expect("third connect");
-    assert_eq!(dag.edge_count(), 3, "multiple edges between same nodes should be allowed");
+    assert_eq!(
+        dag.edge_count(),
+        3,
+        "multiple edges between same nodes should be allowed"
+    );
 }
 
 #[test]

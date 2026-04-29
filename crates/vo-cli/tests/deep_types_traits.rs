@@ -1,8 +1,6 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    BinaryFormat, CategoryReport, CheckCategory, CheckResult, DoctorReport, Severity,
-};
+use vo_cli::{BinaryFormat, CategoryReport, CheckCategory, CheckResult, DoctorReport, Severity};
 
 #[test]
 fn binary_format_display_names() {

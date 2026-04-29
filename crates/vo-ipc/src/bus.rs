@@ -1,7 +1,9 @@
 use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
+use crate::run::SubprocessOutput;
 use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
+use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{self, OwnedPermit};
@@ -65,10 +67,7 @@ pub struct MessageBus {
 
 impl MessageBus {
     #[allow(clippy::unused_async)]
-    pub async fn spawn(
-        config: SubprocessConfig,
-        bus_config: BusConfig,
-    ) -> Result<Self, IpcError> {
+    pub async fn spawn(config: SubprocessConfig, bus_config: BusConfig) -> Result<Self, IpcError> {
         let (fd3_read, fd3_write) = create_pipe()?;
         let (fd4_read, fd4_write) = create_pipe()?;
 
@@ -108,11 +107,13 @@ impl MessageBus {
 
         let fd3_writer =
             unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-        let fd4_reader =
-            unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
-        let stderr_reader = child.stderr.take().ok_or_else(|| IpcError::StderrReadFailed {
-            detail: "Failed to take stderr".to_string(),
-        })?;
+        let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+        let stderr_reader = child
+            .stderr
+            .take()
+            .ok_or_else(|| IpcError::StderrReadFailed {
+                detail: "Failed to take stderr".to_string(),
+            })?;
 
         let (sender, receiver) = mpsc::channel(bus_config.backpressure_limit);
 
@@ -128,7 +129,11 @@ impl MessageBus {
     }
 
     pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
-        let permit = self.sender.reserve().await.map_err(|_| BusError::BusClosed)?;
+        let permit = self
+            .sender
+            .reserve()
+            .await
+            .map_err(|_| BusError::BusClosed)?;
         permit.send(BusMessage::Request(envelope));
         Ok(())
     }
@@ -167,9 +172,12 @@ impl MessageBus {
 
         let mut fd3_write = self.fd3_write.take();
         if let Some(ref mut writer) = fd3_write {
-            writer.shutdown().await.map_err(|e| IpcError::Fd3WriteFailed {
-                detail: e.to_string(),
-            })?;
+            writer
+                .shutdown()
+                .await
+                .map_err(|e| IpcError::Fd3WriteFailed {
+                    detail: e.to_string(),
+                })?;
         }
 
         let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(
@@ -179,7 +187,9 @@ impl MessageBus {
         let mut fd4_read = self.fd4_read.take();
 
         let read_task = async {
-            let mut reader = fd4_read.take().ok_or(BusError::AlreadyConsumed)?;
+            let mut reader = fd4_read.take().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::Other, "IPC reader already consumed")
+            })?;
             let mut total_read = 0;
             let mut header = [0u8; 4];
             while total_read < 4 {
@@ -255,18 +265,6 @@ impl MessageBus {
         let _ = self.drain().await;
         Ok(())
     }
-
-}
-
-fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
-    let mut fds = [0; 2];
-    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
-    if res != 0 {
-        return Err(IpcError::PipeSetupFailed {
-            detail: std::io::Error::last_os_error().to_string(),
-        });
-    }
-    Ok(fds.into())
 }
 
 fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
@@ -304,31 +302,6 @@ pub enum BusError {
 impl From<mpsc::error::SendError<BusMessage>> for BusError {
     fn from(_: mpsc::error::SendError<BusMessage>) -> Self {
         Self::BusClosed
-    }
-}
-
-
-impl From<BusError> for IpcError {
-    fn from(err: BusError) -> Self {
-        match err {
-            BusError::BusClosed => IpcError::ProcessFailed {
-                exit_code: -1,
-                stderr_bytes: vec![],
-                stderr_truncated: false,
-            },
-            BusError::BackpressureLimitReached => IpcError::ProcessFailed {
-                exit_code: -1,
-                stderr_bytes: vec![],
-                stderr_truncated: false,
-            },
-            BusError::Timeout => IpcError::Timeout {
-                elapsed_ms: 0,
-                stderr_bytes: vec![],
-                stderr_truncated: false,
-            },
-            BusError::AlreadyConsumed => IpcError::AlreadyConsumed,
-            BusError::IoError(e) => IpcError::IoError(e),
-        }
     }
 }
 

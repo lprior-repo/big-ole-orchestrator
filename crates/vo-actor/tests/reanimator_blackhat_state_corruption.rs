@@ -70,7 +70,10 @@ fn bh_zero_fire_at_rejected() {
 
     match result.unwrap_err() {
         ReanimatorError::CorruptKey(msg) => {
-            assert!(msg.contains("fire_at_ms is zero"), "error should mention zero fire_at");
+            assert!(
+                msg.contains("fire_at_ms is zero"),
+                "error should mention zero fire_at"
+            );
         }
         other => panic!("expected CorruptKey, got {:?}", other),
     }
@@ -92,7 +95,10 @@ fn bh_zero_scheduled_at_rejected() {
 
     match result.unwrap_err() {
         ReanimatorError::CorruptKey(msg) => {
-            assert!(msg.contains("scheduled_at_ms is zero"), "error should mention zero scheduled_at");
+            assert!(
+                msg.contains("scheduled_at_ms is zero"),
+                "error should mention zero scheduled_at"
+            );
         }
         other => panic!("expected CorruptKey, got {:?}", other),
     }
@@ -133,23 +139,13 @@ fn bh_all_zeros_corruption_contained() {
     let corrupted_id = InstanceId::from_bytes([0u8; 16]);
     let valid_id = make_instance_id(1);
 
-    let corrupted_timer = TimerRecord::new(
-        corrupted_id.clone(),
-        ts_ms(1000),
-        None,
-        ts_ms(500),
-    );
+    let corrupted_timer = TimerRecord::new(corrupted_id.clone(), ts_ms(1000), None, ts_ms(500));
 
     let result = validate_timer_record(&corrupted_timer);
     assert!(result.is_err());
 
     // Verify valid timer still passes
-    let valid_timer = TimerRecord::new(
-        valid_id,
-        ts_ms(1000),
-        None,
-        ts_ms(500),
-    );
+    let valid_timer = TimerRecord::new(valid_id, ts_ms(1000), None, ts_ms(500));
 
     assert!(
         validate_timer_record(&valid_timer).is_ok(),
@@ -167,7 +163,7 @@ fn bh_reversed_timestamps_rejected() {
     let instance_id = make_instance_id(1);
     let timer = TimerRecord::new(
         instance_id,
-        ts_ms(500),  // fire_at is BEFORE scheduled_at (reversed)
+        ts_ms(500), // fire_at is BEFORE scheduled_at (reversed)
         None,
         ts_ms(1000), // scheduled_at is AFTER fire_at
     );
@@ -195,22 +191,12 @@ fn bh_reversed_timestamps_contained() {
     let instance_id = make_instance_id(1);
 
     // Corrupted timer with reversed timestamps
-    let corrupted_timer = TimerRecord::new(
-        instance_id.clone(),
-        ts_ms(500),
-        None,
-        ts_ms(1000),
-    );
+    let corrupted_timer = TimerRecord::new(instance_id.clone(), ts_ms(500), None, ts_ms(1000));
 
     assert!(validate_timer_record(&corrupted_timer).is_err());
 
     // Valid timer with correct timestamps
-    let valid_timer = TimerRecord::new(
-        instance_id.clone(),
-        ts_ms(1000),
-        None,
-        ts_ms(500),
-    );
+    let valid_timer = TimerRecord::new(instance_id.clone(), ts_ms(1000), None, ts_ms(500));
 
     assert!(
         validate_timer_record(&valid_timer).is_ok(),
@@ -229,14 +215,10 @@ async fn bh_corrupted_timer_rejected_during_recovery() {
 
     // Attempt to scan for timers - storage should validate internally
     // (MockTimerStorage doesn't validate, but the reanimator loop would call validate_timer_record)
-    
+
     // Simulate what the reanimator would do: scan and validate each timer
     let timers = storage
-        .scan_due_timers(
-            ts_ms(0),
-            ts_ms(10000),
-            100,
-        )
+        .scan_due_timers(ts_ms(0), ts_ms(10000), 100)
         .await
         .expect("scan should succeed");
 
@@ -257,12 +239,9 @@ async fn bh_corrupted_pending_timer_rejected_in_recovery() {
 
     // Create a corrupted pending timer manually
     let corrupted_instance_id = InstanceId::from_bytes([0u8; 16]);
-    
+
     storage
-        .mark_timer_processing(
-            &corrupted_instance_id,
-            ts_ms(5000),
-        )
+        .mark_timer_processing(&corrupted_instance_id, ts_ms(5000))
         .await
         .expect("mark processing should succeed (storage allows it)");
 
@@ -278,8 +257,12 @@ async fn bh_corrupted_pending_timer_rejected_in_recovery() {
     // But the reanimator loop would validate the original TimerRecord before replay
     // This test verifies the detection mechanism exists
     assert!(
-        corrupted_instance_id.to_bytes().is_err() || 
-        corrupted_instance_id.to_bytes().unwrap().iter().all(|&b| b == 0),
+        corrupted_instance_id.to_bytes().is_err()
+            || corrupted_instance_id
+                .to_bytes()
+                .unwrap()
+                .iter()
+                .all(|&b| b == 0),
         "corrupted instance_id should be all zeros"
     );
 }
@@ -324,7 +307,7 @@ async fn bh_valid_timers_recovered_despite_corruption() {
     // Recovery should validate before replay
     // In real reanimator, validate_timer_record would be called on TimerRecord
     // For pending timers, we check instance_id validity
-    
+
     let mut valid_count = 0;
     let mut corrupt_count = 0;
 
@@ -350,7 +333,7 @@ async fn bh_valid_timers_recovered_despite_corruption() {
 async fn bh_corruption_no_cascade_failure() {
     let storage = Arc::new(MockTimerStorage::empty());
     let work_queue = Arc::new(MockWorkQueue::new());
-    
+
     let instance_id = make_instance_id(1);
 
     // Add valid timer
@@ -387,7 +370,9 @@ async fn bh_corruption_no_cascade_failure() {
 
     // If we had a corrupted timer in the mix, it would be rejected
     // but valid timers would still be recovered
-    let result = work_queue.enqueue_resume(pending[0].instance_id.clone()).await;
+    let result = work_queue
+        .enqueue_resume(pending[0].instance_id.clone())
+        .await;
     assert!(result.is_ok(), "valid timer recovery should succeed");
 
     let enqueued = work_queue.enqueued().await;
@@ -417,8 +402,8 @@ async fn bh_multiple_corruptions_all_rejected() {
 
     // Create multiple corrupted timers with different corruption patterns
     let corrupted_instances = vec![
-        InstanceId::from_bytes([0u8; 16]),    // All zeros
-        InstanceId::from_bytes([1u8; 16]),    // Valid pattern (different from all zeros)
+        InstanceId::from_bytes([0u8; 16]), // All zeros
+        InstanceId::from_bytes([1u8; 16]), // Valid pattern (different from all zeros)
     ];
 
     // Add timers for each instance
@@ -431,12 +416,9 @@ async fn bh_multiple_corruptions_all_rejected() {
         );
 
         let validation = validate_timer_record(&timer);
-        
+
         if instance_id.to_bytes().unwrap().iter().all(|&b| b == 0) {
-            assert!(
-                validation.is_err(),
-                "all-zeros instance should be rejected"
-            );
+            assert!(validation.is_err(), "all-zeros instance should be rejected");
         } else {
             // Valid instance IDs should pass
             assert!(validation.is_ok());
@@ -468,12 +450,7 @@ fn bh_near_zero_timestamps_valid() {
     );
 
     // But 1 is valid for both
-    let timer2 = TimerRecord::new(
-        make_instance_id(2),
-        ts_ms(1),
-        None,
-        ts_ms(1),
-    );
+    let timer2 = TimerRecord::new(make_instance_id(2), ts_ms(1), None, ts_ms(1));
 
     // This should pass (fire_at >= scheduled_at, both non-zero)
     assert!(
@@ -488,12 +465,7 @@ fn bh_max_timestamp_values_valid() {
     let instance_id = make_instance_id(1);
 
     // Very large timestamp is valid
-    let timer = TimerRecord::new(
-        instance_id,
-        ts_ms(u64::MAX),
-        None,
-        ts_ms(u64::MAX - 1000),
-    );
+    let timer = TimerRecord::new(instance_id, ts_ms(u64::MAX), None, ts_ms(u64::MAX - 1000));
 
     assert!(
         validate_timer_record(&timer).is_ok(),
@@ -507,12 +479,7 @@ fn bh_equal_timestamps_valid() {
     let instance_id = make_instance_id(1);
 
     // fire_at == scheduled_at is valid
-    let timer = TimerRecord::new(
-        instance_id,
-        ts_ms(1000),
-        None,
-        ts_ms(1000),
-    );
+    let timer = TimerRecord::new(instance_id, ts_ms(1000), None, ts_ms(1000));
 
     assert!(
         validate_timer_record(&timer).is_ok(),
@@ -544,11 +511,7 @@ async fn bh_storage_scan_no_corruption() {
 
     // Scan should not corrupt any data
     let timers = storage
-        .scan_due_timers(
-            ts_ms(0),
-            ts_ms(10000),
-            100,
-        )
+        .scan_due_timers(ts_ms(0), ts_ms(10000), 100)
         .await
         .expect("scan should succeed");
 
@@ -597,18 +560,11 @@ async fn bh_storage_operations_no_corruption_propagation() {
         .await
         .expect("scan should succeed");
 
-    assert!(
-        pending.is_empty(),
-        "pending timers should be cleared"
-    );
+    assert!(pending.is_empty(), "pending timers should be cleared");
 
     // Timer should be gone from due timers
     let due = storage
-        .scan_due_timers(
-            ts_ms(0),
-            ts_ms(10000),
-            100,
-        )
+        .scan_due_timers(ts_ms(0), ts_ms(10000), 100)
         .await
         .expect("scan should succeed");
 
@@ -628,12 +584,7 @@ fn bh_validation_rejects_any_past_fire() {
     for scheduled in 1000..10000u64 {
         for fire in 0..scheduled {
             let instance_id = make_instance_id(1);
-            let timer = TimerRecord::new(
-                instance_id,
-                ts_ms(fire),
-                None,
-                ts_ms(scheduled),
-            );
+            let timer = TimerRecord::new(instance_id, ts_ms(fire), None, ts_ms(scheduled));
 
             assert!(
                 validate_timer_record(&timer).is_err(),
@@ -649,20 +600,15 @@ fn bh_validation_rejects_any_past_fire() {
 #[test]
 fn bh_validation_accepts_valid_combinations() {
     let test_cases = vec![
-        (1, 1),      // equal
-        (2, 1),      // fire > scheduled
-        (1000, 1),   // large gap
+        (1, 1),                   // equal
+        (2, 1),                   // fire > scheduled
+        (1000, 1),                // large gap
         (u64::MAX, u64::MAX - 1), // max values
     ];
 
     for (fire, scheduled) in test_cases {
         let instance_id = make_instance_id(1);
-        let timer = TimerRecord::new(
-            instance_id,
-            ts_ms(fire),
-            None,
-            ts_ms(scheduled),
-        );
+        let timer = TimerRecord::new(instance_id, ts_ms(fire), None, ts_ms(scheduled));
 
         assert!(
             validate_timer_record(&timer).is_ok(),

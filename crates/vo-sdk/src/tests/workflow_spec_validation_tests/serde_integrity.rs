@@ -71,8 +71,8 @@ fn to_json_bytes_produces_deterministic_output() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("a").expect("valid"),
             kind: NodeKind::Pure,
-        retry_policy: None,
-                signal_scope: None,
+            retry_policy: None,
+            signal_scope: None,
         }],
         edges: vec![EdgeSpec {
             from: NodeName::parse("a").expect("valid"),

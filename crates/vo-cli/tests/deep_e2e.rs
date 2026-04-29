@@ -1,8 +1,8 @@
 #![allow(clippy::redundant_pattern_matching)]
-use std::path::PathBuf;
 use common::make_temp_dir;
-use vo_cli::{InitConfig, validate_binary_header, BinaryFormat, CheckCategory, Severity};
+use std::path::PathBuf;
 use vo_cli::commands::rebuild::{RebuildConfig, RebuildStatus};
+use vo_cli::{validate_binary_header, BinaryFormat, CheckCategory, InitConfig, Severity};
 
 #[test]
 fn e2e_init_lock_doctor_pipeline() {

@@ -32,7 +32,9 @@ impl Debouncer {
 
         let mut initial_event = None;
         match event_rx.try_recv() {
-            Err(TryRecvError::Disconnected) => return Err(super::types::Error::WatcherChannelClosed),
+            Err(TryRecvError::Disconnected) => {
+                return Err(super::types::Error::WatcherChannelClosed)
+            }
             Err(TryRecvError::Empty) => {}
             Ok(event) => initial_event = Some(event),
         }
@@ -132,7 +134,9 @@ impl Debouncer {
     ) -> Result<(), super::types::Error> {
         match event {
             super::types::FileEvent::Modify(path) => {
-                let deadline = now.checked_add(duration).ok_or(super::types::Error::DebouncerInternal)?;
+                let deadline = now
+                    .checked_add(duration)
+                    .ok_or(super::types::Error::DebouncerInternal)?;
                 pending.insert(path, deadline);
             }
             super::types::FileEvent::Delete(path) => {
@@ -149,7 +153,11 @@ impl Debouncer {
         ready_tx: &Sender<Result<PathBuf, super::types::Error>>,
     ) -> Result<(), ()> {
         if Self::process_single_event_sync(pending, duration, event, Instant::now()).is_err() {
-            if ready_tx.send(Err(super::types::Error::DebouncerInternal)).await.is_err() {
+            if ready_tx
+                .send(Err(super::types::Error::DebouncerInternal))
+                .await
+                .is_err()
+            {
                 // Ignore send error
             }
             Err(())

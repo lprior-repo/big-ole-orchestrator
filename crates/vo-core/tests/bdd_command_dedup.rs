@@ -6,9 +6,7 @@
 
 use vo_core::{check_command_duplicate, is_command_duplicate, CommandDedupResult};
 use vo_storage::dedupe_partition::{DedupeStore, InMemoryDedupeStore};
-use vo_types::{
-    CommandEnvelope, CommandMetadata, IdempotencyKey, InstanceId, Issuer, TimestampMs,
-};
+use vo_types::{CommandEnvelope, CommandMetadata, IdempotencyKey, InstanceId, Issuer, TimestampMs};
 
 fn make_envelope(command_id: &str) -> CommandEnvelope {
     CommandEnvelope {
@@ -65,9 +63,7 @@ fn given_duplicate_command_id_when_mutation_replayed_then_original_outcome_is_re
 
     // No duplicate event is appended — the replayed instance_id is NOT stored
     let contains_replayed = store
-        .contains(
-            &vo_types::DedupeKey::parse("cmd:cmd-bdd-dedupe-001").unwrap(),
-        )
+        .contains(&vo_types::DedupeKey::parse("cmd:cmd-bdd-dedupe-001").unwrap())
         .unwrap();
     assert!(
         contains_replayed,

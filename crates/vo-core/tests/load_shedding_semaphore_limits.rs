@@ -15,8 +15,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 use vo_core::shedding::{
-    LoadSheddingSemaphore, SemaphoreLimitError, MAX_CONCURRENT_BINARIES, MAX_YIELDED_ACTORS,
-    SheddingConfig, TaskPriority,
+    LoadSheddingSemaphore, SemaphoreLimitError, SheddingConfig, TaskPriority,
+    MAX_CONCURRENT_BINARIES, MAX_YIELDED_ACTORS,
 };
 
 // =============================================================================
@@ -113,9 +113,8 @@ async fn high_priority_task_preempts_low_priority_waiter() {
     let _low_permit = sem.try_acquire().expect("low priority acquire");
 
     let sem_low = sem.clone();
-    let low_handle = tokio::spawn(async move {
-        sem_low.acquire_with_priority(TaskPriority::Low).await
-    });
+    let low_handle =
+        tokio::spawn(async move { sem_low.acquire_with_priority(TaskPriority::Low).await });
 
     tokio::time::sleep(Duration::from_millis(10)).await;
     drop(_low_permit);
@@ -124,14 +123,12 @@ async fn high_priority_task_preempts_low_priority_waiter() {
     let _new_permit = sem.try_acquire().expect("re-acquire");
 
     let sem_high = sem.clone();
-    let high_handle = tokio::spawn(async move {
-        sem_high.acquire_with_priority(TaskPriority::High).await
-    });
+    let high_handle =
+        tokio::spawn(async move { sem_high.acquire_with_priority(TaskPriority::High).await });
 
     let sem_low2 = sem.clone();
-    let low2_handle = tokio::spawn(async move {
-        sem_low2.acquire_with_priority(TaskPriority::Low).await
-    });
+    let low2_handle =
+        tokio::spawn(async move { sem_low2.acquire_with_priority(TaskPriority::Low).await });
 
     tokio::time::sleep(Duration::from_millis(10)).await;
     drop(_new_permit);
@@ -173,15 +170,21 @@ async fn priority_ordering_is_respected_for_equal_priorities() {
 
     let sem_clone = sem.clone();
     let h1 = tokio::spawn(async move {
-        sem_clone.acquire_with_priority(TaskPriority::Standard).await
+        sem_clone
+            .acquire_with_priority(TaskPriority::Standard)
+            .await
     });
     let sem_clone = sem.clone();
     let h2 = tokio::spawn(async move {
-        sem_clone.acquire_with_priority(TaskPriority::Standard).await
+        sem_clone
+            .acquire_with_priority(TaskPriority::Standard)
+            .await
     });
     let sem_clone = sem.clone();
     let h3 = tokio::spawn(async move {
-        sem_clone.acquire_with_priority(TaskPriority::Standard).await
+        sem_clone
+            .acquire_with_priority(TaskPriority::Standard)
+            .await
     });
 
     tokio::time::sleep(Duration::from_millis(10)).await;

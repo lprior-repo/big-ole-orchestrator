@@ -97,7 +97,8 @@ impl ManagedEffectExecutor for DefaultManagedEffectExecutor {
                 reason: "connector reported failure".to_string(),
             }),
             CommitOutcome::Ambiguous => {
-                let reconcile_result = timeout(self.timeout, connector.reconcile(task.effect_id())).await;
+                let reconcile_result =
+                    timeout(self.timeout, connector.reconcile(task.effect_id())).await;
                 match reconcile_result {
                     Err(_) => Err(ManagedEffectError::Timeout(self.timeout)),
                     Ok(Err(e)) => Err(ManagedEffectError::ReconciliationFailed(e.to_string())),
@@ -117,13 +118,16 @@ impl ManagedEffectExecutor for DefaultManagedEffectExecutor {
 }
 
 #[allow(dead_code)]
-pub async fn execute_with_panic_catch<F, T>(
-    future: F,
-) -> Result<T, ManagedEffectError>
+pub async fn execute_with_panic_catch<F, T>(future: F) -> Result<T, ManagedEffectError>
 where
     F: std::future::Future<Output = T> + Send + std::panic::UnwindSafe,
 {
-    match tokio::time::timeout(Duration::from_secs(300), AssertUnwindSafe(future).catch_unwind()).await {
+    match tokio::time::timeout(
+        Duration::from_secs(300),
+        AssertUnwindSafe(future).catch_unwind(),
+    )
+    .await
+    {
         Ok(Ok(val)) => Ok(val),
         Ok(Err(panic_payload)) => {
             let msg = if let Some(s) = panic_payload.downcast_ref::<&str>() {

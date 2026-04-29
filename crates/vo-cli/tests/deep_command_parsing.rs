@@ -1,8 +1,6 @@
 #![allow(clippy::redundant_pattern_matching)]
 use std::path::PathBuf;
-use vo_cli::{
-    interpret_cli_from, parse_strict_numeric, Command,
-};
+use vo_cli::{interpret_cli_from, parse_strict_numeric, Command};
 
 #[test]
 fn parse_version_flag_returns_display_version_error() {

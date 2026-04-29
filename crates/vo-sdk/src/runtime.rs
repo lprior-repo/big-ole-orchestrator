@@ -25,7 +25,7 @@ use serde_json::Value;
 use tokio::runtime::Builder;
 use tokio::sync::watch;
 use tokio::time::timeout;
-use vo_types::TaskInput;
+use vo_types::{TaskFailureKind, TaskInput};
 
 /// Execute the user's async task function inside a current-thread Tokio runtime.
 ///
@@ -53,7 +53,7 @@ use vo_types::TaskInput;
 pub fn start<F, Fut>(task: F) -> !
 where
     F: FnOnce(TaskInput) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<Value, crate::TaskFailureKind>> + Send + 'static,
+    Fut: Future<Output = Result<Value, TaskFailureKind>> + Send + 'static,
 {
     // Install panic hook that forces exit.
     panic::set_hook(Box::new(|info| {
@@ -155,7 +155,7 @@ where
             result = task_handle => {
                 match result {
                     Ok(task_output) => task_output,
-                    Err(_error) => Err(crate::TaskFailureKind::System),
+                    Err(_error) => Err(TaskFailureKind::System),
                 }
             }
             _ = done_rx_for_signal.changed() => {
@@ -164,7 +164,7 @@ where
 
                 let _ = timeout(Duration::from_secs(2), async {}).await;
                 let _ = crate::io::write_failure(
-                    crate::TaskFailureKind::Timeout,
+                    TaskFailureKind::Timeout,
                     "task aborted by shutdown signal",
                 );
 

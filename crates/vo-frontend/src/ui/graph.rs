@@ -13,8 +13,17 @@ use uuid::Uuid;
 use vo_types::GuaranteeClass;
 use vo_types::NodeKind;
 
-/// Re-export ExecutionState from edges::graph_types for UI compatibility.
-pub use crate::ui::edges::graph_types::ExecutionState;
+/// Execution state for workflow nodes (ADR-031).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum ExecutionState {
+    #[default]
+    Idle,
+    Running,
+    Completed,
+    Failed,
+    Skipped,
+    Queued,
+}
 
 impl ExecutionState {
     pub const fn status_badge_class(self) -> &'static str {
@@ -330,7 +339,12 @@ impl Node {
     ///
     /// The name is validated against backend `NodeName` identifier rules.
     #[must_use]
-    pub fn from_workflow_node(name: String, workflow_node: WorkflowNode, x: f64, y: f64) -> Option<Self> {
+    pub fn from_workflow_node(
+        name: String,
+        workflow_node: WorkflowNode,
+        x: f64,
+        y: f64,
+    ) -> Option<Self> {
         let name = validate_node_name(&name)?;
         let (kind, category, icon) = match workflow_node {
             WorkflowNode::Run(_) => {
@@ -452,7 +466,7 @@ impl Workflow {
     /// Create a new empty workflow with no name (for testing).
     #[must_use]
     pub fn new_test() -> Self {
-        Self::new(String::new())
+        Self::new(String::new(), GuaranteeClass::default())
     }
 
     /// Add a node to the workflow.
@@ -468,7 +482,8 @@ impl Workflow {
         } else {
             vo_types::NodeKind::Pure
         };
-        let node = Node::new(NodeId::new(), name.to_string(), kind);
+        let node = Node::new(NodeId::new(), name.to_string(), kind)
+            .expect("Node::new should not fail for valid name");
         let id = node.id.clone();
         self.nodes.push(node);
         id
@@ -648,7 +663,8 @@ mod tests {
 
     #[test]
     fn node_creates_with_correct_category() {
-        let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+        let node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         assert_eq!(node.category, NodeCategory::Flow);
         assert_eq!(node.kind, NodeKind::Pure);
         assert_eq!(node.icon, "zap");
@@ -656,7 +672,8 @@ mod tests {
 
     #[test]
     fn node_set_kind_updates_category() {
-        let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+        let mut node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         assert_eq!(node.category, NodeCategory::Flow);
 
         node.set_kind(NodeKind::ManagedEffect);
@@ -667,7 +684,8 @@ mod tests {
     #[test]
     fn workflow_add_and_remove_node() {
         let mut workflow = Workflow::new("test".to_string());
-        let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
+        let node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         let node_id = node.id.clone();
 
         workflow.add_node(node);
@@ -699,8 +717,10 @@ mod tests {
     #[test]
     fn workflow_nodes_by_id() {
         let mut workflow = Workflow::new("test".to_string());
-        let node1 = Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure).expect("valid name");
-        let node2 = Node::new(NodeId::new(), "test2".to_string(), NodeKind::Wait).expect("valid name");
+        let node1 =
+            Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure).expect("valid name");
+        let node2 =
+            Node::new(NodeId::new(), "test2".to_string(), NodeKind::Wait).expect("valid name");
         let node1_id = node1.id.0.clone();
         let node2_id = node2.id.0.clone();
 

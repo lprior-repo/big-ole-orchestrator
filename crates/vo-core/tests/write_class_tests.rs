@@ -2,7 +2,7 @@
 
 use vo_core::write_class::{WriteBudget, WriteClass};
 
-use crate::helpers::{make_wf, make_hash};
+use crate::helpers::{make_hash, make_wf};
 
 #[test]
 fn write_class_and_resource_quota_compose_correctly() {

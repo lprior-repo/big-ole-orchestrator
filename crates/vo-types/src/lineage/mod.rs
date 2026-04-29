@@ -18,5 +18,5 @@ mod workflow;
 
 pub use epoch::Epoch;
 pub use error::LineageError;
-pub use workflow::WorkflowLineage;
 pub use trace::{LineageState, LineageStatus};
+pub use workflow::WorkflowLineage;

@@ -43,8 +43,7 @@ fn dag_rejects_connect_to_nonexistent_node() {
     let a: NodeHandle<(), ()> = dag
         .add_node_with_kind("a", NodeKind::Pure, |_: ()| ())
         .expect("valid");
-    let ghost: NodeHandle<(), ()> =
-        NodeHandle::new(NodeName::parse("ghost").expect("valid name"));
+    let ghost: NodeHandle<(), ()> = NodeHandle::new(NodeName::parse("ghost").expect("valid name"));
     let result = dag.connect(&a, &ghost);
     assert!(
         matches!(result, Err(DagError::NodeNotFound { .. })),
@@ -58,8 +57,7 @@ fn dag_rejects_connect_from_nonexistent_node() {
     let b: NodeHandle<(), ()> = dag
         .add_node_with_kind("b", NodeKind::Pure, |_: ()| ())
         .expect("valid");
-    let ghost: NodeHandle<(), ()> =
-        NodeHandle::new(NodeName::parse("ghost").expect("valid name"));
+    let ghost: NodeHandle<(), ()> = NodeHandle::new(NodeName::parse("ghost").expect("valid name"));
     let result = dag.connect(&ghost, &b);
     assert!(
         matches!(result, Err(DagError::NodeNotFound { .. })),

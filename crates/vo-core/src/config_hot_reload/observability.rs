@@ -109,9 +109,7 @@ mod tests {
 
         let duration_histograms: Vec<_> = entries
             .iter()
-            .filter(|(key, _, _, _)| {
-                key.key().name() == "vo_config_hot_reload.reload_duration_ms"
-            })
+            .filter(|(key, _, _, _)| key.key().name() == "vo_config_hot_reload.reload_duration_ms")
             .collect();
 
         assert!(

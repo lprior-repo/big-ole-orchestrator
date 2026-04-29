@@ -7,20 +7,20 @@ use vo_types::{DedupeKey, InstanceId};
 use super::{AdmissionResult, DedupeStore, DedupeStoreError, DEDUPE_PARTITION};
 
 pub struct FjallDedupeStore {
-    keyspace: Arc<fjall::Keyspace>,
-    partition: Arc<fjall::PartitionHandle>,
+    db: Arc<fjall::Database>,
+    partition: Arc<fjall::Keyspace>,
 }
 
 impl FjallDedupeStore {
     #[must_use]
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, DedupeStoreError> {
-        let partition = keyspace
-            .open_partition(DEDUPE_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, DedupeStoreError> {
+        let partition = db
+            .keyspace(DEDUPE_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| DedupeStoreError::Storage {
                 reason: format!("failed to open dedupe partition: {e}"),
             })?;
         Ok(Self {
-            keyspace: Arc::new(keyspace.clone()),
+            db: Arc::new(db.clone()),
             partition: Arc::new(partition),
         })
     }
@@ -75,9 +75,10 @@ impl DedupeStore for FjallDedupeStore {
 
         let iter = self.partition.iter();
         for item in iter {
-            let (key_bytes, value_bytes) = item.map_err(|e| DedupeStoreError::Storage {
-                reason: e.to_string(),
-            })?;
+            let (key_bytes, value_bytes) =
+                item.into_inner().map_err(|e| DedupeStoreError::Storage {
+                    reason: e.to_string(),
+                })?;
 
             if let Ok(entry) = super::decode_dedupe_entry(&value_bytes) {
                 if entry.is_expired(now_ms) {
@@ -87,7 +88,7 @@ impl DedupeStore for FjallDedupeStore {
         }
 
         if !keys_to_delete.is_empty() {
-            let mut batch = self.keyspace.batch();
+            let mut batch = self.db.batch();
             for key in &keys_to_delete {
                 batch.remove(&self.partition, key.clone());
             }
@@ -126,9 +127,9 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    fn create_test_keyspace() -> fjall::Keyspace {
+    fn create_test_db() -> fjall::Database {
         let dir = tempdir().unwrap();
-        fjall::Config::new(dir.path()).open().unwrap()
+        fjall::Database::builder(dir.path()).open().unwrap()
     }
 
     fn sample_instance_id() -> InstanceId {
@@ -137,8 +138,8 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_admitted_for_new_key() {
-        let keyspace = create_test_keyspace();
-        let store = FjallDedupeStore::open(&keyspace).unwrap();
+        let db = create_test_db();
+        let store = FjallDedupeStore::open(&db).unwrap();
         let key = DedupeKey::parse("new-key").unwrap();
 
         let result = store.check_and_insert(&key, &sample_instance_id(), 5000);
@@ -148,8 +149,8 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_duplicate_for_existing_key() {
-        let keyspace = create_test_keyspace();
-        let store = FjallDedupeStore::open(&keyspace).unwrap();
+        let db = create_test_db();
+        let store = FjallDedupeStore::open(&db).unwrap();
         let key = DedupeKey::parse("dup-key").unwrap();
 
         store
@@ -162,8 +163,8 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_check_and_insert_returns_error_for_zero_ttl() {
-        let keyspace = create_test_keyspace();
-        let store = FjallDedupeStore::open(&keyspace).unwrap();
+        let db = create_test_db();
+        let store = FjallDedupeStore::open(&db).unwrap();
         let key = DedupeKey::parse("ttl-key").unwrap();
 
         let result = store.check_and_insert(&key, &sample_instance_id(), 0);
@@ -173,8 +174,8 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_true_for_existing_unexpired_key() {
-        let keyspace = create_test_keyspace();
-        let store = FjallDedupeStore::open(&keyspace).unwrap();
+        let db = create_test_db();
+        let store = FjallDedupeStore::open(&db).unwrap();
         let key = DedupeKey::parse("contains-key").unwrap();
 
         store
@@ -186,8 +187,8 @@ mod tests {
 
     #[test]
     fn fjall_dedupe_store_contains_returns_false_for_missing_key() {
-        let keyspace = create_test_keyspace();
-        let store = FjallDedupeStore::open(&keyspace).unwrap();
+        let db = create_test_db();
+        let store = FjallDedupeStore::open(&db).unwrap();
         let key = DedupeKey::parse("missing-key").unwrap();
 
         assert_eq!(store.contains(&key), Ok(false));

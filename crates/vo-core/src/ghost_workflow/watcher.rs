@@ -82,10 +82,12 @@ impl From<GhostWorkflowWatcherError> for GhostWorkflowError {
                     to: RegistrationStatus::Deactivated,
                 }
             }
-            GhostWorkflowWatcherError::WatcherError(_) => GhostWorkflowError::ReaperNotDeactivated {
-                workflow: "watcher".to_string(),
-                status: RegistrationStatus::Active,
-            },
+            GhostWorkflowWatcherError::WatcherError(_) => {
+                GhostWorkflowError::ReaperNotDeactivated {
+                    workflow: "watcher".to_string(),
+                    status: RegistrationStatus::Active,
+                }
+            }
         }
     }
 }

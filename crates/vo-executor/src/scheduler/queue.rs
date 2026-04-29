@@ -207,16 +207,15 @@ impl Default for SchedulerQueue {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::JobPriority;
 
     fn _make_job(id: u64, priority: JobPriority, fire_at_ms: u64) -> (Job, u64) {
-        let fire_at = DateTime::from_timestamp(fire_at_ms / 1000, ((fire_at_ms % 1000) * 1_000_000) as u32)
-            .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap());
+        let fire_at =
+            DateTime::from_timestamp(fire_at_ms / 1000, ((fire_at_ms % 1000) * 1_000_000) as u32)
+                .unwrap_or_else(|| DateTime::from_timestamp(0, 0).unwrap());
         let job = Job::new(
             JobId::new(id),
             format!("payload-{}", id),
@@ -232,21 +231,13 @@ mod tests {
 
         // Add jobs with different priorities
         pq.push(
-            Job::new(
-                JobId::new(1),
-                "low".to_string(),
-                SchedulePolicy::Immediate,
-            )
-            .with_priority(JobPriority::Low),
+            Job::new(JobId::new(1), "low".to_string(), SchedulePolicy::Immediate)
+                .with_priority(JobPriority::Low),
             100,
         );
         pq.push(
-            Job::new(
-                JobId::new(2),
-                "high".to_string(),
-                SchedulePolicy::Immediate,
-            )
-            .with_priority(JobPriority::High),
+            Job::new(JobId::new(2), "high".to_string(), SchedulePolicy::Immediate)
+                .with_priority(JobPriority::High),
             100,
         );
         pq.push(
@@ -276,19 +267,11 @@ mod tests {
         let now = 1000u64;
 
         pq.push(
-            Job::new(
-                JobId::new(1),
-                "job1".to_string(),
-                SchedulePolicy::Immediate,
-            ),
+            Job::new(JobId::new(1), "job1".to_string(), SchedulePolicy::Immediate),
             now + 200,
         );
         pq.push(
-            Job::new(
-                JobId::new(2),
-                "job2".to_string(),
-                SchedulePolicy::Immediate,
-            ),
+            Job::new(JobId::new(2), "job2".to_string(), SchedulePolicy::Immediate),
             now + 100,
         );
 
@@ -301,19 +284,11 @@ mod tests {
         let mut pq = PriorityQueue::new();
 
         pq.push(
-            Job::new(
-                JobId::new(1),
-                "job1".to_string(),
-                SchedulePolicy::Immediate,
-            ),
+            Job::new(JobId::new(1), "job1".to_string(), SchedulePolicy::Immediate),
             100,
         );
         pq.push(
-            Job::new(
-                JobId::new(2),
-                "job2".to_string(),
-                SchedulePolicy::Immediate,
-            ),
+            Job::new(JobId::new(2), "job2".to_string(), SchedulePolicy::Immediate),
             100,
         );
 
@@ -332,21 +307,13 @@ mod tests {
         let now = 1000u64;
 
         pq.push(
-            Job::new(
-                JobId::new(1),
-                "low".to_string(),
-                SchedulePolicy::Immediate,
-            )
-            .with_priority(JobPriority::Low),
+            Job::new(JobId::new(1), "low".to_string(), SchedulePolicy::Immediate)
+                .with_priority(JobPriority::Low),
             now - 50,
         );
         pq.push(
-            Job::new(
-                JobId::new(2),
-                "high".to_string(),
-                SchedulePolicy::Immediate,
-            )
-            .with_priority(JobPriority::High),
+            Job::new(JobId::new(2), "high".to_string(), SchedulePolicy::Immediate)
+                .with_priority(JobPriority::High),
             now - 50,
         );
         pq.push(

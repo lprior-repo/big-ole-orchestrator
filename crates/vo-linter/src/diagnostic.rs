@@ -1,3 +1,9 @@
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LintSeverity {
+    Warning,
+    Error,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
     L002,

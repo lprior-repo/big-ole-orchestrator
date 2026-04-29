@@ -8,6 +8,7 @@ pub mod domain_types;
 pub mod edges;
 pub mod execution_plan_panel;
 pub mod graph;
+pub mod guarantee_badge;
 pub mod icons;
 pub mod operator_action_panel;
 pub mod panel_types;

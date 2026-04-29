@@ -12,9 +12,7 @@ fn red_queen_effects_partition_is_nonempty_utf8() {
         "BUG: EFFECTS_PARTITION is empty"
     );
     assert!(
-        EFFECTS_PARTITION
-            .chars()
-            .all(|c| !c.is_control()),
+        EFFECTS_PARTITION.chars().all(|c| !c.is_control()),
         "BUG: EFFECTS_PARTITION contains control characters"
     );
 }

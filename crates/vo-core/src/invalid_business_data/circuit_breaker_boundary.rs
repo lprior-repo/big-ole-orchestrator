@@ -195,8 +195,7 @@ mod circuit_breaker_boundary {
 
         for i in 0..2 {
             let hash = vo_types::BinaryHash::parse(&format!("aabbcc{i:02x}")).unwrap();
-            let result =
-                circuit_breaker::record_failure(&wf, &hash, &config, &state, now).unwrap();
+            let result = circuit_breaker::record_failure(&wf, &hash, &config, &state, now).unwrap();
             assert!(result.is_none(), "should not quarantine at count {}", i + 1);
         }
 
@@ -220,8 +219,7 @@ mod circuit_breaker_boundary {
         assert_eq!(state.get_status(&wf), RegistrationStatus::Quarantined);
 
         let hash2 = vo_types::BinaryHash::parse("aabbcc01").unwrap();
-        let result =
-            circuit_breaker::record_failure(&wf, &hash2, &config, &state, now).unwrap();
+        let result = circuit_breaker::record_failure(&wf, &hash2, &config, &state, now).unwrap();
         assert!(result.is_none());
     }
 

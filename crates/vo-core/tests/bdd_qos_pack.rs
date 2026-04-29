@@ -23,6 +23,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use vo_actor::fairness::WorkloadClass;
+use vo_actor::semaphore::{
+    AdmissionDecision, BackpressureStatus, ExecutionSemaphore, SemaphoreConfig,
+};
 use vo_core::admission::pressure_guard::{
     PressureGuardResult, WatchdogPressureGuard, WriterPressureGuard,
 };
@@ -30,10 +34,6 @@ use vo_core::admission::types::{PressureIndicator, WritePressureState};
 use vo_core::storage_watchdog::{
     DiskSpaceMetrics, StorageHealth, StorageMetrics, StorageWatchdog, StorageWatchdogConfig,
 };
-use vo_actor::semaphore::{
-    AdmissionDecision, BackpressureStatus, ExecutionSemaphore, SemaphoreConfig,
-};
-use vo_actor::fairness::WorkloadClass;
 use vo_types::WorkflowName;
 
 // ============================================================================
@@ -80,9 +80,18 @@ mod execution_semaphore_bdd {
         // Then: only first 2 are admitted, last 3 are rejected
         assert!(results[0].is_some(), "First should be admitted");
         assert!(results[1].is_some(), "Second should be admitted");
-        assert!(results[2].is_none(), "Third should be rejected (over limit)");
-        assert!(results[3].is_none(), "Fourth should be rejected (over limit)");
-        assert!(results[4].is_none(), "Fifth should be rejected (over limit)");
+        assert!(
+            results[2].is_none(),
+            "Third should be rejected (over limit)"
+        );
+        assert!(
+            results[3].is_none(),
+            "Fourth should be rejected (over limit)"
+        );
+        assert!(
+            results[4].is_none(),
+            "Fifth should be rejected (over limit)"
+        );
     }
 
     #[tokio::test]
@@ -111,9 +120,15 @@ mod execution_semaphore_bdd {
 
         // Then: rejected with LoadShed reason and Retry-After
         match decision {
-            AdmissionDecision::Rejected { reason, retry_after_secs } => {
+            AdmissionDecision::Rejected {
+                reason,
+                retry_after_secs,
+            } => {
                 assert!(retry_after_secs > 0, "Must have positive Retry-After");
-                assert!(format!("{:?}", reason).contains("Shed"), "Must be load shed");
+                assert!(
+                    format!("{:?}", reason).contains("Shed"),
+                    "Must be load shed"
+                );
             }
             other => panic!("Expected Rejected, got {:?}", other),
         }
@@ -135,8 +150,15 @@ mod execution_semaphore_bdd {
 
         // Then: rejected with Timeout reason and longer Retry-After
         match decision {
-            AdmissionDecision::Rejected { reason, retry_after_secs } => {
-                assert!(retry_after_secs >= 10, "Timeout requires longer retry (>=10s), got {}", retry_after_secs);
+            AdmissionDecision::Rejected {
+                reason,
+                retry_after_secs,
+            } => {
+                assert!(
+                    retry_after_secs >= 10,
+                    "Timeout requires longer retry (>=10s), got {}",
+                    retry_after_secs
+                );
             }
             other => panic!("Expected Rejected, got {:?}", other),
         }
@@ -158,13 +180,11 @@ mod async_waiting_bdd {
     #[tokio::test]
     async fn given_many_waiters_when_permit_released_then_all_complete_without_spin() {
         // Given: semaphore with 1 permit, 10 waiters
-        let sem = Arc::new(ExecutionSemaphore::new(
-            SemaphoreConfig {
-                max_concurrent_binaries: 1,
-                acquire_timeout: Duration::from_secs(30),
-                ..Default::default()
-            }
-        ));
+        let sem = Arc::new(ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            acquire_timeout: Duration::from_secs(30),
+            ..Default::default()
+        }));
 
         // Exhaust the permit
         let _permit = sem.try_acquire();
@@ -180,19 +200,25 @@ mod async_waiting_bdd {
 
         // Yield to let spawned tasks enter acquire()
         tokio::task::yield_now().await;
-        assert_eq!(sem.waiting_count(), num_waiters, "All waiters must be tracked");
+        assert_eq!(
+            sem.waiting_count(),
+            num_waiters,
+            "All waiters must be tracked"
+        );
 
         // Release permit → chain completes
         drop(_permit);
 
         // All waiters must complete within bounded time (not spinning forever)
-        let result = tokio::time::timeout(
-            Duration::from_secs(5),
-            futures::future::join_all(handles),
-        ).await;
+        let result =
+            tokio::time::timeout(Duration::from_secs(5), futures::future::join_all(handles)).await;
 
-        assert!(result.is_ok(), "Waiters must complete without spinning timeout");
-        let decisions: Vec<_> = result.unwrap()
+        assert!(
+            result.is_ok(),
+            "Waiters must complete without spinning timeout"
+        );
+        let decisions: Vec<_> = result
+            .unwrap()
             .into_iter()
             .map(|r| r.expect("waiter task panicked"))
             .collect();
@@ -207,13 +233,11 @@ mod async_waiting_bdd {
     #[tokio::test]
     async fn given_waiters_when_abrupt_timeout_then_all_rejected() {
         // Given: semaphore with exhausted permits and very short timeout
-        let sem = Arc::new(ExecutionSemaphore::new(
-            SemaphoreConfig {
-                max_concurrent_binaries: 0,
-                acquire_timeout: Duration::from_millis(1),
-                ..Default::default()
-            }
-        ));
+        let sem = Arc::new(ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 0,
+            acquire_timeout: Duration::from_millis(1),
+            ..Default::default()
+        }));
 
         // Spawn waiters
         let handles: Vec<_> = (0..3)
@@ -231,7 +255,10 @@ mod async_waiting_bdd {
         for result in results {
             let decision = result.expect("task panicked");
             match decision {
-                AdmissionDecision::Rejected { reason, retry_after_secs } => {
+                AdmissionDecision::Rejected {
+                    reason,
+                    retry_after_secs,
+                } => {
                     assert!(retry_after_secs >= 10, "Timeout retry must be >= 10s");
                 }
                 other => panic!("Expected Rejected, got {:?}", other),
@@ -248,10 +275,7 @@ mod async_waiting_bdd {
 mod mailbox_shedding_bdd {
     use super::*;
 
-    fn make_pressure_guard(
-        health: StorageHealth,
-        writer_threshold: u64,
-    ) -> WatchdogPressureGuard {
+    fn make_pressure_guard(health: StorageHealth, writer_threshold: u64) -> WatchdogPressureGuard {
         let (tx, rx) = tokio::sync::watch::channel(health);
         let _ = tx; // keep sender alive
         let config = StorageWatchdogConfig {
@@ -305,7 +329,10 @@ mod mailbox_shedding_bdd {
 
         // Then: shed with Retry-After
         match result {
-            PressureGuardResult::Shed { retry_after_secs, reason } => {
+            PressureGuardResult::Shed {
+                retry_after_secs,
+                reason,
+            } => {
                 assert_eq!(retry_after_secs, 5, "Writer pressure requires 5s retry");
                 assert!(reason.contains("writer queue"), "Must mention writer queue");
             }
@@ -332,8 +359,13 @@ mod mailbox_shedding_bdd {
 
         // Then: shed with Retry-After
         match result {
-            PressureGuardResult::Shed { retry_after_secs, .. } => {
-                assert_eq!(retry_after_secs, 5, "Critical writer pressure requires 5s retry");
+            PressureGuardResult::Shed {
+                retry_after_secs, ..
+            } => {
+                assert_eq!(
+                    retry_after_secs, 5,
+                    "Critical writer pressure requires 5s retry"
+                );
             }
             other => panic!("Expected Shed, got {:?}", other),
         }
@@ -388,14 +420,12 @@ mod retry_after_bdd {
     #[tokio::test]
     async fn given_load_shed_rejection_when_retry_after_then_5_seconds() {
         // Given: semaphore that will reject due to load shedding
-        let sem = make_semaphore(
-            SemaphoreConfig {
-                max_concurrent_binaries: 1,
-                max_waiters_for_shed: 10,
-                acquire_timeout: Duration::from_secs(30),
-                ..Default::default()
-            }
-        );
+        let sem = make_semaphore(SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            max_waiters_for_shed: 10,
+            acquire_timeout: Duration::from_secs(30),
+            ..Default::default()
+        });
         let _p1 = sem.try_acquire();
 
         // Exhaust waiters threshold
@@ -409,7 +439,9 @@ mod retry_after_bdd {
 
         // Then: Retry-After is 5 seconds for load shed
         match decision {
-            AdmissionDecision::Rejected { retry_after_secs, .. } => {
+            AdmissionDecision::Rejected {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 5, "Load shed requires 5s Retry-After");
             }
             other => panic!("Expected Rejected, got {:?}", other),
@@ -419,20 +451,20 @@ mod retry_after_bdd {
     #[tokio::test]
     async fn given_timeout_rejection_when_retry_after_then_10_seconds() {
         // Given: semaphore that will timeout
-        let sem = make_semaphore(
-            SemaphoreConfig {
-                max_concurrent_binaries: 0,
-                acquire_timeout: Duration::from_millis(1),
-                ..Default::default()
-            }
-        );
+        let sem = make_semaphore(SemaphoreConfig {
+            max_concurrent_binaries: 0,
+            acquire_timeout: Duration::from_millis(1),
+            ..Default::default()
+        });
 
         // When: acquire times out
         let decision = sem.acquire().await;
 
         // Then: Retry-After is 10 seconds for timeout
         match decision {
-            AdmissionDecision::Rejected { retry_after_secs, .. } => {
+            AdmissionDecision::Rejected {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 10, "Timeout requires 10s Retry-After");
             }
             other => panic!("Expected Rejected, got {:?}", other),
@@ -442,11 +474,9 @@ mod retry_after_bdd {
     #[test]
     fn given_pressure_guard_shed_when_retry_after_then_5_seconds() {
         // Given: pressure guard that will shed
-        let (tx, rx) = tokio::sync::watch::channel(
-            StorageHealth::Degraded {
-                indicators: vec![PressureIndicator::WriterQueueDepth],
-            }
-        );
+        let (tx, rx) = tokio::sync::watch::channel(StorageHealth::Degraded {
+            indicators: vec![PressureIndicator::WriterQueueDepth],
+        });
         let _ = tx;
         let guard = WatchdogPressureGuard::new(
             rx,
@@ -461,7 +491,9 @@ mod retry_after_bdd {
 
         // Then: Retry-After is 5 seconds
         match result {
-            PressureGuardResult::Shed { retry_after_secs, .. } => {
+            PressureGuardResult::Shed {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 5, "Pressure shed requires 5s Retry-After");
             }
             other => panic!("Expected Shed, got {:?}", other),
@@ -477,10 +509,7 @@ mod retry_after_bdd {
 mod recovery_reserves_bdd {
     use super::*;
 
-    fn make_semaphore_with_reserves(
-        general: usize,
-        reserved: usize,
-    ) -> Arc<ExecutionSemaphore> {
+    fn make_semaphore_with_reserves(general: usize, reserved: usize) -> Arc<ExecutionSemaphore> {
         let config = SemaphoreConfig {
             max_concurrent_binaries: general,
             reserved_permits: reserved,
@@ -500,7 +529,10 @@ mod recovery_reserves_bdd {
         let recovery_permit = sem.try_acquire_recovery();
 
         // Then: succeeds
-        assert!(recovery_permit.is_some(), "Recovery must succeed from reserved pool");
+        assert!(
+            recovery_permit.is_some(),
+            "Recovery must succeed from reserved pool"
+        );
     }
 
     #[tokio::test]
@@ -530,7 +562,10 @@ mod recovery_reserves_bdd {
         let result = sem.try_acquire_recovery();
 
         // Then: fails (can't use general pool)
-        assert!(result.is_none(), "Recovery can't use general pool when reserved exhausted");
+        assert!(
+            result.is_none(),
+            "Recovery can't use general pool when reserved exhausted"
+        );
     }
 
     #[tokio::test]
@@ -546,7 +581,10 @@ mod recovery_reserves_bdd {
         // Then: general is rejected (at capacity) but recovery still has its permit
         match general_decision {
             AdmissionDecision::Rejected { reason, .. } => {
-                assert!(format!("{:?}", reason).contains("Shed") || format!("{:?}", reason).contains("Timeout"));
+                assert!(
+                    format!("{:?}", reason).contains("Shed")
+                        || format!("{:?}", reason).contains("Timeout")
+                );
             }
             AdmissionDecision::Admitted => panic!("General should not be admitted"),
         }
@@ -590,7 +628,10 @@ mod blob_deferral_bdd {
 
         // Then: canonical (control-plane) writes must still be protected
         // This is validated by the admission controller protecting critical writes
-        assert!(state.blob_queue_depth > 0, "Blob queue has pressure but canonical protected");
+        assert!(
+            state.blob_queue_depth > 0,
+            "Blob queue has pressure but canonical protected"
+        );
     }
 
     #[test]
@@ -605,10 +646,7 @@ mod blob_deferral_bdd {
         };
 
         // When: evaluating bulk blob deferral
-        let should_defer = matches!(
-            health,
-            StorageHealth::Critical { .. }
-        );
+        let should_defer = matches!(health, StorageHealth::Critical { .. });
 
         // Then: bulk blobs should defer under critical storage
         assert!(should_defer, "Bulk blobs must defer under critical storage");
@@ -627,7 +665,10 @@ mod blob_deferral_bdd {
             .contains(&PressureIndicator::BlobQueueDepth);
 
         // Then: no blob-specific deferral required
-        assert!(!blob_pressure, "No blob deferral when blob queue not pressured");
+        assert!(
+            !blob_pressure,
+            "No blob deferral when blob queue not pressured"
+        );
     }
 
     #[test]
@@ -645,7 +686,10 @@ mod blob_deferral_bdd {
         let has_latency = indicators.contains(&PressureIndicator::BatchCommitLatency);
 
         // Then: all indicators tracked
-        assert!(has_writer && has_blob && has_latency, "All indicators must be tracked");
+        assert!(
+            has_writer && has_blob && has_latency,
+            "All indicators must be tracked"
+        );
     }
 }
 
@@ -704,13 +748,18 @@ mod watchdog_degraded_bdd {
         // Given: disk space below critical threshold (3% < 5%)
         let config = low_storage_config();
         let metrics = metrics_with_disk_space(3.0);
-        assert!(metrics.disk_space.is_critical(config.disk_space_critical_percent));
+        assert!(metrics
+            .disk_space
+            .is_critical(config.disk_space_critical_percent));
 
         // When: watchdog computes health
         let health = StorageWatchdog::compute_health(&metrics, &config);
 
         // Then: degraded mode entered
-        assert!(health.is_degraded(), "Must enter degraded at critical disk space");
+        assert!(
+            health.is_degraded(),
+            "Must enter degraded at critical disk space"
+        );
         assert!(!health.is_healthy());
     }
 
@@ -720,13 +769,18 @@ mod watchdog_degraded_bdd {
         let config = low_storage_config();
         let metrics = metrics_with_disk_space(10.0);
         assert!(metrics.disk_space.is_warn(config.disk_space_warn_percent));
-        assert!(!metrics.disk_space.is_critical(config.disk_space_critical_percent));
+        assert!(!metrics
+            .disk_space
+            .is_critical(config.disk_space_critical_percent));
 
         // When: watchdog computes health
         let health = StorageWatchdog::compute_health(&metrics, &config);
 
         // Then: degraded mode entered
-        assert!(health.is_degraded(), "Must enter degraded at warn disk space");
+        assert!(
+            health.is_degraded(),
+            "Must enter degraded at warn disk space"
+        );
     }
 
     #[test]
@@ -735,7 +789,9 @@ mod watchdog_degraded_bdd {
         let config = low_storage_config();
         let metrics = metrics_with_disk_space(80.0);
         assert!(!metrics.disk_space.is_warn(config.disk_space_warn_percent));
-        assert!(!metrics.disk_space.is_critical(config.disk_space_critical_percent));
+        assert!(!metrics
+            .disk_space
+            .is_critical(config.disk_space_critical_percent));
 
         // When: watchdog computes health
         let health = StorageWatchdog::compute_health(&metrics, &config);
@@ -789,7 +845,10 @@ mod watchdog_degraded_bdd {
         let health = StorageWatchdog::compute_health(&metrics, &low_storage_config());
 
         // Then: degraded mode
-        assert!(health.is_degraded(), "Must enter degraded on compaction stall");
+        assert!(
+            health.is_degraded(),
+            "Must enter degraded on compaction stall"
+        );
     }
 }
 
@@ -888,12 +947,15 @@ mod starvation_prevention_bdd {
         ];
 
         // When: partitioned by never_starved
-        let (protected, vulnerable): (Vec<_>, Vec<_>) = classes
-            .iter()
-            .partition(|c| c.never_starved());
+        let (protected, vulnerable): (Vec<_>, Vec<_>) =
+            classes.iter().partition(|c| c.never_starved());
 
         // Then: protected classes are exactly the critical ones
-        assert_eq!(protected.len(), 3, "3 classes must be protected from starvation");
+        assert_eq!(
+            protected.len(),
+            3,
+            "3 classes must be protected from starvation"
+        );
         assert!(protected.contains(&&WorkloadClass::ExactCritical));
         assert!(protected.contains(&&WorkloadClass::Recovery));
         assert!(protected.contains(&&WorkloadClass::Live));
@@ -913,11 +975,9 @@ mod qos_integration_bdd {
     #[tokio::test]
     async fn given_storage_degraded_when_workflow_starts_then_rejected_with_retry_after() {
         // Given: storage in degraded mode with writer pressure
-        let (tx, rx) = tokio::sync::watch::channel(
-            StorageHealth::Degraded {
-                indicators: vec![PressureIndicator::WriterQueueDepth],
-            }
-        );
+        let (tx, rx) = tokio::sync::watch::channel(StorageHealth::Degraded {
+            indicators: vec![PressureIndicator::WriterQueueDepth],
+        });
         let _tx = tx;
         let guard = WatchdogPressureGuard::new(
             rx,
@@ -932,7 +992,9 @@ mod qos_integration_bdd {
 
         // Then: rejected with Retry-After
         match result {
-            PressureGuardResult::Shed { retry_after_secs, .. } => {
+            PressureGuardResult::Shed {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 5, "Must have 5s Retry-After");
             }
             PressureGuardResult::Admitted => {
@@ -944,14 +1006,12 @@ mod qos_integration_bdd {
     #[tokio::test]
     async fn given_semaphore_and_recovery_flow_when_general_exhausted_then_recovery_survives() {
         // Given: general pool exhausted, recovery reserves available
-        let sem = Arc::new(ExecutionSemaphore::new(
-            SemaphoreConfig {
-                max_concurrent_binaries: 1,
-                reserved_permits: 1,
-                acquire_timeout: Duration::from_secs(30),
-                ..Default::default()
-            }
-        ));
+        let sem = Arc::new(ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            reserved_permits: 1,
+            acquire_timeout: Duration::from_secs(30),
+            ..Default::default()
+        }));
 
         // Exhaust general
         let _general = sem.try_acquire();
@@ -983,7 +1043,7 @@ mod qos_integration_bdd {
     async fn given_all_qos_gates_when_triggered_then_correct_retry_after_values() {
         // Test that different QoS gates produce correct Retry-After values
         let semaphore_config = SemaphoreConfig {
-            max_concurrent_binaries: 0, // Instant exhaustion
+            max_concurrent_binaries: 0,                // Instant exhaustion
             acquire_timeout: Duration::from_millis(1), // Instant timeout
             ..Default::default()
         };
@@ -994,7 +1054,9 @@ mod qos_integration_bdd {
 
         // Then: timeout produces 10s Retry-After
         match timeout_decision {
-            AdmissionDecision::Rejected { retry_after_secs, .. } => {
+            AdmissionDecision::Rejected {
+                retry_after_secs, ..
+            } => {
                 assert_eq!(retry_after_secs, 10, "Timeout = 10s Retry-After");
             }
             _ => panic!("Expected rejection"),

@@ -19,7 +19,10 @@ pub enum EffectTransitionEvent {
 impl EffectTransitionEvent {
     #[must_use]
     pub const fn all_variants() -> &'static [EffectTransitionEvent] {
-        &[EffectTransitionEvent::Commit, EffectTransitionEvent::Rollback]
+        &[
+            EffectTransitionEvent::Commit,
+            EffectTransitionEvent::Rollback,
+        ]
     }
 }
 

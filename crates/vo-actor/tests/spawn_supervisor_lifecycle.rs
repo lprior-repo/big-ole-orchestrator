@@ -151,7 +151,12 @@ async fn process_cycle_spawn_failure_records_error() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {
@@ -335,7 +340,12 @@ async fn process_cycle_increments_spawns_failed_metric() {
     let work_queue = Arc::new(MockWorkQueue::new());
 
     let instance_id = test_instance_id();
-    let record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./nonexistent"), vec![], None);
+    let record = SpawnRecord::new(
+        instance_id.clone(),
+        PathBuf::from("./nonexistent"),
+        vec![],
+        None,
+    );
     storage.add_record(record);
 
     process_manager.set_spawn_error(SpawnSupervisorError::SpawnFailed {

@@ -493,7 +493,8 @@ mod tests {
         let attr = quote! {};
         let item = quote! { fn nested() { if true { loop { break; } } } };
         let result = internal_task_macro(attr, item);
-        let expected = quote! { fn nested() { if true { loop { break; } } } fn main() { nested(); } };
+        let expected =
+            quote! { fn nested() { if true { loop { break; } } } fn main() { nested(); } };
         assert_eq!(result.to_string(), expected.to_string());
     }
 

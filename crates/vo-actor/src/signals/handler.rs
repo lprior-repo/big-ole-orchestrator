@@ -1,4 +1,5 @@
 use super::types::*;
+use vo_types::InstanceId;
 
 pub mod mock_signal_storage {
     use super::*;

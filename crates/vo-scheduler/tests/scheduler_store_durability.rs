@@ -30,7 +30,11 @@ fn given_job_scheduled_when_store_reopens_then_job_is_still_present() {
         store.put(job).unwrap();
 
         let retrieved = store.get(&job_id).unwrap().unwrap();
-        assert_eq!(retrieved.state, JobState::Pending, "job must be Pending after put");
+        assert_eq!(
+            retrieved.state,
+            JobState::Pending,
+            "job must be Pending after put"
+        );
 
         store.serialized.clone()
     };
@@ -43,7 +47,11 @@ fn given_job_scheduled_when_store_reopens_then_job_is_still_present() {
         .expect("job must survive reopen");
 
     assert_eq!(survived.id, job_id, "job ID must match after reopen");
-    assert_eq!(survived.state, JobState::Pending, "state must survive reopen");
+    assert_eq!(
+        survived.state,
+        JobState::Pending,
+        "state must survive reopen"
+    );
     assert_eq!(
         survived.payload.as_ref(),
         b"durability-proof",
