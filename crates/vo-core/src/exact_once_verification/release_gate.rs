@@ -232,19 +232,18 @@ impl ClosureCheck {
 
     /// Evaluate a single bead for black-hat review compliance.
     fn evaluate_bead(&self, bead: &BeadData) -> Result<(), FailedReason> {
-        // Check for missing notes
         let notes = match &bead.notes {
             Some(n) => n,
             None => return Err(FailedReason::MissingNotes),
         };
 
-        // Check for black-hat marker
-        if !notes.contains(&self.config.required_note_marker) {
+        let notes_lower = notes.to_lowercase();
+        let marker_lower = self.config.required_note_marker.to_lowercase();
+
+        if !notes_lower.contains(&marker_lower) {
             return Err(FailedReason::MissingBlackHatReview);
         }
 
-        // Check for rejected marker (adversarial: review present but rejected)
-        let notes_lower = notes.to_lowercase();
         if notes_lower.contains("rejected") {
             return Err(FailedReason::ReviewRejected);
         }
