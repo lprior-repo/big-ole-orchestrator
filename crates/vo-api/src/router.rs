@@ -84,6 +84,10 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/workflows/{id}/compensate",
             post(crate::handlers::compensate_workflow),
         )
+        .route(
+            "/api/v1/workflows/{id}/mutations",
+            post(crate::handlers::handle_mutation),
+        )
         .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.circuit_breaker.clone()))
         .layer(Extension(state.dedupe_store.clone()))
