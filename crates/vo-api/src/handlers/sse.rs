@@ -6,12 +6,14 @@ use axum::{
     response::{sse::Event, IntoResponse, Sse},
 };
 use ractor::ActorRef;
+use ractor::rpc::CallResult;
 use tokio::sync::broadcast;
 use tokio::time::interval;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt as TokioStreamExt;
-use vo_actor::OrchestratorMsg;
+use vo_actor::{OrchestratorEvent, OrchestratorMsg};
+use vo_types::InstanceId;
 
 use super::split_path_id;
 use crate::types::ApiError;
@@ -200,11 +202,11 @@ fn merge_with_keepalive(
 /// If client falls behind by more than 1000 events, connection is dropped.
 #[tracing::instrument(skip_all)]
 pub async fn watch_workflow(
-    Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
     State(state): State<SseState>,
 ) -> impl IntoResponse {
-    let (_namespace, _instance_id) = match split_path_id(&id) {
+    let (namespace, instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -218,10 +220,72 @@ pub async fn watch_workflow(
         }
     };
 
+    let broadcaster = state.broadcaster.clone();
+    let ns_for_task = namespace.clone();
+    let id_for_task = instance_id.clone();
+
+    tokio::spawn(async move {
+        let result = master
+            .call(
+                |tx| OrchestratorMsg::SubscribeEvents { reply: tx },
+                Some(std::time::Duration::from_secs(5)),
+            )
+            .await;
+
+        match result {
+            Ok(CallResult::Success(events)) => {
+                let mut events = events;
+                while let Ok(event) = events.recv().await {
+                    if should_emit_for_instance(&event, &ns_for_task, &id_for_task) {
+                        let sse_event = convert_orchestrator_event(event);
+                        let _ = broadcaster.send(sse_event);
+                    }
+                }
+            }
+            Ok(CallResult::Timeout) => {
+                tracing::warn!("Timeout subscribing to orchestrator events");
+            }
+            Ok(CallResult::SenderError) => {
+                tracing::warn!("Sender error subscribing to orchestrator events");
+            }
+            Err(e) => {
+                tracing::warn!(error = ?e, "Messaging error subscribing to orchestrator events");
+            }
+            _ => {}
+        }
+    });
+
     let receiver = state.broadcaster.subscribe();
     let stream = merge_with_keepalive(receiver);
 
     Sse::new(stream).into_response()
+}
+
+fn should_emit_for_instance(event: &OrchestratorEvent, namespace: &str, instance_id: &InstanceId) -> bool {
+    match event {
+        OrchestratorEvent::InstanceStarted { namespace: ns, instance_id: id, .. } => {
+            ns == namespace && id == instance_id
+        }
+        OrchestratorEvent::SignalReceived { namespace: ns, instance_id: id, .. } => {
+            ns == namespace && id == instance_id
+        }
+        _ => false,
+    }
+}
+
+fn convert_orchestrator_event(event: OrchestratorEvent) -> WorkflowSseEvent {
+    match event {
+        OrchestratorEvent::InstanceStarted { .. } => {
+            WorkflowSseEvent::PhaseChanged { phase: "live".to_string() }
+        }
+        OrchestratorEvent::InstanceCompleted { .. } => WorkflowSseEvent::InstanceCompleted,
+        OrchestratorEvent::InstanceFailed { error, .. } => {
+            WorkflowSseEvent::InstanceFailed { error }
+        }
+        OrchestratorEvent::SignalReceived { signal_name, .. } => {
+            WorkflowSseEvent::SignalReceived { signal_name }
+        }
+    }
 }
 
 use axum::Json;

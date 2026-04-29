@@ -50,7 +50,7 @@ pub mod timer_supervisor;
 pub mod timer_supervisor_tests;
 pub mod timers;
 
-pub use master::{MasterOrchestrator, OrchestratorConfig};
+pub use master::{MasterOrchestrator, OrchestratorConfig, OrchestratorEvent};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TerminateError {
@@ -178,6 +178,9 @@ pub enum OrchestratorMsg {
         signal_name: String,
         payload: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
+    },
+    SubscribeEvents {
+        reply: ractor::port::RpcReplyPort<tokio::sync::broadcast::Receiver<OrchestratorEvent>>,
     },
 }
 

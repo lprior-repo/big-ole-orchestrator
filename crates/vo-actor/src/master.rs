@@ -7,6 +7,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use bytes::Bytes;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
+use tokio::sync::broadcast;
 use vo_types::InstanceId;
 
 use crate::{
@@ -15,12 +16,35 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
+pub enum OrchestratorEvent {
+    InstanceStarted {
+        namespace: String,
+        instance_id: InstanceId,
+    },
+    InstanceCompleted {
+        namespace: String,
+        instance_id: InstanceId,
+    },
+    InstanceFailed {
+        namespace: String,
+        instance_id: InstanceId,
+        error: String,
+    },
+    SignalReceived {
+        namespace: String,
+        instance_id: InstanceId,
+        signal_name: String,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct MasterOrchestrator;
 
 #[derive(Debug, Clone)]
 pub struct OrchestratorConfig {
     pub max_active_instances: u32,
     pub initial_instances: Vec<InstanceSnapshot>,
+    pub event_broadcaster: broadcast::Sender<OrchestratorEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -58,13 +82,16 @@ pub struct MasterState {
     active: HashMap<RuntimeInstanceKey, InstanceRecord>,
     pending_starts: HashMap<RuntimeInstanceKey, PendingStartRecord>,
     pending_transitions: HashMap<RuntimeInstanceKey, PendingTransition>,
+    event_broadcaster: broadcast::Sender<OrchestratorEvent>,
 }
 
 impl Default for OrchestratorConfig {
     fn default() -> Self {
+        let (tx, _) = broadcast::channel(1000);
         Self {
             max_active_instances: 10_000,
             initial_instances: Vec::new(),
+            event_broadcaster: tx,
         }
     }
 }
@@ -90,11 +117,13 @@ impl Default for MasterOrchestrator {
 
 impl Default for MasterState {
     fn default() -> Self {
+        let config = OrchestratorConfig::default();
         Self {
-            config: OrchestratorConfig::default(),
+            config: config.clone(),
             active: HashMap::new(),
             pending_starts: HashMap::new(),
             pending_transitions: HashMap::new(),
+            event_broadcaster: config.event_broadcaster,
         }
     }
 }
@@ -458,10 +487,11 @@ impl MasterState {
             })
             .collect();
         Self {
-            config,
+            config: config.clone(),
             active,
             pending_starts: HashMap::new(),
             pending_transitions: HashMap::new(),
+            event_broadcaster: config.event_broadcaster,
         }
     }
 }
@@ -562,10 +592,16 @@ impl Actor for MasterOrchestrator {
                 paradigm,
                 input,
                 reply,
-            } => send_reply(
-                reply,
-                state.commit_workflow_start(namespace, instance_id, workflow_type, paradigm, input),
-            ),
+            } => {
+                let result = state.commit_workflow_start(namespace.clone(), instance_id.clone(), workflow_type, paradigm, input);
+                if result.is_ok() {
+                    let _ = state.event_broadcaster.send(OrchestratorEvent::InstanceStarted {
+                        namespace,
+                        instance_id,
+                    });
+                }
+                send_reply(reply, result);
+            },
             OrchestratorMsg::AbortWorkflowStart {
                 namespace,
                 instance_id,
@@ -653,10 +689,21 @@ impl Actor for MasterOrchestrator {
                 signal_name,
                 payload,
                 reply,
-            } => send_reply(
-                reply,
-                state.commit_signal(namespace, instance_id, signal_name, payload),
-            ),
+            } => {
+                let result = state.commit_signal(namespace.clone(), instance_id.clone(), signal_name.clone(), payload);
+                if result.is_ok() {
+                    let _ = state.event_broadcaster.send(OrchestratorEvent::SignalReceived {
+                        namespace,
+                        instance_id,
+                        signal_name,
+                    });
+                }
+                send_reply(reply, result);
+            },
+            OrchestratorMsg::SubscribeEvents { reply } => {
+                let receiver = state.event_broadcaster.subscribe();
+                let _ = reply.send(receiver);
+            },
         }
         Ok(())
     }
