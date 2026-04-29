@@ -22,7 +22,7 @@ pub struct NodeName(pub(crate) String);
 #[serde(try_from = "String", into = "String")]
 pub struct BinaryHash(pub(crate) String);
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct TimerId(pub(crate) String);
 
