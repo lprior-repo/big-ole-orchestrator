@@ -54,23 +54,23 @@ impl CredentialVault {
             .get(id)
             .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
 
-        let current = entry
-            .credential
-            .versions
-            .iter()
-            .find(|v| v.version_id == entry.credential.current_version)
-            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+        let current_version_id = entry.credential.current_version.clone();
 
-        if current.status == vo_types::credentials::CredentialStatus::Revoked {
-            return Err(CredentialError::MasterKeyRevoked(
-                current.secret_value.key_version,
-            ));
+        let mut active: Option<&CredentialVersion> = None;
+        for v in &entry.credential.versions {
+            if v.status == vo_types::credentials::CredentialStatus::Active {
+                active = Some(v);
+            }
+            if v.version_id == current_version_id
+                && v.status == vo_types::credentials::CredentialStatus::Revoked
+            {
+                return Err(CredentialError::MasterKeyRevoked(
+                    v.secret_value.key_version,
+                ));
+            }
         }
 
-        let active = entry
-            .credential
-            .active_version()
-            .ok_or(CredentialError::CredentialNotFound(id.clone()))?;
+        let active = active.ok_or(CredentialError::CredentialNotFound(id.clone()))?;
         Ok(active.secret_value.clone())
     }
 

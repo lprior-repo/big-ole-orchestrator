@@ -474,6 +474,61 @@ mod tests {
     }
 
     #[test]
+    fn vault_get_secret_uses_single_lookup_not_double_iteration() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        vault.create_credential(entry).unwrap();
+
+        // Rotate twice to create 3 versions with 1 Active
+        let v1_id = vault.rotate(&cred_id, None).unwrap();
+        let v2_id = vault.rotate(&cred_id, None).unwrap();
+        assert_ne!(v1_id, v2_id, "each rotation must produce unique version IDs");
+
+        let cred = vault.get_credential(&cred_id).unwrap();
+        assert_eq!(cred.current_version, v2_id);
+        assert_eq!(cred.versions.len(), 3);
+
+        // Capture active version's key_version before the get_secret call
+        let active_key_version = {
+            let v = cred.versions.iter().find(|v| v.version_id == v2_id).unwrap();
+            v.secret_value.key_version
+        };
+
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        let secret = vault.get_secret(&cred_id, &principal).unwrap();
+        assert_eq!(secret.key_version, active_key_version);
+    }
+
+    #[test]
+    fn vault_get_secret_current_revoked_no_active_returns_master_key_revoked() {
+        let mut vault = CredentialVault::new();
+        let entry = create_test_vault_entry();
+        let cred_id = entry.credential.id.clone();
+        let version_id = entry.credential.current_version.clone();
+        vault.create_credential(entry).unwrap();
+
+        // Revoke the only version (also current_version)
+        let principal = vo_types::credentials::Principal::User(
+            InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMC").unwrap(),
+        );
+        vault
+            .revoke_version(&cred_id, &version_id, &principal)
+            .unwrap();
+
+        // current_version is revoked, no active version exists
+        // Should return MasterKeyRevoked (current check takes priority)
+        let result = vault.get_secret(&cred_id, &principal);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CredentialError::MasterKeyRevoked(_)
+        ));
+    }
+
+    #[test]
     fn vault_revoke_version_is_idempotent() {
         let mut vault = CredentialVault::new();
         let entry = create_test_vault_entry();
