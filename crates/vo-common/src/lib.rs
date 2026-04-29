@@ -7,12 +7,14 @@ pub mod connection_pool;
 pub mod error;
 pub mod events;
 pub mod pool;
+pub mod slot;
 mod structures;
 pub mod types;
 pub mod ports;
 
 pub use error::{ExecutionError, RetryExhaustedError, SchedulerError, VoError};
 pub use events::WorkflowEvent;
+pub use slot::{SlotAllocError, SlotAllocator, SlotIdx, SlotValue, MAX_SLOTS};
 pub use structures::{Bounds, Octree, Vec3};
 pub use types::{InstanceId, NamespaceId, TimerId};
 
