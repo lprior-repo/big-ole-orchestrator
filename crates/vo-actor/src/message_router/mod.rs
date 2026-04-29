@@ -28,7 +28,7 @@ pub mod data;
 pub mod dlq;
 
 pub use actions::MessageRouter;
-pub use calc::RouteError;
+pub use calc::{RouteError, RouteResult};
 pub use data::{
     ActorDestination, ChannelEntry, ChannelId, MessageMetadata, MessageSink, RouterConfig,
     RouterEnvelope, RoutingDestination, TimestampMs, TypedMessage,

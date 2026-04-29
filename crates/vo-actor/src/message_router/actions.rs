@@ -4,11 +4,13 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use super::calc::{select_active_destinations, should_broadcast, validate_route, RouteError};
 use super::data::{
     ActorDestination, ChannelEntry, ChannelId, RouterConfig, RouterEnvelope, RoutingDestination,
-    TimestampMs,
+    TimestampMs, TypedMessage,
 };
 use super::dlq::{DeadLetterEntry, DeadLetterMessage, DeadLetterQueue, DeadLetterReason};
 
@@ -262,6 +264,176 @@ impl MessageRouter {
             reason,
         };
         self.dead_letter_queue.enqueue(entry);
+    }
+
+    fn send_to_dlq_with_payload(
+        &mut self,
+        channel_id: &ChannelId,
+        payload: Vec<u8>,
+        type_name: &str,
+        reason: DeadLetterReason,
+    ) {
+        let entry = DeadLetterEntry {
+            channel_id: channel_id.clone(),
+            message: DeadLetterMessage {
+                payload,
+                type_name: type_name.to_string(),
+            },
+            enqueued_at: TimestampMs::now(),
+            reason,
+        };
+        self.dead_letter_queue.enqueue(entry);
+    }
+
+    pub fn route_with_dlq<T: Send + Sync + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: TypedMessage<T>,
+    ) -> Result<super::calc::RouteResult, RouteError> {
+        if self.is_duplicate(&message) {
+            return Err(RouteError::DuplicateMessage(message.metadata().message_id.clone()));
+        }
+        self.evict_expired_entries();
+        self.deduplication_cache
+            .insert(message.metadata().message_id.clone(), Instant::now());
+
+        let channel = self.routing_table.get(channel_id).cloned();
+
+        if channel.is_none() {
+            let payload = serde_json::to_vec(&message.payload())
+                .unwrap_or_else(|_| Vec::new());
+            let reason = DeadLetterReason::InstanceNotFound {
+                instance_id: channel_id.to_string(),
+            };
+            self.send_to_dlq_with_payload(
+                channel_id,
+                payload,
+                std::any::type_name::<T>(),
+                reason.clone(),
+            );
+            return Ok(super::calc::RouteResult::DeadLettered {
+                reason,
+                queue_depth: self.dead_letter_queue.len(),
+            });
+        }
+
+        let channel = channel.unwrap();
+        let active_dests = select_active_destinations(&channel);
+
+        if active_dests.is_empty() {
+            let payload = serde_json::to_vec(&message.payload())
+                .unwrap_or_else(|_| Vec::new());
+            let reason = DeadLetterReason::InstanceState {
+                instance_id: channel_id.to_string(),
+                state: "NoActiveDestinations".to_string(),
+            };
+            self.send_to_dlq_with_payload(
+                channel_id,
+                payload,
+                std::any::type_name::<T>(),
+                reason.clone(),
+            );
+            return Ok(super::calc::RouteResult::DeadLettered {
+                reason,
+                queue_depth: self.dead_letter_queue.len(),
+            });
+        }
+
+        if channel.destinations.len() > 1 {
+            self.route_broadcast_with_dlq(channel_id, message, &channel)
+                .await
+        } else {
+            self.route_unicast_with_dlq(channel_id, message, active_dests)
+                .await
+        }
+    }
+
+    async fn route_unicast_with_dlq<T: Send + Sync + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: TypedMessage<T>,
+        active_dests: Vec<(usize, &RoutingDestination)>,
+    ) -> Result<super::calc::RouteResult, RouteError> {
+        let (index, dest) = active_dests[0];
+        let arc_message = Arc::new(message);
+        match self
+            .deliver_to_destination_unicast(dest, Arc::clone(&arc_message), channel_id)
+            .await
+        {
+            Ok(()) => Ok(super::calc::RouteResult::Delivered),
+            Err(e) => {
+                let payload = serde_json::to_vec(&arc_message.payload())
+                    .unwrap_or_else(|_| Vec::new());
+                let reason = DeadLetterReason::ActorError(e.to_string());
+                self.send_to_dlq_with_payload(
+                    channel_id,
+                    payload,
+                    std::any::type_name::<T>(),
+                    reason.clone(),
+                );
+                Ok(super::calc::RouteResult::DeadLettered {
+                    reason,
+                    queue_depth: self.dead_letter_queue.len(),
+                })
+            }
+        }
+    }
+
+    async fn route_broadcast_with_dlq<T: Send + Sync + 'static>(
+        &mut self,
+        channel_id: &ChannelId,
+        message: TypedMessage<T>,
+        channel: &ChannelEntry,
+    ) -> Result<super::calc::RouteResult, RouteError> {
+        if !should_broadcast(channel, &self.config) {
+            let msg: TypedMessage<T> = message;
+            return self.route_unicast_with_dlq(channel_id, msg, select_active_destinations(channel)).await;
+        }
+        let mut errors = Vec::new();
+        let num_destinations = channel.destinations.len();
+        let arc_message = Arc::new(message);
+        for (index, dest) in channel.destinations.iter().enumerate() {
+            if dest.is_active {
+                if let Err(e) = self
+                    .deliver_to_destination_broadcast(dest, Arc::clone(&arc_message), channel_id)
+                    .await
+                {
+                    errors.push(e);
+                }
+            }
+        }
+        if !errors.is_empty() && errors.len() == num_destinations {
+            let payload = serde_json::to_vec(&arc_message.payload())
+                .unwrap_or_else(|_| Vec::new());
+            let reason = DeadLetterReason::ActorError("all destinations failed".to_string());
+            self.send_to_dlq_with_payload(
+                channel_id,
+                payload,
+                std::any::type_name::<T>(),
+                reason.clone(),
+            );
+            return Ok(super::calc::RouteResult::DeadLettered {
+                reason,
+                queue_depth: self.dead_letter_queue.len(),
+            });
+        }
+        Ok(super::calc::RouteResult::Delivered)
+    }
+
+    #[must_use]
+    pub fn dead_letters(&self) -> &[DeadLetterEntry] {
+        self.dead_letter_queue.entries()
+    }
+
+    pub fn retry_dead_letter(&mut self, entry_index: usize) -> Result<TypedMessage<serde_json::Value>, RouteError> {
+        let entries = self.dead_letter_queue.entries();
+        let entry = entries.get(entry_index)
+            .ok_or_else(|| RouteError::ChannelNotFound(ChannelId::new("dlq-index")))?;
+
+        let payload: serde_json::Value = serde_json::from_slice(&entry.message.payload)
+            .map_err(|e| RouteError::ActorError(ChannelId::new("dlq-index"), e.to_string()))?;
+
+        Ok(TypedMessage::new(payload))
     }
 
     #[must_use]

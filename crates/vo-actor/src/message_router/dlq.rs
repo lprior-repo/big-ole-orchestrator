@@ -52,6 +52,8 @@ impl DeadLetterMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeadLetterReason {
     ChannelNotFound,
+    InstanceNotFound { instance_id: String },
+    InstanceState { instance_id: String, state: String },
     NoActiveDestinations,
     DeliveryTimeout,
     ActorError(String),
@@ -78,6 +80,11 @@ impl DeadLetterQueue {
             self.entries.remove(0);
         }
         self.entries.push(entry);
+    }
+
+    pub fn enqueue_with_reason(&mut self, mut entry: DeadLetterEntry, reason: DeadLetterReason) {
+        entry.reason = reason;
+        self.enqueue(entry);
     }
 
     #[allow(dead_code)]

@@ -6,6 +6,7 @@
 use thiserror::Error;
 
 use super::data::{ChannelEntry, ChannelId, RouterConfig, RoutingDestination};
+use super::dlq::DeadLetterReason;
 
 #[derive(Debug, Clone, Error)]
 pub enum RouteError {
@@ -71,4 +72,10 @@ pub fn validate_route(
         }
         _ => Ok(()),
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RouteResult {
+    Delivered,
+    DeadLettered { reason: DeadLetterReason, queue_depth: usize },
 }
