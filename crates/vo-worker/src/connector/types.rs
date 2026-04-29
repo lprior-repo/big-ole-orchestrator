@@ -2,6 +2,27 @@
 
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ConnectorId(pub String);
+
+impl ConnectorId {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+impl From<String> for ConnectorId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for ConnectorId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
 /// A prepared effect ready for commit (ADR-041 §2).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreparedEffect {
