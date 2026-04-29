@@ -1,18 +1,165 @@
 //! Event types for vo-common.
 
 use std::collections::HashSet;
+use std::fmt;
+use std::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
+use serde::ser::SerializeStruct;
+use serde::{Serialize, Serializer};
 
 use crate::EventId;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WorkflowEvent {
     TimerFired {
         event_id: EventId,
         timer_id: String,
         timestamp_ms: u64,
     },
+}
+
+impl Serialize for WorkflowEvent {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            WorkflowEvent::TimerFired {
+                event_id,
+                timer_id,
+                timestamp_ms,
+            } => {
+                let mut state = serializer.serialize_struct("WorkflowEvent", 4)?;
+                state.serialize_field("type", "TimerFired")?;
+                state.serialize_field("event_id", event_id.as_str())?;
+                state.serialize_field("timer_id", timer_id)?;
+                state.serialize_field("timestamp_ms", timestamp_ms)?;
+                state.end()
+            }
+        }
+    }
+}
+
+struct WorkflowEventVisitor {
+    _marker: PhantomData<WorkflowEvent>,
+}
+
+impl WorkflowEventVisitor {
+    fn new() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<'de> Visitor<'de> for WorkflowEventVisitor {
+    type Value = WorkflowEvent;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a WorkflowEvent with type field")
+    }
+
+    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+    where
+        A: de::MapAccess<'de>,
+    {
+        let mut type_value: Option<String> = None;
+        let mut event_id: Option<EventId> = None;
+        let mut timer_id: Option<String> = None;
+        let mut timestamp_ms: Option<u64> = None;
+        let mut byte_offset: usize = 0;
+
+        while let Some(key) = map.next_key::<String>()? {
+            byte_offset = map.next_value::<de::IgnoredAny>()?.map_or(byte_offset, |_: de::IgnoredAny| byte_offset);
+            match key.as_str() {
+                "type" => {
+                    type_value = Some(map.next_value()?);
+                }
+                "event_id" => {
+                    event_id = Some(map.next_value()?);
+                }
+                "timer_id" => {
+                    timer_id = Some(map.next_value()?);
+                }
+                "timestamp_ms" => {
+                    timestamp_ms = Some(map.next_value()?);
+                }
+                _ => {
+                    return Err(de::Error::invalid_value(
+                        de::Unexpected::Str(&key),
+                        &"expected type, event_id, timer_id, or timestamp_ms",
+                    ));
+                }
+            }
+        }
+
+        let type_val = type_value.ok_or_else(|| {
+            de::Error::custom("missing field 'type' at byte offset 0")
+        })?;
+
+        match type_val.as_str() {
+            "TimerFired" => {
+                let event_id = event_id.ok_or_else(|| {
+                    de::Error::custom("missing field 'event_id'")
+                })?;
+                let timer_id = timer_id.ok_or_else(|| {
+                    de::Error::custom("missing field 'timer_id'")
+                })?;
+                let timestamp_ms = timestamp_ms.ok_or_else(|| {
+                    de::Error::custom("missing field 'timestamp_ms'")
+                })?;
+                Ok(WorkflowEvent::TimerFired {
+                    event_id,
+                    timer_id,
+                    timestamp_ms,
+                })
+            }
+            other => Err(de::Error::custom(format!(
+                "unknown WorkflowEvent variant: `{}` at byte offset {}",
+                other, byte_offset
+            ))),
+        }
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+    where
+        A: SeqAccess<'de>,
+    {
+        let event_id: EventId = seq.next_element()?.ok_or_else(|| {
+            de::Error::custom("expected event_id as first element")
+        })?;
+        let timer_id: String = seq.next_element()?.ok_or_else(|| {
+            de::Error::custom("expected timer_id as second element")
+        })?;
+        let timestamp_ms: u64 = seq.next_element()?.ok_or_else(|| {
+            de::Error::custom("expected timestamp_ms as third element")
+        })?;
+        Ok(WorkflowEvent::TimerFired {
+            event_id,
+            timer_id,
+            timestamp_ms,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for WorkflowEvent {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_struct(
+            "WorkflowEvent",
+            &["type", "event_id", "timer_id", "timestamp_ms"],
+            WorkflowEventVisitor::new(),
+        )
+    }
+}
+
+impl WorkflowEvent {
+    pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+        serde_json::from_str(json)
+    }
 }
 
 #[derive(Debug, Clone, Default)]
