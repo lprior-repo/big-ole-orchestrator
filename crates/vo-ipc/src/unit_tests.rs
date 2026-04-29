@@ -147,6 +147,8 @@ fn map_exit_code_returns_minus_one_when_no_code_or_signal() {
 fn ipc_error_timeout_contains_truncation_flag() {
     let err = IpcError::Timeout {
         elapsed_ms: 100,
+        stdout_bytes: vec![],
+        stdout_truncated: false,
         stderr_bytes: vec![],
         stderr_truncated: true,
     };
@@ -164,6 +166,8 @@ fn ipc_error_timeout_contains_truncation_flag() {
 fn ipc_error_process_failed_contains_exit_code() {
     let err = IpcError::ProcessFailed {
         exit_code: 42,
+        stdout_bytes: vec![],
+        stdout_truncated: false,
         stderr_bytes: vec![],
         stderr_truncated: false,
     };

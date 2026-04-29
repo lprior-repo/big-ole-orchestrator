@@ -27,17 +27,23 @@ pub enum IpcError {
     Fd3WriteFailed { detail: String },
     #[error("failed to capture stderr: {detail}")]
     StderrReadFailed { detail: String },
+    #[error("failed to capture stdout: {detail}")]
+    StdoutReadFailed { detail: String },
     #[error("failed to signal subprocess: {detail}")]
     SignalFailed { detail: String },
     #[error("subprocess timed out after {elapsed_ms}ms")]
     Timeout {
         elapsed_ms: u64,
+        stdout_bytes: Vec<u8>,
+        stdout_truncated: bool,
         stderr_bytes: Vec<u8>,
         stderr_truncated: bool,
     },
     #[error("subprocess exited with code {exit_code}")]
     ProcessFailed {
         exit_code: i32,
+        stdout_bytes: Vec<u8>,
+        stdout_truncated: bool,
         stderr_bytes: Vec<u8>,
         stderr_truncated: bool,
     },

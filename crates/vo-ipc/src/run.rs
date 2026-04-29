@@ -9,6 +9,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessOutput {
     pub fd4_bytes: Vec<u8>,
+    pub stdout_bytes: Vec<u8>,
+    pub stdout_truncated: bool,
     pub stderr_bytes: Vec<u8>,
     pub stderr_truncated: bool,
 }
@@ -31,7 +33,7 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.args(config.argv());
     command.env_clear();
     command.stdin(std::process::Stdio::null());
-    command.stdout(std::process::Stdio::null());
+    command.stdout(std::process::Stdio::piped());
     command.stderr(std::process::Stdio::piped());
 
     unsafe {
@@ -73,11 +75,18 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         .ok_or_else(|| IpcError::StderrReadFailed {
             detail: "Failed to take stderr".to_string(),
         })?;
+    let stdout_reader = child
+        .stdout
+        .take()
+        .ok_or_else(|| IpcError::StdoutReadFailed {
+            detail: "Failed to take stdout".to_string(),
+        })?;
 
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload().to_vec();
 
     let stderr_task = tokio::task::spawn(read_bounded_stderr(stderr_reader));
+    let stdout_task = tokio::task::spawn(read_bounded_stderr(stdout_reader));
 
     let timeout_res = tokio::time::timeout(
         std::time::Duration::from_millis(timeout_ms),
@@ -96,36 +105,56 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
             detail: e.to_string(),
         })?;
-        let capture = stderr_res.unwrap_or_else(|e| {
+        let stdout_res = stdout_task.await.map_err(|e| IpcError::StdoutReadFailed {
+            detail: e.to_string(),
+        })?;
+        let stderr_capture = stderr_res.unwrap_or_else(|e| {
             tracing::warn!(error = %e, "failed to capture stderr during timeout");
+            StderrCapture::empty()
+        });
+        let stdout_capture = stdout_res.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "failed to capture stdout during timeout");
             StderrCapture::empty()
         });
 
         return Err(IpcError::Timeout {
             elapsed_ms: timeout_ms,
-            stderr_bytes: capture.bytes,
-            stderr_truncated: capture.truncated,
+            stdout_bytes: stdout_capture.bytes,
+            stdout_truncated: stdout_capture.truncated,
+            stderr_bytes: stderr_capture.bytes,
+            stderr_truncated: stderr_capture.truncated,
         });
     };
 
     let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
         detail: e.to_string(),
     })?;
-    let capture = stderr_res.unwrap_or_else(|e| {
+    let stdout_res = stdout_task.await.map_err(|e| IpcError::StdoutReadFailed {
+        detail: e.to_string(),
+    })?;
+    let stderr_capture = stderr_res.unwrap_or_else(|e| {
         tracing::warn!(error = %e, "failed to capture stderr after process exit");
+        StderrCapture::empty()
+    });
+    let stdout_capture = stdout_res.unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "failed to capture stdout after process exit");
         StderrCapture::empty()
     });
 
     match res {
         Ok(mut output) => {
-            output.stderr_bytes = capture.bytes;
-            output.stderr_truncated = capture.truncated;
+            output.stdout_bytes = stdout_capture.bytes;
+            output.stdout_truncated = stdout_capture.truncated;
+            output.stderr_bytes = stderr_capture.bytes;
+            output.stderr_truncated = stderr_capture.truncated;
             Ok(output)
         }
         Err(IpcError::ProcessFailed { exit_code, .. }) => Err(IpcError::ProcessFailed {
             exit_code,
-            stderr_bytes: capture.bytes,
-            stderr_truncated: capture.truncated,
+            stdout_bytes: stdout_capture.bytes,
+            stdout_truncated: stdout_capture.truncated,
+            stderr_bytes: stderr_capture.bytes,
+            stderr_truncated: stderr_capture.truncated,
         }),
         Err(e) => Err(e),
     }
@@ -210,12 +239,16 @@ async fn perform_ipc(
     if exit_status.success() {
         Ok(SubprocessOutput {
             fd4_bytes,
+            stdout_bytes: vec![],
+            stdout_truncated: false,
             stderr_bytes: vec![],
             stderr_truncated: false,
         })
     } else {
         Err(IpcError::ProcessFailed {
             exit_code: map_exit_code(exit_status),
+            stdout_bytes: vec![],
+            stdout_truncated: false,
             stderr_bytes: vec![],
             stderr_truncated: false,
         })

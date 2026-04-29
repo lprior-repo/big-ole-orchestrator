@@ -62,6 +62,7 @@ pub struct MessageBus {
     sender: mpsc::Sender<BusMessage>,
     receiver: mpsc::Receiver<BusMessage>,
     stderr_reader: Option<tokio::process::ChildStderr>,
+    stdout_reader: Option<tokio::process::ChildStdout>,
 }
 
 impl MessageBus {
@@ -76,7 +77,7 @@ impl MessageBus {
         command.args(config.argv());
         command.env_clear();
         command.stdin(std::process::Stdio::null());
-        command.stdout(std::process::Stdio::null());
+        command.stdout(std::process::Stdio::piped());
         command.stderr(std::process::Stdio::piped());
 
         unsafe {
@@ -113,6 +114,9 @@ impl MessageBus {
         let stderr_reader = child.stderr.take().ok_or_else(|| IpcError::StderrReadFailed {
             detail: "Failed to take stderr".to_string(),
         })?;
+        let stdout_reader = child.stdout.take().ok_or_else(|| IpcError::StdoutReadFailed {
+            detail: "Failed to take stdout".to_string(),
+        })?;
 
         let (sender, receiver) = mpsc::channel(bus_config.backpressure_limit);
 
@@ -124,6 +128,7 @@ impl MessageBus {
             sender,
             receiver,
             stderr_reader: Some(stderr_reader),
+            stdout_reader: Some(stdout_reader),
         })
     }
 
@@ -176,6 +181,11 @@ impl MessageBus {
         })?;
         let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(stderr_reader));
 
+        let stdout_reader = self.stdout_reader.take().ok_or_else(|| IpcError::StdoutReadFailed {
+            detail: "stdout reader not available".to_string(),
+        })?;
+        let stdout_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(stdout_reader));
+
         let mut fd4_read = self.fd4_read.take();
 
         let read_task = async {
@@ -220,6 +230,8 @@ impl MessageBus {
             Err(_) => {
                 return Err(IpcError::Timeout {
                     elapsed_ms: self.config.timeout_ms,
+                    stdout_bytes: vec![],
+                    stdout_truncated: false,
                     stderr_bytes: vec![],
                     stderr_truncated: false,
                 });
@@ -229,8 +241,15 @@ impl MessageBus {
         let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
             detail: e.to_string(),
         })?;
-        let capture = stderr_res.unwrap_or_else(|e| {
+        let stdout_res = stdout_task.await.map_err(|e| IpcError::StdoutReadFailed {
+            detail: e.to_string(),
+        })?;
+        let stderr_capture = stderr_res.unwrap_or_else(|e| {
             tracing::warn!(error = %e, "failed to capture stderr during drain");
+            crate::stderr::StderrCapture::empty()
+        });
+        let stdout_capture = stdout_res.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "failed to capture stdout during drain");
             crate::stderr::StderrCapture::empty()
         });
 
@@ -241,14 +260,18 @@ impl MessageBus {
         if exit_status.success() {
             Ok(SubprocessOutput {
                 fd4_bytes,
-                stderr_bytes: capture.bytes,
-                stderr_truncated: capture.truncated,
+                stdout_bytes: stdout_capture.bytes,
+                stdout_truncated: stdout_capture.truncated,
+                stderr_bytes: stderr_capture.bytes,
+                stderr_truncated: stderr_capture.truncated,
             })
         } else {
             Err(IpcError::ProcessFailed {
                 exit_code: map_exit_code(exit_status),
-                stderr_bytes: capture.bytes,
-                stderr_truncated: capture.truncated,
+                stdout_bytes: stdout_capture.bytes,
+                stdout_truncated: stdout_capture.truncated,
+                stderr_bytes: stderr_capture.bytes,
+                stderr_truncated: stderr_capture.truncated,
             })
         }
     }

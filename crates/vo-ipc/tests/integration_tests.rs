@@ -258,6 +258,8 @@ async fn non_zero_exit_over_limit_includes_marker() {
     match error {
         IpcError::ProcessFailed {
             exit_code,
+            stdout_bytes: _,
+            stdout_truncated: _,
             stderr_bytes,
             stderr_truncated,
         } => {
