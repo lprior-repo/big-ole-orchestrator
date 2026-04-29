@@ -27,7 +27,7 @@ impl Actor {
         for i in 1..=self.max_health_checks {
             self.metrics.health_checks_performed.incr();
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(self.health_check_interval).await;
 
             match self.process_manager.check_health(process.pid).await {
                 Ok(true) => return Ok(()),
