@@ -31,6 +31,22 @@ pub fn make_v0_event(
     }
 }
 
+/// Helper: create an EventEnvelope at schema version 2 for v1→v2 migration tests.
+pub fn make_v2_event(
+    instance_id: &str,
+    sequence: u64,
+    payload: serde_json::Value,
+) -> EventEnvelope {
+    EventEnvelope {
+        schema_version: 2,
+        instance_id: instance_id.to_string(),
+        sequence,
+        timestamp_ms: 1000 * sequence,
+        payload,
+        metadata: EventMetadata::default(),
+    }
+}
+
 pub fn workflow_started_payload(workflow_id: &str) -> serde_json::Value {
     json!({
         "type": "WorkflowStarted",
@@ -39,6 +55,19 @@ pub fn workflow_started_payload(workflow_id: &str) -> serde_json::Value {
         "workflow_version_hash": "wvhash123",
         "dedupe_key_hash": null,
         "version": 1
+    })
+}
+
+/// Helper: create a WorkflowStarted payload at v2 (for v1→v2 migration tests).
+pub fn workflow_started_v2_payload(workflow_id: &str) -> serde_json::Value {
+    json!({
+        "type": "WorkflowStarted",
+        "workflow_id": workflow_id,
+        "dag_topology": null,
+        "binary_hash": "sha256abc",
+        "workflow_version_hash": "wvhash123",
+        "dedupe_key_hash": null,
+        "version": 2
     })
 }
 

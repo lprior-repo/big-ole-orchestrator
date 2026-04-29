@@ -76,6 +76,35 @@ fn make_registry_with_v0_to_v1() -> UpcasterRegistryImpl {
     registry
 }
 
+/// Upcaster that transforms version 1 JSON to version 2.
+struct Version1To2Upcaster;
+
+impl Upcaster for Version1To2Upcaster {
+    fn source_version(&self) -> u8 {
+        1
+    }
+    fn target_version(&self) -> u8 {
+        2
+    }
+    fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+        let mut value = input.clone();
+        value["version"] = serde_json::json!(2);
+        if let Some(obj) = value.as_object_mut() {
+            obj.insert("version".to_string(), serde_json::json!(2));
+            if let Some(payload) = obj.get_mut("payload").and_then(|p| p.as_object_mut()) {
+                payload.insert("version".to_string(), serde_json::json!(2));
+            }
+        }
+        Ok(value)
+    }
+}
+
+fn make_registry_with_v1_to_v2() -> UpcasterRegistryImpl {
+    let registry = UpcasterRegistryImpl::new(2);
+    let _ = registry.register(Box::new(Version1To2Upcaster));
+    registry
+}
+
 fn make_event_with_version(
     instance_id: &str,
     sequence: u64,
@@ -182,6 +211,27 @@ fn envelope_schema_version_field_present_on_step_started() {
 fn v0_envelope_carries_schema_version_zero() {
     let envelope = make_v0_event("inst-1", 1, workflow_started_payload("wf-1"));
     assert_eq!(envelope.schema_version, 0);
+}
+
+fn make_v1_event(
+    instance_id: &str,
+    sequence: u64,
+    payload: serde_json::Value,
+) -> EventEnvelope {
+    EventEnvelope {
+        schema_version: 1,
+        instance_id: instance_id.to_string(),
+        sequence,
+        timestamp_ms: 1000 * sequence,
+        payload,
+        metadata: EventMetadata::default(),
+    }
+}
+
+#[test]
+fn v1_envelope_carries_schema_version_one() {
+    let envelope = make_v1_event("inst-1", 1, workflow_started_payload("wf-1"));
+    assert_eq!(envelope.schema_version, 1);
 }
 
 // =============================================================================
@@ -523,6 +573,115 @@ fn replay_v0_instance_resumed_after_failure() {
     assert_eq!(result.final_state, Some(LifecycleState::RunningDecision));
 }
 
+/// Test: store v1 event, replay with v2 engine, verify successful migration.
+/// This is the core scenario described in the schema evolution ADR:
+/// A workflow ran with schema v1 and events were stored in v1 format.
+/// When replayed with a v2 engine, the upcaster migrates the event to v2.
+#[test]
+fn replay_v1_event_with_v2_engine_migrates_successfully() {
+    use vo_types::events::upcaster::Upcaster;
+
+    struct V1ToV2Upcaster;
+    impl Upcaster for V1ToV2Upcaster {
+        fn source_version(&self) -> u8 { 1 }
+        fn target_version(&self) -> u8 { 2 }
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("version".to_string(), serde_json::json!(2));
+            }
+            Ok(value)
+        }
+    }
+
+    let engine = ReplayEngine::new();
+    let registry = UpcasterRegistryImpl::new(2);
+    let _ = registry.register(Box::new(V1ToV2Upcaster));
+
+    let events = [
+        make_v1_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_v1_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
+        make_v1_event("inst-1", 3, step_started_payload("wf-1", "step-1")),
+        make_v1_event("inst-1", 4, step_completed_payload("wf-1", "step-1")),
+    ];
+
+    let result = engine
+        .replay_with_upcaster(&registry, &events)
+        .expect("v1 events should be upcast to v2 and replay should succeed");
+    assert_eq!(result.final_state, Some(LifecycleState::Completed));
+    assert_eq!(result.events_applied, 4);
+
+    let upcasted = registry
+        .upcast_envelope(events[0].clone())
+        .expect("upcast should succeed");
+    assert_eq!(upcasted.schema_version, 2);
+}
+
+#[test]
+fn replay_v1_workflow_cancelled_with_v2_engine() {
+    use vo_types::events::upcaster::Upcaster;
+
+    struct V1ToV2Upcaster;
+    impl Upcaster for V1ToV2Upcaster {
+        fn source_version(&self) -> u8 { 1 }
+        fn target_version(&self) -> u8 { 2 }
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("version".to_string(), serde_json::json!(2));
+            }
+            Ok(value)
+        }
+    }
+
+    let engine = ReplayEngine::new();
+    let registry = UpcasterRegistryImpl::new(2);
+    let _ = registry.register(Box::new(V1ToV2Upcaster));
+
+    let events = [
+        make_v1_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_v1_event("inst-1", 2, cancel_requested_payload("wf-1")),
+    ];
+
+    let result = engine
+        .replay_with_upcaster(&registry, &events)
+        .expect("v1 events should be upcast to v2 and replay should succeed");
+    assert_eq!(result.final_state, Some(LifecycleState::Cancelled));
+}
+
+#[test]
+fn replay_v1_workflow_failed_with_v2_engine() {
+    use vo_types::events::upcaster::Upcaster;
+
+    struct V1ToV2Upcaster;
+    impl Upcaster for V1ToV2Upcaster {
+        fn source_version(&self) -> u8 { 1 }
+        fn target_version(&self) -> u8 { 2 }
+        fn upcast(&self, input: &serde_json::Value) -> Result<serde_json::Value, VoUpcasterError> {
+            let mut value = input.clone();
+            if let Some(obj) = value.as_object_mut() {
+                obj.insert("version".to_string(), serde_json::json!(2));
+            }
+            Ok(value)
+        }
+    }
+
+    let engine = ReplayEngine::new();
+    let registry = UpcasterRegistryImpl::new(2);
+    let _ = registry.register(Box::new(V1ToV2Upcaster));
+
+    let events = [
+        make_v1_event("inst-1", 1, workflow_started_payload("wf-1")),
+        make_v1_event("inst-1", 2, step_scheduled_payload("wf-1", "step-1")),
+        make_v1_event("inst-1", 3, step_failed_payload("wf-1", "step-1")),
+    ];
+
+    let result = engine
+        .replay_with_upcaster(&registry, &events)
+        .expect("v1 events should be upcast to v2 and replay should succeed");
+    assert_eq!(result.final_state, Some(LifecycleState::Failed));
+}
+
 // =============================================================================
 // 6. Error handling edge cases
 // =============================================================================
@@ -792,14 +951,33 @@ fn version_registry_upcast_chain_is_incremental() {
         }
     }
 
+    struct AddFieldV1ToV2;
+    impl Upcaster for AddFieldV1ToV2 {
+        fn source_version(&self) -> u8 {
+            1
+        }
+        fn target_version(&self) -> u8 {
+            2
+        }
+        fn upcast(&self, payload: &serde_json::Value) -> Result<serde_json::Value, UpcasterError> {
+            let mut result = payload.clone();
+            if let Some(obj) = result.as_object_mut() {
+                obj.insert("added_in_v2".to_string(), serde_json::json!(true));
+            }
+            Ok(result)
+        }
+    }
+
     let mut registry = VersionRegistry::new();
     registry.register(Box::new(AddFieldV0ToV1));
+    registry.register(Box::new(AddFieldV1ToV2));
 
     let payload = serde_json::json!({"type": "Test"});
     let result = registry
         .upcast_payload(payload, 0, MAX_SUPPORTED_VERSION)
         .expect("upcast should succeed");
     assert_eq!(result["added_in_v1"], serde_json::json!(true));
+    assert_eq!(result["added_in_v2"], serde_json::json!(true));
 }
 
 #[test]

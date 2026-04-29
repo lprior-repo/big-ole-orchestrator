@@ -10,7 +10,7 @@ pub mod upcaster;
 #[cfg(test)]
 mod tests;
 
-pub const MAX_SUPPORTED_VERSION: u8 = 1;
+pub const MAX_SUPPORTED_VERSION: u8 = 2;
 
 // Re-export all public types for backward compatibility
 pub use decode::decode_event;
