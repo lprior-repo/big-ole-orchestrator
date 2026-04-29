@@ -5253,10 +5253,13 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
+ "fjall",
  "proptest",
+ "rmp-serde",
  "rstest 0.23.0",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "ulid",
