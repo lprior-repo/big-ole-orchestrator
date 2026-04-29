@@ -23,3 +23,8 @@ pub use guarantee_badge::{
 };
 pub use operator_action_panel::{ActionType, OperatorActionPanel};
 pub use prototype_palette::PrototypePalette;
+
+#[cfg(feature = "sse")]
+pub mod workflow_upload;
+#[cfg(feature = "sse")]
+pub use workflow_upload::WorkflowUploadForm;

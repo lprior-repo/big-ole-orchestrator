@@ -12,20 +12,22 @@ futures = { workspace = true, optional = true }
 itertools.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+toml = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 ulid.workspace = true
 uuid.workspace = true
 vo-types = { path = "../vo-types" }
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window", "EventSource", "Event", "EventTarget"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "EventSource", "Event", "EventTarget", "HtmlInputElement", "File", "FileList", "Blob", "Url"] }
 gloo-timers = { version = "0.3", optional = true }
 js-sys = { version = "0.3", optional = true }
+reqwest = { workspace = true, optional = true, features = ["json"] }
 
 [features]
 default = []
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "web-sys", "gloo-timers"]
-sse = ["wasm", "futures", "tracing", "js-sys"]
+sse = ["wasm", "futures", "tracing", "js-sys", "reqwest", "toml"]
 
 [lints]
 workspace = true
