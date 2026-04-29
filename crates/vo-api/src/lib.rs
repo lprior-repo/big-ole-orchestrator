@@ -28,6 +28,7 @@
 //! - [`handlers`] - HTTP request handlers (query endpoints active; workflow, signal, events, sse pending V2 actor migration)
 
 pub mod handlers;
+pub mod middleware;
 pub mod router;
 pub mod types;
 

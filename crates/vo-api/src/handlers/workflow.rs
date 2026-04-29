@@ -278,8 +278,8 @@ pub async fn get_workflow(
                 instance_id: snapshot.instance_id.to_string(),
                 namespace: snapshot.namespace.to_string(),
                 workflow_type: snapshot.workflow_type,
-                paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-                phase: phase_to_str(snapshot.phase).to_owned(),
+                paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
+                phase: phase_to_str(&snapshot.phase).to_owned(),
                 events_applied: snapshot.events_applied,
             }),
         )
@@ -398,8 +398,8 @@ pub async fn list_workflows(
                     instance_id: s.instance_id.to_string(),
                     namespace: s.namespace.to_string(),
                     workflow_type: s.workflow_type,
-                    paradigm: paradigm_to_str(s.paradigm).to_owned(),
-                    phase: phase_to_str(s.phase).to_owned(),
+                    paradigm: paradigm_to_str(&s.paradigm).to_owned(),
+                    phase: phase_to_str(&s.phase).to_owned(),
                     events_applied: s.events_applied,
                 })
                 .collect();
@@ -552,8 +552,8 @@ pub async fn get_workflow_status(
                 instance_id: snapshot.instance_id.to_string(),
                 namespace: snapshot.namespace.to_string(),
                 workflow_type: snapshot.workflow_type,
-                paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-                phase: phase_to_str(snapshot.phase).to_owned(),
+                paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
+                phase: phase_to_str(&snapshot.phase).to_owned(),
                 events_applied: snapshot.events_applied,
                 registration_status: registration_status_str,
                 is_quarantined,

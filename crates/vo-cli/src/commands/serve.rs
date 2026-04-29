@@ -118,6 +118,14 @@ where
     let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
     let writer_pressure = Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
 
+    let api_key_store = Arc::new(
+        vo_storage::api_key_partition::fjall_api_key::FjallApiKeyStore::open(&db_handle)
+            .map_err(|e| ServeError::InvalidStoragePath(format!("Failed to open API key store: {e}")))?
+    );
+    let api_key_state = vo_api::middleware::ApiKeyState {
+        api_key_store,
+    };
+
     let state = vo_api::router::AppState {
         query,
         sse,
@@ -126,6 +134,7 @@ where
         circuit_breaker,
         dedupe_store,
         writer_pressure,
+        api_key_state,
     };
 
     let router = vo_api::router::create_router(state);

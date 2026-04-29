@@ -87,6 +87,7 @@ pub mod snapshots;
 pub mod status_store;
 pub mod timer_index;
 pub mod workflow_version_partition;
+pub mod api_key_partition;
 
 use serde::Serialize;
 use std::collections::HashMap;

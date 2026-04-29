@@ -22,7 +22,7 @@ pub fn parse_paradigm(s: &str) -> Option<WorkflowParadigm> {
 }
 
 #[must_use]
-pub fn paradigm_to_str(p: WorkflowParadigm) -> &'static str {
+pub fn paradigm_to_str(p: &WorkflowParadigm) -> &'static str {
     match p {
         WorkflowParadigm::Fsm => "fsm",
         WorkflowParadigm::Dag => "dag",
@@ -31,7 +31,7 @@ pub fn paradigm_to_str(p: WorkflowParadigm) -> &'static str {
 }
 
 #[must_use]
-pub fn phase_to_str(p: InstancePhaseView) -> &'static str {
+pub fn phase_to_str(p: &InstancePhaseView) -> &'static str {
     match p {
         InstancePhaseView::Replay => "replay",
         InstancePhaseView::Live => "live",

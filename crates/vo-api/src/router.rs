@@ -6,9 +6,10 @@
 
 use axum::{
     extract::Extension,
+    middleware,
     response::Html,
     routing::{delete, get, post},
-    Router,
+    Json, Router,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +18,7 @@ use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
+use crate::middleware::{ApiKeyState, api_key_auth};
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -44,6 +46,8 @@ pub struct AppState {
     pub dedupe_store: Arc<dyn DedupeStore>,
     /// Writer pressure guard for ADR-006/ADR-015 ingress load shedding.
     pub writer_pressure: Arc<dyn WriterPressureGuard>,
+    /// API key store for authentication.
+    pub api_key_state: ApiKeyState,
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,8 @@ pub struct AppState {
 /// All state is provided up-front via [`AppState`]. The returned router is
 /// ready to pass to `axum::serve(listener, router)`.
 pub fn create_router(state: AppState) -> Router {
+    let auth_layer = middleware::from_fn_with_state(state.api_key_state.clone(), api_key_auth);
+
     // Workflow CRUD -- uses Extension<ActorRef<OrchestratorMsg>> + DedupeStore + CircuitBreaker
     let workflow_routes = Router::new()
         .route("/api/v1/workflows", post(crate::handlers::start_workflow))
@@ -80,7 +86,8 @@ pub fn create_router(state: AppState) -> Router {
         .layer(Extension(state.circuit_breaker.clone()))
         .layer(Extension(state.dedupe_store.clone()))
         .layer(Extension(state.writer_pressure.clone()))
-        .layer(Extension(state.query.db.clone()));
+        .layer(Extension(state.query.db.clone()))
+        .layer(auth_layer.clone());
 
     // Query endpoints -- uses State<QueryState>
     let query_routes = Router::new()
@@ -101,7 +108,8 @@ pub fn create_router(state: AppState) -> Router {
             get(crate::handlers::get_workflow_version),
         )
         .route("/api/v1/search", get(crate::handlers::search))
-        .with_state(state.query.clone());
+        .with_state(state.query.clone())
+        .layer(auth_layer.clone());
 
     // Signal endpoint -- uses Extension<ActorRef<OrchestratorMsg>> + Extension<Arc<dyn DedupeStore>>
     let signal_routes = Router::new()
@@ -111,7 +119,8 @@ pub fn create_router(state: AppState) -> Router {
         )
         .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.dedupe_store.clone()))
-        .layer(Extension(state.query.db.clone()));
+        .layer(Extension(state.query.db.clone()))
+        .layer(auth_layer.clone());
 
     // Events endpoint -- uses Extension<ActorRef<OrchestratorMsg>>
     let event_routes = Router::new()
@@ -124,22 +133,29 @@ pub fn create_router(state: AppState) -> Router {
             get(crate::handlers::get_events),
         )
         .layer(Extension(state.master.as_ref().clone()))
-        .layer(Extension(state.query.db.clone()));
+        .layer(Extension(state.query.db.clone()))
+        .layer(auth_layer.clone());
 
     let ui_routes = Router::new().route("/wtf/ui", get(wtf_ui));
+
+    // Health check endpoint -- public, no auth required
+    let health_routes = Router::new().route("/health", get(health));
 
     // SSE streaming -- uses Extension + State<SseState>
     let sse_routes = Router::new()
         .route("/api/v1/watch/{id}", get(crate::handlers::watch_workflow))
         .with_state(state.sse.clone())
-        .layer(Extension(state.master.as_ref().clone()));
+        .layer(Extension(state.master.as_ref().clone()))
+        .layer(auth_layer.clone());
 
     // WebSocket streaming -- uses State<WsState>
     let ws_routes = Router::new()
         .route("/api/v1/ws/{id}", get(crate::handlers::ws_workflow))
-        .with_state(state.ws.clone());
+        .with_state(state.ws.clone())
+        .layer(auth_layer.clone());
 
     Router::new()
+        .merge(health_routes)
         .merge(workflow_routes)
         .merge(query_routes)
         .merge(signal_routes)
@@ -165,6 +181,13 @@ async fn wtf_ui() -> Html<&'static str> {
     )
 }
 
+async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "healthy",
+        "service": "veloxide"
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +200,14 @@ mod tests {
     }
 
     struct DummyOrchestrator;
+
+    struct DummyApiKeyStore;
+
+    impl vo_storage::api_key_partition::ApiKeyStore for DummyApiKeyStore {
+        fn validate_key(&self, _key: &str) -> Result<(), vo_storage::api_key_partition::ApiKeyStoreError> {
+            Ok(())
+        }
+    }
 
     impl ractor::Actor for DummyOrchestrator {
         type Msg = OrchestratorMsg;
@@ -229,6 +260,9 @@ mod tests {
             circuit_breaker: circuit_breaker.clone(),
             dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
             writer_pressure: Arc::new(vo_core::admission::WatchdogPressureGuard::permissive()),
+            api_key_state: crate::middleware::ApiKeyState {
+                api_key_store: Arc::new(DummyApiKeyStore),
+            },
         };
 
         let _router = create_router(state.clone());

@@ -29,6 +29,7 @@ rand = { workspace = true }
 generic-array = { workspace = true }
 ulid = { workspace = true }
 dashmap = { workspace = true }
+hex = "0.4"
 metrics = { workspace = true }
 
 [dev-dependencies]
