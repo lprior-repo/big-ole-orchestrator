@@ -7,6 +7,7 @@ use async_trait::async_trait;
 
 use crate::message_router::{
     ActorDestination, ChannelEntry, ChannelId, DeadLetterEntry, RouteError, RouterConfig,
+    TypedMessage,
 };
 
 #[async_trait]
@@ -42,19 +43,19 @@ pub trait MessageRouterPort: Send + Sync {
     async fn route<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError>;
 
     async fn route_unicast<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError>;
 
     async fn route_broadcast<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError>;
 
     async fn num_channels(&self) -> usize;

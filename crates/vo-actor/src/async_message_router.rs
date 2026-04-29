@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 
 use crate::message_router::{
     ActorDestination, ChannelEntry, ChannelId, DeadLetterEntry, RouteError, RouterConfig,
+    TypedMessage,
 };
 use crate::port::MessageRouterPort;
 
@@ -80,7 +81,7 @@ impl MessageRouterPort for AsyncMessageRouter {
     async fn route<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
         let mut router = self.inner.lock().await;
         router.route(channel_id, message).await
@@ -89,7 +90,7 @@ impl MessageRouterPort for AsyncMessageRouter {
     async fn route_unicast<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
         let mut router = self.inner.lock().await;
         router.route_unicast(channel_id, message).await
@@ -98,7 +99,7 @@ impl MessageRouterPort for AsyncMessageRouter {
     async fn route_broadcast<T: Send + Sync + 'static>(
         &self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
         let mut router = self.inner.lock().await;
         router.route_broadcast(channel_id, message).await

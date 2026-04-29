@@ -275,4 +275,75 @@ mod tests {
         };
         assert!(msg.type_name().contains("i32"));
     }
+
+    #[tokio::test]
+    async fn duplicate_message_is_rejected() {
+        let config = RouterConfig::default();
+        let mut router = MessageRouter::new(config);
+        let channel_id = test_channel_id();
+        let destination = test_destination();
+
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
+
+        let msg = TypedMessage::new("test-payload".to_string());
+        let result1 = router.route(&channel_id, msg.clone()).await;
+        assert!(result1.is_ok());
+
+        let result2 = router.route(&channel_id, msg).await;
+        assert!(result2.is_err());
+        assert!(matches!(result2.unwrap_err(), RouteError::DuplicateMessage(_)));
+    }
+
+    #[tokio::test]
+    async fn different_messages_are_not_duplicates() {
+        let config = RouterConfig::default();
+        let mut router = MessageRouter::new(config);
+        let channel_id = test_channel_id();
+        let destination = test_destination();
+
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
+
+        let msg1 = TypedMessage::new("payload-1".to_string());
+        let msg2 = TypedMessage::new("payload-2".to_string());
+
+        let result1 = router.route(&channel_id, msg1).await;
+        assert!(result1.is_ok());
+
+        let result2 = router.route(&channel_id, msg2).await;
+        assert!(result2.is_ok());
+    }
+
+    #[tokio::test]
+    async fn deduplication_cache_tracks_seen_messages() {
+        let config = RouterConfig::default();
+        let mut router = MessageRouter::new(config);
+        let channel_id = test_channel_id();
+        let destination = test_destination();
+
+        router
+            .register_channel(channel_id.clone(), destination)
+            .unwrap();
+
+        assert_eq!(router.deduplication_cache_size(), 0);
+
+        let msg = TypedMessage::new("test".to_string());
+        router.route(&channel_id, msg).await.unwrap();
+
+        assert_eq!(router.deduplication_cache_size(), 1);
+    }
+
+    #[test]
+    fn deduplication_cache_size_accessor() {
+        let config = RouterConfig::default();
+        let mut router = MessageRouter::with_default_config();
+
+        assert_eq!(router.deduplication_cache_size(), 0);
+
+        router.clear_deduplication_cache();
+        assert_eq!(router.deduplication_cache_size(), 0);
+    }
 }

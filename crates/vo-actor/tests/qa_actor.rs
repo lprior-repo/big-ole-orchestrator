@@ -95,7 +95,8 @@ async fn message_routing_unknown_channel_returns_error() {
     let mut router = vo_actor::message_router::MessageRouter::new(config);
     let ch = vo_actor::message_router::ChannelId::new("no-such-channel");
 
-    let result = router.route(&ch, "payload").await;
+    let msg = vo_actor::message_router::TypedMessage::new("payload");
+    let result = router.route(&ch, msg).await;
     assert!(result.is_err());
     // ChannelNotFound is a validation error, not a DLQ-enqueued delivery failure
     assert_eq!(router.dlq_depth(), 0);

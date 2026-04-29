@@ -35,6 +35,9 @@ pub enum RouteError {
 
     #[error("channel is closed: {0}")]
     ChannelClosed(ChannelId),
+
+    #[error("duplicate message rejected: {0}")]
+    DuplicateMessage(String),
 }
 
 pub fn select_active_destinations(channel: &ChannelEntry) -> Vec<(usize, &RoutingDestination)> {

@@ -44,6 +44,8 @@ pub struct RouterConfig {
     pub max_dlq_size: usize,
     pub delivery_timeout: Duration,
     pub broadcast_enabled: bool,
+    pub deduplication_ttl: Duration,
+    pub max_deduplication_entries: usize,
 }
 
 impl Default for RouterConfig {
@@ -53,6 +55,8 @@ impl Default for RouterConfig {
             max_dlq_size: 1000,
             delivery_timeout: Duration::from_secs(5),
             broadcast_enabled: true,
+            deduplication_ttl: Duration::from_secs(300),
+            max_deduplication_entries: 100_000,
         }
     }
 }
@@ -70,7 +74,16 @@ impl RouterConfig {
             max_dlq_size,
             delivery_timeout,
             broadcast_enabled,
+            deduplication_ttl: Duration::from_secs(300),
+            max_deduplication_entries: 100_000,
         }
+    }
+
+    #[must_use]
+    pub fn with_deduplication(mut self, ttl: Duration, max_entries: usize) -> Self {
+        self.deduplication_ttl = ttl;
+        self.max_deduplication_entries = max_entries;
+        self
     }
 }
 

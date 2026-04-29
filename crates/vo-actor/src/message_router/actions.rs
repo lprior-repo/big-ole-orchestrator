@@ -3,18 +3,23 @@
 //! The `MessageRouter` struct and all its mutating/querying methods.
 
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 use super::calc::{select_active_destinations, should_broadcast, validate_route, RouteError};
 use super::data::{
     ActorDestination, ChannelEntry, ChannelId, RouterConfig, RoutingDestination, TimestampMs,
+    TypedMessage,
 };
 use super::dlq::{DeadLetterEntry, DeadLetterMessage, DeadLetterQueue, DeadLetterReason};
+
+type DeduplicationCache = HashMap<String, Instant>;
 
 #[derive(Debug)]
 pub struct MessageRouter {
     config: RouterConfig,
     routing_table: HashMap<ChannelId, ChannelEntry>,
     dead_letter_queue: DeadLetterQueue,
+    deduplication_cache: DeduplicationCache,
 }
 
 impl MessageRouter {
@@ -22,9 +27,10 @@ impl MessageRouter {
     pub fn new(config: RouterConfig) -> Self {
         let max_dlq_size = config.max_dlq_size;
         Self {
-            config,
+            config: config.clone(),
             routing_table: HashMap::new(),
             dead_letter_queue: DeadLetterQueue::new(max_dlq_size),
+            deduplication_cache: HashMap::new(),
         }
     }
 
@@ -117,26 +123,34 @@ impl MessageRouter {
     pub async fn route_unicast<T: Send + 'static>(
         &mut self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
+        if self.is_duplicate(&message) {
+            return Err(RouteError::DuplicateMessage(message.metadata().message_id.clone()));
+        }
+        self.evict_expired_entries();
+        self.deduplication_cache
+            .insert(message.metadata().message_id.clone(), Instant::now());
+
         let channel = self.routing_table.get(channel_id).cloned();
         validate_route(channel.as_ref(), &self.config)?;
         let channel = channel.unwrap();
         let active_dests = select_active_destinations(&channel);
         if active_dests.is_empty() {
-            self.send_to_dlq(channel_id, message, DeadLetterReason::NoActiveDestinations);
+            self.send_to_dlq(channel_id, message.into_payload(), DeadLetterReason::NoActiveDestinations);
             return Err(RouteError::NoActiveDestinations(channel_id.clone()));
         }
         let (_index, dest) = active_dests[0];
+        let payload = message.into_payload();
         match self
-            .deliver_to_destination_unicast(dest, &message, channel_id)
+            .deliver_to_destination_unicast(dest, &payload, channel_id)
             .await
         {
             Ok(()) => Ok(()),
             Err(e) => {
                 self.send_to_dlq(
                     channel_id,
-                    message,
+                    payload,
                     DeadLetterReason::ActorError(e.to_string()),
                 );
                 Err(e)
@@ -147,24 +161,33 @@ impl MessageRouter {
     pub async fn route_broadcast<T: Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
+        if self.is_duplicate(&message) {
+            return Err(RouteError::DuplicateMessage(message.metadata().message_id.clone()));
+        }
+        self.evict_expired_entries();
+        self.deduplication_cache
+            .insert(message.metadata().message_id.clone(), Instant::now());
+
         let channel = self.routing_table.get(channel_id).cloned();
         validate_route(channel.as_ref(), &self.config)?;
         let channel = channel.unwrap();
         let active_dests = select_active_destinations(&channel);
         if active_dests.is_empty() {
-            self.send_to_dlq(channel_id, message, DeadLetterReason::NoActiveDestinations);
+            self.send_to_dlq(channel_id, message.into_payload(), DeadLetterReason::NoActiveDestinations);
             return Err(RouteError::NoActiveDestinations(channel_id.clone()));
         }
         if !should_broadcast(&channel, &self.config) {
-            return self.route_unicast(channel_id, message).await;
+            let msg: TypedMessage<T> = message;
+            return self.route_unicast(channel_id, msg).await;
         }
         let mut errors = Vec::new();
         let num_destinations = active_dests.len();
+        let payload = message.into_payload();
         for (_index, dest) in active_dests {
             if let Err(e) = self
-                .deliver_to_destination_broadcast(dest, &message, channel_id)
+                .deliver_to_destination_broadcast(dest, &payload, channel_id)
                 .await
             {
                 errors.push(e);
@@ -173,7 +196,7 @@ impl MessageRouter {
         if !errors.is_empty() && errors.len() == num_destinations {
             self.send_to_dlq(
                 channel_id,
-                message,
+                payload,
                 DeadLetterReason::ActorError("all destinations failed".to_string()),
             );
             return Err(errors.into_iter().next().unwrap());
@@ -184,13 +207,37 @@ impl MessageRouter {
     pub async fn route<T: Send + Sync + 'static>(
         &mut self,
         channel_id: &ChannelId,
-        message: T,
+        message: TypedMessage<T>,
     ) -> Result<(), RouteError> {
         let channel = self.routing_table.get(channel_id).cloned();
         if channel.as_ref().map(|c| c.destinations.len()).unwrap_or(0) > 1 {
             self.route_broadcast(channel_id, message).await
         } else {
             self.route_unicast(channel_id, message).await
+        }
+    }
+
+    fn is_duplicate<T>(&self, message: &TypedMessage<T>) -> bool {
+        if let Some(instant) = self.deduplication_cache.get(&message.metadata().message_id) {
+            if instant.elapsed() < self.config.deduplication_ttl {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn evict_expired_entries(&mut self) {
+        if self.deduplication_cache.len() >= self.config.max_deduplication_entries {
+            let ttl = self.config.deduplication_ttl;
+            self.deduplication_cache.retain(|_id, instant| instant.elapsed() < ttl);
+        }
+        if self.deduplication_cache.len() >= self.config.max_deduplication_entries {
+            let half = self.deduplication_cache.len() / 2;
+            let mut keys_to_remove: Vec<_> = self.deduplication_cache.keys().cloned().collect();
+            keys_to_remove.sort_by_key(|k| self.deduplication_cache.get(k));
+            for key in keys_to_remove.into_iter().take(half) {
+                self.deduplication_cache.remove(&key);
+            }
         }
     }
 
@@ -288,5 +335,14 @@ impl MessageRouter {
 
     pub fn clear_dlq(&mut self) {
         self.dead_letter_queue.clear();
+    }
+
+    #[must_use]
+    pub fn deduplication_cache_size(&self) -> usize {
+        self.deduplication_cache.len()
+    }
+
+    pub fn clear_deduplication_cache(&mut self) {
+        self.deduplication_cache.clear();
     }
 }
