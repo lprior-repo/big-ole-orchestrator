@@ -2,3 +2,5 @@
 2026-04-20T11:49:54Z actor=veloxide/polecats/thunder key=port value=3308 beads_dir=/home/lewis/gt/veloxide/polecats/thunder/veloxide/.beads
 2026-04-20T11:51:11Z actor=veloxide/polecats/thunder key=port value=3309 beads_dir=/home/lewis/gt/veloxide/polecats/thunder/veloxide/.beads
 2026-04-20T11:51:21Z actor=veloxide/polecats/thunder key=port value=3310 beads_dir=/home/lewis/gt/veloxide/polecats/thunder/veloxide/.beads
+2026-04-29T15:38:46Z actor=veloxide/polecats/pipboy key=port value=3308 beads_dir=/home/lewis/gt/veloxide/.beads
+2026-04-29T15:38:47Z actor=veloxide/polecats/pipboy key=port value=3309 beads_dir=/home/lewis/gt/veloxide/.beads
