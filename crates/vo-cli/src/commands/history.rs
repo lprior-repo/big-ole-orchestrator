@@ -150,7 +150,7 @@ pub fn redo_command(history: &mut vo_types::command_history::CommandHistory) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use vo_types::{CommandHistory, CommandKind, DagNode, NodeCapability, NodeKind, NodeName, RetryPolicy, WorkflowSnapshot};
+    use vo_types::{CommandHistory, CommandKind, DagNode, NodeName, RetryPolicy, WorkflowSnapshot};
 
     fn test_snapshot() -> WorkflowSnapshot {
         WorkflowSnapshot::new(
@@ -159,7 +159,6 @@ mod tests {
                 node_name: NodeName::parse("test-node").unwrap(),
                 retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
                 compensation_policy: None,
-                capability: NodeCapability::new(NodeKind::Pure),
             }],
             vec![],
         )

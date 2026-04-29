@@ -42,6 +42,8 @@ pub enum CliError {
 pub enum Command {
     Purge {
         instance: String,
+        storage_path: PathBuf,
+        dry_run: bool,
     },
     Check {
         workflow: bool,
@@ -427,8 +429,17 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
+            let storage_path = purge_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
+            let dry_run = purge_matches.get_flag("dry-run");
             Ok(Cli {
-                command: Command::Purge { instance },
+                command: Command::Purge {
+                    instance,
+                    storage_path,
+                    dry_run,
+                },
             })
         }
         Some(("check", sub_matches)) => {

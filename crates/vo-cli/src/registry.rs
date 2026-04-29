@@ -89,7 +89,7 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Purge { ref instance } = cli.command else {
+            let Command::Purge { ref instance, .. } = cli.command else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a purge command".to_string()))
                 });
