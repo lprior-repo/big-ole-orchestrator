@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use vo_storage::event_log::replay_events_in_namespace;
 use vo_types::search::QueryParser;
 
@@ -91,9 +92,16 @@ pub async fn get_timeline(
 // GET /api/v1/workflows/:id/history
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Deserialize)]
+struct HistoryQueryParams {
+    offset: Option<usize>,
+    limit: Option<usize>,
+}
+
 #[tracing::instrument(skip_all)]
 pub async fn get_history(
     Path(id): Path<String>,
+    AxumQuery(params): AxumQuery<HistoryQueryParams>,
     State(state): State<QueryState>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
@@ -110,8 +118,11 @@ pub async fn get_history(
         }
     };
 
+    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(100).min(1000);
+
     let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
-    let mut entries = Vec::new();
+    let mut all_entries = Vec::new();
 
     for result in iter {
         match result {
@@ -134,7 +145,7 @@ pub async fn get_history(
                     .map(String::from);
                 let output = envelope.payload.get("output").cloned();
 
-                entries.push(HistoryEntry {
+                all_entries.push(HistoryEntry {
                     sequence: envelope.sequence,
                     timestamp_ms: envelope.timestamp_ms,
                     event_type,
@@ -150,11 +161,21 @@ pub async fn get_history(
         }
     }
 
+    let total_count = all_entries.len();
+    let entries = all_entries
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .collect();
+
     (
         StatusCode::OK,
         Json(HistoryResponse {
             instance_id: id,
             entries,
+            total_count,
+            offset,
+            limit,
         }),
     )
         .into_response()

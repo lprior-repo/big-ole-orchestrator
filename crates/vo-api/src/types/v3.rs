@@ -139,11 +139,23 @@ pub struct HistoryEntry {
     pub output: Option<serde_json::Value>,
 }
 
+/// Pagination parameters for list endpoints.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PaginationParams {
+    #[serde(default)]
+    pub offset: Option<usize>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
 /// Response to GET /api/v1/workflows/:id/history.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryResponse {
     pub instance_id: String,
     pub entries: Vec<HistoryEntry>,
+    pub total_count: usize,
+    pub offset: usize,
+    pub limit: usize,
 }
 
 /// Canonical history entry with full event data for forensic inspection (ADR-008).
