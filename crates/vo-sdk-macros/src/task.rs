@@ -351,6 +351,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let expected = quote! { fn main() { a(); } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -367,6 +368,7 @@ mod tests {
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let expected = quote! { fn main() -> Result<(), std::io::Error> { run() } };
         let result = generate_task_entrypoint(&task).unwrap();
