@@ -522,7 +522,7 @@ mod handlers {
             Box::pin(async move {
                 let binary_path_str = binary_path.to_string_lossy().to_string();
 
-                let graph_result = execute_with_graph(&binary_path_str).await?;
+                let graph_result = super::execute_with_graph(&binary_path_str).await?;
 
                 let workflow_spec: vo_sdk::WorkflowSpec =
                     serde_json::from_slice(&graph_result).map_err(|e| {
@@ -565,12 +565,13 @@ mod handlers {
                 );
                 Ok(())
             })
-        }
+       }
     }
+}
 
-    async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
-        use tokio::io::AsyncWriteExt;
-        use tokio::process::Command;
+async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
+    use tokio::io::AsyncWriteExt;
+    use tokio::process::Command;
     use tokio::time::{timeout, Duration};
 
     let mut child = Command::new(binary_path)
@@ -653,10 +654,10 @@ async fn run_node_subprocess(
     let fd3_pipe = create_pipe().map_err(|e| CliError::ExecuteNode(format!("pipe setup: {e}")))?;
     let fd4_pipe = create_pipe().map_err(|e| CliError::ExecuteNode(format!("pipe setup: {e}")))?;
 
-    let fd3_read = fd3_pipe.read_fd;
-    let fd3_write = fd3_pipe.write_fd;
-    let fd4_read = fd4_pipe.read_fd;
-    let fd4_write = fd4_pipe.write_fd;
+    let fd3_read = fd3_pipe.0;
+    let fd3_write = fd3_pipe.1;
+    let fd4_read = fd4_pipe.0;
+    let fd4_write = fd4_pipe.1;
 
     let mut child = Command::new(binary_path)
         .env_clear()
@@ -829,7 +830,6 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, std::
 
     Ok(bytes)
 }
-
 
 #[cfg(test)]
 mod tests {
