@@ -62,7 +62,7 @@ pub mod graph;
 pub mod node_handle;
 pub mod runtime;
 
-pub use dag::Workflow;
+pub use dag::{CycleError, Workflow};
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     SignalNodeMeta, ValidationError, WorkflowSpec,

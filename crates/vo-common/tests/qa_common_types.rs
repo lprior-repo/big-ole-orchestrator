@@ -100,7 +100,8 @@ fn workflow_event_json_structure() {
         timestamp_ms: 0,
     })
     .unwrap();
-    assert!(val.as_object().unwrap().contains_key("TimerFired"));
+    assert!(val.as_object().unwrap().contains_key("type"));
+    assert_eq!(val.as_object().unwrap().get("type").unwrap(), "TimerFired");
 }
 
 #[test]
@@ -123,7 +124,7 @@ fn workflow_event_rejects_null() {
 
 #[test]
 fn workflow_event_rejects_unknown_variant() {
-    assert!(serde_json::from_str::<WorkflowEvent>(r#"{"Unknown":{}}"#).is_err());
+    assert!(serde_json::from_str::<WorkflowEvent>(r#"{"type":"UnknownVariant"}"#).is_err());
 }
 
 #[test]

@@ -10,52 +10,43 @@ mod deser_attacks {
     #[test]
     fn reject_missing_fields() {
         assert!(
-            serde_json::from_value::<WorkflowEvent>(json!({"TimerFired": {"timer_id": "x"}}))
+            serde_json::from_value::<WorkflowEvent>(json!({"type": "TimerFired", "timer_id": "x"}))
                 .is_err()
         );
     }
 
     #[test]
-    fn extra_fields_silently_accepted() {
-        let r: WorkflowEvent = serde_json::from_value(json!({
-            "TimerFired": {"event_id": "e1", "timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
-        }))
-        .unwrap();
-        let WorkflowEvent::TimerFired {
-            event_id,
-            timer_id,
-            timestamp_ms,
-        } = r;
-        assert_eq!(
-            (event_id, timer_id, timestamp_ms),
-            ("e1".to_string(), "t1".to_string(), 100)
-        );
+    fn extra_fields_are_rejected() {
+        let result: Result<WorkflowEvent, _> = serde_json::from_value(json!({
+            "type": "TimerFired", "event_id": "e1", "timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"
+        }));
+        assert!(result.is_err(), "extra fields should be rejected");
     }
 
     #[test]
     fn reject_unknown_variant() {
         assert!(
-            serde_json::from_value::<WorkflowEvent>(json!({"UnknownVariant": {"x": 1}})).is_err()
+            serde_json::from_value::<WorkflowEvent>(json!({"type": "UnknownVariant", "x": 1})).is_err()
         );
     }
 
     #[test]
     fn reject_null_timer_id() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": null, "timestamp_ms": 0}})
+            json!({"type": "TimerFired", "event_id": "e1", "timer_id": null, "timestamp_ms": 0})
         )
         .is_err());
     }
 
     #[test]
     fn reject_array_payload() {
-        assert!(serde_json::from_value::<WorkflowEvent>(json!({"TimerFired": [1, 2, 3]})).is_err());
+        assert!(serde_json::from_value::<WorkflowEvent>(json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t1", "timestamp_ms": [1, 2, 3]})).is_err());
     }
 
     #[test]
     fn reject_string_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": "x"}})
+            json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": "x"})
         )
         .is_err());
     }
@@ -63,7 +54,7 @@ mod deser_attacks {
     #[test]
     fn reject_negative_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": -1}})
+            json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": -1})
         )
         .is_err());
     }
@@ -71,7 +62,7 @@ mod deser_attacks {
     #[test]
     fn reject_float_timestamp() {
         assert!(serde_json::from_value::<WorkflowEvent>(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 1.5}})
+            json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": 1.5})
         )
         .is_err());
     }
@@ -79,7 +70,7 @@ mod deser_attacks {
     #[test]
     fn accept_u64_max_timestamp() {
         let val: serde_json::Value = serde_json::from_str(&format!(
-            r#"{{"TimerFired":{{"event_id":"e1","timer_id":"t","timestamp_ms":{}}}}}"#,
+            r#"{{"type":"TimerFired","event_id":"e1","timer_id":"t","timestamp_ms":{}}}"#,
             u64::MAX
         ))
         .unwrap();
@@ -90,7 +81,7 @@ mod deser_attacks {
     #[test]
     fn accept_zero_timestamp() {
         let WorkflowEvent::TimerFired { timestamp_ms, .. } = serde_json::from_value(
-            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}),
+            json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": 0}),
         )
         .unwrap();
         assert_eq!(timestamp_ms, 0);

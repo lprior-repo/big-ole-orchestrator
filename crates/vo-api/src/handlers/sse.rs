@@ -43,6 +43,9 @@ pub enum WorkflowSseEvent {
     InstanceFailed {
         error: String,
     },
+    Lagged {
+        skipped_count: u64,
+    },
 }
 
 impl WorkflowSseEvent {
@@ -97,6 +100,12 @@ impl WorkflowSseEvent {
                 serde_json::json!({
                     "type": "instance_failed",
                     "error": error,
+                })
+            }
+            WorkflowSseEvent::Lagged { skipped_count } => {
+                serde_json::json!({
+                    "type": "lagged",
+                    "skipped_count": skipped_count,
                 })
             }
         };
@@ -154,13 +163,13 @@ impl Default for SseState {
     }
 }
 
-fn make_sse_stream(
+pub fn make_sse_stream(
     receiver: broadcast::Receiver<WorkflowSseEvent>,
 ) -> impl futures::Stream<Item = Result<Event, axum::Error>> + Send + 'static {
     TokioStreamExt::map(BroadcastStream::new(receiver), |result| match result {
         Ok(event) => Ok(event.to_sse_event()),
-        Err(BroadcastStreamRecvError::Lagged(_)) => {
-            Err(axum::Error::new("client fell behind, closing stream"))
+        Err(BroadcastStreamRecvError::Lagged(n)) => {
+            Ok(WorkflowSseEvent::Lagged { skipped_count: n }.to_sse_event())
         }
     })
 }
@@ -260,8 +269,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_lagged_error_closes_stream() {
+    async fn sse_lagged_event_emitted_instead_of_error() {
         use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
@@ -274,30 +284,35 @@ mod tests {
                 sequence: i,
             });
         }
+        drop(tx);
 
         let mut count = 0u64;
-        let mut lagged_received = false;
-        while let Some(result) = futures::StreamExt::next(&mut event).await {
-            count += 1;
-            match result {
-                Ok(event) => {
-                    let _ = event;
-                    lagged_received = true;
+        let mut lag_count = 0u64;
+        let result = timeout(Duration::from_secs(2), async {
+            while let Some(item) = futures::StreamExt::next(&mut event).await {
+                count += 1;
+                if let Ok(evt) = item {
+                    let data_str = evt.data().to_string();
+                    if data_str.contains("\"type\":\"lagged\"") {
+                        lag_count += 1;
+                    }
                 }
-                Err(_) => break,
             }
-        }
+        })
+        .await;
 
-        assert!(lagged_received || count <= 11, "Should emit lag or close");
+        let completed = result.is_ok();
+        assert!(completed, "Stream should terminate after channel closes");
         assert!(
-            count <= 11,
-            "Should close after lag, not receive all 15 events"
+            count <= 15 + lag_count,
+            "Should receive at most 15 events plus lag notifications, got {count}"
         );
     }
 
     #[tokio::test]
-    async fn sse_stream_closes_after_lag_event() {
+    async fn sse_lag_event_contains_skipped_count() {
         use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
 
@@ -311,18 +326,29 @@ mod tests {
             });
         }
 
-        let mut count = 0u64;
-        while let Some(_result) = futures::StreamExt::next(&mut event).await {
-            count += 1;
-            if count > 10 {
-                break;
+        let mut lag_events = Vec::new();
+        let _ = timeout(Duration::from_secs(2), async {
+            while let Some(result) = futures::StreamExt::next(&mut event).await {
+                if let Ok(evt) = result {
+                    let data_str = evt.data().to_string();
+                    if data_str.contains("\"type\":\"lagged\"") {
+                        lag_events.push(data_str);
+                    }
+                }
             }
-        }
+        })
+        .await;
 
         assert!(
-            count <= 6,
-            "Should close after lag notification, not all 20 events"
+            !lag_events.is_empty(),
+            "Should emit at least one lag event when client falls behind"
         );
+        for lag_data in &lag_events {
+            assert!(
+                lag_data.contains("skipped_count"),
+                "Lag event should contain skipped_count, got: {lag_data}"
+            );
+        }
     }
 
     #[test]
@@ -365,8 +391,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_lagged_error_drops_slow_client() {
+    async fn sse_slow_client_receives_lag_notifications() {
         use tokio::sync::broadcast;
+        use tokio::time::{timeout, Duration};
 
         let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(10);
 
@@ -381,28 +408,31 @@ mod tests {
         }
 
         let mut count = 0u64;
-        let mut lagged = false;
-        while let Some(result) = futures::StreamExt::next(&mut event).await {
-            count += 1;
-            match result {
-                Ok(_) => {}
-                Err(e) => {
-                    assert!(
-                        e.to_string().contains("client fell behind")
-                            || e.to_string().contains("channel closed")
-                    );
-                    lagged = true;
+        let mut lag_count = 0u64;
+        let mut has_lag = false;
+        let _ = timeout(Duration::from_secs(2), async {
+            while let Some(result) = futures::StreamExt::next(&mut event).await {
+                count += 1;
+                match result {
+                    Ok(evt) => {
+                        let data_str = evt.data().to_string();
+                        if data_str.contains("\"type\":\"lagged\"") {
+                            lag_count += 1;
+                            has_lag = true;
+                        }
+                    }
+                    Err(_) => {}
+                }
+                if count > 50 {
                     break;
                 }
             }
-            if count > 50 {
-                break;
-            }
-        }
+        })
+        .await;
 
         assert!(
-            lagged || count <= 11,
-            "Slow client should be dropped via Lagged error"
+            has_lag,
+            "Slow client should receive lag notifications, got {lag_count} lag events out of {count} total"
         );
     }
 }

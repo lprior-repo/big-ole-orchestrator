@@ -119,7 +119,7 @@ fn identical_timestamps_different_timers_preserve_distinctness() {
 #[test]
 fn field_reorder_in_json_still_deserializes() {
     let event = make_evt("e1", "t", 42);
-    let json = r#"{"TimerFired":{"event_id":"e1","timestamp_ms":42,"timer_id":"t"}}"#;
+    let json = r#"{"type":"TimerFired","event_id":"e1","timestamp_ms":42,"timer_id":"t"}"#;
     let deser: WorkflowEvent = serde_json::from_str(json).unwrap();
     assert_eq!(event, deser);
 }
@@ -127,7 +127,7 @@ fn field_reorder_in_json_still_deserializes() {
 #[test]
 fn extra_whitespace_does_not_affect_equality() {
     let event = make_evt("e1", "t", 42);
-    let json = "{  \"TimerFired\"  :  {  \"event_id\"  :  \"e1\"  ,  \"timer_id\"  :  \"t\"  ,  \"timestamp_ms\"  :  42  }  }";
+    let json = "{  \"type\"  :  \"TimerFired\"  ,  \"event_id\"  :  \"e1\"  ,  \"timer_id\"  :  \"t\"  ,  \"timestamp_ms\"  :  42  }";
     let deser: WorkflowEvent = serde_json::from_str(json).unwrap();
     assert_eq!(event, deser);
 }
@@ -136,7 +136,7 @@ fn extra_whitespace_does_not_affect_equality() {
 fn numeric_string_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
-        "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": "999"}
+        "type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": "999"
     }))
     .is_err());
 }
@@ -145,7 +145,7 @@ fn numeric_string_timestamp_rejected() {
 fn boolean_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
-        "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": true}
+        "type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": true
     }))
     .is_err());
 }

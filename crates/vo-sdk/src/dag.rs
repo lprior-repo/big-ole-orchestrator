@@ -31,6 +31,26 @@ pub enum DagError {
     OrphanNode { name: String },
 }
 
+/// Error returned when a cycle is detected during DAG validation.
+#[derive(Debug, PartialEq, Clone)]
+pub struct CycleError {
+    pub path: Vec<NodeName>,
+}
+
+impl std::fmt::Display for CycleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let names: Vec<String> = self.path.iter().map(|n| n.as_str().to_string()).collect();
+        let cycle_str = names.join(" -> ");
+        if self.path.len() > 1 {
+            write!(f, "{} -> {}", cycle_str, self.path[0].as_str())
+        } else {
+            write!(f, "{}", cycle_str)
+        }
+    }
+}
+
+impl std::error::Error for CycleError {}
+
 /// Internal node record with name, kind, and optional signal metadata.
 #[derive(Debug, Clone)]
 struct DagNodeRecord {
@@ -359,6 +379,75 @@ impl Dag {
         }
 
         false
+    }
+
+    /// Validate the DAG for cycles using DFS with white-grey-black coloring.
+    ///
+    /// Returns `Ok(())` if the DAG is acyclic.
+    /// Returns `Err(CycleError)` with the cycle path if a cycle is detected.
+    ///
+    /// The cycle path is displayed as `node_a -> node_b -> ... -> node_a`.
+    pub fn validate(&self) -> Result<(), CycleError> {
+        if self.edges.is_empty() {
+            return Ok(());
+        }
+
+        const WHITE: u8 = 0;
+        const GRAY: u8 = 1;
+        const BLACK: u8 = 2;
+
+        let n = self.nodes.len();
+        let mut colors = vec![WHITE; n];
+
+        // Build adjacency list
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for (from, to) in &self.edges {
+            adj[*from].push(*to);
+        }
+
+        let mut stack: Vec<usize> = Vec::new();
+        let mut cycle_path: Vec<NodeName> = Vec::new();
+
+        fn dfs(
+            node: usize,
+            adj: &[Vec<usize>],
+            colors: &mut [u8],
+            nodes: &[DagNodeRecord],
+            stack: &mut Vec<usize>,
+            cycle_path: &mut Vec<NodeName>,
+        ) -> bool {
+            colors[node] = GRAY;
+            stack.push(node);
+            for &neighbor in &adj[node] {
+                if colors[neighbor] == GRAY {
+                    if let Some(pos) = stack.iter().position(|&x| x == neighbor) {
+                        for &idx in &stack[pos..] {
+                            cycle_path.push(nodes[idx].name.clone());
+                        }
+                        cycle_path.push(nodes[neighbor].name.clone());
+                        return true;
+                    }
+                }
+                if colors[neighbor] == WHITE {
+                    if dfs(neighbor, adj, colors, nodes, stack, cycle_path) {
+                        return true;
+                    }
+                }
+            }
+            stack.pop();
+            colors[node] = BLACK;
+            false
+        }
+
+        for i in 0..n {
+            if colors[i] == WHITE {
+                if dfs(i, &adj, &mut colors, &self.nodes, &mut stack, &mut cycle_path) {
+                    return Err(CycleError { path: cycle_path });
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 

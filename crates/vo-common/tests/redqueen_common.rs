@@ -150,41 +150,27 @@ mod serialization_roundtrip {
 
         // serde default: variant key is the outer key, fields are inner object
         assert!(
-            obj.contains_key("TimerFired"),
-            "variant key must be TimerFired"
+            obj.contains_key("type"),
+            "variant key must be type"
         );
-        let inner = obj["TimerFired"].as_object().expect("inner is object");
-        assert!(inner.contains_key("event_id"), "field must be event_id");
-        assert!(inner.contains_key("timer_id"), "field must be timer_id");
-        assert!(
-            inner.contains_key("timestamp_ms"),
-            "field must be timestamp_ms"
-        );
+        assert_eq!(obj["type"], "TimerFired", "type value must be TimerFired");
+        assert!(obj.contains_key("event_id"), "field must be event_id");
+        assert!(obj.contains_key("timer_id"), "field must be timer_id");
+        assert!(obj.contains_key("timestamp_ms"), "field must be timestamp_ms");
     }
 
     /// Kills: extra fields silently ignored (strict deserialization broken).
     #[test]
-    fn rq_timer_fired_extra_json_fields_ignored() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":99,"extra":"garbage"}}"#;
-        let event: WorkflowEvent =
-            serde_json::from_str(json).expect("extra fields must be ignored");
-        match event {
-            WorkflowEvent::TimerFired {
-                event_id,
-                timer_id,
-                timestamp_ms,
-            } => {
-                assert_eq!(event_id, "e1");
-                assert_eq!(timer_id, "t1");
-                assert_eq!(timestamp_ms, 99);
-            }
-        }
+    fn rq_timer_fired_extra_json_fields_rejected() {
+        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1","timestamp_ms":99,"extra":"garbage"}"#;
+        let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
+        assert!(result.is_err(), "extra fields must be rejected");
     }
 
     /// Kills: missing field returns error instead of default.
     #[test]
     fn rq_timer_fired_missing_field_rejects() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1"}}"#;
+        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1"}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "missing timestamp_ms must fail");
     }
@@ -193,7 +179,7 @@ mod serialization_roundtrip {
     #[test]
     fn rq_timer_fired_wrong_type_rejects() {
         let json =
-            r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":"not_a_number"}}"#;
+            r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1","timestamp_ms":"not_a_number"}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "string timestamp must fail");
     }
@@ -201,7 +187,7 @@ mod serialization_roundtrip {
     /// Kills: negative timestamp accepted (u64 can't be negative).
     #[test]
     fn rq_timer_fired_negative_timestamp_rejects() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":-1}}"#;
+        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1","timestamp_ms":-1}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err(), "negative u64 must fail");
     }
@@ -542,10 +528,10 @@ mod serialization_adversarial {
     #[test]
     fn rq_truncated_json_rejects() {
         for truncated in &[
-            r#"{"TimerFired":{"timer_id":"#,
-            r#"{"TimerFired":{"timer_id":"t1","timestamp_ms"#,
-            r#"{"TimerFired""#,
-            r#"{"TimerFired":{"#,
+            r#"{"type":"TimerFired","timer_id":"#,
+            r#"{"type":"TimerFired","timer_id":"t1","timestamp_ms"#,
+            r#"{"type":"TimerFired""#,
+            r#"{"type":"TimerFired","#,
         ] {
             let result: Result<WorkflowEvent, _> = serde_json::from_str(truncated);
             assert!(result.is_err(), "truncated JSON must fail: {}", truncated);
@@ -555,11 +541,11 @@ mod serialization_adversarial {
     /// Kills: duplicate fields silently accepted (serde_json rejects duplicates by default).
     #[test]
     fn rq_duplicate_fields_rejected() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
+        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"first","timer_id":"second","timestamp_ms":1}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(
             result.is_err(),
-            "duplicate fields must be rejected by serde_json"
+            "duplicate fields must be rejected"
         );
         let err_msg = result.unwrap_err().to_string();
         assert!(

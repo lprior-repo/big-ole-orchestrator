@@ -68,10 +68,15 @@ impl<'de> Visitor<'de> for WorkflowEventVisitor {
         let mut event_id: Option<EventId> = None;
         let mut timer_id: Option<String> = None;
         let mut timestamp_ms: Option<u64> = None;
-        let mut byte_offset: usize = 0;
+        let mut seen_fields = std::collections::HashSet::new();
 
         while let Some(key) = map.next_key::<String>()? {
-            byte_offset = map.next_value::<de::IgnoredAny>()?.map_or(byte_offset, |_: de::IgnoredAny| byte_offset);
+            if !seen_fields.insert(key.clone()) {
+                return Err(de::Error::custom(format!(
+                    "duplicate field '{}'",
+                    key
+                )));
+            }
             match key.as_str() {
                 "type" => {
                     type_value = Some(map.next_value()?);
@@ -95,7 +100,7 @@ impl<'de> Visitor<'de> for WorkflowEventVisitor {
         }
 
         let type_val = type_value.ok_or_else(|| {
-            de::Error::custom("missing field 'type' at byte offset 0")
+            de::Error::custom("missing required field 'type'")
         })?;
 
         match type_val.as_str() {
@@ -116,8 +121,8 @@ impl<'de> Visitor<'de> for WorkflowEventVisitor {
                 })
             }
             other => Err(de::Error::custom(format!(
-                "unknown WorkflowEvent variant: `{}` at byte offset {}",
-                other, byte_offset
+                "unknown WorkflowEvent variant: `{}`",
+                other
             ))),
         }
     }
@@ -245,7 +250,7 @@ mod tests {
 
     #[test]
     fn workflow_event_json_deserialization() {
-        let json = r#"{"TimerFired":{"event_id":"e1","timer_id":"t1","timestamp_ms":42}}"#;
+        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1","timestamp_ms":42}"#;
         let event: WorkflowEvent = serde_json::from_str(json).expect("should deserialize");
         match event {
             WorkflowEvent::TimerFired {
@@ -258,6 +263,43 @@ mod tests {
                 assert_eq!(timestamp_ms, 42);
             }
         }
+    }
+
+    #[test]
+    fn workflow_event_internal_tag_format() {
+        let event = make_event("evt-internal", "timer-internal", 123);
+        let json = serde_json::to_string(&event).expect("should serialize");
+        assert!(json.contains(r#""type":"TimerFired""#), "JSON should have type field: {}", json);
+        let externally_tagged_pattern = r#""TimerFired": {"#;
+        assert!(!json.contains(externally_tagged_pattern), "TimerFired should not be externally tagged: {}", json);
+    }
+
+    #[test]
+    fn workflow_event_rejects_unknown_variant_with_error_message() {
+        let json = r#"{"type":"UnknownVariant123","event_id":"e1","timer_id":"t1","timestamp_ms":42}"#;
+        let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("UnknownVariant123"),
+            "error message should contain unknown variant name, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn workflow_event_rejects_unknown_variant_short_form() {
+        let json = r#"{"type":"UnknownVariant123"}"#;
+        let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("UnknownVariant123"),
+            "error message should contain unknown variant name, got: {}",
+            err_msg
+        );
     }
 
     #[test]
