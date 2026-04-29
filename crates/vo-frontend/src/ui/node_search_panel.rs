@@ -7,16 +7,8 @@ pub struct SearchResult {
     pub node_id: NodeId,
     pub name: String,
     pub kind_name: String,
-    pub category: NodeCategory,
-    pub match_type: MatchType,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum MatchType {
-    Name,
-    NameRegex,
-    Kind,
-    KindRegex,
+    pub category: String,
+    pub is_regex_match: bool,
 }
 
 pub fn filter_nodes_by_query(
@@ -35,51 +27,28 @@ pub fn filter_nodes_by_query(
         query
     };
 
-    let case_insensitive = search_pattern.chars().all(|c| c.is_lowercase() || !c.is_alphabetic());
-
     let regex_result: Option<Regex> = if is_regex {
         Regex::new(search_pattern).ok()
-    } else if case_insensitive {
-        Regex::new(&format!("(?i){}", regex::escape(search_pattern))).ok()
     } else {
-        Regex::new(&regex::escape(search_pattern)).ok()
+        Regex::new(&format!("(?i){}", regex::escape(search_pattern))).ok()
     };
 
     nodes
         .iter()
         .filter_map(|node| {
-            let (name_matches, name_match_type) = if let Some(ref re) = regex_result {
-                if is_regex {
-                    if re.is_match(&node.name) {
-                        (true, MatchType::NameRegex)
-                    } else {
-                        (false, MatchType::Name)
-                    }
-                } else {
-                    if re.is_match(&node.name) {
-                        (true, MatchType::Name)
-                    } else {
-                        (false, MatchType::Name)
-                    }
-                }
+            let kind_name = format!("{:?}", node.kind).to_lowercase();
+            let category_name = node.category.to_string();
+
+            let name_matches = if let Some(ref re) = regex_result {
+                re.is_match(&node.name)
             } else {
-                (false, MatchType::Name)
+                false
             };
 
-            let kind_name = format!("{:?}", node.kind).to_lowercase();
-            let (kind_matches, kind_match_type) = if let Some(ref re) = regex_result {
-                if re.is_match(&kind_name) || re.is_match(&node.category.to_string()) {
-                    (true, if is_regex { MatchType::KindRegex } else { MatchType::Kind })
-                } else {
-                    (false, MatchType::Kind)
-                }
+            let kind_matches = if let Some(ref re) = regex_result {
+                re.is_match(&kind_name) || re.is_match(&category_name)
             } else {
-                let pattern_lower = search_pattern.to_lowercase();
-                if kind_name.contains(&pattern_lower) || node.category.to_string().contains(&pattern_lower) {
-                    (true, MatchType::Kind)
-                } else {
-                    (false, MatchType::Kind)
-                }
+                false
             };
 
             if name_matches || kind_matches {
@@ -87,8 +56,8 @@ pub fn filter_nodes_by_query(
                     node_id: node.id.clone(),
                     name: node.name.clone(),
                     kind_name,
-                    category: node.category,
-                    match_type: if name_matches { name_match_type } else { kind_match_type },
+                    category: category_name,
+                    is_regex_match: is_regex,
                 })
             } else {
                 None
@@ -100,6 +69,29 @@ pub fn filter_nodes_by_query(
 fn is_escape_key(key: &str) -> bool {
     let key_lower = key.to_lowercase();
     key_lower == "escape" || key_lower == "esc"
+}
+
+#[derive(Props, PartialEq, Clone)]
+struct SearchResultButtonProps {
+    result: SearchResult,
+    on_select: EventHandler<NodeId>,
+}
+
+fn SearchResultButton(props: SearchResultButtonProps) -> Element {
+    rsx! {
+        button {
+            key: "{props.result.node_id}",
+            class: "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-slate-800",
+            onclick: move |_| props.on_select.call(props.result.node_id.clone()),
+            div { class: "flex min-w-0 flex-col",
+                span { class: "truncate text-[13px] font-medium text-slate-100", "{props.result.name}" }
+                span { class: "truncate text-[11px] text-slate-500", "kind: {props.result.kind_name} · {props.result.category}" }
+            }
+            span { class: "rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400",
+                if props.result.is_regex_match { "regex" } else { "" }
+            }
+        }
+    }
 }
 
 #[component]
@@ -116,9 +108,7 @@ pub fn NodeSearchPanel(
     }
 
     let query_value = query.read().to_string();
-    let results = use_memo(move || {
-        filter_nodes_by_query(nodes.read().as_slice(), &query_value)
-    });
+    let results = filter_nodes_by_query(nodes.read().as_slice(), &query_value);
 
     rsx! {
         div {
@@ -157,24 +147,14 @@ pub fn NodeSearchPanel(
                 div { class: "max-h-[320px] overflow-y-auto p-2",
                     if query_value.trim().is_empty() {
                         div { class: "px-3 py-8 text-center text-[12px] text-slate-500", "Start typing to search nodes..." }
-                    } else if results.read().is_empty() {
+                    } else if results.is_empty() {
                         div { class: "px-3 py-8 text-center text-[12px] text-slate-500", "No matching nodes found" }
                     } else {
-                        for result in results.read().iter() {
-                            button {
+                        for result in results.into_iter() {
+                            SearchResultButton {
                                 key: "{result.node_id}",
-                                class: "mb-1 flex w-full items-center justify-between rounded-md px-3 py-2 text-left transition-colors hover:bg-slate-800",
-                                onclick: move |_| on_select.call(result.node_id.clone()),
-                                div { class: "flex min-w-0 flex-col",
-                                    span { class: "truncate text-[13px] font-medium text-slate-100", "{result.name}" }
-                                    span { class: "truncate text-[11px] text-slate-500", "kind: {result.kind_name} · {result.category}" }
-                                }
-                                span { class: "rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400",
-                                    match result.match_type {
-                                        MatchType::NameRegex | MatchType::KindRegex => "regex",
-                                        _ => ""
-                                    }
-                                }
+                                result: result,
+                                on_select: on_select.clone()
                             }
                         }
                     }
@@ -191,7 +171,8 @@ pub fn NodeSearchPanel(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::graph::{Node, NodeCategory, NodeId, NodeKind};
+    use crate::ui::graph::{Node, NodeId};
+    use vo_types::NodeKind;
 
     fn make_node(name: &str, kind: NodeKind) -> Node {
         Node::new(NodeId::new(), name.to_string(), kind)
@@ -277,11 +258,7 @@ mod tests {
             make_node("Entry Node", NodeKind::Pure),
             make_node("Timer", NodeKind::Wait),
         ];
-        let mut entry_node = nodes[0].clone();
-        entry_node.category = NodeCategory::Entry;
-
-        let all_nodes = vec![entry_node, nodes[1].clone()];
-        let results = filter_nodes_by_query(&all_nodes, "entry");
+        let results = filter_nodes_by_query(&nodes, "flow");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Entry Node");
     }
