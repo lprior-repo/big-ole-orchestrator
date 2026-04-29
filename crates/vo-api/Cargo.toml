@@ -45,6 +45,11 @@ bytes = { workspace = true }
 # Regex for validation
 regex = { workspace = true }
 
+# HMAC for webhook signature verification
+hmac = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
 [dev-dependencies]
 rstest = { workspace = true }
 tempfile = { workspace = true }

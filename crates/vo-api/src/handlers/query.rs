@@ -93,7 +93,7 @@ pub async fn get_timeline(
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
-struct HistoryQueryParams {
+pub struct HistoryQueryParams {
     offset: Option<usize>,
     limit: Option<usize>,
 }

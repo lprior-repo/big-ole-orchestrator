@@ -19,6 +19,7 @@ use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
 use crate::middleware::{ApiKeyState, api_key_auth, request_logging};
+use crate::handlers::webhook::WebhookState;
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -48,6 +49,8 @@ pub struct AppState {
     pub writer_pressure: Arc<dyn WriterPressureGuard>,
     /// API key store for authentication.
     pub api_key_state: ApiKeyState,
+    /// Webhook state for HMAC signature verification.
+    pub webhook_state: WebhookState,
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +157,11 @@ pub fn create_router(state: AppState) -> Router {
         .with_state(state.ws.clone())
         .layer(auth_layer.clone());
 
+    // Webhook endpoint -- uses WebhookState for HMAC verification
+    let webhook_routes = Router::new()
+        .route("/api/v1/webhook", post(crate::handlers::webhook_handler))
+        .layer(Extension(state.webhook_state.clone()));
+
     Router::new()
         .merge(health_routes)
         .merge(workflow_routes)
@@ -162,6 +170,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(event_routes)
         .merge(sse_routes)
         .merge(ws_routes)
+        .merge(webhook_routes)
         .merge(ui_routes)
         .layer(middleware::from_fn(request_logging))
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
@@ -264,6 +273,9 @@ mod tests {
             api_key_state: crate::middleware::ApiKeyState {
                 api_key_store: Arc::new(DummyApiKeyStore),
             },
+            webhook_state: crate::handlers::webhook::WebhookState::new(
+                "test-webhook-secret".to_string(),
+            ),
         };
 
         let _router = create_router(state.clone());
