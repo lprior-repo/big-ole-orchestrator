@@ -4,6 +4,10 @@ pub const API_KEY_PARTITION: &str = "api_keys";
 pub enum ApiKeyStoreError {
     #[error("api key storage error: {reason}")]
     Storage { reason: String },
+    #[error("api key codec error: {reason}")]
+    Codec { reason: String },
+    #[error("invalid api key argument")]
+    InvalidArgument,
     #[error("api key not found")]
     NotFound,
     #[error("api key revoked")]
