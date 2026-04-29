@@ -25,10 +25,6 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::StatusHandler));
         registry.register(Box::new(handlers::ServeHandler));
         registry.register(Box::new(handlers::HistoryHandler));
-        registry.register(Box::new(handlers::ExecuteNodeHandler));
-        registry.register(Box::new(handlers::ApiKeyHandler));
-        registry.register(Box::new(handlers::HardlineHandler));
-        registry
     }
 }
 
@@ -65,8 +61,6 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Hardline { .. } => Some("hardline"),
         Command::Serve { .. } => Some("serve"),
         Command::History { .. } => Some("history"),
-        Command::ExecuteNode { .. } => Some("execute-node"),
-        Command::ApiKey { .. } => Some("apikey"),
     }
 }
 
@@ -455,9 +449,8 @@ mod handlers {
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::History {
                 ref instance_id,
-                ref engine_url,
-                json,
-                ..
+                ref storage_path,
+                canonical,
             } = cli.command
             else {
                 return Box::pin(async {
@@ -465,357 +458,106 @@ mod handlers {
                 });
             };
             let instance_id = instance_id.clone();
-            let engine_url = engine_url.clone();
+            let storage_path = storage_path.clone();
+            let canonical = canonical;
             Box::pin(async move {
-                let config = crate::commands::workflow_history::WorkflowHistoryConfig {
-                    instance_id,
-                    engine_url,
-                    json,
-                };
-                let result =
-                    crate::commands::workflow_history::run_workflow_history(&config).await?;
-                if json {
-                    let json_output = serde_json::to_string_pretty(&result).map_err(|e| {
-                        CliError::Dispatch(format!("failed to serialize history: {e}"))
-                    })?;
-                    println!("{json_output}");
-                } else {
-                    for entry in &result.entries {
-                        println!(
-                            "[{}] {} step={} type={}",
-                            entry.sequence,
-                            entry.timestamp_ms,
-                            entry.step_id.as_deref().unwrap_or("-"),
-                            entry.event_type,
-                        );
-                        if let Some(ref err) = entry.error {
-                            println!("  error: {err}");
-                        }
-                    }
-                }
-                Ok(())
-            })
-        }
-    }
-
-    pub struct ExecuteNodeHandler;
-
-    impl CommandHandler for ExecuteNodeHandler {
-        fn name(&self) -> &'static str {
-            "execute-node"
-        }
-
-        fn execute(
-            &self,
-            cli: &Cli,
-        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::ExecuteNode {
-                ref binary_path,
-                ref node_name,
-                ref input,
-                timeout,
-            } = cli.command
-            else {
-                return Box::pin(async {
-                    Err(CliError::Dispatch("not an execute-node command".to_string()))
-                });
-            };
-            let binary_path = binary_path.clone();
-            let node_name = node_name.clone();
-            let input = input.clone();
-            let timeout = timeout;
-            Box::pin(async move {
-                let binary_path_str = binary_path.to_string_lossy().to_string();
-
-                let graph_result = super::execute_with_graph(&binary_path_str).await?;
-
-                let workflow_spec: vo_sdk::WorkflowSpec =
-                    serde_json::from_slice(&graph_result).map_err(|e| {
-                        CliError::ExecuteNode(format!(
-                            "failed to parse workflow spec from --graph output: {e}"
-                        ))
-                    })?;
-
-                let node = workflow_spec
-                    .nodes
-                    .iter()
-                    .find(|n| n.name.as_str() == node_name)
-                    .ok_or_else(|| {
-                        CliError::ExecuteNode(format!(
-                            "node '{node_name}' not found in workflow '{:?}' (available: {})",
-                            workflow_spec.workflow_name,
-                            workflow_spec
-                                .nodes
-                                .iter()
-                                .map(|n| n.name.as_str())
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        ))
-                    })?;
-
-                println!("Executing node '{}'", node.name);
-                println!("  kind: {:?}", node.kind);
-                println!("  retry_policy: {:?}", node.retry_policy);
-
-                let fd3_payload = input.unwrap_or_default();
-                let output = super::run_node_subprocess(&binary_path_str, &fd3_payload, timeout).await?;
-
-                let output_str = String::from_utf8_lossy(&output.fd4_bytes);
-                if !output_str.is_empty() {
-                    println!("output: {output_str}");
-                }
-                println!(
-                    "exit_code: {}",
-                    output.exit_code.map_or("null".to_string(), |c| c.to_string())
-                );
-                Ok(())
-            })
-       }
-    }
-
-    pub struct ApiKeyHandler;
-
-    impl CommandHandler for ApiKeyHandler {
-        fn name(&self) -> &'static str {
-            "apikey"
-        }
-
-        fn execute(
-            &self,
-            cli: &Cli,
-        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::ApiKey { ref subcommand } = cli.command else {
-                return Box::pin(async {
-                    Err(CliError::Dispatch("not an apikey command".to_string()))
-                });
-            };
-            let subcommand = subcommand.clone();
-            Box::pin(async move {
-                let storage_path = PathBuf::from(".vo/storage");
                 let db = fjall::Database::builder(&storage_path)
                     .open()
-                    .map_err(|e| CliError::Dispatch(format!("Failed to open database: {e}")))?;
-                let api_key_store = vo_storage::api_key_partition::FjallApiKeyStore::open(&db)
-                    .map_err(|e| CliError::Dispatch(format!("Failed to open API key store: {e}")))?;
-                match subcommand {
-                    crate::cli::ApiKeySubcommand::Create { name, expires_in_days } => {
-                        let raw_key = super::generate_api_key();
-                        let key_id = api_key_store
-                            .create_key(&raw_key, &name)
-                            .map_err(|e| CliError::Dispatch(format!("Failed to create API key: {e}")))?;
-                        println!("Created API key '{name}' with ID: {key_id}");
-                        if let Some(days) = expires_in_days {
-                            println!("Expires in {days} days");
-                        }
-                        println!("\nIMPORTANT: Save this API key - it will not be shown again:");
-                        println!("{raw_key}");
-                        Ok(())
-                    }
-                    crate::cli::ApiKeySubcommand::List => {
-                        let keys = api_key_store
-                            .list_keys()
-                            .map_err(|e| CliError::Dispatch(format!("Failed to list API keys: {e}")))?;
-                        if keys.is_empty() {
-                            println!("No API keys found.");
-                        } else {
-                            println!("API Keys:");
-                            println!("{:<36} {:<20} {:<12}", "ID", "Name", "Status");
-                            println!("{}", "-".repeat(68));
-                            for key in keys {
-                                let status = if key.revoked {
-                                    "REVOKED".to_string()
-                                } else if key.expires_at.is_some() {
-                                    "EXPIRED".to_string()
-                                } else {
-                                    "ACTIVE".to_string()
-                                };
-                                println!("{:<36} {:<20} {:<12}", key.key_id, key.name, status);
-                            }
-                        }
-                        Ok(())
-                    }
-                    crate::cli::ApiKeySubcommand::Revoke { key_id } => {
-                        api_key_store
-                            .revoke_key(&key_id)
-                            .map_err(|e| CliError::Dispatch(format!("Failed to revoke API key: {e}")))?;
-                        println!("Revoked API key: {key_id}");
-                        Ok(())
-                    }
-                }
-            })
-        }
-    }
+                    .map_err(|e| CliError::Dispatch(format!("Failed to open storage: {e}")))?;
 
-    pub struct HardlineHandler;
+                let instance: vo_types::InstanceId = vo_types::InstanceId::parse(&instance_id)
+                    .map_err(|e| CliError::Dispatch(format!("Invalid instance ID: {e}")))?;
 
-    impl CommandHandler for HardlineHandler {
-        fn name(&self) -> &'static str {
-            "hardline"
-        }
-
-        fn execute(
-            &self,
-            cli: &Cli,
-        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Hardline {
-                ref target,
-                ref engine_url,
-                timeout,
-                force,
-                dry_run,
-            } = cli.command
-            else {
-                return Box::pin(async {
-                    Err(CliError::Dispatch("not a hardline command".to_string()))
-                });
-            };
-            let target = target.clone();
-            let engine_url = engine_url.clone();
-            Box::pin(async move {
-                let client = reqwest::Client::builder()
-                    .timeout(Duration::from_secs(timeout))
-                    .build()
-                    .map_err(|e| {
-                        CliError::Dispatch(format!("Failed to build HTTP client: {e}"))
-                    })?;
+                let events: Vec<vo_types::EventEnvelope> =
+                    vo_storage::query::replay_events(&db, &instance)
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| CliError::Dispatch(format!("Failed to replay events: {e}")))?;
 
                 #[derive(serde::Serialize)]
-                struct HardlineRequest {
-                    target: String,
-                    force: bool,
-                    dry_run: bool,
+                struct OperatorProjectionEntry {
+                    sequence: u64,
+                    timestamp_ms: u64,
+                    event_type: String,
+                    causation_id: Option<String>,
                 }
 
-                let url = format!("{}/api/v1/hardline", engine_url);
-                let response = client
-                    .post(&url)
-                    .json(&HardlineRequest {
-                        target,
-                        force,
-                        dry_run,
-                    })
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        CliError::Dispatch(format!("Failed to send hardline request: {e}"))
-                    })?;
+                #[derive(serde::Serialize)]
+                struct OperatorProjection {
+                    instance_id: String,
+                    event_count: usize,
+                    events: Vec<OperatorProjectionEntry>,
+                }
 
-                let status = response.status();
-                if status.is_success() {
-                    println!("Hardline command executed successfully.");
-                    Ok(())
+                #[derive(serde::Serialize)]
+                struct CanonicalViewEntry {
+                    sequence: u64,
+                    timestamp_ms: u64,
+                    schema_version: u8,
+                    payload: serde_json::Value,
+                    metadata: vo_types::events::EventMetadata,
+                }
+
+                #[derive(serde::Serialize)]
+                struct CanonicalView {
+                    instance_id: String,
+                    event_count: usize,
+                    events: Vec<CanonicalViewEntry>,
+                }
+
+                if canonical {
+                    let canonical_events: Vec<CanonicalViewEntry> = events
+                        .into_iter()
+                        .map(|e| CanonicalViewEntry {
+                            sequence: e.sequence,
+                            timestamp_ms: e.timestamp_ms,
+                            schema_version: e.schema_version,
+                            payload: e.payload,
+                            metadata: e.metadata,
+                        })
+                        .collect();
+
+                    let view = CanonicalView {
+                        instance_id: instance_id.clone(),
+                        event_count: canonical_events.len(),
+                        events: canonical_events,
+                    };
+                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
                 } else {
-                    let body = response
-                        .text()
-                        .await
-                        .unwrap_or_else(|_| "unknown error".to_string());
-                    Err(CliError::Dispatch(format!(
-                        "Hardline command failed ({}): {}",
-                        status, body
-                    )))
+                    let operator_events: Vec<OperatorProjectionEntry> = events
+                        .into_iter()
+                        .map(|e| {
+                            let event_type = e
+                                .payload
+                                .get("type")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown")
+                                .to_string();
+                            let causation_id = e
+                                .metadata
+                                .command_metadata
+                                .as_ref()
+                                .map(|m| m.causation_id.to_string());
+                            OperatorProjectionEntry {
+                                sequence: e.sequence,
+                                timestamp_ms: e.timestamp_ms,
+                                event_type,
+                                causation_id,
+                            }
+                        })
+                        .collect();
+
+                    let view = OperatorProjection {
+                        instance_id: instance_id.clone(),
+                        event_count: operator_events.len(),
+                        events: operator_events,
+                    };
+                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
                 }
+
+                Ok(())
             })
         }
     }
-}
-
-fn generate_api_key() -> String {
-    let ulid = ulid::Ulid::new();
-    format!("vo_sk_{}", ulid.to_string())
-}
-
-  async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::process::Command;
-    use tokio::time::{timeout, Duration};
-
-    let mut child = Command::new(binary_path)
-        .arg("--graph")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .stdin(std::process::Stdio::null())
-        .spawn()
-        .map_err(|e| {
-            CliError::ExecuteNode(format!("failed to spawn binary '{binary_path}': {e}"))
-        })?;
-
-    let mut stdout = child
-        .stdout
-        .take()
-        .expect("child stdout should be piped");
-    let mut stderr = child
-        .stderr
-        .take()
-        .expect("child stderr should be piped");
-
-    let read_stdout = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        stdout.read_to_end(&mut buf).await.map_err(|e| {
-            CliError::ExecuteNode(format!("failed to read stdout: {e}"))
-        })?;
-        Ok::<Vec<u8>, CliError>(buf)
-    });
-
-    let read_stderr = tokio::spawn(async move {
-        let mut buf = Vec::new();
-        stderr.read_to_end(&mut buf).await.map_err(|e| {
-            CliError::ExecuteNode(format!("failed to read stderr: {e}"))
-        })?;
-        Ok::<Vec<u8>, CliError>(buf)
-    });
-
-    let result = timeout(
-        Duration::from_secs(10),
-        async {
-            tokio::try_join!(read_stdout, read_stderr)
-        },
-    )
-    .await
-    .map_err(|_| CliError::ExecuteNode(format!("timeout reading binary output")))?;
-
-    let (stdout_result, stderr_result) = result.map_err(|e| {
-        CliError::ExecuteNode(format!("task join error: {e}"))
-    })?;
-    let stdout_bytes = stdout_result?;
-    let stderr_bytes = stderr_result?;
-
-    let exit_code = child
-        .wait()
-        .await
-        .map_err(|e| CliError::ExecuteNode(format!("failed to wait for child: {e}")))?;
-
-    if let Some(code) = exit_code.code() {
-        if code != 0 {
-            let stderr_str = String::from_utf8_lossy(&stderr_bytes);
-            return Err(CliError::ExecuteNode(format!(
-                "binary exited with code {code}: {stderr_str}"
-            )));
-        }
-    }
-
-    if stdout_bytes.is_empty() {
-        return Err(CliError::ExecuteNode(
-            "--graph produced no output".to_string(),
-        ));
-    }
-
-    Ok(stdout_bytes)
-}
-
-async fn run_node_subprocess(
-    binary_path: &str,
-    fd3_payload: &[u8],
-    timeout_secs: u64,
-) -> Result<vo_executor::SubprocessOutput, CliError> {
-    let config = vo_executor::SubprocessConfig::new(
-        binary_path.to_string(),
-        vec![],
-        timeout_secs * 1000,
-        fd3_payload.to_vec(),
-    ).unwrap();
-    vo_executor::run_subprocess(config).await.map_err(|e| {
-        CliError::ExecuteNode(format!("subprocess execution failed: {e}"))
-    })
 }
 
 #[cfg(test)]

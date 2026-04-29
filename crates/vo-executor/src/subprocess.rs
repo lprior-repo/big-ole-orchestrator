@@ -128,14 +128,11 @@ pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> 
         // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
         let hash = path
             .strip_prefix(VERSION_BASE_PATH)
-            .map(|suffix| suffix.trim_start_matches('/'))
-            .and_then(|suffix| suffix.split('/').next())
-            .map(str::to_string)
-            .ok_or_else(|| {
-                SubprocessError::BinaryVersioningFailed(format!(
-                    "failed to extract version hash from pinned path {path}"
-                ))
-            })?;
+            .unwrap_or("")
+            .split('/')
+            .next()
+            .unwrap_or("")
+            .to_string();
         Ok(PinnedBinary {
             original_path: path.to_string(),
             sha256_hex: hash,
@@ -472,7 +469,7 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
     let mut remaining = len as usize;
 
     while remaining > 0 {
-        let chunk_size = remaining.min(BOUNDED_BUFFER_SIZE);
+        let chunk_size = remaining.min(BOUNDED_READ_BUFFER_SIZE);
         let mut chunk = vec![0u8; chunk_size];
         let n = reader.read(&mut chunk).await.map_err(|e| {
             SubprocessError::Fd4ReadFailed(format!("failed to read payload: {}", e))

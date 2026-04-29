@@ -15,8 +15,10 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
-pub mod random;
+mod mirror;
+mod random;
 
+pub use mirror::check_mirror_test;
 pub use random::check_random_in_workflow;
 
 /// Trait for all linting rules.
@@ -52,6 +54,7 @@ impl RuleRegistry {
     pub fn new() -> Self {
         let mut registry = Self { rules: Vec::new() };
         registry.add_rule(random::RandomRule);
+        registry.add_rule(mirror::MirrorRule);
         registry
     }
 

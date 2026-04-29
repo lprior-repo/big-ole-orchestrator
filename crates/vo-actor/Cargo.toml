@@ -27,6 +27,7 @@ fjall = { workspace = true }
 parking_lot = { workspace = true }
 metrics = { workspace = true }
 proptest = { workspace = true, optional = true }
+dashmap = { workspace = true }
 
 [dev-dependencies]
 proptest.workspace = true

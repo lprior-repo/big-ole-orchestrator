@@ -39,32 +39,21 @@
 //! emit_graph_if_requested(&std::env::args().collect::<Vec<_>>(), &spec);
 //! ```
 //!
-//! ## Task Execution
-//!
-//! Task binaries use [`runtime::start`] as their entry point instead of `#[tokio::main]`:
-//!
-//! ```ignore
-//! use vo_sdk::runtime::start;
-//! use vo_sdk::TaskInput;
-//!
-//! fn main() {
-//!     start(|input: TaskInput| async move {
-//!         // Your async task logic here
-//!         Ok(serde_json::json!({"result": "done"}))
-//!     });
-//! }
-//! ```
-//!
-//! This provides sub-millisecond startup vs ~200ms for a full Tokio multi-threaded runtime.
+//! For concrete examples of the Workflow builder API, see the documentation for
+//! [`Workflow`](dag::Workflow), [`Dag`](dag::Dag), [`execute_node`](execute::execute_node),
+//! and [`emit_graph_if_requested`](graph::emit_graph_if_requested).
 
 pub mod dag;
-pub mod execution;
+pub mod execute;
 pub mod graph;
 pub mod node_handle;
 pub mod runtime;
 
-pub use dag::{CycleError, Workflow};
-pub use execution::{BoxedNodeFn, NodeFunctionRegistry, RegistryError};
+pub use dag::Workflow;
+pub use execute::{
+    execute_node, has_execute_flag, parse_execute_args, BoxedNodeFn, ExecuteArgs, ExecuteArgsError,
+    NodeFn, NodeResult,
+};
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     SignalNodeMeta, ValidationError, WorkflowSpec,
@@ -80,6 +69,19 @@ use thiserror::Error;
 pub use io::{is_read, is_written, read_input, secret, write_failure, write_success};
 pub use vo_types::TaskFailureKind;
 
+/// Errors from SDK I/O operations.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::SdkError;
+///
+/// // Each error variant describes a distinct failure mode
+/// assert_eq!(SdkError::InvalidInput.to_string(), "InvalidInput");
+/// assert_eq!(SdkError::FdNotOpen.to_string(), "FdNotOpen");
+/// assert_eq!(SdkError::AlreadyWritten.to_string(), "AlreadyWritten");
+/// assert_eq!(SdkError::WriteError.to_string(), "WriteError");
+/// ```
 #[derive(Debug, PartialEq, Error)]
 pub enum SdkError {
     #[error("InvalidInput")]
@@ -92,5 +94,37 @@ pub enum SdkError {
     WriteError,
 }
 
-// TaskInput and TaskFailureKind re-exported from vo_types.
+// TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
+// Kept here temporarily because this bead is scoped to vo-sdk only.
+// See: contract.md precondition "vo-types must define the shared IPC types"
+/// Kind of task failure, used to categorize errors from [`write_failure`](crate::write_failure).
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::TaskFailureKind;
+///
+/// // Each variant represents a distinct failure category
+/// assert_eq!(format!("{:?}", TaskFailureKind::User), "User");
+/// assert_eq!(format!("{:?}", TaskFailureKind::System), "System");
+/// assert_eq!(format!("{:?}", TaskFailureKind::Timeout), "Timeout");
+/// ```
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum TaskFailureKind {
+    User,
+    System,
+    Timeout,
+}
+
+impl TaskFailureKind {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::User => "User",
+            Self::System => "System",
+            Self::Timeout => "Timeout",
+        }
+    }
+}
+
+// TaskInput re-exported from vo_types.
 pub use vo_types::TaskInput;

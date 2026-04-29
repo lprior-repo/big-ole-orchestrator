@@ -1,98 +1,37 @@
-#![deny(clippy::unwrap_used)]
-#![deny(clippy::expect_used)]
-#![deny(clippy::panic)]
-#![warn(clippy::pedantic)]
-
-//! Small inline icon renderer used by UI badges.
-
 use dioxus::prelude::*;
-
-#[component]
-pub fn CopyIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon copy-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2Z" }
-            path { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" }
-        }
-    }
-}
 
 #[component]
 pub fn XIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon x-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            line { x1: "18", y1: "6", x2: "6", y2: "18" }
-            line { x1: "6", y1: "6", x2: "18", y2: "18" }
+            path {
+                d: "M6 18L18 6M6 6l12 12",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
 
 #[component]
-pub fn LayersIcon(class: String) -> Element {
+pub fn CopyIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon layers-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            polygon { points: "12 2 2 7 12 12 22 7 12 2" }
-            polyline { points: "2 17 12 22 22 17" }
-            polyline { points: "2 12 12 17 22 12" }
-        }
-    }
-}
-
-#[component]
-pub fn ChevronDownIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon chevron-down-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            polyline { points: "6 9 12 15 18 9" }
-        }
-    }
-}
-
-#[component]
-pub fn TrashIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon trash-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            polyline { points: "3 6 5 6 21 6" }
-            path { d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }
+            path {
+                d: "M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-2M16 4h2a2 2 0 012 2v2m-4 0h4",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
@@ -101,168 +40,70 @@ pub fn TrashIcon(class: String) -> Element {
 pub fn CheckIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon check-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            polyline { points: "20 6 9 17 4 12" }
-        }
-    }
-}
-
-pub fn icon_by_name(name: &str, class: String) -> Element {
-    match name {
-        "copy" => rsx! { CopyIcon { class } },
-        "x" | "close" | "X" => rsx! { XIcon { class } },
-        "layers" => rsx! { LayersIcon { class } },
-        "chevron-down" | "chevronDown" => rsx! { ChevronDownIcon { class } },
-        "trash" | "trash-icon" => rsx! { TrashIcon { class } },
-        "check" | "check-icon" => rsx! { CheckIcon { class } },
-        "shield-check" => rsx! { ShieldCheckIcon { class } },
-        "shield-alert" => rsx! { ShieldAlertIcon { class } },
-        "shield-off" => rsx! { ShieldOffIcon { class } },
-        "rocket" => rsx! { RocketIcon { class } },
-        "database" => rsx! { DatabaseIcon { class } },
-        "cog" => rsx! { CogIcon { class } },
-        "zap" => rsx! { ZapIcon { class } },
-        "clock" => rsx! { ClockIcon { class } },
-        "wifi" => rsx! { WifiIcon { class } },
-        _ => rsx! {
-            span { class: "icon-unknown {class}", "{name}" }
-        },
-    }
-}
-
-#[component]
-pub fn ShieldCheckIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon shield-check-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }
-            polyline { points: "9 12 12 15 16 10" }
+            path {
+                d: "M5 13l4 4L19 7",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
 
 #[component]
-pub fn ShieldAlertIcon(class: String) -> Element {
+pub fn TrashIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon shield-alert-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }
-            line { x1: "12", y1: "8", x2: "12", y2: "12" }
-            line { x1: "12", y1: "16", x2: "12.01", y2: "16" }
+            path {
+                d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
 
 #[component]
-pub fn ShieldOffIcon(class: String) -> Element {
+pub fn ChevronDownIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon shield-off-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M19.69 14a6.9 6.9 0 0 0 .31-2V5l-8-3-3.16 1.18" }
-            path { d: "M4.73 4.73L4 5v7c0 6 8 10 8 10a20.29 20.29 0 0 0 5.62-4.38" }
-            line { x1: "2", y1: "2", x2: "22", y2: "22" }
+            path {
+                d: "M19 9l-7 7-7-7",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
 
 #[component]
-pub fn RocketIcon(class: String) -> Element {
+pub fn ChevronRightIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon rocket-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" }
-            path { d: "m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" }
-            path { d: "M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" }
-            path { d: "M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" }
-        }
-    }
-}
-
-#[component]
-pub fn DatabaseIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon database-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            ellipse { cx: "12", cy: "5", rx: "9", ry: "3" }
-            path { d: "M3 5V19A9 3 0 0 0 21 19V5" }
-            path { d: "M3 12A9 3 0 0 0 21 12" }
-        }
-    }
-}
-
-#[component]
-pub fn CogIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon cog-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            circle { cx: "12", cy: "12", r: "3" }
-            path { d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" }
-        }
-    }
-}
-
-#[component]
-pub fn ZapIcon(class: String) -> Element {
-    rsx! {
-        svg {
-            class: "icon zap-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            polygon { points: "13 2 3 14 12 14 11 22 21 10 12 10 13 2" }
+            path {
+                d: "M9 5l7 7-7 7",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
@@ -271,16 +112,237 @@ pub fn ZapIcon(class: String) -> Element {
 pub fn ClockIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon clock-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            circle { cx: "12", cy: "12", r: "10" }
-            polyline { points: "12 6 12 12 16 14" }
+            path {
+                d: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn LayersIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn XCircleIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn AlertCircleIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn AlertTriangleIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn SearchIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn ShieldCheckIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn ShieldAlertIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn ShieldOffIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn RocketIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn DatabaseIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn CogIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+            path {
+                d: "M15 12a3 3 0 11-6 0 3 3 0 016 0z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn ZapIcon(class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            fill: "none",
+            view_box: "0 0 24 24",
+            stroke: "currentColor",
+            stroke_width: "2",
+            path {
+                d: "M13 10V3L4 14h7v7l9-11h-7z",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
@@ -289,42 +351,42 @@ pub fn ClockIcon(class: String) -> Element {
 pub fn WifiIcon(class: String) -> Element {
     rsx! {
         svg {
-            class: "icon wifi-icon {class}",
-            xmlns: "http://www.w3.org/2000/svg",
-            view_box: "0 0 24 24",
+            class: "{class}",
             fill: "none",
+            view_box: "0 0 24 24",
             stroke: "currentColor",
             stroke_width: "2",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "M5 12.55a11 11 0 0 1 14.08 0" }
-            path { d: "M1.42 9a16 16 0 0 1 21.16 0" }
-            path { d: "M8.53 16.11a6 6 0 0 1 6.95 0" }
-            line { x1: "12", y1: "20", x2: "12.01", y2: "20" }
+            path {
+                d: "M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0",
+                stroke_linecap: "round",
+                stroke_linejoin: "round"
+            }
         }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn icon_by_name_returns_copy_icon_for_copy() {
-        let result = icon_by_name("copy", "h-4 w-4".to_string());
-        assert!(true);
-    }
-
-    #[test]
-    fn icon_by_name_returns_shield_icons_for_guarantees() {
-        let _ = icon_by_name("shield-check", "h-4 w-4".to_string());
-        let _ = icon_by_name("shield-alert", "h-4 w-4".to_string());
-        let _ = icon_by_name("shield-off", "h-4 w-4".to_string());
-    }
-
-    #[test]
-    fn icon_by_name_returns_unknown_for_unknown() {
-        let result = icon_by_name("unknown-icon", "h-4 w-4".to_string());
-        assert!(true);
+pub fn icon_by_name(name: &str, class: String) -> Element {
+    match name {
+        "x" => rsx! { XIcon { class } },
+        "copy" => rsx! { CopyIcon { class } },
+        "check" => rsx! { CheckIcon { class } },
+        "trash" => rsx! { TrashIcon { class } },
+        "chevron-down" => rsx! { ChevronDownIcon { class } },
+        "chevron-right" => rsx! { ChevronRightIcon { class } },
+        "clock" => rsx! { ClockIcon { class } },
+        "layers" => rsx! { LayersIcon { class } },
+        "x-circle" => rsx! { XCircleIcon { class } },
+        "alert-circle" => rsx! { AlertCircleIcon { class } },
+        "alert-triangle" => rsx! { AlertTriangleIcon { class } },
+        "search" => rsx! { SearchIcon { class } },
+        "shield-check" => rsx! { ShieldCheckIcon { class } },
+        "shield-alert" => rsx! { ShieldAlertIcon { class } },
+        "shield-off" => rsx! { ShieldOffIcon { class } },
+        "rocket" => rsx! { RocketIcon { class } },
+        "database" => rsx! { DatabaseIcon { class } },
+        "cog" => rsx! { CogIcon { class } },
+        "zap" => rsx! { ZapIcon { class } },
+        "wifi" => rsx! { WifiIcon { class } },
+        _ => rsx! { ZapIcon { class } },
     }
 }

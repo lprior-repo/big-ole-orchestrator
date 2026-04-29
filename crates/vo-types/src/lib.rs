@@ -51,6 +51,8 @@ mod pairing_heap;
 mod payload_parser;
 mod plugin;
 #[cfg(feature = "proptest")]
+mod proptest_generators;
+#[cfg(feature = "proptest")]
 mod proptest_targets;
 #[cfg(feature = "proptest")]
 mod proptest_domain_roundtrips;

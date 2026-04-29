@@ -1,57 +1,63 @@
-use thiserror::Error;
+//! Error types for vo-scheduler.
+//!
+//! Re-exports unified error types from vo-common with backwards-compatible
+//! type aliases for existing code.
 
-#[derive(Debug, Error)]
-pub enum SchedulerError {
-    #[error("scheduler queue full")]
-    QueueFull,
-    #[error("invalid schedule policy")]
-    InvalidSchedule,
-    #[error("job not found")]
-    JobNotFound,
-    #[error("invalid state transition")]
-    InvalidTransition,
-    #[error("serialization error: {0}")]
-    SerializationError(String),
-}
+pub use vo_common::{ExecutionError, RetryError as RetryExhaustedError, SchedulerError};
 
-#[derive(Debug, Error)]
-pub enum ExecutionError {
-    #[error("job panicked during execution")]
-    Panicked,
-    #[error("job timed out")]
-    TimedOut,
-    #[error("job cancelled during execution")]
-    Cancelled,
-    #[error("job exhausted available resources")]
-    ResourceExhausted,
-}
+/// Backwards-compatible alias for the unified scheduler error.
+pub type SchedulerErrorType = SchedulerError;
 
-#[derive(Debug, Error)]
-pub enum RetryExhaustedError {
-    #[error("max retry attempts reached")]
-    MaxAttemptsReached,
-    #[error("backoff calculation overflowed")]
-    BackoffOverflow,
-    #[error("retry not allowed for this job kind")]
-    RetryNotAllowed,
-}
+/// Backwards-compatible alias for the unified execution error.
+pub type ExecutionErrorType = ExecutionError;
+
+/// Backwards-compatible alias for the unified retry error.
+pub type RetryExhaustedErrorType = RetryExhaustedError;
 
 impl SchedulerError {
+    /// Returns true if this error represents a transient condition that may
+    /// succeed on retry.
+    #[inline]
     pub fn is_transient(&self) -> bool {
-        matches!(self, Self::SerializationError(_) | Self::QueueFull)
+        SchedulerError::is_transient(self)
     }
 
+    /// Returns true if this error is permanent and should not be retried.
+    #[inline]
     pub fn is_permanent(&self) -> bool {
-        matches!(self, Self::InvalidSchedule | Self::InvalidTransition)
+        SchedulerError::is_permanent(self)
     }
 }
 
 impl ExecutionError {
+    /// Returns true if this error represents a transient condition that may
+    /// succeed on retry.
+    #[inline]
     pub fn is_retryable(&self) -> bool {
-        matches!(self, Self::ResourceExhausted)
+        ExecutionError::is_retryable(self)
     }
 
+    /// Returns true if this error is transient and retryable.
+    #[inline]
     pub fn is_transient(&self) -> bool {
-        matches!(self, Self::ResourceExhausted)
+        self.is_retryable()
     }
+}
+
+/// Helper to create a SchedulerError::JobNotFound from a string.
+pub fn job_not_found(job_id: impl Into<String>) -> SchedulerError {
+    SchedulerError::JobNotFound { job_id: job_id.into() }
+}
+
+/// Helper to create a SchedulerError::InvalidTransition.
+pub fn invalid_transition(from_state: impl Into<String>, action: impl Into<String>) -> SchedulerError {
+    SchedulerError::InvalidTransition {
+        from_state: from_state.into(),
+        action: action.into(),
+    }
+}
+
+/// Helper to create an ExecutionError::Cancelled.
+pub fn execution_cancelled(reason: impl Into<String>) -> ExecutionError {
+    ExecutionError::Cancelled { reason: reason.into() }
 }

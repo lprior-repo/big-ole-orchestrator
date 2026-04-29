@@ -33,9 +33,7 @@ pub enum CliError {
     #[error(transparent)]
     Serve(#[from] crate::commands::serve::ServeError),
     #[error(transparent)]
-    WorkflowHistory(#[from] crate::commands::workflow_history::WorkflowHistoryError),
-    #[error("execute-node: {0}")]
-    ExecuteNode(String),
+    History(#[from] crate::commands::history::HistoryError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -93,30 +91,8 @@ pub enum Command {
     },
     History {
         instance_id: String,
-        engine_url: String,
-        json: bool,
+        storage_path: PathBuf,
         canonical: bool,
-    },
-    ExecuteNode {
-        binary_path: PathBuf,
-        node_name: String,
-        input: Option<Vec<u8>>,
-        timeout: u64,
-    },
-    ApiKey {
-        subcommand: ApiKeySubcommand,
-    },
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum ApiKeySubcommand {
-    Create {
-        name: String,
-        expires_in_days: Option<u32>,
-    },
-    List,
-    Revoke {
-        key_id: String,
     },
 }
 
@@ -419,6 +395,28 @@ where
                                 .help("The ID of the API key to revoke"),
                         ),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("history")
+                .about("Query workflow instance history (AI-native JSON output)")
+                .arg(
+                    clap::Arg::new("instance")
+                        .required(true)
+                        .index(1)
+                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
+                )
+                .arg(
+                    clap::Arg::new("storage-path")
+                        .long("storage-path")
+                        .default_value(".vo/storage")
+                        .help("Path to Fjall storage directory"),
+                )
+                .arg(
+                    clap::Arg::new("canonical")
+                        .long("canonical")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Show canonical (unredacted) payloads for forensic inspection"),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -620,90 +618,18 @@ where
                 .get_one::<String>("instance")
                 .cloned()
                 .unwrap_or_default();
-            let engine_url = sub_matches
-                .get_one::<String>("engine-url")
-                .cloned()
-                .unwrap_or_else(|| "http://localhost:3000".to_string());
-            let json = sub_matches.get_flag("json");
+            let storage_path = sub_matches
+                .get_one::<String>("storage-path")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/storage"));
             let canonical = sub_matches.get_flag("canonical");
             Ok(Cli {
                 command: Command::History {
                     instance_id,
-                    engine_url,
-                    json,
+                    storage_path,
                     canonical,
                 },
             })
-        }
-        Some(("execute-node", sub_matches)) => {
-            let binary_path = match sub_matches.get_one::<String>("binary-path") {
-                Some(p) => PathBuf::from(p),
-                None => {
-                    return Err(clap::Error::new(
-                        clap::error::ErrorKind::MissingRequiredArgument,
-                    ))
-                }
-            };
-            let node_name = match sub_matches.get_one::<String>("node-name") {
-                Some(n) => n.clone(),
-                None => {
-                    return Err(clap::Error::new(
-                        clap::error::ErrorKind::MissingRequiredArgument,
-                    ))
-                }
-            };
-            let input = sub_matches.get_one::<String>("input").map(|s| s.as_bytes().to_vec());
-            let timeout_str = sub_matches
-                .get_one::<String>("timeout")
-                .map(|s| s.as_str())
-                .unwrap_or("30");
-            let timeout: u64 = timeout_str.parse().unwrap_or(30);
-            Ok(Cli {
-                command: Command::ExecuteNode {
-                    binary_path,
-                    node_name,
-                    input,
-                    timeout,
-                },
-            })
-        }
-        Some(("apikey", sub_matches)) => {
-            match sub_matches.subcommand() {
-                Some(("create", create_matches)) => {
-                    let name = create_matches
-                        .get_one::<String>("name")
-                        .cloned()
-                        .unwrap_or_default();
-                    let expires_in_days = create_matches
-                        .get_one::<String>("expires-in-days")
-                        .and_then(|s| s.parse().ok());
-                    Ok(Cli {
-                        command: Command::ApiKey {
-                            subcommand: ApiKeySubcommand::Create {
-                                name,
-                                expires_in_days,
-                            },
-                        },
-                    })
-                }
-                Some(("list", _)) => Ok(Cli {
-                    command: Command::ApiKey {
-                        subcommand: ApiKeySubcommand::List,
-                    },
-                }),
-                Some(("revoke", revoke_matches)) => {
-                    let key_id = revoke_matches
-                        .get_one::<String>("key-id")
-                        .cloned()
-                        .unwrap_or_default();
-                    Ok(Cli {
-                        command: Command::ApiKey {
-                            subcommand: ApiKeySubcommand::Revoke { key_id },
-                        },
-                    })
-                }
-                _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
-            }
         }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
@@ -729,8 +655,7 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Rebuild(_)
         | CliError::Status(_)
         | CliError::Serve(_)
-        | CliError::WorkflowHistory(_)
-        | CliError::ExecuteNode(_) => 1,
+        | CliError::History(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }

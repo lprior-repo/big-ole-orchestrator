@@ -3,714 +3,351 @@
 //! Per ADR-015: The Master Orchestrator maintains the ActiveInstances registry
 //! and enforces the Single-Writer invariant.
 
-use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+use std::time::Duration;
 
-use bytes::Bytes;
-use ractor::{Actor, ActorProcessingErr, ActorRef};
-use tokio::sync::broadcast;
+use dashmap::DashMap;
+use tokio::sync::watch;
 use vo_types::InstanceId;
 
-use crate::{
-    CompensateError, InstancePhaseView, InstanceSnapshot, OrchestratorMsg, SignalError, StartError,
-    TerminateError, WorkflowParadigm,
-};
+use crate::instance_registry::{InstanceActorHandle, InstanceRegistry, RegistryConfig};
 
+/// Default stop timeout for active instance lock acquisition.
+const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// The single-writer active instances registry.
+///
+/// Maintains a lock-free concurrent map of active instance IDs using DashMap.
+/// This enforces the invariant that at most ONE active actor exists per
+/// InstanceId at any point in time on this node.
+///
+/// # Architecture
+///
+/// - **Data**: `ActiveInstances` - DashMap<InstanceId, ActiveInstanceEntry>
+/// - **Calc**: Pure lock acquisition/release decisions
+/// - **Actions**: Async actor messages for lock management
+///
+/// # Invariants (per ADR-015)
+///
+/// - **INV-1**: At most one active entry per InstanceId
+/// - **INV-2**: Lock acquisition is atomic via DashMap::entry()
+/// - **INV-3**: Wake-up signals are queued when lock is held
 #[derive(Debug, Clone)]
-pub enum OrchestratorEvent {
-    InstanceStarted {
-        namespace: String,
-        instance_id: InstanceId,
-    },
-    InstanceCompleted {
-        namespace: String,
-        instance_id: InstanceId,
-    },
-    InstanceFailed {
-        namespace: String,
-        instance_id: InstanceId,
-        error: String,
-    },
-    SignalReceived {
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-    },
+pub struct ActiveInstances {
+    inner: Arc<DashMap<InstanceId, ActiveInstanceEntry>>,
 }
 
 #[derive(Debug, Clone)]
-pub struct MasterOrchestrator;
-
-#[derive(Debug, Clone)]
-pub struct OrchestratorConfig {
-    pub max_active_instances: u32,
-    pub initial_instances: Vec<InstanceSnapshot>,
-    pub event_broadcaster: broadcast::Sender<OrchestratorEvent>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct RuntimeInstanceKey {
-    namespace: String,
+struct ActiveInstanceEntry {
+    #[allow(dead_code)]
     instance_id: InstanceId,
+    stop_tx: watch::Sender<StopSignal>,
 }
 
-#[derive(Debug, Clone)]
-struct InstanceRecord {
-    snapshot: InstanceSnapshot,
-    signals_received: u64,
-    compensation_requested: bool,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StopSignal {
+    Stop,
+    Continue,
 }
 
-#[derive(Debug, Clone)]
-struct PendingStartRecord {
-    namespace: String,
+impl ActiveInstances {
+    /// Creates a new, empty ActiveInstances registry.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            inner: Arc::new(DashMap::new()),
+        }
+    }
+
+    /// Returns the number of active instances.
+    #[must_use]
+    pub fn active_count(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Checks if an instance is currently active (has a lock held).
+    #[must_use]
+    pub fn is_active(&self, instance_id: &InstanceId) -> bool {
+        self.inner.contains_key(instance_id)
+    }
+
+    /// Attempts to acquire the lock for the given instance ID.
+    ///
+    /// Returns a guard that releases the lock when dropped. If the instance
+    /// is already active, returns `None`.
+    #[must_use]
+    pub fn try_acquire(&self, instance_id: InstanceId) -> Option<ActiveInstanceGuard> {
+        let entry = self.inner.entry(instance_id.clone());
+        match entry {
+            dashmap::Entry::Vacant(vacant) => {
+                let (stop_tx, _) = watch::channel(StopSignal::Continue);
+                vacant.insert(ActiveInstanceEntry {
+                    instance_id,
+                    stop_tx,
+                });
+                Some(ActiveInstanceGuard {
+                    instance_id,
+                    inner: Arc::clone(&self.inner),
+                })
+            }
+            dashmap::Entry::Occupied(_) => None,
+        }
+    }
+
+    /// Returns an iterator over all active instance IDs.
+    #[must_use]
+    pub fn active_instances(&self) -> impl Iterator<Item = InstanceId> + '_ {
+        self.inner.iter().map(|entry| entry.instance_id.clone())
+    }
+}
+
+impl Default for ActiveInstances {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Guard that releases the active instance lock when dropped.
+#[derive(Debug)]
+pub struct ActiveInstanceGuard {
     instance_id: InstanceId,
-    workflow_type: String,
-    paradigm: WorkflowParadigm,
-    input: Bytes,
+    inner: Arc<DashMap<InstanceId, ActiveInstanceEntry>>,
+}
+
+impl Drop for ActiveInstanceGuard {
+    fn drop(&mut self) {
+        self.inner.remove(&self.instance_id);
+    }
+}
+
+/// Master orchestrator for actor supervision.
+///
+/// Per ADR-015, the MasterOrchestrator:
+/// 1. Maintains the ActiveInstances registry for single-writer enforcement
+/// 2. Coordinates actor spawn with proper lock acquisition
+/// 3. Ensures wake-up signals are queued when locks are held
+#[derive(Debug, Clone)]
+pub struct MasterOrchestrator {
+    active_instances: ActiveInstances,
+    instance_registry: Arc<InstanceRegistry>,
+    stop_timeout: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum PendingTransition {
-    Signal { signal_name: String },
-    Compensate,
-    Terminate { reason: String },
-}
-
-#[derive(Debug, Clone)]
-pub struct MasterState {
-    config: OrchestratorConfig,
-    active: HashMap<RuntimeInstanceKey, InstanceRecord>,
-    pending_starts: HashMap<RuntimeInstanceKey, PendingStartRecord>,
-    pending_transitions: HashMap<RuntimeInstanceKey, PendingTransition>,
-    event_broadcaster: broadcast::Sender<OrchestratorEvent>,
+pub enum OrchestratorConfig {
+    Default,
+    Custom {
+        stop_timeout: Duration,
+    },
 }
 
 impl Default for OrchestratorConfig {
     fn default() -> Self {
-        let (tx, _) = broadcast::channel(1000);
-        Self {
-            max_active_instances: 10_000,
-            initial_instances: Vec::new(),
-            event_broadcaster: tx,
+        Self::Default
+    }
+}
+
+impl OrchestratorConfig {
+    #[must_use]
+    pub fn stop_timeout(&self) -> Duration {
+        match self {
+            Self::Default => DEFAULT_STOP_TIMEOUT,
+            Self::Custom { stop_timeout } => *stop_timeout,
         }
     }
 }
 
-impl RuntimeInstanceKey {
-    fn new(namespace: String, instance_id: InstanceId) -> Self {
+impl MasterOrchestrator {
+    /// Creates a new MasterOrchestrator with default configuration.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::with_config(OrchestratorConfig::default())
+    }
+
+    /// Creates a new MasterOrchestrator with custom configuration.
+    #[must_use]
+    pub fn with_config(config: OrchestratorConfig) -> Self {
         Self {
-            namespace,
-            instance_id,
+            active_instances: ActiveInstances::new(),
+            instance_registry: Arc::new(InstanceRegistry::new(RegistryConfig {
+                stop_timeout: config.stop_timeout(),
+            })),
+            stop_timeout: config.stop_timeout(),
         }
     }
 
-    fn display(&self) -> String {
-        format!("{}/{}", self.namespace, self.instance_id)
+    /// Returns the ActiveInstances registry reference.
+    #[must_use]
+    pub fn active_instances(&self) -> &ActiveInstances {
+        &self.active_instances
+    }
+
+    /// Returns the InstanceRegistry reference.
+    #[must_use]
+    pub fn instance_registry(&self) -> &Arc<InstanceRegistry> {
+        &self.instance_registry
+    }
+
+    /// Checks if an instance is currently active.
+    #[must_use]
+    pub fn is_instance_active(&self, instance_id: &InstanceId) -> bool {
+        self.active_instances.is_active(instance_id)
+    }
+
+    /// Returns the number of active instances.
+    #[must_use]
+    pub fn active_count(&self) -> usize {
+        self.active_instances.active_count()
+    }
+
+    /// Attempts to spawn an instance actor for the given ID.
+    ///
+    /// This first attempts to acquire the single-writer lock via ActiveInstances.
+    /// If the lock is held (instance already active), no actor is spawned.
+    ///
+    /// # Errors
+    /// Returns `MasterOrchestratorError::InstanceAlreadyActive` if the instance
+    /// is already active.
+    pub async fn spawn_instance(
+        &self,
+        instance_id: InstanceId,
+        actor: impl ractor::Actor,
+    ) -> Result<ActorInstanceHandle, MasterOrchestratorError> {
+        let guard = self
+            .active_instances
+            .try_acquire(instance_id.clone())
+            .ok_or(MasterOrchestratorError::InstanceAlreadyActive {
+                instance_id: instance_id.clone(),
+            })?;
+
+        let (actor_ref, handle) = ractor::Actor::spawn(
+            Some(instance_id.to_string()),
+            actor,
+            ractor::ActorProperties::default(),
+        )
+        .await
+        .map_err(|e| MasterOrchestratorError::SpawnFailed {
+            instance_id: instance_id.clone(),
+            reason: e.to_string(),
+        })?;
+
+        Ok(ActorInstanceHandle {
+            instance_id,
+            actor_ref,
+            _guard: guard,
+        })
     }
 }
 
 impl Default for MasterOrchestrator {
     fn default() -> Self {
-        Self
+        Self::new()
     }
 }
 
-impl Default for MasterState {
-    fn default() -> Self {
-        let config = OrchestratorConfig::default();
-        Self {
-            config: config.clone(),
-            active: HashMap::new(),
-            pending_starts: HashMap::new(),
-            pending_transitions: HashMap::new(),
-            event_broadcaster: config.event_broadcaster,
-        }
+/// Handle to a spawned actor instance managed by the MasterOrchestrator.
+#[derive(Debug)]
+pub struct ActorInstanceHandle {
+    instance_id: InstanceId,
+    actor_ref: ractor::ActorRef<ractor::ActorMsg<impl ractor::Actor>>,
+    _guard: ActiveInstanceGuard,
+}
+
+impl ActorInstanceHandle {
+    /// Returns the instance ID.
+    #[must_use]
+    pub fn instance_id(&self) -> &InstanceId {
+        &self.instance_id
+    }
+
+    /// Returns the actor reference.
+    #[must_use]
+    pub fn actor_ref(&self) -> &ractor::ActorRef<ractor::ActorMsg<impl ractor::Actor>> {
+        &self.actor_ref
     }
 }
 
-impl MasterState {
-    fn reserve_workflow_start(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-    ) -> Result<(), StartError> {
-        let key = RuntimeInstanceKey::new(namespace.clone(), instance_id.clone());
-        if self.active.contains_key(&key) {
-            return Err(StartError::AlreadyExists(key.display()));
-        }
-        if self.pending_starts.contains_key(&key) {
-            return Err(StartError::AlreadyExists(key.display()));
-        }
+#[derive(Debug, Clone, thiserror::Error)]
+pub enum MasterOrchestratorError {
+    #[error("instance already active: {instance_id}")]
+    InstanceAlreadyActive { instance_id: InstanceId },
 
-        let running = u32::try_from(self.active.len().saturating_add(self.pending_starts.len()))
-            .map_err(|_| {
-                StartError::InvalidConfig("active instance count exceeds u32".to_string())
-            })?;
-        if running >= self.config.max_active_instances {
-            return Err(StartError::AtCapacity {
-                running,
-                max: self.config.max_active_instances,
-            });
-        }
+    #[error("spawn failed for {instance_id}: {reason}")]
+    SpawnFailed { instance_id: InstanceId, reason: String },
+}
 
-        self.pending_starts.insert(
-            key,
-            PendingStartRecord {
-                namespace,
-                instance_id,
-                workflow_type,
-                paradigm,
-                input,
-            },
-        );
-        Ok(())
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn active_instances_starts_empty() {
+        let instances = ActiveInstances::new();
+        assert_eq!(instances.active_count(), 0);
+        assert!(!instances.is_active(&InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap()));
     }
 
-    fn commit_workflow_start(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-    ) -> Result<(), StartError> {
-        let key = RuntimeInstanceKey::new(namespace.clone(), instance_id.clone());
-        if self.active.contains_key(&key) {
-            return Err(StartError::AlreadyExists(key.display()));
-        }
-        let pending = self.pending_starts.remove(&key).map_or(
-            PendingStartRecord {
-                namespace,
-                instance_id,
-                workflow_type,
-                paradigm,
-                input,
-            },
-            |reserved| reserved,
-        );
+    #[test]
+    fn active_instances_acquire_and_release() {
+        let instances = ActiveInstances::new();
+        let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
 
-        let snapshot = InstanceSnapshot {
-            instance_id: pending.instance_id.clone(),
-            namespace: pending.namespace,
-            workflow_type: pending.workflow_type,
-            paradigm: pending.paradigm,
-            phase: InstancePhaseView::Live,
-            events_applied: initial_events_applied(&pending.input),
+        let guard = instances.try_acquire(id.clone());
+        assert!(guard.is_some());
+        assert!(instances.is_active(&id));
+        assert_eq!(instances.active_count(), 1);
+
+        drop(guard);
+        assert!(!instances.is_active(&id));
+        assert_eq!(instances.active_count(), 0);
+    }
+
+    #[test]
+    fn active_instances_cannot_acquire_twice() {
+        let instances = ActiveInstances::new();
+        let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+
+        let guard1 = instances.try_acquire(id.clone());
+        assert!(guard1.is_some());
+        assert!(instances.is_active(&id));
+
+        let guard2 = instances.try_acquire(id.clone());
+        assert!(guard2.is_none());
+        assert!(instances.is_active(&id));
+        assert_eq!(instances.active_count(), 1);
+
+        drop(guard1);
+        assert!(!instances.is_active(&id));
+    }
+
+    #[test]
+    fn active_instances_multiple_different_ids() {
+        let instances = ActiveInstances::new();
+        let id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFBB").unwrap();
+
+        let guard1 = instances.try_acquire(id1.clone());
+        let guard2 = instances.try_acquire(id2.clone());
+
+        assert!(guard1.is_some());
+        assert!(guard2.is_some());
+        assert_eq!(instances.active_count(), 2);
+        assert!(instances.is_active(&id1));
+        assert!(instances.is_active(&id2));
+    }
+
+    #[test]
+    fn master_orchestrator_default_config() {
+        let orch = MasterOrchestrator::new();
+        assert_eq!(orch.active_count(), 0);
+    }
+
+    #[test]
+    fn master_orchestrator_custom_config() {
+        let config = OrchestratorConfig::Custom {
+            stop_timeout: Duration::from_secs(10),
         };
-        self.active.insert(
-            key,
-            InstanceRecord {
-                snapshot,
-                signals_received: 0,
-                compensation_requested: false,
-            },
-        );
-        Ok(())
-    }
-
-    fn abort_workflow_start(&mut self, namespace: String, instance_id: InstanceId) {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.pending_starts.remove(&key);
-    }
-
-    fn abort_workflow_transition(&mut self, namespace: String, instance_id: InstanceId) {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.pending_transitions.remove(&key);
-    }
-
-    fn get_status(&self, namespace: String, instance_id: InstanceId) -> Option<InstanceSnapshot> {
-        self.active
-            .get(&RuntimeInstanceKey::new(namespace, instance_id))
-            .map(|record| record.snapshot.clone())
-    }
-
-    fn list_active(&self) -> Vec<InstanceSnapshot> {
-        self.active
-            .values()
-            .map(|record| {
-                (
-                    format!(
-                        "{}/{}",
-                        record.snapshot.namespace, record.snapshot.instance_id
-                    ),
-                    record.snapshot.clone(),
-                )
-            })
-            .collect::<BTreeMap<_, _>>()
-            .into_values()
-            .collect()
-    }
-
-    fn terminate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        reason: &str,
-    ) -> Result<(), TerminateError> {
-        if reason.is_empty() {
-            return Err(TerminateError::Failed(
-                "termination reason must not be empty".to_string(),
-            ));
-        }
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.active
-            .remove(&key)
-            .map(|_| ())
-            .ok_or_else(|| TerminateError::NotFound(key.display()))
-    }
-
-    fn reserve_terminate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        reason: String,
-    ) -> Result<(), TerminateError> {
-        if reason.is_empty() {
-            return Err(TerminateError::Failed(
-                "termination reason must not be empty".to_string(),
-            ));
-        }
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.reserve_transition(key, PendingTransition::Terminate { reason })
-            .map_err(terminate_reservation_error)
-    }
-
-    fn commit_terminate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        reason: String,
-    ) -> Result<(), TerminateError> {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        match self.pending_transitions.remove(&key) {
-            Some(PendingTransition::Terminate { reason: reserved }) if reserved == reason => {
-                self.active.remove(&key).map(|_| ()).ok_or_else(|| {
-                    TerminateError::Failed(format!(
-                        "reserved instance {} disappeared before terminate commit",
-                        key.display()
-                    ))
-                })
-            }
-            Some(other) => Err(TerminateError::Failed(format!(
-                "reserved transition mismatch for {}: {other:?}",
-                key.display()
-            ))),
-            None => Err(TerminateError::Failed(format!(
-                "terminate commit missing reservation for {}",
-                key.display()
-            ))),
-        }
-    }
-
-    fn signal(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: &str,
-        payload: Bytes,
-    ) -> Result<(), SignalError> {
-        if signal_name.is_empty() {
-            return Err(SignalError::Failed(
-                "signal_name must not be empty".to_string(),
-            ));
-        }
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        let record = self
-            .active
-            .get_mut(&key)
-            .ok_or_else(|| SignalError::NotFound(key.display()))?;
-        record.signals_received = record
-            .signals_received
-            .checked_add(1)
-            .ok_or_else(|| SignalError::Failed("signal counter overflow".to_string()))?;
-        record.snapshot.events_applied = record
-            .snapshot
-            .events_applied
-            .checked_add(signal_event_increment(&payload))
-            .ok_or_else(|| SignalError::Failed("event counter overflow".to_string()))?;
-        Ok(())
-    }
-
-    fn reserve_signal(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-    ) -> Result<(), SignalError> {
-        if signal_name.is_empty() {
-            return Err(SignalError::Failed(
-                "signal_name must not be empty".to_string(),
-            ));
-        }
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.reserve_transition(key, PendingTransition::Signal { signal_name })
-            .map_err(signal_reservation_error)
-    }
-
-    fn commit_signal(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-        payload: Bytes,
-    ) -> Result<(), SignalError> {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        match self.pending_transitions.remove(&key) {
-            Some(PendingTransition::Signal {
-                signal_name: reserved,
-            }) if reserved == signal_name => {
-                let record = self.active.get_mut(&key).ok_or_else(|| {
-                    SignalError::Failed(format!(
-                        "reserved instance {} disappeared before signal commit",
-                        key.display()
-                    ))
-                })?;
-                record.signals_received = record
-                    .signals_received
-                    .checked_add(1)
-                    .ok_or_else(|| SignalError::Failed("signal counter overflow".to_string()))?;
-                record.snapshot.events_applied = record
-                    .snapshot
-                    .events_applied
-                    .checked_add(signal_event_increment(&payload))
-                    .ok_or_else(|| SignalError::Failed("event counter overflow".to_string()))?;
-                Ok(())
-            }
-            Some(other) => Err(SignalError::Failed(format!(
-                "reserved transition mismatch for {}: {other:?}",
-                key.display()
-            ))),
-            None => Err(SignalError::Failed(format!(
-                "signal commit missing reservation for {}",
-                key.display()
-            ))),
-        }
-    }
-
-    fn compensate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-    ) -> Result<(), CompensateError> {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        let record = self
-            .active
-            .get_mut(&key)
-            .ok_or_else(|| CompensateError::NotFound(key.display()))?;
-        record.compensation_requested = true;
-        record.snapshot.events_applied = record
-            .snapshot
-            .events_applied
-            .checked_add(1)
-            .ok_or_else(|| CompensateError::Failed("event counter overflow".to_string()))?;
-        Ok(())
-    }
-
-    fn reserve_compensate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-    ) -> Result<(), CompensateError> {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        self.reserve_transition(key, PendingTransition::Compensate)
-            .map_err(compensate_reservation_error)
-    }
-
-    fn commit_compensate(
-        &mut self,
-        namespace: String,
-        instance_id: InstanceId,
-    ) -> Result<(), CompensateError> {
-        let key = RuntimeInstanceKey::new(namespace, instance_id);
-        match self.pending_transitions.remove(&key) {
-            Some(PendingTransition::Compensate) => {
-                let record = self.active.get_mut(&key).ok_or_else(|| {
-                    CompensateError::Failed(format!(
-                        "reserved instance {} disappeared before compensation commit",
-                        key.display()
-                    ))
-                })?;
-                record.compensation_requested = true;
-                record.snapshot.events_applied = record
-                    .snapshot
-                    .events_applied
-                    .checked_add(1)
-                    .ok_or_else(|| CompensateError::Failed("event counter overflow".to_string()))?;
-                Ok(())
-            }
-            Some(other) => Err(CompensateError::Failed(format!(
-                "reserved transition mismatch for {}: {other:?}",
-                key.display()
-            ))),
-            None => Err(CompensateError::Failed(format!(
-                "compensation commit missing reservation for {}",
-                key.display()
-            ))),
-        }
-    }
-
-    fn reserve_transition(
-        &mut self,
-        key: RuntimeInstanceKey,
-        transition: PendingTransition,
-    ) -> Result<(), ReservationError> {
-        if !self.active.contains_key(&key) {
-            return Err(ReservationError::NotFound(key.display()));
-        }
-        if self.pending_transitions.contains_key(&key) {
-            return Err(ReservationError::AlreadyReserved(key.display()));
-        }
-        self.pending_transitions.insert(key, transition);
-        Ok(())
-    }
-
-    fn from_config(config: OrchestratorConfig) -> Self {
-        let active = config
-            .initial_instances
-            .iter()
-            .cloned()
-            .map(|snapshot| {
-                (
-                    RuntimeInstanceKey::new(
-                        snapshot.namespace.clone(),
-                        snapshot.instance_id.clone(),
-                    ),
-                    InstanceRecord {
-                        snapshot,
-                        signals_received: 0,
-                        compensation_requested: false,
-                    },
-                )
-            })
-            .collect();
-        Self {
-            config: config.clone(),
-            active,
-            pending_starts: HashMap::new(),
-            pending_transitions: HashMap::new(),
-            event_broadcaster: config.event_broadcaster,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ReservationError {
-    NotFound(String),
-    AlreadyReserved(String),
-}
-
-fn terminate_reservation_error(error: ReservationError) -> TerminateError {
-    match error {
-        ReservationError::NotFound(id) => TerminateError::NotFound(id),
-        ReservationError::AlreadyReserved(id) => {
-            TerminateError::Failed(format!("instance {id} already has a pending transition"))
-        }
-    }
-}
-
-fn signal_reservation_error(error: ReservationError) -> SignalError {
-    match error {
-        ReservationError::NotFound(id) => SignalError::NotFound(id),
-        ReservationError::AlreadyReserved(id) => {
-            SignalError::Failed(format!("instance {id} already has a pending transition"))
-        }
-    }
-}
-
-fn compensate_reservation_error(error: ReservationError) -> CompensateError {
-    match error {
-        ReservationError::NotFound(id) => CompensateError::NotFound(id),
-        ReservationError::AlreadyReserved(id) => {
-            CompensateError::Failed(format!("instance {id} already has a pending transition"))
-        }
-    }
-}
-
-fn initial_events_applied(_input: &Bytes) -> u64 {
-    1
-}
-
-fn signal_event_increment(_payload: &Bytes) -> u64 {
-    1
-}
-
-impl Actor for MasterOrchestrator {
-    type Msg = OrchestratorMsg;
-    type State = MasterState;
-    type Arguments = OrchestratorConfig;
-
-    async fn pre_start(
-        &self,
-        _myself: ActorRef<Self::Msg>,
-        args: Self::Arguments,
-    ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(MasterState::from_config(args))
-    }
-
-    async fn handle(
-        &self,
-        _myself: ActorRef<Self::Msg>,
-        message: Self::Msg,
-        state: &mut Self::State,
-    ) -> Result<(), ActorProcessingErr> {
-        match message {
-            OrchestratorMsg::StartWorkflow {
-                namespace,
-                instance_id,
-                workflow_type,
-                paradigm,
-                input,
-                reply,
-            } => send_reply(
-                reply,
-                state.commit_workflow_start(namespace, instance_id, workflow_type, paradigm, input),
-            ),
-            OrchestratorMsg::ReserveWorkflowStart {
-                namespace,
-                instance_id,
-                workflow_type,
-                paradigm,
-                input,
-                reply,
-            } => send_reply(
-                reply,
-                state.reserve_workflow_start(
-                    namespace,
-                    instance_id,
-                    workflow_type,
-                    paradigm,
-                    input,
-                ),
-            ),
-            OrchestratorMsg::CommitWorkflowStart {
-                namespace,
-                instance_id,
-                workflow_type,
-                paradigm,
-                input,
-                reply,
-            } => {
-                let result = state.commit_workflow_start(namespace.clone(), instance_id.clone(), workflow_type, paradigm, input);
-                if result.is_ok() {
-                    let _ = state.event_broadcaster.send(OrchestratorEvent::InstanceStarted {
-                        namespace,
-                        instance_id,
-                    });
-                }
-                send_reply(reply, result);
-            },
-            OrchestratorMsg::AbortWorkflowStart {
-                namespace,
-                instance_id,
-                reply,
-            } => send_reply(reply, state.abort_workflow_start(namespace, instance_id)),
-            OrchestratorMsg::GetStatus {
-                namespace,
-                instance_id,
-                reply,
-            } => {
-                send_reply(reply, state.get_status(namespace, instance_id));
-            }
-            OrchestratorMsg::Terminate {
-                namespace,
-                instance_id,
-                reason,
-                reply,
-            } => send_reply(reply, state.terminate(namespace, instance_id, &reason)),
-            OrchestratorMsg::ReserveTerminate {
-                namespace,
-                instance_id,
-                reason,
-                reply,
-            } => send_reply(
-                reply,
-                state.reserve_terminate(namespace, instance_id, reason),
-            ),
-            OrchestratorMsg::CommitTerminate {
-                namespace,
-                instance_id,
-                reason,
-                reply,
-            } => send_reply(
-                reply,
-                state.commit_terminate(namespace, instance_id, reason),
-            ),
-            OrchestratorMsg::AbortWorkflowTransition {
-                namespace,
-                instance_id,
-                reply,
-            } => send_reply(
-                reply,
-                state.abort_workflow_transition(namespace, instance_id),
-            ),
-            OrchestratorMsg::ListActive { reply } => send_reply(reply, state.list_active()),
-            OrchestratorMsg::Compensate {
-                namespace,
-                instance_id,
-                reply,
-            } => {
-                send_reply(reply, state.compensate(namespace, instance_id));
-            }
-            OrchestratorMsg::ReserveCompensate {
-                namespace,
-                instance_id,
-                reply,
-            } => send_reply(reply, state.reserve_compensate(namespace, instance_id)),
-            OrchestratorMsg::CommitCompensate {
-                namespace,
-                instance_id,
-                reply,
-            } => send_reply(reply, state.commit_compensate(namespace, instance_id)),
-            OrchestratorMsg::Signal {
-                namespace,
-                instance_id,
-                signal_name,
-                payload,
-                reply,
-            } => send_reply(
-                reply,
-                state.signal(namespace, instance_id, &signal_name, payload),
-            ),
-            OrchestratorMsg::ReserveSignal {
-                namespace,
-                instance_id,
-                signal_name,
-                reply,
-            } => send_reply(
-                reply,
-                state.reserve_signal(namespace, instance_id, signal_name),
-            ),
-            OrchestratorMsg::CommitSignal {
-                namespace,
-                instance_id,
-                signal_name,
-                payload,
-                reply,
-            } => {
-                let result = state.commit_signal(namespace.clone(), instance_id.clone(), signal_name.clone(), payload);
-                if result.is_ok() {
-                    let _ = state.event_broadcaster.send(OrchestratorEvent::SignalReceived {
-                        namespace,
-                        instance_id,
-                        signal_name,
-                    });
-                }
-                send_reply(reply, result);
-            },
-            OrchestratorMsg::SubscribeEvents { reply } => {
-                let receiver = state.event_broadcaster.subscribe();
-                let _ = reply.send(receiver);
-            },
-        }
-        Ok(())
-    }
-}
-
-fn send_reply<T: Send + 'static>(reply: ractor::port::RpcReplyPort<T>, value: T) {
-    if let Err(error) = reply.send(value) {
-        tracing::warn!(?error, "orchestrator reply receiver dropped");
+        let orch = MasterOrchestrator::with_config(config);
+        assert_eq!(orch.active_count(), 0);
     }
 }

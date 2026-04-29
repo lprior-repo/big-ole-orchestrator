@@ -7,6 +7,7 @@
 use crate::ui::panel_types::{
     chevron_rotation_class, panel_height_class, CollapseState, InvocationStatus,
 };
+use crate::ui::NodeGuaranteeBadge;
 use dioxus::prelude::*;
 use oya_frontend::graph::{ExecutionState, Node, NodeId, Workflow};
 use std::collections::{HashMap, HashSet};
@@ -146,6 +147,7 @@ pub fn ExecutionPlanPanel(
 
     let queue = workflow.read().execution_queue.clone();
     let current_step = workflow.read().current_step;
+    let workflow_guarantee = workflow.read().guarantee_class;
 
     rsx! {
         aside {
@@ -180,6 +182,7 @@ pub fn ExecutionPlanPanel(
                                     index: idx,
                                     is_current: idx == current_step,
                                     nodes_by_id,
+                                    workflow_guarantee,
                                     on_select_node
                                 }
                             }
@@ -192,6 +195,7 @@ pub fn ExecutionPlanPanel(
                             layer_idx,
                             layer: layer.clone(),
                             nodes_by_id,
+                            workflow_guarantee,
                             on_select_node
                         }
                     }
@@ -200,6 +204,7 @@ pub fn ExecutionPlanPanel(
                         UnscheduledSection {
                             unscheduled: plan.unscheduled.clone(),
                             nodes_by_id,
+                            workflow_guarantee,
                             on_select_node
                         }
                     }
@@ -215,6 +220,7 @@ fn QueueItem(
     index: usize,
     is_current: bool,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
+    workflow_guarantee: oya_frontend::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     let node = nodes_by_id.read().get(&node_id).cloned();
@@ -224,6 +230,7 @@ fn QueueItem(
     let status = node
         .as_ref()
         .map_or(InvocationStatus::Queued, node_invocation_status);
+    let node_kind = node.as_ref().map_or(oya_frontend::NodeKind::Pure, |n| n.kind);
     let active_class = if is_current {
         "ring-1 ring-indigo-300 bg-indigo-50"
     } else {
@@ -238,6 +245,11 @@ fn QueueItem(
             onclick: move |_| on_select_node.call(node_id),
             span { class: "font-mono text-[10px] text-slate-500 w-8", "#{index}" }
             span { class: "text-[11px] text-slate-700 flex-1 truncate", "{label}" }
+            NodeGuaranteeBadge {
+                node_kind,
+                workflow_guarantee,
+                class: "shrink-0".to_string()
+            }
             span { class: "text-[10px] px-1.5 py-0.5 rounded border {badge}", "{status.display_label()}" }
         }
     }
@@ -248,6 +260,7 @@ fn LayerSection(
     layer_idx: usize,
     layer: Vec<NodeId>,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
+    workflow_guarantee: oya_frontend::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     rsx! {
@@ -258,6 +271,7 @@ fn LayerSection(
                     LayerNodeItem {
                         node_id: *node_id,
                         nodes_by_id,
+                        workflow_guarantee,
                         on_select_node
                     }
                 }
@@ -270,6 +284,7 @@ fn LayerSection(
 fn LayerNodeItem(
     node_id: NodeId,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
+    workflow_guarantee: oya_frontend::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     let node = nodes_by_id.read().get(&node_id).cloned();
@@ -279,6 +294,7 @@ fn LayerNodeItem(
     let status = node
         .as_ref()
         .map_or(InvocationStatus::Queued, node_invocation_status);
+    let node_kind = node.as_ref().map_or(oya_frontend::NodeKind::Pure, |n| n.kind);
     let badge = status_badge_classes(status);
 
     rsx! {
@@ -287,6 +303,11 @@ fn LayerNodeItem(
             key: "node-{node_id}",
             onclick: move |_| on_select_node.call(node_id),
             span { class: "text-[11px] text-slate-700 flex-1 truncate", "{label}" }
+            NodeGuaranteeBadge {
+                node_kind,
+                workflow_guarantee,
+                class: "shrink-0".to_string()
+            }
             span { class: "text-[10px] px-1.5 py-0.5 rounded border {badge}", "{status.display_label()}" }
         }
     }
@@ -296,6 +317,7 @@ fn LayerNodeItem(
 fn UnscheduledSection(
     unscheduled: Vec<NodeId>,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
+    workflow_guarantee: oya_frontend::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     rsx! {
@@ -305,17 +327,21 @@ fn UnscheduledSection(
             div { class: "mt-1 space-y-1",
                 for node_id in &unscheduled {
                     {
-                        let label = nodes_by_id
-                            .read()
-                            .get(node_id)
-                            .map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
+                        let node = nodes_by_id.read().get(node_id).cloned();
+                        let label = node.as_ref().map_or_else(|| "Unknown".to_string(), |n| n.name.clone());
+                        let node_kind = node.as_ref().map_or(oya_frontend::NodeKind::Pure, |n| n.kind);
 
                         rsx! {
                             button {
-                                class: "w-full rounded bg-white/70 px-2 py-1 text-left text-[10px] text-amber-900 hover:bg-white",
+                                class: "flex w-full items-center gap-2 rounded bg-white/70 px-2 py-1 text-left text-[10px] text-amber-900 hover:bg-white",
                                 key: "unsched-{node_id}",
                                 onclick: move |_| on_select_node.call(*node_id),
-                                "{label}"
+                                span { class: "flex-1 truncate", "{label}" }
+                                NodeGuaranteeBadge {
+                                    node_kind,
+                                    workflow_guarantee,
+                                    class: "shrink-0".to_string()
+                                }
                             }
                         }
                     }

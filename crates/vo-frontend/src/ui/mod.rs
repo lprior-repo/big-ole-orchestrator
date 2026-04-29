@@ -14,6 +14,8 @@ pub mod prototype_palette;
 pub mod simulate_mode;
 #[cfg(test)]
 pub mod template_rendering_tests;
+#[cfg(test)]
+pub mod state_management_tests;
 
 pub use command_palette::NodeCommandPalette;
 pub use domain_types::{HandleKind, HttpMethod, NodeTemplateId};

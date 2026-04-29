@@ -1,8 +1,12 @@
 //! State machine type definitions.
 //!
-//! Core types: error types, guard conditions, side effects, and the TransitionRule struct.
+//! Defines `TransitionTable`, `TransitionRule`, and associated builders.
+
+use std::collections::HashMap;
 
 use crate::state::lifecycle::{LifecycleState, TransitionEvent};
+
+use super::validation::{Guard, GuardResult, SideEffect};
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum CompilerTransitionError {
@@ -14,115 +18,13 @@ pub enum CompilerTransitionError {
     GuardRejected,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum GuardResult {
-    Accepted,
-    Rejected,
-}
-
-pub type GuardFn = Box<dyn Fn(LifecycleState, TransitionEvent) -> GuardResult + Send + Sync>;
-
-#[derive(Default)]
-pub enum Guard {
-    #[default]
-    Always,
-    Never,
-    If(fn(LifecycleState, TransitionEvent) -> bool),
-    Fn {
-        f: GuardFn,
-    },
-}
-
-impl Clone for Guard {
-    fn clone(&self) -> Self {
-        match self {
-            Guard::Always => Guard::Always,
-            Guard::Never => Guard::Never,
-            Guard::If(predicate) => Guard::If(*predicate),
-            Guard::Fn { .. } => Guard::Fn {
-                f: Box::new(|_, _| GuardResult::Rejected),
-            },
-        }
-    }
-}
-
-impl Guard {
-    pub fn check(&self, state: LifecycleState, event: TransitionEvent) -> GuardResult {
-        match self {
-            Guard::Always => GuardResult::Accepted,
-            Guard::Never => GuardResult::Rejected,
-            Guard::If(predicate) => {
-                if predicate(state, event) {
-                    GuardResult::Accepted
-                } else {
-                    GuardResult::Rejected
-                }
-            }
-            Guard::Fn { f } => f(state, event),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SideEffectResult {
-    Executed,
-    Skipped,
-}
-
-pub type SideEffectFn =
-    Box<dyn Fn(LifecycleState, TransitionEvent, LifecycleState) -> SideEffectResult + Send + Sync>;
-
-#[derive(Default)]
-pub enum SideEffect {
-    #[default]
-    None,
-    Log {
-        message: String,
-    },
-    Fn {
-        f: SideEffectFn,
-    },
-}
-
-impl Clone for SideEffect {
-    fn clone(&self) -> Self {
-        match self {
-            SideEffect::None => SideEffect::None,
-            SideEffect::Log { message } => SideEffect::Log {
-                message: message.clone(),
-            },
-            SideEffect::Fn { .. } => SideEffect::Fn {
-                f: Box::new(|_, _, _| SideEffectResult::Skipped),
-            },
-        }
-    }
-}
-
-impl SideEffect {
-    pub fn execute(
-        &self,
-        from: LifecycleState,
-        event: TransitionEvent,
-        to: LifecycleState,
-    ) -> SideEffectResult {
-        match self {
-            SideEffect::None => SideEffectResult::Skipped,
-            SideEffect::Log { message } => {
-                eprintln!("Transition side effect: {from:?} -> {to:?} via {event:?}: {message}");
-                SideEffectResult::Executed
-            }
-            SideEffect::Fn { f } => f(from, event, to),
-        }
-    }
-}
-
 pub struct TransitionRule {
-    pub(crate) from: LifecycleState,
-    pub(crate) event: TransitionEvent,
-    pub(crate) to: LifecycleState,
-    pub(crate) guard: Guard,
-    pub(crate) side_effect: SideEffect,
-    pub(crate) description: Option<String>,
+    pub from: LifecycleState,
+    pub event: TransitionEvent,
+    pub to: LifecycleState,
+    pub guard: Guard,
+    pub side_effect: SideEffect,
+    pub description: Option<String>,
 }
 
 impl Clone for TransitionRule {
@@ -161,5 +63,162 @@ impl TransitionRule {
             side_effect: SideEffect::None,
             description: None,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TransitionTable {
+    pub(crate) rules: HashMap<(LifecycleState, TransitionEvent), TransitionRule>,
+    pub(crate) terminal_states: Vec<LifecycleState>,
+}
+
+impl TransitionTable {
+    pub fn builder() -> TransitionTableBuilder {
+        TransitionTableBuilder::new()
+    }
+
+    pub fn apply(
+        &self,
+        current: LifecycleState,
+        event: TransitionEvent,
+    ) -> Result<LifecycleState, CompilerTransitionError> {
+        if self.is_terminal_state(&current)
+            && !(current == LifecycleState::Failed
+                && event == TransitionEvent::InstanceResumed)
+        {
+            return Err(CompilerTransitionError::TerminalStateTransition);
+        }
+
+        let key = (current, event);
+        match self.rules.get(&key) {
+            Some(rule) => match rule.guard.check(current, event) {
+                GuardResult::Accepted => {
+                    rule.side_effect.execute(current, event, rule.to);
+                    Ok(rule.to)
+                }
+                GuardResult::Rejected => Err(CompilerTransitionError::GuardRejected),
+            },
+            None => Err(CompilerTransitionError::InvalidTransition),
+        }
+    }
+
+    pub fn get_rule(
+        &self,
+        from: LifecycleState,
+        event: TransitionEvent,
+    ) -> Option<&TransitionRule> {
+        self.rules.get(&(from, event))
+    }
+
+    pub fn get_transitions_from(&self, state: LifecycleState) -> Vec<&TransitionRule> {
+        self.rules
+            .values()
+            .filter(|rule| rule.from == state)
+            .collect()
+    }
+
+    pub fn is_terminal_state(&self, state: &LifecycleState) -> bool {
+        self.terminal_states.contains(state)
+    }
+}
+
+pub struct TransitionTableBuilder {
+    pub(crate) table: TransitionTable,
+}
+
+impl TransitionTableBuilder {
+    pub fn new() -> Self {
+        Self {
+            table: TransitionTable {
+                rules: HashMap::new(),
+                terminal_states: vec![
+                    LifecycleState::Completed,
+                    LifecycleState::Failed,
+                    LifecycleState::Cancelled,
+                ],
+            },
+        }
+    }
+
+    pub fn add_transition(
+        self,
+        from: LifecycleState,
+        event: TransitionEvent,
+    ) -> TransitionBuilder {
+        TransitionBuilder::new(self.table, from, event)
+    }
+
+    pub fn terminal_state(mut self, state: LifecycleState) -> Self {
+        if !self.table.terminal_states.contains(&state) {
+            self.table.terminal_states.push(state);
+        }
+        self
+    }
+
+    pub fn build(self) -> TransitionTable {
+        self.table
+    }
+}
+
+impl Default for TransitionTableBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct TransitionBuilder {
+    table: TransitionTable,
+    from: LifecycleState,
+    event: TransitionEvent,
+    to: LifecycleState,
+    guard: Guard,
+    side_effect: SideEffect,
+    description: Option<String>,
+}
+
+impl TransitionBuilder {
+    fn new(table: TransitionTable, from: LifecycleState, event: TransitionEvent) -> Self {
+        Self {
+            table,
+            from,
+            event,
+            to: LifecycleState::Pending,
+            guard: Guard::Always,
+            side_effect: SideEffect::None,
+            description: None,
+        }
+    }
+
+    pub fn to(mut self, state: LifecycleState) -> Self {
+        self.to = state;
+        self
+    }
+
+    pub fn with_guard(mut self, guard: Guard) -> Self {
+        self.guard = guard;
+        self
+    }
+
+    pub fn with_side_effect(mut self, effect: SideEffect) -> Self {
+        self.side_effect = effect;
+        self
+    }
+
+    pub fn with_description(mut self, desc: impl Into<String>) -> Self {
+        self.description = Some(desc.into());
+        self
+    }
+
+    pub fn build(mut self) -> TransitionTableBuilder {
+        let rule = TransitionRule {
+            from: self.from,
+            event: self.event,
+            to: self.to,
+            guard: self.guard,
+            side_effect: self.side_effect,
+            description: self.description,
+        };
+        self.table.rules.insert((self.from, self.event), rule);
+        TransitionTableBuilder { table: self.table }
     }
 }

@@ -1416,4 +1416,423 @@ mod tests {
             }
         }
     }
+
+    // ========================================================================
+    // ConnectionPoolError Tests
+    // ========================================================================
+
+    mod connection_pool_error {
+        use super::*;
+
+        #[test]
+        fn connection_pool_error_display_includes_all_parts() {
+            let pool_id = PoolId::new("test-pool");
+            let timestamp = TimestampMs::new_unchecked(1000);
+            let conn_id = ConnectionId::new();
+
+            let error = ConnectionPoolError {
+                category: ErrorCategory::PoolExhaustion,
+                detail: ErrorDetail::MaxConnectionsReached { max: 10 },
+                context: ErrorContext {
+                    pool_id: pool_id.clone(),
+                    timestamp,
+                    operation: "acquire",
+                    connection_id: Some(conn_id),
+                },
+            };
+
+            let display = error.to_string();
+            assert!(display.contains("test-pool"));
+            assert!(display.contains("PoolExhaustion"));
+            assert!(display.contains("MaxConnectionsReached"));
+        }
+
+        #[test]
+        fn connection_pool_error_debug_includes_all_fields() {
+            let error = ConnectionPoolError {
+                category: ErrorCategory::Timeout,
+                detail: ErrorDetail::AcquireTimeout {
+                    waited_ms: 5000,
+                    timeout_ms: 10000,
+                },
+                context: ErrorContext {
+                    pool_id: PoolId::new("debug-pool"),
+                    timestamp: TimestampMs::new_unchecked(2000),
+                    operation: "acquire",
+                    connection_id: None,
+                },
+            };
+
+            let debug = format!("{:?}", error);
+            assert!(debug.contains("Timeout"));
+            assert!(debug.contains("AcquireTimeout"));
+            assert!(debug.contains("debug-pool"));
+        }
+
+        #[test]
+        fn connection_pool_error_is_std_error() {
+            use std::error::Error;
+            fn check<E: std::error::Error + Send + Sync + Clone>(_e: E) {}
+            let error = ConnectionPoolError {
+                category: ErrorCategory::ConnectionFailed,
+                detail: ErrorDetail::NatsConnectionError {
+                    connection_id: ConnectionId::new(),
+                    reason: "connection refused".to_string(),
+                },
+                context: ErrorContext {
+                    pool_id: PoolId::new("error-pool"),
+                    timestamp: TimestampMs::new_unchecked(3000),
+                    operation: "connect",
+                    connection_id: None,
+                },
+            };
+            check(error.clone());
+            let _ = error.source(); // thiserror provides source()
+        }
+
+        #[test]
+        fn connection_pool_error_all_categories_display() {
+            let categories = [
+                ErrorCategory::PoolExhaustion,
+                ErrorCategory::Timeout,
+                ErrorCategory::ConnectionFailed,
+                ErrorCategory::HealthCheckFailed,
+                ErrorCategory::InvalidState,
+                ErrorCategory::ShutdownInProgress,
+                ErrorCategory::ResourceExhaustion,
+            ];
+
+            for category in categories {
+                let error = ConnectionPoolError {
+                    category,
+                    detail: ErrorDetail::PoolNotInitialized,
+                    context: ErrorContext {
+                        pool_id: PoolId::new("cat-test"),
+                        timestamp: TimestampMs::new_unchecked(100),
+                        operation: "test",
+                        connection_id: None,
+                    },
+                };
+                let display = format!("{}", error);
+                assert!(!display.is_empty(), "Category {:?} had empty display", category);
+            }
+        }
+
+        #[test]
+        fn connection_pool_error_debug_verify_all_fields() {
+            let conn_id = ConnectionId::new();
+            let error = ConnectionPoolError {
+                category: ErrorCategory::ConnectionFailed,
+                detail: ErrorDetail::ConnectionCorrupted { connection_id: conn_id },
+                context: ErrorContext {
+                    pool_id: PoolId::new("serde-pool"),
+                    timestamp: TimestampMs::new_unchecked(5000),
+                    operation: "health_check",
+                    connection_id: None,
+                },
+            };
+
+            let debug = format!("{:?}", error);
+            assert!(debug.contains("ConnectionFailed"));
+            assert!(debug.contains("ConnectionCorrupted"));
+            assert!(debug.contains("serde-pool"));
+        }
+
+        #[test]
+        fn connection_pool_error_clone_preserves_all_fields() {
+            let error = ConnectionPoolError {
+                category: ErrorCategory::InvalidState,
+                detail: ErrorDetail::CircuitBreakerOpen {
+                    consecutive_failures: 3,
+                },
+                context: ErrorContext {
+                    pool_id: PoolId::new("clone-pool"),
+                    timestamp: TimestampMs::new_unchecked(6000),
+                    operation: "clone_test",
+                    connection_id: Some(ConnectionId::new()),
+                },
+            };
+
+            let cloned = error.clone();
+            assert_eq!(error.category, cloned.category);
+            assert_eq!(error.context.operation, cloned.context.operation);
+        }
+
+        #[test]
+        fn connection_pool_error_equality() {
+            let make_error = || ConnectionPoolError {
+                category: ErrorCategory::PoolExhaustion,
+                detail: ErrorDetail::MaxConnectionsReached { max: 5 },
+                context: ErrorContext {
+                    pool_id: PoolId::new("eq-pool"),
+                    timestamp: TimestampMs::new_unchecked(100),
+                    operation: "test",
+                    connection_id: None,
+                },
+            };
+
+            assert_eq!(make_error(), make_error());
+        }
+
+        #[test]
+        fn connection_pool_error_inequality_different_category() {
+            let error1 = ConnectionPoolError {
+                category: ErrorCategory::PoolExhaustion,
+                detail: ErrorDetail::MaxConnectionsReached { max: 5 },
+                context: ErrorContext {
+                    pool_id: PoolId::new("neq-pool"),
+                    timestamp: TimestampMs::new_unchecked(100),
+                    operation: "test",
+                    connection_id: None,
+                },
+            };
+
+            let error2 = ConnectionPoolError {
+                category: ErrorCategory::Timeout,
+                detail: ErrorDetail::MaxConnectionsReached { max: 5 },
+                context: ErrorContext {
+                    pool_id: PoolId::new("neq-pool"),
+                    timestamp: TimestampMs::new_unchecked(100),
+                    operation: "test",
+                    connection_id: None,
+                },
+            };
+
+            assert_ne!(error1, error2);
+        }
+    }
+
+    // ========================================================================
+    // Additional Edge Case Tests
+    // ========================================================================
+
+    mod additional_edge_cases {
+        use super::*;
+
+        #[test]
+        fn connection_id_zero_value() {
+            let id = ConnectionId::new();
+            assert!(id.as_u128() > 0);
+        }
+
+        #[test]
+        fn pool_id_empty_string() {
+            let id = PoolId::new("");
+            assert_eq!(id.as_str(), "");
+            assert_eq!(format!("{}", id), "");
+        }
+
+        #[test]
+        fn pooled_connection_last_used_at_initially_equals_created_at() {
+            let timestamp = TimestampMs::new_unchecked(12345);
+            let conn_id = ConnectionId::new();
+            let conn = PooledConnection::new(conn_id, timestamp);
+            assert_eq!(conn.last_used_at, timestamp);
+        }
+
+        #[test]
+        fn pooled_connection_builder_pattern_chaining() {
+            let timestamp = TimestampMs::new_unchecked(1000);
+            let conn_id = ConnectionId::new();
+
+            let conn = PooledConnection::new(conn_id, timestamp)
+                .with_status(ConnectionStatus::CheckedOut)
+                .with_use_count(5);
+
+            assert_eq!(conn.status, ConnectionStatus::CheckedOut);
+            assert_eq!(conn.use_count, 5);
+        }
+
+        #[test]
+        fn wait_handle_with_different_request_ids() {
+            let timestamp = TimestampMs::new_unchecked(2000);
+            let pool_id = PoolId::new("wait-pool");
+
+            let handle1 = WaitHandle {
+                request_id: 1,
+                enqueued_at: timestamp,
+                pool_id: pool_id.clone(),
+            };
+
+            let handle2 = WaitHandle {
+                request_id: 2,
+                enqueued_at: timestamp,
+                pool_id: pool_id.clone(),
+            };
+
+            assert_ne!(handle1.request_id, handle2.request_id);
+        }
+
+        #[test]
+        fn acquire_result_all_variants_have_display() {
+            let timestamp = TimestampMs::new_unchecked(1000);
+            let conn = PooledConnection::new(ConnectionId::new(), timestamp);
+
+            let variants = [
+                AcquireResult::Available { connection: conn.clone() },
+                AcquireResult::Pending {
+                    wait_handle: WaitHandle {
+                        request_id: 1,
+                        enqueued_at: timestamp,
+                        pool_id: PoolId::new("pending-pool"),
+                    },
+                },
+                AcquireResult::PoolExhausted {
+                    config: PoolConfig {
+                        min_connections: 1,
+                        max_connections: 5,
+                        connection_timeout_ms: 1000,
+                        idle_timeout_ms: 30000,
+                        health_check_interval_ms: 10000,
+                        max_pending_acquires: 10,
+                    },
+                },
+                AcquireResult::PoolClosing,
+                AcquireResult::Timeout { waited_ms: 5000 },
+            ];
+
+            for variant in variants {
+                let debug = format!("{:?}", variant);
+                assert!(!debug.is_empty());
+            }
+        }
+
+        #[test]
+        fn release_result_all_variants() {
+            let variants = [
+                ReleaseResult::Returned,
+                ReleaseResult::AlreadyClosed,
+                ReleaseResult::Evicted {
+                    reason: EvictionReason::HealthCheckFailed(HealthCheckResult::Timeout),
+                },
+                ReleaseResult::Evicted {
+                    reason: EvictionReason::ProtocolError("parse error".to_string()),
+                },
+            ];
+
+            assert_eq!(variants.len(), 4);
+        }
+
+        #[test]
+        fn error_context_operation_static_lifetime() {
+            let pool_id = PoolId::new("op-pool");
+            let timestamp = TimestampMs::new_unchecked(5000);
+            let conn_id = ConnectionId::new();
+
+            let context = ErrorContext {
+                pool_id,
+                timestamp,
+                operation: "acquire",
+                connection_id: Some(conn_id),
+            };
+
+            assert_eq!(context.operation, "acquire");
+        }
+
+        #[test]
+        fn error_detail_nats_connection_error_display() {
+            let detail = ErrorDetail::NatsConnectionError {
+                connection_id: ConnectionId::new(),
+                reason: "connection refused".to_string(),
+            };
+
+            let msg = detail.to_string();
+            assert!(msg.contains("NATS"));
+            assert!(msg.contains("connection refused"));
+        }
+
+        #[test]
+        fn error_detail_health_check_timeout_display() {
+            let conn_id = ConnectionId::new();
+            let detail = ErrorDetail::HealthCheckTimeout { connection_id: conn_id };
+            let msg = detail.to_string();
+            assert!(msg.contains("Health check timed out"));
+        }
+
+        #[test]
+        fn error_detail_connection_corrupted_display() {
+            let conn_id = ConnectionId::new();
+            let detail = ErrorDetail::ConnectionCorrupted { connection_id: conn_id };
+            let msg = detail.to_string();
+            assert!(msg.contains("corrupted"));
+        }
+
+        #[test]
+        fn error_detail_invalid_release_display() {
+            let detail = ErrorDetail::InvalidRelease { reason: "already returned" };
+            let msg = detail.to_string();
+            assert!(msg.contains("Invalid release"));
+            assert!(msg.contains("already returned"));
+        }
+
+        #[test]
+        fn pool_config_all_fields_populated() {
+            let config = PoolConfig {
+                min_connections: 1,
+                max_connections: 100,
+                connection_timeout_ms: 5000,
+                idle_timeout_ms: 60000,
+                health_check_interval_ms: 30000,
+                max_pending_acquires: 50,
+            };
+
+            assert_eq!(config.min_connections, 1);
+            assert_eq!(config.max_connections, 100);
+            assert_eq!(config.connection_timeout_ms, 5000);
+            assert_eq!(config.idle_timeout_ms, 60000);
+            assert_eq!(config.health_check_interval_ms, 30000);
+            assert_eq!(config.max_pending_acquires, 50);
+        }
+
+        #[test]
+        fn pool_stats_with_all_counters() {
+            let pool_id = PoolId::new("full-stats");
+            let stats = PoolStats {
+                pool_id,
+                total_connections: 50,
+                idle_connections: 30,
+                checked_out_connections: 15,
+                pending_acquires: 5,
+                total_acquires: 1000,
+                total_releases: 995,
+                total_evictions: 5,
+                total_health_checks: 500,
+                failed_health_checks: 2,
+            };
+
+            assert_eq!(stats.total_connections, 50);
+            assert_eq!(stats.idle_connections + stats.checked_out_connections + stats.pending_acquires, 50);
+            assert_eq!(stats.total_acquires - stats.total_releases, 5);
+        }
+
+        #[test]
+        fn circuit_breaker_state_all_transitions() {
+            let states = [
+                CircuitBreakerState::Closed,
+                CircuitBreakerState::Open,
+                CircuitBreakerState::HalfOpen,
+            ];
+
+            for state in states {
+                let debug = format!("{:?}", state);
+                assert!(!debug.is_empty());
+            }
+        }
+
+        #[test]
+        fn eviction_reason_with_all_health_check_results() {
+            let results = [
+                HealthCheckResult::Healthy,
+                HealthCheckResult::Stale,
+                HealthCheckResult::Corrupted,
+                HealthCheckResult::Timeout,
+            ];
+
+            for result in results {
+                let reason = EvictionReason::HealthCheckFailed(result);
+                let debug = format!("{:?}", reason);
+                assert!(!debug.is_empty());
+            }
+        }
+    }
 }

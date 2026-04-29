@@ -161,8 +161,9 @@ where
         master,
         circuit_breaker,
         dedupe_store,
-        writer_pressure,
-        api_key_state,
+        writer_pressure: std::sync::Arc::new(
+            vo_core::admission::pressure_guard::WatchdogPressureGuard::permissive(),
+        ),
     };
 
     let router = vo_api::router::create_router(state);

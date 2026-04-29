@@ -1,6 +1,8 @@
 //! Proptest suite for Octree.
 
 use proptest::prelude::*;
+use proptest::proptest;
+use proptest::{prop_assert, prop_assert_eq};
 use vo_common::{Bounds, Octree, Vec3};
 
 proptest! {

@@ -9,7 +9,69 @@ use std::io::Write;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{DedupeScope, GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeName, RetryPolicy, SignalAddress, WorkflowName};
+
+/// Metadata for Signal and Wait nodes (ADR-009, ADR-042).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub address: SignalAddress,
+    #[serde(default)]
+    pub buffer_policy: BufferPolicy,
+    #[serde(default)]
+    pub lineage_scope: LineageScope,
+}
+
+impl SignalNodeMeta {
+    /// Create signal metadata with lineage-wide scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::graph::SignalNodeMeta;
+    /// use vo_types::{SignalAddress, InstanceId, WaitKey, LineageScope};
+    ///
+    /// let addr = SignalAddress::lineage_wide(
+    ///     InstanceId::from_bytes([0u8; 16]),
+    ///     InstanceId::from_bytes([1u8; 16]),
+    ///     WaitKey::parse("my-signal").unwrap(),
+    /// );
+    /// let meta = SignalNodeMeta::lineage_wide(addr);
+    /// assert_eq!(meta.lineage_scope, LineageScope::LineageWide);
+    /// ```
+
+    pub fn lineage_wide(address: SignalAddress) -> Self {
+        Self {
+            address,
+            buffer_policy: BufferPolicy::default(),
+            lineage_scope: LineageScope::LineageWide,
+        }
+    }
+
+    /// Create signal metadata with epoch-local scope.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::graph::SignalNodeMeta;
+    /// use vo_types::{SignalAddress, InstanceId, WaitKey, Epoch, LineageScope};
+    ///
+    /// let addr = SignalAddress::epoch_local(
+    ///     InstanceId::from_bytes([0u8; 16]),
+    ///     Epoch(0),
+    ///     InstanceId::from_bytes([1u8; 16]),
+    ///     WaitKey::parse("my-signal").unwrap(),
+    /// );
+    /// let meta = SignalNodeMeta::epoch_local(addr);
+    /// assert_eq!(meta.lineage_scope, LineageScope::EpochLocal);
+    /// ```
+    pub fn epoch_local(address: SignalAddress) -> Self {
+        Self {
+            address,
+            buffer_policy: BufferPolicy::default(),
+            lineage_scope: LineageScope::EpochLocal,
+        }
+    }
+}
 
 /// Marker returned when `--graph` flag is present.
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -25,6 +87,20 @@ pub enum GraphArgsError {
 }
 
 /// Parse CLI arguments for the `--graph` flag.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::graph::parse_graph_args;
+///
+/// // Returns Ok when --graph is present
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// assert!(parse_graph_args(&args).is_ok());
+///
+/// // Returns Err(NoGraphFlag) when --graph is absent
+/// let args = vec!["binary".to_string()];
+/// assert!(parse_graph_args(&args).is_err());
+/// ```
 ///
 /// # Errors
 ///
@@ -60,11 +136,11 @@ pub struct NodeSpec {
     pub kind: NodeKind,
     #[serde(default = "default_retry_policy")]
     pub retry_policy: RetryPolicy,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signal_meta: Option<SignalNodeMeta>,
 }
 
-fn default_retry_policy() -> RetryPolicy {
+pub fn default_retry_policy() -> RetryPolicy {
     RetryPolicy {
         max_attempts: 1,
         backoff_ms: 0,
@@ -604,6 +680,77 @@ mod tests {
 
         let deserialized: WorkflowSpec =
             serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
-        assert_eq!(original, deserialized);
+        assert_eq!(original, deserialized, "guarantee_class must round-trip through serialization");
+    }
+}
+
+/// Emit the workflow spec as JSON to stdout and exit.
+///
+/// This function is called when the binary is invoked with `--graph`.
+/// It serializes the `WorkflowSpec` to JSON, prints it to stdout,
+/// and exits with code 0.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::graph::{emit_graph_if_requested, WorkflowSpec, NodeSpec, EdgeSpec, default_retry_policy};
+/// use vo_types::{NodeKind, WorkflowName, NodeName, DedupeScope, GuaranteeClass};
+///
+/// // Build a spec manually (typically via Workflow builder)
+/// let spec = WorkflowSpec {
+///     workflow_name: WorkflowName::parse("checkout").unwrap(),
+///     nodes: vec![
+///         NodeSpec {
+///             name: NodeName::parse("validate").unwrap(),
+///             kind: NodeKind::Pure,
+///             retry_policy: default_retry_policy(),
+///             signal_meta: None,
+///         },
+///         NodeSpec {
+///             name: NodeName::parse("charge").unwrap(),
+///             kind: NodeKind::ManagedEffect,
+///             retry_policy: default_retry_policy(),
+///             signal_meta: None,
+///         },
+///     ],
+///     edges: vec![EdgeSpec {
+///         from: NodeName::parse("validate").unwrap(),
+///         to: NodeName::parse("charge").unwrap(),
+///     }],
+///     dedupe_scope: DedupeScope::default(),
+///     guarantee_class: GuaranteeClass::default(),
+/// };
+///
+/// // Check args for --graph and emit if present
+/// let args = vec!["binary".to_string(), "--graph".to_string()];
+/// let result = emit_graph_if_requested(&args, &spec);
+/// // When --graph is present, result is Ok(()) and process exits with JSON printed
+/// // When --graph is absent, result is Ok(()) and execution continues
+/// assert!(result.is_ok());
+/// ```
+///
+/// # Errors
+///
+/// Returns `()` if `--graph` was not present. If `--graph` was present,
+/// this function always terminates the process.
+#[allow(clippy::result_unit_err)]
+pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(), ()> {
+    match parse_graph_args(args) {
+        Ok(_graph_args) => {
+            if let Some(cycle) = spec.detect_cycle() {
+                eprintln!("error: cycle detected: {}", cycle);
+                std::process::exit(1);
+            }
+            let json = spec.to_json_bytes();
+            std::io::stdout()
+                .write_all(&json)
+                .expect("stdout write should not fail");
+            std::process::exit(0);
+        }
+        Err(GraphArgsError::NoGraphFlag) => Ok(()),
+        Err(e) => {
+            eprintln!("error: {e}");
+            Err(())
+        }
     }
 }

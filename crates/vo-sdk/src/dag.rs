@@ -8,7 +8,7 @@ use std::any::Any;
 use std::sync::Arc;
 
 use thiserror::Error;
-use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, RetryPolicy, WorkflowName};
+use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, WorkflowName};
 
 use crate::execution::{BoxedNodeFn, NodeFunctionRegistry};
 use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
@@ -74,6 +74,16 @@ pub struct Dag {
 
 impl Dag {
     /// Create an empty DAG.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::dag::Dag;
+    ///
+    /// let dag = Dag::new();
+    /// assert_eq!(dag.node_count(), 0);
+    /// assert_eq!(dag.edge_count(), 0);
+    /// ```
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -306,12 +316,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                retry_policy: RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
+                retry_policy: crate::graph::default_retry_policy(),
                 signal_meta: n.signal_meta.clone(),
             })
             .collect();
@@ -463,16 +468,40 @@ impl Default for Dag {
 ///
 /// # Example
 ///
-/// ```ignore
-/// let mut wf = Workflow::new("checkout_flow");
-///
-/// let validate = wf.pure("validate", |input: Cart| -> ValidatedCart { ... });
-/// let charge = wf.effect("charge", |input: ValidatedCart| -> Receipt { ... });
-///
-/// wf.connect(&validate, &charge);
-///
-/// let spec = wf.build().expect("valid workflow");
 /// ```
+/// use vo_sdk::{Workflow, dag::Dag};
+///
+/// // Create a new workflow named "checkout"
+/// let mut wf = Workflow::new("checkout");
+///
+/// // Add a pure (side-effect free) node: String -> i32
+/// let validate = wf.pure("validate", |input: String| -> i32 {
+///     input.len() as i32
+/// }).unwrap();
+///
+/// // Add an effect node: i32 -> bool
+/// let charge = wf.effect("charge", |input: i32| -> bool {
+///     input > 0
+/// }).unwrap();
+///
+/// // Connect validate output -> charge input (compile-time type safe)
+/// wf.connect(&validate, &charge).unwrap();
+///
+/// // Build the validated WorkflowSpec
+/// let spec = wf.build().expect("valid workflow");
+///
+/// // Inspect the spec
+/// assert_eq!(spec.nodes.len(), 2);
+/// assert_eq!(spec.edges.len(), 1);
+/// ```
+///
+/// # Node kinds
+///
+/// - [`Workflow::pure`] — Side-effect free function, safe to retry
+/// - [`Workflow::effect`] — Managed side effect with retry support
+/// - [`Workflow::signal`] — Signal emission node
+/// - [`Workflow::wait`] — Wait node for external signals
+/// - [`Workflow::unsafe_node`] — Unstructured code (no retries)
 #[derive(Debug)]
 pub struct Workflow {
     dag: Dag,
@@ -482,6 +511,16 @@ pub struct Workflow {
 
 impl Workflow {
     /// Create a new workflow with the given name.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use vo_sdk::dag::Workflow;
+    ///
+    /// let mut wf = Workflow::new("my-workflow");
+    /// // Workflow is empty initially, so build fails
+    /// assert_eq!(wf.build().unwrap_err().to_string(), "workflow has no nodes");
+    /// ```
     #[must_use]
     pub fn new(name: &str) -> Self {
         Self {

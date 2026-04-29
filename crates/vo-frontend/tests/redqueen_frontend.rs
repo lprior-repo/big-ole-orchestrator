@@ -8,6 +8,7 @@
 use std::str::FromStr;
 use vo_frontend::ui::domain_types::{HttpMethod, NodeTemplateId};
 use vo_frontend::ui::graph::{node_kind_to_category, Node, NodeId, Workflow};
+use vo_types::GuaranteeClass;
 use vo_frontend::ui::prototype_palette::{generate_skeleton, SketchNode};
 
 #[test]
@@ -31,7 +32,7 @@ fn config_update_with_empty_object_is_noop() {
 
 #[test]
 fn workflow_name_with_null_bytes_roundtrips() {
-    let wf = Workflow::new("before\0after".into(), vo_types::GuaranteeClass::BestEffort);
+    let wf = Workflow::new("before\0after".into(), GuaranteeClass::BestEffort);
     let json = serde_json::to_string(&wf).unwrap();
     let recovered: Workflow = serde_json::from_str(&json).unwrap();
     assert!(
@@ -42,7 +43,7 @@ fn workflow_name_with_null_bytes_roundtrips() {
 
 #[test]
 fn workflow_name_with_emoji_does_not_panic() {
-    let mut wf = Workflow::new("🦀🔥💣".into(), vo_types::GuaranteeClass::BestEffort);
+    let mut wf = Workflow::new("🦀🔥💣".into(), GuaranteeClass::BestEffort);
     wf.add_node(Node::new(
         NodeId::new(),
         "node".into(),

@@ -77,7 +77,10 @@ impl ScheduledJob {
             _ => false,
         };
         if !valid {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: self.state.to_string(),
+                action: new_state.to_string(),
+            });
         }
         self.state = new_state;
         self.updated_at = Utc::now();
