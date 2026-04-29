@@ -373,6 +373,8 @@ pub enum StorageEngineError {
     EventStore(#[from] crate::event_store::EventStoreError),
     #[error("failed to open DEK store: {0}")]
     DekStore(#[from] crate::key_partition::DekStoreError),
+    #[error("failed to open workflow versions store: {0}")]
+    WorkflowVersionStore(#[from] crate::workflow_version_partition::WorkflowVersionStoreError),
     #[error("storage error: {0}")]
     Storage(#[from] StorageError),
 }
@@ -383,6 +385,7 @@ pub struct StorageEngine {
     pub effect_journal: Arc<crate::effect_journal::FjallEffectJournal>,
     pub lease_store: Arc<crate::lease_partition::FjallLeaseStore>,
     pub event_store: Arc<crate::event_store::FjallEventStore>,
+    pub workflow_versions_store: Arc<crate::workflow_version_partition::FjallWorkflowVersionStore>,
 }
 
 impl StorageEngine {
@@ -419,6 +422,8 @@ impl StorageEngine {
         let effect_journal = Arc::new(crate::effect_journal::FjallEffectJournal::open(&db)?);
         let lease_store = Arc::new(crate::lease_partition::FjallLeaseStore::open(&db)?);
         let event_store = Arc::new(crate::event_store::FjallEventStore::open(&db)?);
+        let workflow_versions_store =
+            Arc::new(crate::workflow_version_partition::FjallWorkflowVersionStore::open(&db)?);
 
         Ok(Self {
             db,
@@ -426,6 +431,7 @@ impl StorageEngine {
             effect_journal,
             lease_store,
             event_store,
+            workflow_versions_store,
         })
     }
 
