@@ -10,8 +10,8 @@ use std::fmt;
 use chrono::Utc;
 
 use crate::error::SchedulerError;
-use crate::job::ScheduledJob;
-use crate::queue::SchedulerQueue;
+use crate::types::job::ScheduledJob;
+use crate::types::queue::SchedulerQueue;
 use crate::types::{JobId, JobKind, JobState, SchedulePolicy};
 use vo_types::state::LifecycleState;
 
@@ -149,9 +149,9 @@ impl<S: JobStore, W: WorkerDispatch> Scheduler<S, W> {
         let state = self
             .queue
             .get_state(&job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or(SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         if state.is_terminal() {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition { from_state: format!("{:?}", state), action: "Cancel".to_string() });
         }
         self.queue.update_state(&job_id, JobState::Cancelled)?;
         let job = self.queue.lookup(&job_id)?;

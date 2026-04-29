@@ -97,7 +97,7 @@ impl SchedulePolicy {
     pub fn validate_cron(expr: &str) -> Result<(), SchedulerError> {
         let fields: Vec<&str> = expr.split_whitespace().collect();
         if fields.len() != 5 {
-            return Err(SchedulerError::InvalidSchedule);
+            return Err(SchedulerError::InvalidSchedule("invalid schedule".to_string()));
         }
 
         let minute_valid = validate_cron_field(fields[0], 0, 59)?;
@@ -109,7 +109,7 @@ impl SchedulePolicy {
         if minute_valid && hour_valid && day_of_month_valid && month_valid && day_of_week_valid {
             Ok(())
         } else {
-            Err(SchedulerError::InvalidSchedule)
+            Err(SchedulerError::InvalidSchedule("invalid schedule".to_string()))
         }
     }
 }
@@ -122,18 +122,18 @@ fn validate_cron_field(field: &str, min: u32, max: u32) -> Result<bool, Schedule
     if let Some(step_val) = field.strip_prefix("*/") {
         let step: u32 = step_val
             .parse()
-            .map_err(|_| SchedulerError::InvalidSchedule)?;
+            .map_err(|_| SchedulerError::InvalidSchedule("invalid schedule".to_string()))?;
         if step == 0 || step > max {
-            return Err(SchedulerError::InvalidSchedule);
+            return Err(SchedulerError::InvalidSchedule("invalid schedule".to_string()));
         }
         return Ok(true);
     }
 
     if let Some((start, end)) = field.split_once('-') {
-        let start: u32 = start.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
-        let end: u32 = end.parse().map_err(|_| SchedulerError::InvalidSchedule)?;
+        let start: u32 = start.parse().map_err(|_| SchedulerError::InvalidSchedule("invalid schedule".to_string()))?;
+        let end: u32 = end.parse().map_err(|_| SchedulerError::InvalidSchedule("invalid schedule".to_string()))?;
         if start < min || end > max || start > end {
-            return Err(SchedulerError::InvalidSchedule);
+            return Err(SchedulerError::InvalidSchedule("invalid schedule".to_string()));
         }
         return Ok(true);
     }
@@ -144,7 +144,7 @@ fn validate_cron_field(field: &str, min: u32, max: u32) -> Result<bool, Schedule
         }
     }
 
-    Err(SchedulerError::InvalidSchedule)
+    Err(SchedulerError::InvalidSchedule("invalid schedule".to_string()))
 }
 
 impl fmt::Display for SchedulePolicy {

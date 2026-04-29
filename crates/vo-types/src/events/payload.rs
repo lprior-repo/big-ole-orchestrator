@@ -3,11 +3,12 @@
 use std::str::FromStr;
 
 use crate::events::error::Error;
+use crate::events::metadata::RoutingProjection;
 use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
     optional_string, optional_u64, require_string, require_string_field, require_u64,
 };
-use crate::WorkflowVersionHash;
+use crate::{ExternalReceipt, WorkflowVersionHash};
 
 /// Represents the kind of effect sink for an effect-prepared event.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::events::error::Error;
 use crate::CommandMetadata;
 
+/// Routing projection describing how an event's output flows to downstream steps.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct RoutingProjection {}
+
 /// Typed metadata wrapper replacing the previous serde_json::Value metadata field.
 /// Carries optional command provenance and room for future annotation keys.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

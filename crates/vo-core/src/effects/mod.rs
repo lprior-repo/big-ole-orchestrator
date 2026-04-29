@@ -24,6 +24,11 @@ pub use vo_types::apply_effect_transition;
 use vo_types::TimestampMs;
 use vo_types::{CompensationPolicy, EffectIntent, EffectKind, EffectRecord, EffectTransitionError};
 
+pub mod step_schema;
+pub use step_schema::{
+    FieldSpec, FieldType, SchemaError, StepSchema, ValidateError, ValidationError,
+};
+
 #[cfg(test)]
 mod serialization_tests;
 #[cfg(test)]

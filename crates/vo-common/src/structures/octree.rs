@@ -75,7 +75,7 @@ impl<T: Clone + Serialize> Octree<T> {
             return true;
         }
         self.subdivide();
-        if let Some(children) = &mut self.children {
+        if let Some(children) = self.children.as_mut() {
             for child in children.iter_mut() {
                 if child.insert(point, value.clone()) {
                     return true;
@@ -118,15 +118,19 @@ impl<T: Clone + Serialize> Octree<T> {
             Octree::new(Bounds::new(corners[i], opp[i]))
         })));
         let drained: Vec<_> = self.data.drain(..).collect();
-        if let Some(children) = &mut self.children {
+        if let Some(children) = self.children.as_mut() {
             for (pt, val) in drained {
+                let mut inserted = false;
                 for child in children.iter_mut() {
                     if child.insert(pt, val.clone()) {
+                        inserted = true;
                         break;
                     }
                 }
+                if !inserted {
+                    self.empty_child_streak = 0;
+                }
             }
-            self.empty_child_streak = 0;
         }
     }
 

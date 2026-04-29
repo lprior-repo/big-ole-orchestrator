@@ -5486,6 +5486,7 @@ dependencies = [
  "tracing",
  "ulid",
  "vo-ipc",
+ "vo-scheduler",
  "vo-storage",
  "vo-types",
 ]

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 vo-common.workspace = true
 vo-types.workspace = true
+vo-common.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
