@@ -16,4 +16,5 @@
 //! Built with Dioxus 0.7 for reactive web UI. The frontend communicates
 //! with the vo-api crate via HTTP/REST for workflow operations.
 
+pub mod hooks;
 pub mod ui;

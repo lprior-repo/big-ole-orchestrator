@@ -20,13 +20,11 @@ use super::types::{
 
 #[component]
 pub fn SelectedNodePanel(
-    selection: crate::hooks::use_selection::SelectionState,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
-    workflow_state: crate::hooks::use_workflow_state::WorkflowState,
     preview_patches: Signal<Vec<ExtensionPatchPreview>>,
 ) -> Element {
-    let selected_node_id = selection.selected_id();
-    let mut workflow = workflow_state.workflow();
+    let (selection, selected_node_id) = crate::hooks::use_selection::use_selection();
+    let (workflow_state, workflow) = crate::hooks::use_workflow_state::use_workflow_state(Workflow::new("".to_string(), vo_types::GuaranteeClass::BestEffort));
     let mut selected_extension_keys = use_signal(Vec::<String>::new);
     let mut extension_message = use_signal(|| None::<String>);
     let mut extension_timeline = use_signal(Vec::<ExtensionTimelineEvent>::new);
@@ -60,7 +58,7 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900",
                             onclick: move |_| {
-                                selection.clear();
+                                selection.0.clear(selected_node_id.clone());
                             },
                             crate::ui::icons::XIcon { class: "h-3.5 w-3.5" }
                         }
@@ -135,7 +133,7 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-300 text-[12px] text-slate-700 transition-colors hover:bg-slate-100",
                             onclick: move |_| {
-                                workflow_state.save_undo_point();
+                                workflow_state.0.save_undo_point();
 
                                 let maybe_clone = workflow
                                     .read()
@@ -149,7 +147,7 @@ pub fn SelectedNodePanel(
                                     clone.y += 40.0;
                                     let cloned_id = clone.id;
                                     workflow.write().nodes.push(clone);
-                                    selection.select_single(cloned_id);
+                                    selection.0.select_single(cloned_id, selected_node_id.clone());
                                 }
                             },
                             crate::ui::icons::CopyIcon { class: "h-3.5 w-3.5" }
@@ -158,9 +156,9 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-red-500/30 text-[12px] text-red-400 transition-colors hover:bg-red-500/10",
                             onclick: move |_| {
-                                workflow_state.save_undo_point();
+                                workflow_state.0.save_undo_point();
                                 workflow.write().remove_node(node_id);
-                                selection.clear();
+                                selection.0.clear(selected_node_id.clone());
                             },
                             crate::ui::icons::TrashIcon { class: "h-3.5 w-3.5" }
                             "Delete"
