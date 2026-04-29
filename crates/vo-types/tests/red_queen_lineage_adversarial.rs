@@ -53,7 +53,7 @@ fn make_instance_id(suffix: u8) -> InstanceId {
 }
 
 fn make_lineage_root(id: &str) -> WorkflowLineage {
-    WorkflowLineage::new(id).expect("valid lineage")
+    WorkflowLineage::new(id.to_string()).expect("valid lineage")
 }
 
 // ========================================================================

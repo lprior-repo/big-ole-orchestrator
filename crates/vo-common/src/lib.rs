@@ -7,6 +7,7 @@ pub mod connection_pool;
 pub mod error;
 pub mod events;
 pub mod pool;
+pub mod ports;
 mod structures;
 pub mod types;
 

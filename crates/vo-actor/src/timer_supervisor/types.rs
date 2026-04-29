@@ -9,8 +9,8 @@
 
 use std::time::Duration;
 
-use vo_types::InstanceId;
 pub use vo_common::ports::TimerRecord;
+use vo_types::InstanceId;
 
 // =============================================================================
 // `TimerSupervisorError` - All error variants for `TimerSupervisor`

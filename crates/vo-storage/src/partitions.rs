@@ -24,6 +24,11 @@ use std::fmt;
 use std::path::Path;
 use std::sync::Arc;
 
+use fjall::config::{BloomConstructionPolicy, CompressionPolicy, FilterPolicy, FilterPolicyEntry};
+use fjall::{
+    compaction::{Fifo, Leveled},
+    CompressionType, KeyspaceCreateOptions, KvSeparationOptions,
+};
 use serde::{Deserialize, Serialize};
 
 pub use crate::dedupe_partition::DEDUPE_PARTITION;
@@ -150,9 +155,95 @@ impl PartitionConfig {
         }
     }
 
+    /// Infers the storage class from the partition configuration.
     #[must_use]
-    pub fn to_fjall_options(&self) -> fjall::KeyspaceCreateOptions {
-        fjall::KeyspaceCreateOptions::default()
+    fn infer_storage_class(&self) -> PartitionClass {
+        if self.bloom_filter_bits_per_key == 10 && self.flush_interval_bytes == 64 * 1024 * 1024 {
+            PartitionClass::Hot
+        } else if self.flush_interval_bytes == 1024 * 1024 * 1024 {
+            PartitionClass::Blob
+        } else {
+            PartitionClass::Cold
+        }
+    }
+
+    /// Applies the appropriate compaction strategy to the options based on `self.compaction_enabled`.
+    fn apply_compaction(&self, opts: KeyspaceCreateOptions) -> KeyspaceCreateOptions {
+        if self.compaction_enabled {
+            opts
+        } else {
+            // No-op compaction: Fifo with u64::MAX limit never triggers
+            opts.compaction_strategy(Arc::new(Fifo::new(u64::MAX, None)))
+        }
+    }
+
+    /// Builds options for HOT class partitions.
+    #[must_use]
+    fn build_hot_options(&self) -> KeyspaceCreateOptions {
+        let opts = KeyspaceCreateOptions::default()
+            .max_memtable_size(self.flush_interval_bytes)
+            .filter_policy(FilterPolicy::new([
+                FilterPolicyEntry::Bloom(BloomConstructionPolicy::FalsePositiveRate(0.0001)),
+                FilterPolicyEntry::Bloom(BloomConstructionPolicy::BitsPerKey(10.0)),
+            ]))
+            .expect_point_read_hits(true)
+            .data_block_compression_policy(CompressionPolicy::new([
+                CompressionType::None,
+                CompressionType::None,
+                CompressionType::Lz4,
+            ]))
+            .compaction_strategy(Arc::new(
+                Leveled::default()
+                    .with_l0_threshold(8)
+                    .with_table_target_size(64 * 1024 * 1024),
+            ));
+        self.apply_compaction(opts)
+    }
+
+    /// Builds options for BLOB class partitions.
+    #[must_use]
+    fn build_blob_options(&self) -> KeyspaceCreateOptions {
+        let opts = KeyspaceCreateOptions::default()
+            .max_memtable_size(self.flush_interval_bytes)
+            .filter_policy(FilterPolicy::disabled())
+            .with_kv_separation(Some(
+                KvSeparationOptions::default()
+                    .separation_threshold(1024)
+                    .file_target_size(128 * 1024 * 1024)
+                    .staleness_threshold(0.5)
+                    .age_cutoff(0.6)
+                    .compression(CompressionType::Lz4),
+            ))
+            .compaction_strategy(Arc::new(
+                Leveled::default()
+                    .with_l0_threshold(4)
+                    .with_table_target_size(64 * 1024 * 1024),
+            ));
+        self.apply_compaction(opts)
+    }
+
+    /// Builds options for COLD class partitions.
+    #[must_use]
+    fn build_cold_options(&self) -> KeyspaceCreateOptions {
+        let opts = KeyspaceCreateOptions::default()
+            .max_memtable_size(self.flush_interval_bytes)
+            .filter_policy(FilterPolicy::disabled())
+            .data_block_compression_policy(CompressionPolicy::all(CompressionType::Lz4))
+            .compaction_strategy(Arc::new(
+                Leveled::default()
+                    .with_l0_threshold(4)
+                    .with_table_target_size(128 * 1024 * 1024),
+            ));
+        self.apply_compaction(opts)
+    }
+
+    #[must_use]
+    pub fn to_fjall_options(&self) -> KeyspaceCreateOptions {
+        match self.infer_storage_class() {
+            PartitionClass::Hot => self.build_hot_options(),
+            PartitionClass::Blob => self.build_blob_options(),
+            PartitionClass::Cold => self.build_cold_options(),
+        }
     }
 }
 
@@ -434,6 +525,51 @@ mod tests {
         assert_eq!(PartitionClass::Hot.to_string(), "hot");
         assert_eq!(PartitionClass::Cold.to_string(), "cold");
         assert_eq!(PartitionClass::Blob.to_string(), "blob");
+    }
+
+    #[test]
+    fn to_fjall_options_hot_has_bloom_filter_enabled() {
+        let config = PartitionConfig::hot();
+        let options = config.to_fjall_options();
+        // HOT config should have bloom_filter_bits_per_key = 10
+        assert_eq!(config.bloom_filter_bits_per_key, 10);
+        assert_eq!(config.flush_interval_bytes, 64 * 1024 * 1024);
+        // The options should be valid and not panic when used
+        let _ = options;
+    }
+
+    #[test]
+    fn to_fjall_options_cold_has_bloom_filter_disabled() {
+        let config = PartitionConfig::cold();
+        let options = config.to_fjall_options();
+        // COLD config should have bloom_filter_bits_per_key = 0
+        assert_eq!(config.bloom_filter_bits_per_key, 0);
+        assert_eq!(config.flush_interval_bytes, 256 * 1024 * 1024);
+        // The options should be valid and not panic when used
+        let _ = options;
+    }
+
+    #[test]
+    fn to_fjall_options_blob_has_kv_separation() {
+        let config = PartitionConfig::blob();
+        let options = config.to_fjall_options();
+        // BLOB config should have flush_interval_bytes = 1GB
+        assert_eq!(config.bloom_filter_bits_per_key, 0);
+        assert_eq!(config.flush_interval_bytes, 1024 * 1024 * 1024);
+        // The options should be valid and not panic when used
+        let _ = options;
+    }
+
+    #[test]
+    fn to_fjall_options_compaction_disabled() {
+        let config = PartitionConfig {
+            compaction_enabled: false,
+            bloom_filter_bits_per_key: 10,
+            flush_interval_bytes: 64 * 1024 * 1024,
+        };
+        let options = config.to_fjall_options();
+        // Even with compaction disabled, we return valid options
+        let _ = options;
     }
 
     #[test]

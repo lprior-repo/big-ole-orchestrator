@@ -525,6 +525,36 @@ fn payload_all_variants_round_trip_via_serde() {
                     "version": 1
                 })
             }
+            EventPayload::TimerScheduled {
+                workflow_id,
+                timer_id,
+                fire_at_ms,
+                instance_id,
+            } => {
+                serde_json::json!({
+                    "type": "TimerScheduled",
+                    "workflow_id": workflow_id,
+                    "timer_id": timer_id,
+                    "fire_at_ms": fire_at_ms,
+                    "instance_id": instance_id,
+                    "version": 1
+                })
+            }
+            EventPayload::SignalAwaiting {
+                workflow_id,
+                signal_name,
+                instance_id,
+                awaited_at_ms,
+            } => {
+                serde_json::json!({
+                    "type": "SignalAwaiting",
+                    "workflow_id": workflow_id,
+                    "signal_name": signal_name,
+                    "instance_id": instance_id,
+                    "awaited_at_ms": awaited_at_ms,
+                    "version": 1
+                })
+            }
         };
         let round_tripped =
             EventPayload::try_from_json(&json).expect("deserialize should not fail");

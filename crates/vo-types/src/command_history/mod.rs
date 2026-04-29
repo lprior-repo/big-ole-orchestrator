@@ -21,13 +21,11 @@ pub mod types;
 
 pub use data::{ExtensionBatchMetadata, HistoryEntry, WorkflowSnapshot};
 pub use types::{
-    BatchId, CommandHistoryError, CommandKind, ExtensionApplyMode, HistoryEntryStatus, SnapshotId,
-    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
+    BatchId, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode, HistoryEntryStatus,
+    SnapshotId, MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
 };
 
 use crate::workflow::{DagNode, Edge};
-
-use self::types::CommandId;
 
 /// The full undo/redo stack for command history tracking.
 ///
@@ -302,10 +300,10 @@ impl CommandHistory {
 
 #[cfg(test)]
 mod tests {
-    use self::data::WorkflowSnapshot;
+    use self::data::{ExtensionBatchMetadata, WorkflowSnapshot};
     use self::types::{
         BatchId, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode,
-        ExtensionBatchMetadata, HistoryEntryStatus, SnapshotId, MAX_HISTORY_DEPTH,
+        HistoryEntryStatus, SnapshotId, MAX_HISTORY_DEPTH,
     };
     use super::*;
 

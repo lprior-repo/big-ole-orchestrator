@@ -25,11 +25,11 @@ fn rq_unknown_source_error_message_is_misleading() {
     match &err {
         WorkflowDefinitionError::UnknownNode {
             edge_source,
-            unknown_target,
+            unknown_node,
         } => {
             // The unknown node is the SOURCE (phantom), not the target (b)
             assert_eq!(edge_source.0, "phantom");
-            assert_eq!(unknown_target.0, "phantom");
+            assert_eq!(unknown_node.0, "phantom");
             // The display says "unknown target node" but the unknown is the SOURCE
             let msg = err.to_string();
             assert!(
@@ -55,10 +55,10 @@ fn rq_unknown_target_error_message_is_correct() {
     match result {
         Err(WorkflowDefinitionError::UnknownNode {
             edge_source,
-            unknown_target,
+            unknown_node,
         }) => {
             assert_eq!(edge_source.0, "a");
-            assert_eq!(unknown_target.0, "ghost");
+            assert_eq!(unknown_node.0, "ghost");
         }
         _ => panic!("expected UnknownNode with correct fields"),
     }

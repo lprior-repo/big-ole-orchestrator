@@ -35,7 +35,6 @@ pub mod timers;
 mod accept_resume_ops_tests;
 mod accept_resume_tests;
 mod budget;
-mod control_actor;
 mod control_actor_ops;
 mod control_actor_tests;
 mod control_msg_clone;
