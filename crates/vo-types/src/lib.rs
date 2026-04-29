@@ -212,7 +212,8 @@ pub use types::{
 };
 pub use workflow::{
     next_nodes, DagNode, Edge, EdgeCondition, GuaranteeClass, RetryPolicy, RetryPolicyError,
-    StepOutcome, WorkflowDefinition, WorkflowDefinitionError,
+    StepOutcome, VersionCompatResult, VersionError, WorkflowDefinition, WorkflowDefinitionError,
+    WorkflowVersion,
 };
 pub use workload_class::{
     WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES,

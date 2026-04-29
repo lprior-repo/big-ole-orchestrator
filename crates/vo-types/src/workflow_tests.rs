@@ -1960,3 +1960,96 @@ fn bdd_given_disconnected_component_with_cycle_when_validated_then_cycle_detecte
     ));
     Ok(())
 }
+
+// ===================================================================
+// WorkflowVersion
+// ===================================================================
+
+#[test]
+fn workflow_version_from_semver_parses_valid_version() {
+    let v = WorkflowVersion::from_semver("2.3.1").unwrap();
+    assert_eq!(v.to_string(), "2.3.1");
+}
+
+#[test]
+fn workflow_version_from_semver_rejects_invalid_version() {
+    let result = WorkflowVersion::from_semver("not-a-version");
+    assert!(matches!(result, Err(VersionError::InvalidVersion(_))));
+}
+
+#[test]
+fn workflow_version_min_returns_0_1_0() {
+    let min = WorkflowVersion::min();
+    assert_eq!(min.to_string(), "0.1.0");
+}
+
+#[test]
+fn workflow_version_check_compat_exact_returns_exact_for_equal_versions() {
+    let v1 = WorkflowVersion::from_semver("1.2.3").unwrap();
+    let v2 = WorkflowVersion::from_semver("1.2.3").unwrap();
+    assert!(matches!(v1.check_compat(&v2), VersionCompatResult::Exact));
+}
+
+#[test]
+fn workflow_version_check_compat_compatible_returns_warning_for_same_major() {
+    let v1 = WorkflowVersion::from_semver("1.2.3").unwrap();
+    let v2 = WorkflowVersion::from_semver("1.5.0").unwrap();
+    let result = v1.check_compat(&v2);
+    assert!(matches!(result, VersionCompatResult::Compatible { .. }));
+}
+
+#[test]
+fn workflow_version_check_compat_incompatible_returns_reason_for_different_major() {
+    let v1 = WorkflowVersion::from_semver("1.2.3").unwrap();
+    let v2 = WorkflowVersion::from_semver("2.0.0").unwrap();
+    let result = v1.check_compat(&v2);
+    assert!(matches!(result, VersionCompatResult::Incompatible { .. }));
+}
+
+// ===================================================================
+// WorkflowDefinition version field
+// ===================================================================
+
+#[test]
+fn parse_accepts_workflow_with_version_field() -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "versioned",
+        "nodes": [{"node_name": "a", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}}],
+        "edges": [],
+        "version": "2.3.1"
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(def.version.to_string(), "2.3.1");
+    Ok(())
+}
+
+#[test]
+fn parse_defaults_to_0_1_0_when_version_absent() -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "unversioned",
+        "nodes": [{"node_name": "a", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}}],
+        "edges": []
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(def.version.to_string(), "0.1.0");
+    Ok(())
+}
+
+#[test]
+fn workflow_definition_version_round_trips_via_serde() -> Result<(), Box<dyn std::error::Error>> {
+    let json = serde_json::json!({
+        "workflow_name": "roundtrip-version",
+        "nodes": [{"node_name": "a", "retry_policy": {"max_attempts": 1, "backoff_ms": 0, "backoff_multiplier": 1.0}}],
+        "edges": [],
+        "version": "3.0.1"
+    });
+    let bytes = serde_json::to_vec(&json)?;
+    let def = WorkflowDefinition::parse(&bytes)?;
+    assert_eq!(def.version.to_string(), "3.0.1");
+    let reserialized = serde_json::to_value(&def)?;
+    let reparsed = WorkflowDefinition::parse(&serde_json::to_vec(&reserialized)?)?;
+    assert_eq!(reparsed.version, def.version);
+    Ok(())
+}

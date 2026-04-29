@@ -6,10 +6,13 @@ pub use types::{DagNode, Edge, EdgeCondition, RetryPolicy, RetryPolicyError, Ste
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 
 use crate::non_empty_vec::NonEmptyVec;
 use crate::{NodeName, WorkflowName};
+
+const MIN_WORKFLOW_VERSION: &str = "0.1.0";
 
 // ---------------------------------------------------------------------------
 // WorkflowDefinitionError
@@ -65,6 +68,62 @@ pub enum WorkflowDefinitionError {
     UnreachableNodes { unreachable_nodes: Vec<NodeName> },
 }
 
+/// Errors returned by `WorkflowVersion::from_semver`.
+#[derive(Debug, Clone, PartialEq, thiserror::Error)]
+pub enum VersionError {
+    #[error("invalid semantic version: {0}")]
+    InvalidVersion(String),
+}
+
+/// Result of checking workflow version compatibility.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VersionCompatResult {
+    Exact,
+    Compatible { warning: String },
+    Incompatible { reason: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkflowVersion(Version);
+
+impl WorkflowVersion {
+    const MIN: Self = Self(Version::new(0, 1, 0));
+
+    pub fn from_semver(v: &str) -> Result<Self, VersionError> {
+        Version::parse(v)
+            .map(Self)
+            .map_err(|e| VersionError::InvalidVersion(e.to_string()))
+    }
+
+    pub fn min() -> Self {
+        Self::MIN
+    }
+
+    pub fn check_compat(&self, other: &Self) -> VersionCompatResult {
+        if self.0 == other.0 {
+            return VersionCompatResult::Exact;
+        }
+        if self.0.major == other.0.major {
+            return VersionCompatResult::Compatible {
+                warning: format!(
+                    "workflow version {self} differs from {other} (minor/patch mismatch but same major)"
+                ),
+            };
+        }
+        VersionCompatResult::Incompatible {
+            reason: format!(
+                "workflow version {self} is incompatible with {other} (major version mismatch)"
+            ),
+        }
+    }
+}
+
+impl std::fmt::Display for WorkflowVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // WorkflowDefinition
 // ---------------------------------------------------------------------------
@@ -76,6 +135,8 @@ pub struct WorkflowDefinition {
     pub workflow_name: WorkflowName,
     pub nodes: NonEmptyVec<DagNode>,
     pub edges: Vec<Edge>,
+    #[serde(default = "WorkflowVersion::min")]
+    pub version: WorkflowVersion,
 }
 
 impl WorkflowDefinition {
@@ -201,6 +262,7 @@ impl WorkflowDefinition {
             workflow_name: unvalidated.workflow_name,
             nodes: NonEmptyVec::new_unchecked(unvalidated.nodes),
             edges: unvalidated.edges,
+            version: unvalidated.version.unwrap_or_else(WorkflowVersion::min),
         })
     }
 }
@@ -234,6 +296,8 @@ struct UnvalidatedWorkflow {
     workflow_name: WorkflowName,
     nodes: Vec<DagNode>,
     edges: Vec<Edge>,
+    #[serde(default)]
+    version: Option<WorkflowVersion>,
 }
 
 /// DFS-based cycle detection. Returns `Some(cycle_nodes)` if a cycle is found,

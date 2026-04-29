@@ -20,6 +20,7 @@ spqr-tree = { workspace = true }
 any-rope = { workspace = true }
 zstd.workspace = true
 vo-ds.workspace = true
+semver.workspace = true
 
 [dev-dependencies]
 rstest.workspace = true

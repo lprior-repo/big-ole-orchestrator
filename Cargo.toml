@@ -75,6 +75,7 @@ vo-sdk = { path = "crates/vo-sdk" }
 vo-ds = { path = "crates/vo-ds" }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "2"
+semver = "1"
 anyhow = "1"
 tracing = "0.1"
 regex = "1"
