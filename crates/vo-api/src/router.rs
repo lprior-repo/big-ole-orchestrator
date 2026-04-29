@@ -18,7 +18,7 @@ use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
-use crate::middleware::{ApiKeyState, api_key_auth};
+use crate::middleware::{ApiKeyState, api_key_auth, request_logging};
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -163,6 +163,7 @@ pub fn create_router(state: AppState) -> Router {
         .merge(sse_routes)
         .merge(ws_routes)
         .merge(ui_routes)
+        .layer(middleware::from_fn(request_logging))
         .layer(TimeoutLayer::new(Duration::from_secs(30)))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
