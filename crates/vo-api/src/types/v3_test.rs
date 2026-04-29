@@ -26,6 +26,7 @@ fn v3_start_request_skip_none_fields() {
         instance_id: None,
         dedupe_key: None,
         workflow_binary_hash: None,
+        command_envelope: None,
     };
     let json = serde_json::to_string(&req).unwrap();
     assert!(!json.contains("instance_id"));
@@ -42,6 +43,7 @@ fn v3_start_request_with_optional_fields() {
         instance_id: Some("custom-id".to_string()),
         dedupe_key: Some("dedupe-1".to_string()),
         workflow_binary_hash: None,
+        command_envelope: None,
     };
     let json = serde_json::to_string(&req).unwrap();
     assert!(json.contains("custom-id"));
@@ -58,6 +60,7 @@ fn v3_start_request_roundtrip() {
         instance_id: None,
         dedupe_key: None,
         workflow_binary_hash: None,
+        command_envelope: None,
     };
     let json = serde_json::to_string(&req).unwrap();
     let back: V3StartRequest = serde_json::from_str(&json).unwrap();

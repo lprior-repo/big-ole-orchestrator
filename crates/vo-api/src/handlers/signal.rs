@@ -11,14 +11,10 @@ use vo_storage::dedupe_partition::DedupeStore;
 use vo_storage::event_log::{append_event, AppendEventRequest};
 use vo_types::events::EventMetadata;
 
-<<<<<<< HEAD
-use crate::types::ApiError;
-=======
 use crate::handlers::helpers::split_path_id;
 use crate::types::{ApiError, V3SignalRequest};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
->>>>>>> 7e356012 (style: apply consistent rustfmt formatting)
 
 /// POST /api/v1/workflows/:id/signals — send a signal to a running instance (bead vo-meua).
 ///
