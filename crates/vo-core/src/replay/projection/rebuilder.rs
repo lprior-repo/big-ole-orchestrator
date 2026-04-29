@@ -108,7 +108,7 @@ where
         let total_events = events_iter.len() as u64;
         self.context.set_total_events(total_events);
 
-        let mut state = S::default();
+        let mut rebuild_state = S::default();
         let mut processed: u64 = 0;
         let start_seq = self.context.from_sequence;
 
@@ -119,9 +119,9 @@ where
                 ));
             }
 
-            state = self
+            rebuild_state = self
                 .projector
-                .project(state, &event)
+                .project(rebuild_state, &event)
                 .map_err(|e| ProjectionError::BuildFailed(e.into().to_string()))?;
 
             processed += 1;
@@ -132,12 +132,88 @@ where
         let end_seq = start_seq.saturating_add(processed);
 
         Ok(ProjectionResult::new(
-            state,
+            rebuild_state,
             processed,
             start_seq,
             end_seq,
             duration_ms,
             self.projector.schema_version(),
         ))
+    }
+}
+
+#[cfg(test)]
+mod rebuild_tests {
+    use super::{ProjectionError, Projector, ProjectionRebuilder};
+    use crate::replay::projection::ProjectionEngine;
+
+    #[derive(Debug)]
+    struct BuildError(String);
+
+    impl From<BuildError> for ProjectionError {
+        fn from(e: BuildError) -> Self {
+            ProjectionError::BuildFailed(e.0)
+        }
+    }
+
+    struct FailingProjector;
+
+    impl Projector<String, String> for FailingProjector {
+        type Error = BuildError;
+
+        fn project(&self, state: String, event: &String) -> Result<String, Self::Error> {
+            if event == "event-47" {
+                Err(BuildError("synthetic failure at event 47".to_string()))
+            } else {
+                Ok(format!("{}+{}", state, event))
+            }
+        }
+
+        fn initial_state() -> String {
+            String::new()
+        }
+
+        fn schema_version(&self) -> u8 {
+            1
+        }
+    }
+
+    #[test]
+    fn rebuild_full_atomic_on_event_failure() {
+        let engine = ProjectionEngine::new(1);
+        let projector = FailingProjector;
+        let rebuilder = ProjectionRebuilder::new(
+            &engine,
+            &projector,
+            "test-projection".to_string(),
+            0,
+        );
+
+        let events: Vec<String> = (1..=100).map(|i| format!("event-{}", i)).collect();
+        let result = rebuilder.rebuild_full(events.into_iter());
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ProjectionError::BuildFailed(msg) if msg.contains("synthetic failure at event 47")));
+    }
+
+    #[test]
+    fn rebuild_full_succeeds_with_all_events() {
+        let engine = ProjectionEngine::new(1);
+        let projector = FailingProjector;
+        let rebuilder = ProjectionRebuilder::new(
+            &engine,
+            &projector,
+            "test-projection".to_string(),
+            0,
+        );
+
+        let events: Vec<String> = (1..=46).map(|i| format!("event-{}", i)).collect();
+        let result = rebuilder.rebuild_full(events.into_iter());
+
+        assert!(result.is_ok());
+        let res = result.unwrap();
+        assert_eq!(res.events_applied, 46);
+        assert!(res.state.contains("event-46"));
     }
 }
