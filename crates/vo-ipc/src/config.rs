@@ -69,11 +69,7 @@ fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
         path: path.to_path_buf(),
     })?;
 
-    let c_path = CString::new(path_str).map_err(|_| ConfigError::ProgramMissing {
-        path: path.to_path_buf(),
-    })?;
-
-    let fd = unsafe { open(c_path.as_ptr(), O_NOFOLLOW | O_RDONLY) };
+    let fd = unsafe { open(path_str.as_ptr().cast::<libc::c_char>(), O_NOFOLLOW | O_RDONLY) };
     if fd < 0 {
         return Err(ConfigError::ProgramMissing {
             path: path.to_path_buf(),

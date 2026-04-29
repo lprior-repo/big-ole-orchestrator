@@ -7,7 +7,7 @@ use crate::payload_parser::{
 };
 use crate::ExternalReceipt;
 
-#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct RoutingProjection {}
 
 #[derive(Debug, Clone, PartialEq)]

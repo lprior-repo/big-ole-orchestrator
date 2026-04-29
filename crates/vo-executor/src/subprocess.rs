@@ -297,15 +297,8 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
-    let fd3_pipe = create_pipe()?;
-    let fd4_pipe = create_pipe()?;
-
-    if config.fd3_payload.len() > MAX_STEP_INPUT_BYTES {
-        return Err(SubprocessError::InputPayloadTooLarge {
-            actual: config.fd3_payload.len(),
-            max: MAX_STEP_INPUT_BYTES,
-        });
-    }
+    let PipePair { read_fd: fd3_read, write_fd: fd3_write } = create_pipe()?;
+    let PipePair { read_fd: fd4_read, write_fd: fd4_write } = create_pipe()?;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
@@ -508,9 +501,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let pipe = create_pipe().unwrap();
-        let r = pipe.read_fd;
-        let w = pipe.write_fd;
+        let PipePair { read_fd: r, write_fd: w } = create_pipe().unwrap();
         unsafe {
             let flags = libc::fcntl(r, libc::F_GETFD);
             assert!(

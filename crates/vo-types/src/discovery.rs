@@ -14,18 +14,22 @@ pub struct DiscoveryPath {
 }
 
 impl DiscoveryPath {
-    pub fn new(version_root: String, binary_hash: BinaryHash, binary_name: String) -> Self {
+    pub fn new(
+        version_root: String,
+        binary_hash: BinaryHash,
+        binary_name: String,
+    ) -> Result<Self, DiscoveryPathError> {
         if binary_name.is_empty() {
-            panic!("binary_name cannot be empty");
+            return Err(DiscoveryPathError::EmptyBinaryName);
         }
         if binary_name.contains('/') || binary_name.contains("..") {
-            panic!("binary_name cannot contain path separators or '..'");
+            return Err(DiscoveryPathError::InvalidBinaryName);
         }
-        Self {
+        Ok(Self {
             version_root,
             binary_hash,
             binary_name,
-        }
+        })
     }
 
     pub fn version_root(&self) -> &str {
@@ -116,6 +120,12 @@ pub enum DiscoveryPathError {
 
     #[error("invalid binary hash: {0}")]
     InvalidHash(ParseError),
+
+    #[error("binary_name cannot be empty")]
+    EmptyBinaryName,
+
+    #[error("binary_name cannot contain path separators or '..'")]
+    InvalidBinaryName,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
