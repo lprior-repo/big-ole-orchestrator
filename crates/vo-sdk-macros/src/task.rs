@@ -384,6 +384,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -398,6 +399,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -412,6 +414,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            attrs: TaskAttrs::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
