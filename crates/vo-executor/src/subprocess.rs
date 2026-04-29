@@ -341,7 +341,26 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         },
         Ok((Err(e), _)) => Err(e),
         Err(_) => {
-            let _ = child.kill().await;
+            #[cfg(unix)]
+            {
+                if let Some(pid) = child.id() {
+                    let pgid = -(pid as i32);
+                    unsafe {
+                        libc::kill(pgid, libc::SIGTERM);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    unsafe {
+                        libc::kill(pgid, libc::SIGKILL);
+                    }
+                } else {
+                    let _ = child.kill().await;
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                let _ = child.kill().await;
+            }
+            let _ = child.wait().await;
             Err(SubprocessError::Timeout {
                 elapsed_ms: timeout_ms,
             })

@@ -11,6 +11,7 @@ fn main() {
         "sleep-exit" => command_sleep_exit(&args),
         "grandchild-hold" => command_grandchild_hold(&args),
         "memory-bomb" => command_memory_bomb(&args),
+        "hold-open" => command_hold_open(&args),
         _ => command_echo(),
     }
 }
@@ -50,6 +51,14 @@ fn command_grandchild_hold(args: &[String]) {
             .spawn(),
     );
     write_fd4_envelope(b"child-done");
+}
+
+fn command_hold_open(args: &[String]) {
+    let sleep_ms = args
+        .get(1)
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(30000);
+    std::thread::sleep(std::time::Duration::from_millis(sleep_ms));
 }
 
 fn command_memory_bomb(args: &[String]) {
