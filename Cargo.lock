@@ -5040,6 +5040,8 @@ dependencies = [
  "vo-actor",
  "vo-api",
  "vo-core",
+ "vo-executor",
+ "vo-sdk",
  "vo-storage",
  "vo-types",
 ]

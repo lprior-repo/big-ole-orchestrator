@@ -34,6 +34,8 @@ pub enum CliError {
     Serve(#[from] crate::commands::serve::ServeError),
     #[error(transparent)]
     WorkflowHistory(#[from] crate::commands::workflow_history::WorkflowHistoryError),
+    #[error("execute-node: {0}")]
+    ExecuteNode(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -92,6 +94,12 @@ pub enum Command {
         engine_url: String,
         json: bool,
         canonical: bool,
+    },
+    ExecuteNode {
+        binary_path: PathBuf,
+        node_name: String,
+        input: Option<Vec<u8>>,
+        timeout: u64,
     },
 }
 
@@ -303,7 +311,7 @@ where
                         .help("Dry run mode"),
                 ),
         )
-        .subcommand(
+       .subcommand(
             clap::Command::new("history")
                 .about("Show workflow instance history (ADR-008, ADR-025)")
                 .arg(
@@ -333,25 +341,32 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("serve")
-                .about("Start the veloxide HTTP server")
+            clap::Command::new("execute-node")
+                .about("Execute a single workflow node outside the full engine for standalone testing")
                 .arg(
-                    clap::Arg::new("host")
-                        .long("host")
-                        .default_value("127.0.0.1")
-                        .help("Bind host address"),
+                    clap::Arg::new("binary-path")
+                        .required(true)
+                        .index(1)
+                        .help("Path to the workflow binary to execute"),
                 )
                 .arg(
-                    clap::Arg::new("port")
-                        .long("port")
-                        .default_value("3000")
-                        .help("Bind port"),
+                    clap::Arg::new("node-name")
+                        .required(true)
+                        .index(2)
+                        .help("Name of the node to execute within the workflow"),
                 )
                 .arg(
-                    clap::Arg::new("storage-path")
-                        .long("storage-path")
-                        .default_value(".vo/storage")
-                        .help("Path to Fjall storage directory"),
+                    clap::Arg::new("input")
+                        .long("input")
+                        .value_name("DATA")
+                        .help("Input data to pass to the node via FD3 (reads from stdin if not provided)"),
+                )
+                .arg(
+                    clap::Arg::new("timeout")
+                        .long("timeout")
+                        .value_name("SECONDS")
+                        .default_value("30")
+                        .help("Timeout in seconds for node execution"),
                 ),
         );
 
@@ -560,6 +575,38 @@ where
                 },
             })
         }
+        Some(("execute-node", sub_matches)) => {
+            let binary_path = match sub_matches.get_one::<String>("binary-path") {
+                Some(p) => PathBuf::from(p),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let node_name = match sub_matches.get_one::<String>("node-name") {
+                Some(n) => n.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let input = sub_matches.get_one::<String>("input").map(|s| s.as_bytes().to_vec());
+            let timeout_str = sub_matches
+                .get_one::<String>("timeout")
+                .map(|s| s.as_str())
+                .unwrap_or("30");
+            let timeout: u64 = timeout_str.parse().unwrap_or(30);
+            Ok(Cli {
+                command: Command::ExecuteNode {
+                    binary_path,
+                    node_name,
+                    input,
+                    timeout,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -584,7 +631,8 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Rebuild(_)
         | CliError::Status(_)
         | CliError::Serve(_)
-        | CliError::WorkflowHistory(_) => 1,
+        | CliError::WorkflowHistory(_)
+        | CliError::ExecuteNode(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
@@ -703,9 +751,73 @@ mod tests {
     }
 
     #[test]
-    fn cli_status_without_instance_returns_error() {
+     fn cli_status_without_instance_returns_error() {
         let args: Vec<OsString> = vec!["vo".into(), "status".into()];
         let result = interpret_cli_from(args);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_execute_node_parses_basic_args() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/path/to/binary".into(),
+            "my-node".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ExecuteNode {
+                binary_path: PathBuf::from("/path/to/binary"),
+                node_name: "my-node".to_string(),
+                input: None,
+                timeout: 30,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_execute_node_with_input_flag() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/path/to/binary".into(),
+            "my-node".into(),
+            "--input".into(),
+            "hello world".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ExecuteNode {
+                binary_path: PathBuf::from("/path/to/binary"),
+                node_name: "my-node".to_string(),
+                input: Some(b"hello world".to_vec()),
+                timeout: 30,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_execute_node_with_custom_timeout() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/path/to/binary".into(),
+            "my-node".into(),
+            "--timeout".into(),
+            "120".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ExecuteNode {
+                binary_path: PathBuf::from("/path/to/binary"),
+                node_name: "my-node".to_string(),
+                input: None,
+                timeout: 120,
+            }
+        );
     }
 }

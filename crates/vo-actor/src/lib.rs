@@ -15,6 +15,7 @@ pub mod heartbeat {
 }
 
 pub mod actor_messages;
+pub mod actor_supervisor;
 pub mod async_message_router;
 pub mod db_writer;
 pub mod fairness;
