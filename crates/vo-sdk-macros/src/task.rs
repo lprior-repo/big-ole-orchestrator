@@ -3,6 +3,12 @@
 use proc_macro2::TokenStream;
 use syn::Type;
 
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct TaskAttrs {
+    pub retries: Option<u32>,
+    pub timeout: Option<u64>,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct TaskDef {
     pub ident: String,
@@ -11,9 +17,60 @@ pub struct TaskDef {
     pub return_type: Option<Type>,
     pub generics: syn::Generics,
     pub args: Vec<(String, Type)>,
+    pub attrs: TaskAttrs,
 }
 
 use crate::error::Error;
+
+pub fn parse_task_attrs(attr: &proc_macro2::TokenStream) -> Result<TaskAttrs, Error> {
+    if attr.is_empty() {
+        return Ok(TaskAttrs::default());
+    }
+
+    let attr_str = attr.to_string();
+    if attr_str.is_empty() {
+        return Err(Error::EmptyAttribute);
+    }
+
+    let attr_count = attr_str.split_whitespace().count();
+    if attr_count > 255 {
+        return Err(Error::TooManyAttributes);
+    }
+
+    let parsed: syn::Meta = syn::parse2(attr.clone()).map_err(|_| Error::UnknownAttribute)?;
+
+    match parsed {
+        syn::Meta::NameValue(nv) => {
+            let key = nv.path.get_ident().map(|i| i.to_string());
+            let val = match &nv.value {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Int(int_lit),
+                    ..
+                }) => int_lit.base10_parse::<u64>().ok(),
+                _ => None,
+            };
+
+            match key.as_deref() {
+                Some("retries") => {
+                    let v = val.ok_or(Error::InvalidAttributeValue)?;
+                    Ok(TaskAttrs {
+                        retries: Some(v as u32),
+                        timeout: None,
+                    })
+                }
+                Some("timeout") => {
+                    let v = val.ok_or(Error::InvalidAttributeValue)?;
+                    Ok(TaskAttrs {
+                        retries: None,
+                        timeout: Some(v),
+                    })
+                }
+                _ => Err(Error::UnknownAttribute),
+            }
+        }
+        _ => Err(Error::UnknownAttribute),
+    }
+}
 
 pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
     if item.is_empty() {
@@ -63,6 +120,7 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return_type,
         generics: parsed.sig.generics,
         args,
+        attrs: TaskAttrs::default(),
     })
 }
 
