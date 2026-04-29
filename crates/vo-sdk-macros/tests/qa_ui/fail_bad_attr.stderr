@@ -1,7 +1,15 @@
-error: unsupported attribute
+error: macros that expand to items must be delimited with braces or followed by a semicolon
  --> tests/qa_ui/fail_bad_attr.rs:3:1
   |
-3 | #[task(timeout = 30)]
-  | ^^^^^^^^^^^^^^^^^^^^^
+3 | #[task(invalid_attr = 30)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: unknown attribute: invalid_attr
+ --> tests/qa_ui/fail_bad_attr.rs:3:1
+  |
+3 | #[task(invalid_attr = 30)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)

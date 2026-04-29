@@ -3,6 +3,12 @@
 use proc_macro2::TokenStream;
 use syn::Type;
 
+#[derive(Debug, PartialEq, Default)]
+pub struct TaskOpts {
+    pub retries: Option<u32>,
+    pub timeout: Option<u64>,
+}
+
 #[derive(Debug, PartialEq)]
 pub struct TaskDef {
     pub ident: String,
@@ -11,11 +17,12 @@ pub struct TaskDef {
     pub return_type: Option<Type>,
     pub generics: syn::Generics,
     pub args: Vec<(String, Type)>,
+    pub opts: TaskOpts,
 }
 
 use crate::error::Error;
 
-pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
+pub fn parse_task(item: &TokenStream, opts: TaskOpts) -> Result<TaskDef, Error> {
     if item.is_empty() {
         return Err(Error::ParseFailure);
     }
@@ -63,7 +70,90 @@ pub fn parse_task(item: &TokenStream) -> Result<TaskDef, Error> {
         return_type,
         generics: parsed.sig.generics,
         args,
+        opts,
     })
+}
+
+pub fn parse_task_opts(attr: &TokenStream) -> Result<TaskOpts, Error> {
+    if attr.is_empty() {
+        return Ok(TaskOpts::default());
+    }
+
+    let mut opts = TaskOpts::default();
+
+    let tokens: Vec<proc_macro2::TokenTree> = attr.clone().into_iter().collect();
+
+    let to_process: Vec<proc_macro2::TokenTree> = if tokens.len() == 1 {
+        if let proc_macro2::TokenTree::Group(group) = &tokens[0] {
+            group.stream().into_iter().collect()
+        } else {
+            tokens.clone()
+        }
+    } else {
+        tokens.clone()
+    };
+
+    let mut i = 0;
+    while i < to_process.len() {
+        match &to_process[i] {
+            proc_macro2::TokenTree::Ident(ident) => {
+                let ident_str = ident.to_string();
+                if i + 2 < to_process.len() {
+                    if let proc_macro2::TokenTree::Punct(p) = &to_process[i + 1] {
+                        if p.as_char() == '=' {
+                            let value_token = to_process[i + 2].clone();
+                            if let proc_macro2::TokenTree::Literal(lit) = &value_token {
+                                let lit_str = lit.to_string();
+                                let value: syn::Expr = syn::parse2(quote::quote!(#lit).into())
+                                    .map_err(|_| Error::InvalidAttributeValue(ident_str.clone(), format!("invalid literal: {}", lit_str)))?;
+                                match ident_str.as_str() {
+                                    "retries" => {
+                                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = value {
+                                            let val = lit_int.base10_parse::<i64>()
+                                                .map_err(|_| Error::InvalidAttributeValue("retries".to_string(), "expected integer".to_string()))?;
+                                            if val < 0 {
+                                                return Err(Error::NegativeRetries(val));
+                                            }
+                                            opts.retries = Some(val as u32);
+                                        } else {
+                                            return Err(Error::InvalidAttributeValue("retries".to_string(), "expected integer".to_string()));
+                                        }
+                                    }
+                                    "timeout" => {
+                                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = value {
+                                            let val = lit_int.base10_parse::<u64>()
+                                                .map_err(|_| Error::InvalidAttributeValue("timeout".to_string(), "expected integer".to_string()))?;
+                                            opts.timeout = Some(val);
+                                        } else {
+                                            return Err(Error::InvalidAttributeValue("timeout".to_string(), "expected integer".to_string()));
+                                        }
+                                    }
+                                    _ => return Err(Error::UnknownAttribute(ident_str)),
+                                }
+                                i += 3;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                return Err(Error::UnknownAttribute(ident_str));
+            }
+            proc_macro2::TokenTree::Punct(_) => {
+                i += 1;
+                continue;
+            }
+            proc_macro2::TokenTree::Literal(_) => {
+                i += 1;
+                continue;
+            }
+            proc_macro2::TokenTree::Group(_) => {
+                i += 1;
+                continue;
+            }
+        }
+    }
+
+    Ok(opts)
 }
 
 #[allow(clippy::unnecessary_wraps)]
@@ -182,21 +272,21 @@ mod tests {
     #[test]
     fn parse_task_rejects_non_function_items() {
         let input = quote! { struct MyTask; };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result, Err(Error::InvalidInputItem));
     }
 
     #[test]
     fn parse_task_rejects_invalid_syntax() {
         let input = quote! { fn my_task() { } ; }; // extra semicolon
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result, Err(Error::ParseFailure));
     }
 
     #[test]
     fn parse_task_rejects_empty_token_stream() {
         let input = quote! {};
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result, Err(Error::ParseFailure));
     }
 
@@ -210,8 +300,9 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -226,8 +317,9 @@ mod tests {
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -241,8 +333,9 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -257,8 +350,9 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![("a".to_string(), expected_ty)],
+            opts: TaskOpts::default(),
         };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -279,8 +373,9 @@ mod tests {
                 ("b".to_string(), expected_b),
                 ("c".to_string(), expected_c),
             ],
+            opts: TaskOpts::default(),
         };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert_eq!(result.unwrap(), expected);
     }
 
@@ -293,6 +388,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let expected = quote! { fn main() { a(); } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -309,6 +405,7 @@ mod tests {
             return_type: Some(expected_ty),
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let expected = quote! { fn main() -> Result<(), std::io::Error> { run() } };
         let result = generate_task_entrypoint(&task).unwrap();
@@ -324,6 +421,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -338,6 +436,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -352,6 +451,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let result = generate_task_entrypoint(&task);
         assert!(matches!(result, Err(Error::IdentParsingFailed)));
@@ -360,7 +460,7 @@ mod tests {
     #[test]
     fn parse_task_accepts_generic_function() {
         let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert!(
             result.is_ok(),
             "generic function should be accepted, got: {:?}",
@@ -374,7 +474,7 @@ mod tests {
     #[test]
     fn parse_task_accepts_async_generic_with_where_clause() {
         let input = quote! { async fn complex<'a, T>() where T: Send + 'a {} };
-        let result = parse_task(&input);
+        let result = parse_task(&input, TaskOpts::default());
         assert!(
             result.is_ok(),
             "async generic with where clause should be accepted, got: {:?}",
@@ -388,7 +488,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_omits_generics_from_main_for_generic_task() {
         let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         // fn main<T> is invalid Rust — main must not have generics
@@ -407,7 +507,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_calls_generic_function() {
         let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         assert!(
@@ -420,7 +520,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_omits_generic_return_type_from_main() {
         let input = quote! { fn generic_task<T: Default>() -> T { T::default() } };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         // main() must not have -> T since T is not in main's scope
@@ -434,7 +534,7 @@ mod tests {
     #[test]
     fn parse_task_detects_async_function() {
         let input = quote! { async fn my_async_task() {} };
-        let result = parse_task(&input).unwrap();
+        let result = parse_task(&input, TaskOpts::default()).unwrap();
         assert_eq!(result.ident, "my_async_task");
         assert!(result.is_async, "async fn should have is_async = true");
         assert!(!result.is_unsafe);
@@ -446,7 +546,7 @@ mod tests {
     fn parse_task_detects_async_with_return_type() {
         let input = quote! { async fn fetch() -> Result<Vec<u8>, Error> {} };
         let expected_ty: Type = parse_quote!(Result<Vec<u8>, Error>);
-        let result = parse_task(&input).unwrap();
+        let result = parse_task(&input, TaskOpts::default()).unwrap();
         assert!(
             result.is_async,
             "async fn with return type should have is_async = true"
@@ -457,7 +557,7 @@ mod tests {
     #[test]
     fn parse_task_detects_async_with_args() {
         let input = quote! { async fn process(url: String, timeout: u64) {} };
-        let result = parse_task(&input).unwrap();
+        let result = parse_task(&input, TaskOpts::default()).unwrap();
         assert!(result.is_async);
         assert_eq!(result.args.len(), 2);
         assert_eq!(result.args[0].0, "url");
@@ -467,7 +567,7 @@ mod tests {
     #[test]
     fn parse_task_detects_async_unsafe_function() {
         let input = quote! { async unsafe fn low_level_op() {} };
-        let result = parse_task(&input).unwrap();
+        let result = parse_task(&input, TaskOpts::default()).unwrap();
         assert!(
             result.is_async,
             "async unsafe fn should have is_async = true"
@@ -481,14 +581,14 @@ mod tests {
     #[test]
     fn parse_task_sync_function_has_is_async_false() {
         let input = quote! { fn sync_task() {} };
-        let result = parse_task(&input).unwrap();
+        let result = parse_task(&input, TaskOpts::default()).unwrap();
         assert!(!result.is_async, "sync fn should have is_async = false");
     }
 
     #[test]
     fn generate_task_entrypoint_async_no_args() {
         let input = quote! { async fn my_async_task() {} };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         assert!(
@@ -516,7 +616,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_async_with_args() {
         let input = quote! { async fn fetch(url: String) {} };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         assert!(
@@ -534,7 +634,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_async_with_return_type() {
         let input = quote! { async fn work() -> Result<(), Error> {} };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         assert!(
@@ -563,6 +663,7 @@ mod tests {
             return_type: None,
             generics: syn::Generics::default(),
             args: vec![],
+            opts: TaskOpts::default(),
         };
         let result = generate_task_entrypoint(&task).unwrap();
         let output = result.to_string();
@@ -581,7 +682,7 @@ mod tests {
     #[test]
     fn generate_task_entrypoint_async_generic_uses_tokio() {
         let input = quote! { async fn generic_async<T: Send>() where T: Default {} };
-        let def = parse_task(&input).unwrap();
+        let def = parse_task(&input, TaskOpts::default()).unwrap();
         let result = generate_task_entrypoint(&def).unwrap();
         let output = result.to_string();
         assert!(
@@ -600,7 +701,7 @@ mod tests {
         #[test]
         fn parse_task_no_panic(item_str in ".*") {
             let item: proc_macro2::TokenStream = item_str.parse().unwrap_or_else(|_| quote!{});
-            let _ = parse_task(&item);
+            let _ = parse_task(&item, TaskOpts::default());
         }
 
         #[test]
@@ -615,6 +716,7 @@ mod tests {
                 return_type: None,
                 generics: syn::Generics::default(),
                 args: vec![],
+                opts: TaskOpts::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }
@@ -639,6 +741,7 @@ mod verification {
                 return_type: None,
                 generics: syn::Generics::default(),
                 args: vec![],
+                opts: TaskOpts::default(),
             };
             let _ = generate_task_entrypoint(&task);
         }
