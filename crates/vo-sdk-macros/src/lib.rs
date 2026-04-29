@@ -26,7 +26,7 @@ use proc_macro::TokenStream;
 mod error;
 mod task;
 
-use task::{generate_task_entrypoint, parse_task};
+use task::{generate_task_entrypoint, parse_task, parse_task_attrs};
 
 #[proc_macro_attribute]
 pub fn task_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
