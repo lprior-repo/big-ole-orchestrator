@@ -118,6 +118,17 @@ pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> 
     })
 }
 
+/// Resolves a binary path to its versioned location.
+///
+/// # Errors
+///
+/// Returns [`SubprocessError::BinaryVersioningFailed`] if not yet implemented.
+pub fn resolve_binary_path(_name: &str) -> Result<PinnedBinary, SubprocessError> {
+    Err(SubprocessError::BinaryVersioningFailed(
+        "not yet implemented".to_string(),
+    ))
+}
+
 /// Validates that an executable path is safe to execute.
 ///
 /// # Errors

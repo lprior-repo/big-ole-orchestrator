@@ -30,8 +30,6 @@ pub enum CliError {
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
     Workspace(#[from] crate::commands::workspace::WorkspaceError),
-    #[error(transparent)]
-    Serve(#[from] crate::commands::serve::ServeError),
     #[error("execute-node error: {0}")]
     ExecuteNode(String),
 }
@@ -723,7 +721,6 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Serve(_)
         | CliError::Status(_)
         | CliError::Workspace(_)
-        | CliError::Serve(_)
         | CliError::ExecuteNode(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }

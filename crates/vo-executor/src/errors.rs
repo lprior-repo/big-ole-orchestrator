@@ -43,6 +43,18 @@ pub enum ExecuteNodeError {
     /// Transient error that may succeed on retry.
     #[error("Transient error: {reason} (recoverable={recoverable})")]
     TransientError { reason: String, recoverable: bool },
+
+    /// IPC dispatch failed.
+    #[error("Dispatch IPC error: {detail}")]
+    DispatchIpc { detail: String },
+
+    /// Node kind mismatch during result interpretation.
+    #[error("Dispatch mismatch for {node_kind}: expected {expected}, got {got}")]
+    DispatchMismatch {
+        node_kind: String,
+        expected: String,
+        got: String,
+    },
 }
 
 /// Errors for invalid retry policy configuration.

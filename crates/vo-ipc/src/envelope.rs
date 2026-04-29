@@ -26,11 +26,20 @@ pub struct Fd4Envelope {
     pub result: TaskResult,
 }
 
+/// Envelope for managed effect intents returned by subprocesses.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct EffectIntentEnvelope {
+    pub effect_kind: String,
+    pub params: serde_json::Value,
+    pub connector_id: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskResult {
     Success { output: serde_json::Value },
     Failure { error: TaskError },
+    EffectIntent { intent: EffectIntentEnvelope },
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]

@@ -70,6 +70,12 @@ pub enum StepResult {
     Success { output: String },
     /// Step completed with failure (non-zero exit code or error).
     Failure { output: String },
+    /// Managed effect intent for engine-side commit.
+    EffectIntent {
+        effect_kind: String,
+        params: String,
+        connector_id: String,
+    },
 }
 
 impl StepResult {

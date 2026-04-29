@@ -5422,6 +5422,8 @@ dependencies = [
  "tracing",
  "ulid",
  "uuid",
+ "vo-ipc",
+ "vo-types",
 ]
 
 [[package]]
