@@ -56,10 +56,19 @@ pub struct V3SignalRequest {
 }
 
 /// Generic API error response.
+///
+/// All API errors use this consistent structure with error code, message, and
+/// optional details fields. The error code is a machine-readable identifier
+/// that maps to specific HTTP status codes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiError {
+    /// Machine-readable error code (e.g., "not_found", "invalid_input").
     pub error: String,
+    /// Human-readable error message describing what went wrong.
     pub message: String,
+    /// Optional additional context or structured details about the error.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 impl ApiError {
@@ -68,6 +77,33 @@ impl ApiError {
         Self {
             error: error.into(),
             message: message.into(),
+            details: None,
+        }
+    }
+
+    #[must_use]
+    pub fn with_details(mut self, details: serde_json::Value) -> Self {
+        self.details = Some(details);
+        self
+    }
+
+    #[must_use]
+    pub fn status_code(&self) -> u16 {
+        match self.error.as_str() {
+            "not_found" | "workflow_not_found" | "instance_not_found" => 404,
+            "already_exists" | "duplicate_ingress" | "conflict" => 409,
+            "invalid_namespace" | "invalid_instance_id" | "invalid_workflow_type"
+            | "invalid_input" | "invalid_dedupe_key" | "invalid_paradigm"
+            | "missing_dedupe_key" | "unknown_status_variant" => 400,
+            "workflow_quarantined" | "workflow_deactivated" | "forbidden" => 403,
+            "budget_exhausted" | "writer_pressure_shed" | "workflow_cap_exceeded"
+            | "too_many_requests" => 429,
+            "global_concurrency_limit" | "at_capacity" | "service_unavailable" => 503,
+            "internal_error" | "event_persist_failed" | "actor_unavailable"
+            | "actor_timeout" | "actor_error" | "spawn_failed" | "event_replay_failed"
+            | "dedupe_storage_error" | "terminate_failed" | "compensation_failed"
+            | "ghost_instance" | "invalid_config" => 500,
+            _ => 500,
         }
     }
 }
@@ -205,6 +241,7 @@ mod tests {
             workflow_type: "wf".to_string(),
             paradigm: "fsm".to_string(),
             input: serde_json::json!({}),
+            workflow_binary_hash: None,
             instance_id: None,
             dedupe_key: None,
         };
@@ -220,6 +257,7 @@ mod tests {
             workflow_type: "wf".to_string(),
             paradigm: "dag".to_string(),
             input: serde_json::json!({"key": "val"}),
+            workflow_binary_hash: None,
             instance_id: Some("custom-id".to_string()),
             dedupe_key: Some("dedupe-1".to_string()),
         };
@@ -235,6 +273,7 @@ mod tests {
             workflow_type: "charge".to_string(),
             paradigm: "procedural".to_string(),
             input: serde_json::json!({"amount": 100}),
+            workflow_binary_hash: None,
             instance_id: None,
             dedupe_key: None,
         };
@@ -288,6 +327,76 @@ mod tests {
         let err = ApiError::new("not_found", "workflow missing");
         assert_eq!(err.error, "not_found");
         assert_eq!(err.message, "workflow missing");
+        assert!(err.details.is_none());
+    }
+
+    #[test]
+    fn api_error_with_details() {
+        let err = ApiError::new("validation_error", "input invalid")
+            .with_details(serde_json::json!({"field": "name", "reason": "too_short"}));
+        assert_eq!(err.error, "validation_error");
+        assert!(err.details.is_some());
+        let details = err.details.unwrap();
+        assert_eq!(details["field"], "name");
+        assert_eq!(details["reason"], "too_short");
+    }
+
+    #[test]
+    fn api_error_details_not_serialized_when_none() {
+        let err = ApiError::new("not_found", "workflow missing");
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(!json.contains("details"));
+    }
+
+    #[test]
+    fn api_error_details_serialized_when_present() {
+        let err = ApiError::new("validation_error", "input invalid")
+            .with_details(serde_json::json!({"field": "value"}));
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(json.contains("details"));
+        assert!(json.contains("field"));
+    }
+
+    #[test]
+    fn api_error_status_code_not_found() {
+        let err = ApiError::new("not_found", "workflow missing");
+        assert_eq!(err.status_code(), 404);
+    }
+
+    #[test]
+    fn api_error_status_code_bad_request() {
+        let err = ApiError::new("invalid_input", "bad input");
+        assert_eq!(err.status_code(), 400);
+    }
+
+    #[test]
+    fn api_error_status_code_conflict() {
+        let err = ApiError::new("already_exists", "already exists");
+        assert_eq!(err.status_code(), 409);
+    }
+
+    #[test]
+    fn api_error_status_code_forbidden() {
+        let err = ApiError::new("workflow_quarantined", "workflow is quarantined");
+        assert_eq!(err.status_code(), 403);
+    }
+
+    #[test]
+    fn api_error_status_code_too_many_requests() {
+        let err = ApiError::new("budget_exhausted", "budget exceeded");
+        assert_eq!(err.status_code(), 429);
+    }
+
+    #[test]
+    fn api_error_status_code_internal_error() {
+        let err = ApiError::new("internal_error", "something went wrong");
+        assert_eq!(err.status_code(), 500);
+    }
+
+    #[test]
+    fn api_error_status_code_service_unavailable() {
+        let err = ApiError::new("at_capacity", "system at capacity");
+        assert_eq!(err.status_code(), 503);
     }
 
     #[test]
