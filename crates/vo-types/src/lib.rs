@@ -68,6 +68,7 @@ pub mod string_types;
 mod string_types_tests;
 mod task_failure_kind;
 mod task_input;
+pub mod timer_id;
 mod topology;
 mod tx_coordinator;
 mod types;
@@ -163,6 +164,7 @@ pub use spqr_tree::{
 };
 pub use task_failure_kind::TaskFailureKind;
 pub use task_input::{TaskInput, TaskInputEnvelope};
+pub use timer_id::TimerIdGenerator;
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
