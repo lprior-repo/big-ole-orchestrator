@@ -28,7 +28,7 @@ regex = { workspace = true }
 [features]
 default = []
 wasm = ["wasm-bindgen", "wasm-bindgen-futures", "web-sys", "gloo-timers"]
-sse = ["wasm", "futures", "tracing", "js-sys", "toml"]
+sse = ["wasm", "futures", "tracing", "js-sys", "reqwest", "toml"]
 
 [lints]
 workspace = true

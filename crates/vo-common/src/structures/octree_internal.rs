@@ -1,6 +1,7 @@
 //! Internal helper functions for octree operations.
 
-use crate::structures::octree::{Bounds, Vec3};
+use crate::structures::octree::{Bounds, Octree, Vec3};
+use std::cmp::Ordering;
 
 #[inline]
 pub fn bounds_center(b: &Bounds) -> Vec3 {
@@ -22,6 +23,134 @@ pub fn child_index(parent: &Bounds, point: Vec3) -> usize {
     usize::from(point.x >= center.x)
         | (usize::from(point.y >= center.y) << 1)
         | (usize::from(point.z >= center.z) << 2)
+}
+
+/// Candidate for nearest-neighbor search, sorted by distance (max-heap via Reverse).
+#[derive(Debug, Clone)]
+pub struct NnCandidate<T: Clone> {
+    pub distance: f64,
+    pub point: Vec3,
+    pub value: T,
+}
+
+impl<T: Clone> PartialEq for NnCandidate<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.distance == other.distance
+    }
+}
+
+impl<T: Clone> Eq for NnCandidate<T> {}
+
+impl<T: Clone> PartialOrd for NnCandidate<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.distance.partial_cmp(&other.distance)
+    }
+}
+
+impl<T: Clone> Ord for NnCandidate<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
+    }
+}
+
+/// Bounded priority queue that keeps only the k smallest entries (max-heap based).
+/// Uses a max-heap so we can efficiently evict the farthest candidate.
+#[derive(Debug, Clone)]
+pub struct BoundedQueue<T: Clone> {
+    capacity: usize,
+    heap: std::collections::BinaryHeap<NnCandidate<T>>,
+}
+
+impl<T: Clone> BoundedQueue<T> {
+    pub fn new(capacity: usize) -> Self {
+        Self {
+            capacity,
+            heap: std::collections::BinaryHeap::new(),
+        }
+    }
+
+    pub fn try_push(&mut self, candidate: NnCandidate<T>) {
+        if self.capacity == 0 {
+            return;
+        }
+        if self.heap.len() < self.capacity {
+            self.heap.push(candidate);
+        } else if let Some(top) = self.heap.peek() {
+            if candidate.distance < top.distance {
+                self.heap.pop();
+                self.heap.push(candidate);
+            }
+        }
+    }
+
+    pub fn worst_distance(&self) -> f64 {
+        self.heap
+            .peek()
+            .map(|c| c.distance)
+            .unwrap_or(f64::INFINITY)
+    }
+
+    pub fn into_sorted_vec(self) -> Vec<(Vec3, T)> {
+        let mut v: Vec<_> = self.heap.into_iter().collect();
+        v.sort_by(|a, b| {
+            a.distance
+                .partial_cmp(&b.distance)
+                .unwrap_or(Ordering::Equal)
+        });
+        v.into_iter().map(|c| (c.point, c.value)).collect()
+    }
+}
+
+/// Priority-guided depth-first traversal for k-nearest-neighbor queries.
+/// Visits children closest to the query point first, pruning branches whose
+/// minimum distance exceeds the current worst candidate distance.
+pub fn k_nearest_search<T: Clone + serde::Serialize>(
+    tree: &Octree<T>,
+    query: Vec3,
+    k: usize,
+) -> Vec<(Vec3, T)> {
+    let mut queue = BoundedQueue::new(k);
+    search_recursive(tree, query, &mut queue);
+    queue.into_sorted_vec()
+}
+
+fn search_recursive<T: Clone + serde::Serialize>(
+    tree: &Octree<T>,
+    query: Vec3,
+    queue: &mut BoundedQueue<T>,
+) {
+    let min_dist = tree.bounds().min_distance_to(query);
+    if min_dist > queue.worst_distance() {
+        return;
+    }
+
+    // Check local data points
+    for (pt, val) in tree.local_data() {
+        let dist = pt.distance_to(query);
+        queue.try_push(NnCandidate {
+            distance: dist,
+            point: *pt,
+            value: val.clone(),
+        });
+    }
+
+    if tree.is_degenerate() {
+        return;
+    }
+
+    if let Some(children) = tree.children() {
+        // Sort children by minimum distance to query (closest first)
+        let mut indexed: Vec<(f64, usize)> = children
+            .iter()
+            .enumerate()
+            .map(|(i, c)| (c.bounds().min_distance_to(query), i))
+            .collect();
+        indexed.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
+
+        for (_, idx) in indexed {
+            search_recursive(&children[idx], query, queue);
+        }
+    }
 }
 
 #[cfg(test)]

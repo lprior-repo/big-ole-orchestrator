@@ -1,6 +1,7 @@
 //! Spatial and geometric data structures.
 
 pub mod octree;
+pub(crate) mod octree_internal;
 pub mod pairing_heap;
 
 pub use octree::{Bounds, Octree, Vec3};
