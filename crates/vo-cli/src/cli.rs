@@ -101,6 +101,21 @@ pub enum Command {
         input: Option<Vec<u8>>,
         timeout: u64,
     },
+    ApiKey {
+        subcommand: ApiKeySubcommand,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ApiKeySubcommand {
+    Create {
+        name: String,
+        expires_in_days: Option<u32>,
+    },
+    List,
+    Revoke {
+        key_id: String,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -368,6 +383,40 @@ where
                         .default_value("30")
                         .help("Timeout in seconds for node execution"),
                 ),
+        )
+        .subcommand(
+            clap::Command::new("apikey")
+                .about("Manage API keys for authentication")
+                .subcommand(
+                    clap::Command::new("create")
+                        .about("Create a new API key")
+                        .arg(
+                            clap::Arg::new("name")
+                                .required(true)
+                                .index(1)
+                                .help("Human-readable name for the API key"),
+                        )
+                        .arg(
+                            clap::Arg::new("expires-in-days")
+                                .long("expires-in-days")
+                                .value_name("DAYS")
+                                .help("Number of days until the key expires (optional)"),
+                        ),
+                )
+                .subcommand(
+                    clap::Command::new("list")
+                        .about("List all API keys"),
+                )
+                .subcommand(
+                    clap::Command::new("revoke")
+                        .about("Revoke an API key")
+                        .arg(
+                            clap::Arg::new("key-id")
+                                .required(true)
+                                .index(1)
+                                .help("The ID of the API key to revoke"),
+                        ),
+                ),
         );
 
     let matches = cmd.try_get_matches_from(args)?;
@@ -607,6 +656,44 @@ where
                 },
             })
         }
+        Some(("apikey", sub_matches)) => {
+            match sub_matches.subcommand() {
+                Some(("create", create_matches)) => {
+                    let name = create_matches
+                        .get_one::<String>("name")
+                        .cloned()
+                        .unwrap_or_default();
+                    let expires_in_days = create_matches
+                        .get_one::<String>("expires-in-days")
+                        .and_then(|s| s.parse().ok());
+                    Ok(Cli {
+                        command: Command::ApiKey {
+                            subcommand: ApiKeySubcommand::Create {
+                                name,
+                                expires_in_days,
+                            },
+                        },
+                    })
+                }
+                Some(("list", _)) => Ok(Cli {
+                    command: Command::ApiKey {
+                        subcommand: ApiKeySubcommand::List,
+                    },
+                }),
+                Some(("revoke", revoke_matches)) => {
+                    let key_id = revoke_matches
+                        .get_one::<String>("key-id")
+                        .cloned()
+                        .unwrap_or_default();
+                    Ok(Cli {
+                        command: Command::ApiKey {
+                            subcommand: ApiKeySubcommand::Revoke { key_id },
+                        },
+                    })
+                }
+                _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+            }
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -773,6 +860,51 @@ mod tests {
                 node_name: "my-node".to_string(),
                 input: None,
                 timeout: 30,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_apikey_create_requires_name() {
+        let args: Vec<OsString> = vec!["vo".into(), "apikey".into(), "create".into()];
+        let result = interpret_cli_from(args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_apikey_list_parses() {
+        let args: Vec<OsString> = vec!["vo".into(), "apikey".into(), "list".into()];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ApiKey {
+                subcommand: ApiKeySubcommand::List,
+            }
+        );
+    }
+
+    #[test]
+    fn cli_apikey_revoke_requires_key_id() {
+        let args: Vec<OsString> = vec!["vo".into(), "apikey".into(), "revoke".into()];
+        let result = interpret_cli_from(args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_apikey_revoke_parses_key_id() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "apikey".into(),
+            "revoke".into(),
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ApiKey {
+                subcommand: ApiKeySubcommand::Revoke {
+                    key_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+                },
             }
         );
     }

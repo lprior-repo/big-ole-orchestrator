@@ -53,6 +53,11 @@ pub async fn api_key_auth(
                     "expired_api_key",
                     "The provided API key has expired.",
                 ),
+                ApiKeyStoreError::Storage { .. } | ApiKeyStoreError::Codec { .. } | ApiKeyStoreError::InvalidArgument => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    "An internal error occurred while validating the API key.",
+                ),
             };
 
             let body = serde_json::json!({

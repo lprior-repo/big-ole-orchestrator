@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 
-use crate::cli::{Cli, CliError, Command};
+use crate::cli::{ApiKeySubcommand, Cli, CliError, Command};
 use crate::handler::CommandHandler;
 
 pub struct HandlerRegistry {
@@ -24,6 +25,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::ServeHandler));
         registry.register(Box::new(handlers::HistoryHandler));
         registry.register(Box::new(handlers::ExecuteNodeHandler));
+        registry.register(Box::new(handlers::ApiKeyHandler));
         registry
     }
 }
@@ -62,6 +64,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Serve { .. } => Some("serve"),
         Command::History { .. } => Some("history"),
         Command::ExecuteNode { .. } => Some("execute-node"),
+        Command::ApiKey { .. } => Some("apikey"),
     }
 }
 
@@ -567,6 +570,84 @@ mod handlers {
             })
        }
     }
+
+    pub struct ApiKeyHandler;
+
+    impl CommandHandler for ApiKeyHandler {
+        fn name(&self) -> &'static str {
+            "apikey"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::ApiKey { ref subcommand } = cli.command else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not an apikey command".to_string()))
+                });
+            };
+            let subcommand = subcommand.clone();
+            Box::pin(async move {
+                let storage_path = PathBuf::from(".vo/storage");
+                let db = fjall::Database::builder(&storage_path)
+                    .open()
+                    .map_err(|e| CliError::Dispatch(format!("Failed to open database: {e}")))?;
+                let api_key_store = vo_storage::api_key_partition::FjallApiKeyStore::open(&db)
+                    .map_err(|e| CliError::Dispatch(format!("Failed to open API key store: {e}")))?;
+                match subcommand {
+                    crate::cli::ApiKeySubcommand::Create { name, expires_in_days } => {
+                        let raw_key = super::generate_api_key();
+                        let key_id = api_key_store
+                            .create_key(&raw_key, &name)
+                            .map_err(|e| CliError::Dispatch(format!("Failed to create API key: {e}")))?;
+                        println!("Created API key '{name}' with ID: {key_id}");
+                        if let Some(days) = expires_in_days {
+                            println!("Expires in {days} days");
+                        }
+                        println!("\nIMPORTANT: Save this API key - it will not be shown again:");
+                        println!("{raw_key}");
+                        Ok(())
+                    }
+                    crate::cli::ApiKeySubcommand::List => {
+                        let keys = api_key_store
+                            .list_keys()
+                            .map_err(|e| CliError::Dispatch(format!("Failed to list API keys: {e}")))?;
+                        if keys.is_empty() {
+                            println!("No API keys found.");
+                        } else {
+                            println!("API Keys:");
+                            println!("{:<36} {:<20} {:<12}", "ID", "Name", "Status");
+                            println!("{}", "-".repeat(68));
+                            for key in keys {
+                                let status = if key.revoked {
+                                    "REVOKED".to_string()
+                                } else if key.expires_at.is_some() {
+                                    "EXPIRED".to_string()
+                                } else {
+                                    "ACTIVE".to_string()
+                                };
+                                println!("{:<36} {:<20} {:<12}", key.key_id, key.name, status);
+                            }
+                        }
+                        Ok(())
+                    }
+                    crate::cli::ApiKeySubcommand::Revoke { key_id } => {
+                        api_key_store
+                            .revoke_key(&key_id)
+                            .map_err(|e| CliError::Dispatch(format!("Failed to revoke API key: {e}")))?;
+                        println!("Revoked API key: {key_id}");
+                        Ok(())
+                    }
+                }
+            })
+        }
+    }
+}
+
+fn generate_api_key() -> String {
+    let ulid = ulid::Ulid::new();
+    format!("vo_sk_{}", ulid.to_string())
 }
 
   async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
