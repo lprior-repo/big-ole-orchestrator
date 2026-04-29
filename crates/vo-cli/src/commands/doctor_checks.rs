@@ -11,6 +11,8 @@ pub enum CheckCategory {
     SubprocessLiveness,
     StorageIntegrity,
     ConfigValidation,
+    WorkflowValidation,
+    PortAvailability,
 }
 
 impl std::fmt::Display for CheckCategory {
@@ -21,6 +23,8 @@ impl std::fmt::Display for CheckCategory {
             Self::SubprocessLiveness => write!(f, "subprocess-liveness"),
             Self::StorageIntegrity => write!(f, "storage-integrity"),
             Self::ConfigValidation => write!(f, "config-validation"),
+            Self::WorkflowValidation => write!(f, "workflow-validation"),
+            Self::PortAvailability => write!(f, "port-availability"),
         }
     }
 }
@@ -740,6 +744,200 @@ pub fn check_config_validation(project_dir: &Path) -> CategoryReport {
 }
 
 // ---------------------------------------------------------------------------
+// Check: Workflow definitions
+// ---------------------------------------------------------------------------
+
+pub fn check_workflow_definitions(project_dir: &Path, vo_dir: &Path) -> CategoryReport {
+    let mut report = CategoryReport::new(CheckCategory::WorkflowValidation);
+
+    let wf_dir = vo_dir.join("workflows");
+    if !wf_dir.is_dir() {
+        report.push(
+            "workflow-dir",
+            Severity::Info,
+            "workflows directory does not exist — no definitions to validate".into(),
+        );
+        return report;
+    }
+
+    let entries = match std::fs::read_dir(&wf_dir) {
+        Ok(e) => e,
+        Err(e) => {
+            report.push(
+                "workflow-dir-read",
+                Severity::Error,
+                format!("cannot read workflows directory: {e}"),
+            );
+            return report;
+        }
+    };
+
+    let json_files: Vec<_> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.file_name()
+                .to_str()
+                .map(|n| n.ends_with(".json"))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if json_files.is_empty() {
+        report.push(
+            "workflow-definitions",
+            Severity::Info,
+            "no JSON workflow definition files found".into(),
+        );
+        return report;
+    }
+
+    report.push(
+        "workflow-definitions",
+        Severity::Info,
+        format!(
+            "found {} JSON workflow definition file(s)",
+            json_files.len()
+        ),
+    );
+
+    let mut valid_count = 0u32;
+    let mut invalid_count = 0u32;
+
+    for entry in &json_files {
+        let path = entry.path();
+        let contents = match std::fs::read(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                report.push(
+                    "workflow-parse",
+                    Severity::Error,
+                    format!(
+                        "{}: failed to read: {e}",
+                        path.file_name().unwrap_or_default().to_string_lossy()
+                    ),
+                );
+                invalid_count += 1;
+                continue;
+            }
+        };
+
+        let mut de = serde_json::Deserializer::from_slice(&contents);
+        match vo_types::WorkflowDefinition::from_deserializer(&mut de) {
+            Ok(def) => {
+                valid_count += 1;
+                report.push(
+                    "workflow-parse",
+                    Severity::Info,
+                    format!(
+                        "{}: valid ({} node(s))",
+                        path.file_name().unwrap_or_default().to_string_lossy(),
+                        def.nodes.len()
+                    ),
+                );
+            }
+            Err(e) => {
+                invalid_count += 1;
+                report.push(
+                    "workflow-parse",
+                    Severity::Error,
+                    format!(
+                        "{}: parse error: {e}",
+                        path.file_name().unwrap_or_default().to_string_lossy()
+                    ),
+                );
+            }
+        }
+    }
+
+    if valid_count > 0 && invalid_count == 0 {
+        report.push(
+            "workflow-validation",
+            Severity::Info,
+            format!("all {valid_count} workflow definition(s) are valid"),
+        );
+    } else if invalid_count > 0 {
+        report.push(
+            "workflow-validation",
+            Severity::Error,
+            format!("{invalid_count} invalid workflow definition(s)"),
+        );
+    }
+
+    report
+}
+
+// ---------------------------------------------------------------------------
+// Check: Port availability
+// ---------------------------------------------------------------------------
+
+fn is_port_available(host: &str, port: u16) -> bool {
+    std::net::TcpListener::bind(format!("{host}:{port}")).is_ok()
+}
+
+pub fn check_port_availability(project_dir: &Path, _vo_dir: &Path) -> CategoryReport {
+    let mut report = CategoryReport::new(CheckCategory::PortAvailability);
+
+    let config_path = project_dir.join("config.toml");
+    let default_port = 8080u16;
+    let default_host = "127.0.0.1";
+
+    let (port, host) = if config_path.exists() {
+        if let Ok(content) = std::fs::read_to_string(&config_path) {
+            if let Ok(table) = content.parse::<toml::Table>() {
+                let port = table
+                    .get("server")
+                    .and_then(|s| s.get("port"))
+                    .and_then(|p| p.as_integer())
+                    .map(|p| p as u16)
+                    .unwrap_or(default_port);
+                let host = table
+                    .get("server")
+                    .and_then(|s| s.get("host"))
+                    .and_then(|h| h.as_str())
+                    .unwrap_or(default_host);
+                (port, host.to_string())
+            } else {
+                (default_port, default_host.to_string())
+            }
+        } else {
+            (default_port, default_host.to_string())
+        }
+    } else {
+        (default_port, default_host.to_string())
+    };
+
+    if is_port_available(&host, port) {
+        report.push(
+            "serve-port",
+            Severity::Info,
+            format!("port {port} on {host} is available for serve mode"),
+        );
+    } else {
+        report.push(
+            "serve-port",
+            Severity::Error,
+            format!("port {port} on {host} is NOT available (already in use)"),
+        );
+    }
+
+    let alt_ports = [8081, 3000, 3001];
+    for alt_port in alt_ports {
+        if alt_port == port {
+            continue;
+        }
+        if is_port_available(&host, alt_port) {
+            report.push(
+                "alternate-port",
+                Severity::Info,
+                format!("alternate port {alt_port} on {host} is available"),
+            );
+        }
+    }
+
+    report
+}
+
+// ---------------------------------------------------------------------------
 // Display
 // ---------------------------------------------------------------------------
 
@@ -840,15 +1038,17 @@ mod tests {
     // --- Type tests ---
 
     #[test]
-    fn check_category_has_five_variants() {
+    fn check_category_has_seven_variants() {
         let all = [
             CheckCategory::Workspace,
             CheckCategory::LockState,
             CheckCategory::SubprocessLiveness,
             CheckCategory::StorageIntegrity,
             CheckCategory::ConfigValidation,
+            CheckCategory::WorkflowValidation,
+            CheckCategory::PortAvailability,
         ];
-        assert_eq!(all.len(), 5);
+        assert_eq!(all.len(), 7);
     }
 
     #[test]

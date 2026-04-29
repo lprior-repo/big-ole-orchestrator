@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 
 pub use super::doctor_checks::{
-    check_config_validation, check_lock_state, check_storage_integrity, check_subprocess_liveness,
-    check_workspace, format_report, format_report_json, CategoryReport, CheckCategory, CheckResult,
+    check_config_validation, check_lock_state, check_port_availability, check_storage_integrity,
+    check_subprocess_liveness, check_workflow_definitions, check_workspace, format_report,
+    format_report_json, CategoryReport, CheckCategory, CheckResult,
     DoctorReport as ComprehensiveDoctorReport, Severity,
 };
 
@@ -26,12 +27,14 @@ pub enum DoctorError {
 
 /// Run comprehensive diagnostics on a veloxide project.
 ///
-/// Checks five categories:
+/// Checks seven categories:
 /// - **Workspace integrity**: `.vo/` directory, workflows, storage, permissions
 /// - **Lock state**: lockfile integrity, hash verification, orphan binaries
 /// - **Subprocess liveness**: PID file validation, process alive checks
 /// - **Storage integrity**: storage directory health, WAL files, partition check
 /// - **Config validation**: TOML parsing, required sections, path validation
+/// - **Workflow validation**: JSON workflow definition parsing and validation
+/// - **Port availability**: check if serve ports are available
 ///
 /// # Errors
 /// Returns `DoctorError` if the project is not initialized (no `.vo/` dir).
@@ -49,6 +52,8 @@ pub fn run_doctor(config: &DoctorConfig) -> Result<ComprehensiveDoctorReport, Do
         check_subprocess_liveness(&vo_dir),
         check_storage_integrity(&vo_dir, &config.project_dir),
         check_config_validation(&config.project_dir),
+        check_workflow_definitions(&config.project_dir, &vo_dir),
+        check_port_availability(&config.project_dir, &vo_dir),
     ];
 
     Ok(ComprehensiveDoctorReport {
