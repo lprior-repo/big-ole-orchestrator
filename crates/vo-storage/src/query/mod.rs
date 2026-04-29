@@ -173,19 +173,21 @@ impl Iterator for EventReplayIterator {
         if let Some(err) = self.init_error.take() {
             return Some(Err(err));
         }
-        let Some(inner) = &mut self.inner else {
-            return None;
-        };
-        match inner.next() {
-            Some(guard) => {
-                if let Ok((k_bytes, v_bytes)) = guard.into_inner() {
-                    self.process_kv(&k_bytes, &v_bytes)
-                } else {
-                    self.inner = None;
-                    Some(Err(StorageError::Storage))
-                }
+        loop {
+            let guard = match self.inner.as_mut().and_then(|i| i.next()) {
+                Some(g) => g,
+                None => return None,
+            };
+            let (k_bytes, v_bytes) = match guard.into_inner() {
+                Ok(pair) => pair,
+                Err(_) => continue,
+            };
+            match self.process_kv(&k_bytes, &v_bytes) {
+                Some(Ok(env)) => return Some(Ok(env)),
+                Some(Err(StorageError::CorruptEventPayload)) => continue,
+                Some(Err(e)) => return Some(Err(e)),
+                None => return None,
             }
-            None => None,
         }
     }
 }
@@ -204,8 +206,6 @@ impl EventReplayIterator {
         k_bytes: &fjall::Slice,
         v_bytes: &fjall::Slice,
     ) -> Option<Result<EventEnvelope, StorageError>> {
-        // Validate key format version (first byte of key).
-        // A key with an unsupported version causes replay to fail closed.
         if k_bytes.is_empty() {
             self.inner = None;
             return Some(Err(StorageError::UnsupportedVersion));
@@ -235,7 +235,6 @@ impl EventReplayIterator {
                 return Some(Err(StorageError::UnsupportedVersion));
             }
             Err(_) => {
-                self.inner = None;
                 return Some(Err(StorageError::CorruptEventPayload));
             }
         };

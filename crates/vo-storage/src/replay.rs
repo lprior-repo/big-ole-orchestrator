@@ -40,6 +40,8 @@ pub struct ReplayResult {
     pub snapshot_version: u64,
     pub state: InstanceState,
     pub events: Vec<FetchedEvent>,
+    pub successful_count: u64,
+    pub corrupted_count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -144,19 +146,23 @@ where
         match self.snapshot_store.load_latest(instance_id) {
             Ok(Some((snapshot_version, state))) => {
                 let start_seq = snapshot_version.saturating_add(1);
-                let events = self.collect_events(instance_id, start_seq)?;
+                let (events, successful_count, corrupted_count) =
+                    self.collect_events(instance_id, start_seq)?;
                 Ok(ReplayResult {
                     snapshot_version,
                     state,
                     events,
+                    successful_count,
+                    corrupted_count,
                 })
             }
             Ok(None) => {
-                let events = self.collect_events(instance_id, 0)?;
+                let (events, successful_count, corrupted_count) =
+                    self.collect_events(instance_id, 0)?;
                 Err(ReplayError::NoSnapshot { events })
             }
             Err(e) => {
-                let fallback_events = self.collect_events(instance_id, 0)?;
+                let (fallback_events, _, _) = self.collect_events(instance_id, 0)?;
                 if fallback_events.is_empty() {
                     return Err(ReplayError::SnapshotLoadFailed {
                         reason: format!("{e:?}"),
@@ -173,20 +179,31 @@ where
         &self,
         instance_id: &InstanceId,
         start_sequence: u64,
-    ) -> Result<Vec<FetchedEvent>, ReplayError> {
+    ) -> Result<(Vec<FetchedEvent>, u64, u64), ReplayError> {
         let iter = self.event_store.replay_events(instance_id, start_sequence);
-        let events: Vec<FetchedEvent> = iter
-            .map(|result| {
-                result.map(|envelope| FetchedEvent {
-                    sequence: envelope.sequence,
-                    envelope,
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ReplayError::EventFetchFailed {
-                reason: format!("{e:?}"),
-            })?;
-        Ok(events)
+        let mut events = Vec::new();
+        let mut successful_count = 0u64;
+        let mut corrupted_count = 0u64;
+        for result in iter {
+            match result {
+                Ok(envelope) => {
+                    successful_count += 1;
+                    events.push(FetchedEvent {
+                        sequence: envelope.sequence,
+                        envelope,
+                    });
+                }
+                Err(StorageError::CorruptEventPayload) => {
+                    corrupted_count += 1;
+                }
+                Err(e) => {
+                    return Err(ReplayError::EventFetchFailed {
+                        reason: format!("{e:?}"),
+                    });
+                }
+            }
+        }
+        Ok((events, successful_count, corrupted_count))
     }
 }
 
