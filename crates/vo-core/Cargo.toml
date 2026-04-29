@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 vo-types = { path = "../vo-types" }
+vo-scheduler = { path = "../vo-scheduler" }
 thiserror.workspace = true
 serde.workspace = true
 serde_json.workspace = true

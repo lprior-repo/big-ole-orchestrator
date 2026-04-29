@@ -5,6 +5,13 @@
 //!
 //! # Key Modules
 //!
+//! - [`scheduler`] - Job scheduling integration via vo-scheduler
+//!   - [`scheduler::Scheduler`] - Main tick-based scheduler loop
+//!   - [`scheduler::JobStore`] - Trait for persistent job storage
+//!   - [`scheduler::WorkerDispatch`] - Trait for dispatching jobs to workers
+//!   - [`scheduler::ScheduledJob`] - Persistent job representation
+//!   - [`scheduler::InMemoryJobStore`] - In-memory job store for testing
+//!   - [`scheduler::RecordingDispatcher`] - Test-friendly dispatcher
 //! - [`exact_once_verification`] - Crash recovery verification and assertion helpers
 //!   - [`exact_once_verification::assertions`] - Invariant checking for recovery
 //!   - [`exact_once_verification::crash_points`] - Injectable crash scenarios for testing
@@ -39,6 +46,7 @@ pub mod quadtree;
 pub mod recovery;
 pub mod replay;
 pub mod resource_quota;
+pub mod scheduler;
 pub mod segment_tree;
 pub mod shedding;
 pub mod snapshot_compat;

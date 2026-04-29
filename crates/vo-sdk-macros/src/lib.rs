@@ -26,7 +26,7 @@ use proc_macro::TokenStream;
 mod error;
 mod task;
 
-use task::{generate_task_entrypoint, parse_task, parse_task_opts};
+use task::{generate_task_entrypoint, parse_task, parse_task_attrs};
 
 #[proc_macro_attribute]
 pub fn task_macro(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -42,26 +42,28 @@ pub(crate) fn internal_task_macro(
         return quote::quote! { compile_error!("expected a function item"); };
     }
 
-    let opts = match parse_task_opts(&attr) {
-        Ok(opts) => opts,
-        Err(error::Error::UnknownAttribute(name)) => {
-            return quote::quote! { compile_error!(concat!("unknown attribute: ", #name)) };
+    let attrs = match parse_task_attrs(&attr) {
+        Ok(a) => a,
+        Err(error::Error::EmptyAttribute) => {
+            return quote::quote! { compile_error!("macro attribute is empty"); };
         }
-        Err(error::Error::InvalidAttributeValue(name, reason)) => {
-            let msg = format!("invalid attribute value for {}: {}", name, reason);
-            return quote::quote! { compile_error!(#msg) };
+        Err(error::Error::TooManyAttributes) => {
+            return quote::quote! { compile_error!("too many macro attributes (max 255)"); };
         }
-        Err(error::Error::NegativeRetries(val)) => {
-            let msg = format!("retries must be non-negative, got {}", val);
-            return quote::quote! { compile_error!(#msg) };
+        Err(error::Error::UnknownAttribute) => {
+            return quote::quote! { compile_error!("unknown attribute"); };
         }
-        Err(e) => {
-            return quote::quote! { compile_error!("{}", e.to_string()) };
+        Err(error::Error::InvalidAttributeValue) => {
+            return quote::quote! { compile_error!("invalid attribute value"); };
+        }
+        Err(_) => {
+            return quote::quote! { compile_error!("attribute parse error"); };
         }
     };
 
-    match parse_task(&item, opts) {
-        Ok(task_def) => {
+    match parse_task(&item) {
+        Ok(mut task_def) => {
+            task_def.attrs = attrs;
             if let Ok(main_fn) = generate_task_entrypoint(&task_def) {
                 quote::quote! {
                     #item
@@ -92,14 +94,11 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::AsyncReturnTypeMismatch) => {
             quote::quote! { compile_error!("async functions cannot have a return type"); }
         }
-        Err(error::Error::UnknownAttribute(name)) => {
-            quote::quote! { compile_error!("unknown attribute: {}", #name); }
+        Err(error::Error::UnknownAttribute) => {
+            quote::quote! { compile_error!("unknown attribute"); }
         }
-        Err(error::Error::InvalidAttributeValue(name, reason)) => {
-            quote::quote! { compile_error!("invalid attribute value for {}: {}", #name, #reason); }
-        }
-        Err(error::Error::NegativeRetries(val)) => {
-            quote::quote! { compile_error!("retries must be non-negative, got {}", #val); }
+        Err(error::Error::InvalidAttributeValue) => {
+            quote::quote! { compile_error!("invalid attribute value"); }
         }
     }
 }
@@ -170,8 +169,52 @@ mod tests {
         let item = quote! { fn my_task() {} };
         let result = internal_task_macro(attr, item);
         let result_str = result.to_string();
-        assert!(!result_str.contains("compile_error"), "should not error on retries: {}", result_str);
-        assert!(result_str.contains("fn main"), "should generate main: {}", result_str);
+        assert!(
+            !result_str.contains("compile_error"),
+            "retries=3 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_accepts_timeout_attribute() {
+        let attr = quote! { timeout = 30 };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "timeout=30 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn task_macro_accepts_combined_retries_and_timeout() {
+        let attr = quote! { retries = 3, timeout = 30 };
+        let item = quote! { fn my_task() {} };
+        let result = internal_task_macro(attr, item);
+        let result_str = result.to_string();
+        assert!(
+            !result_str.contains("compile_error"),
+            "retries=3, timeout=30 should be accepted: {}",
+            result_str
+        );
+        assert!(
+            result_str.contains("fn main"),
+            "should generate main: {}",
+            result_str
+        );
     }
 
     #[test]
@@ -238,14 +281,19 @@ mod tests {
     fn task_macro_rejects_unknown_attribute() {
         let attr = quote! { foo };
         let item = quote! { fn a() {} };
+        let expected = quote! { compile_error!("unknown attribute"); };
         let result = internal_task_macro(attr, item);
         let result_str = result.to_string();
         assert!(result_str.contains("unknown attribute"), "should report unknown attribute: got {}", result_str);
     }
 
     #[test]
-    fn task_macro_rejects_unknown_attribute_in_list() {
-        let attr = quote! { foo = 1 };
+    fn task_macro_rejects_too_many_attributes() {
+        let mut attrs = Vec::new();
+        for i in 0..256u32 {
+            attrs.push(quote! { retries = #i });
+        }
+        let attr = quote! { #(#attrs),* };
         let item = quote! { fn a() {} };
         let result = internal_task_macro(attr, item);
         let result_str = result.to_string();

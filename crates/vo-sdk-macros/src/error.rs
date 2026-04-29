@@ -16,10 +16,8 @@ pub enum Error {
     IdentParsingFailed,
     #[error("async functions cannot have a return type")]
     AsyncReturnTypeMismatch,
-    #[error("unknown attribute: {0}")]
-    UnknownAttribute(String),
-    #[error("invalid attribute value for {0}: {1}")]
-    InvalidAttributeValue(String, String),
-    #[error("retries must be non-negative, got {0}")]
-    NegativeRetries(i64),
+    #[error("unknown attribute")]
+    UnknownAttribute,
+    #[error("invalid attribute value")]
+    InvalidAttributeValue,
 }

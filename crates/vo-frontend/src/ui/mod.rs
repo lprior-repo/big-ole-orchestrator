@@ -11,6 +11,7 @@ pub mod icons;
 pub mod operator_action_panel;
 pub mod parallel_group_overlay;
 pub mod prototype_palette;
+pub mod node_search_panel;
 pub mod simulate_mode;
 #[cfg(test)]
 pub mod template_rendering_tests;
@@ -25,8 +26,4 @@ pub use guarantee_badge::{
 };
 pub use operator_action_panel::{ActionType, OperatorActionPanel};
 pub use prototype_palette::PrototypePalette;
-
-#[cfg(feature = "sse")]
-pub mod workflow_upload;
-#[cfg(feature = "sse")]
-pub use workflow_upload::WorkflowUploadForm;
+pub use node_search_panel::NodeSearchPanel;

@@ -215,4 +215,20 @@ mod tests {
         let d2 = Diagnostic::new(LintCode::L002, "same");
         assert_eq!(d1, d2);
     }
+
+    #[test]
+    fn test_check_retry_policy_bounds_retexport() {
+        let diags = rules::check_retry_policy_bounds(100, 120_000, 20.0, 3_600_001);
+        assert_eq!(diags.len(), 4);
+        assert!(diags.iter().any(|d| d.field() == Some("max_attempts")));
+        assert!(diags.iter().any(|d| d.field() == Some("initial_delay")));
+        assert!(diags.iter().any(|d| d.field() == Some("backoff_multiplier")));
+        assert!(diags.iter().any(|d| d.field() == Some("max_delay")));
+    }
+
+    #[test]
+    fn test_check_retry_policy_bounds_safe_values() {
+        let diags = rules::check_retry_policy_bounds(50, 60_000, 10.0, 3_600_000);
+        assert!(diags.is_empty());
+    }
 }

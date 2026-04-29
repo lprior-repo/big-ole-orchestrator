@@ -5207,7 +5207,7 @@ dependencies = [
  "gloo-timers",
  "itertools 0.14.0",
  "js-sys",
- "reqwest",
+ "regex",
  "serde",
  "serde_json",
  "toml 0.8.23",

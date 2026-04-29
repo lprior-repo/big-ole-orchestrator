@@ -676,7 +676,7 @@ mod tests {
         };
 
         let json = serde_json::to_string(&original).expect("serialize WorkflowSpec");
-        assert!(json.contains(r#"\"guarantee_class\":\"exact-once\""#));
+        assert!(json.contains(r#""guarantee_class":"exact_once""#));
 
         let deserialized: WorkflowSpec =
             serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
