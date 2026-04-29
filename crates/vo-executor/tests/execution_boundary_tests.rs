@@ -52,7 +52,7 @@ async fn bdd_zombie_prevention_subprocess_reaped_after_parent_exit() {
     make_executable(&script);
 
     // WHEN: We spawn the subprocess with a short timeout
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: The operation times out (not a hang) and process is reaped
@@ -97,7 +97,7 @@ async fn bdd_zombie_prevention_normal_exit_reaps_immediately() {
     make_executable(&script);
 
     // WHEN: Subprocess completes normally
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Execution succeeds and process is reaped
@@ -138,7 +138,7 @@ async fn bdd_zombie_prevention_process_group_isolation() {
     make_executable(&script);
 
     // WHEN: Subprocess is killed due to timeout
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 150, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 150, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Timeout occurs
@@ -176,7 +176,7 @@ async fn bdd_fd_budget_sequential_spawns_no_fd_leak() {
     let num_spawns = 50;
     for i in 0..num_spawns {
         let config =
-            SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+            SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]).unwrap();
         let result = run_subprocess(config).await;
         assert!(
             result.is_ok(),
@@ -200,7 +200,7 @@ async fn bdd_fd_budget_pipe_ends_have_cloexec() {
     make_executable(&script);
 
     // WHEN: Subprocess runs briefly
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Execution succeeds (pipes were properly set up with CLOEXEC)
@@ -219,7 +219,7 @@ async fn bdd_fd_budget_stdin_stdout_stderr_not_used() {
     make_executable(&script);
 
     // WHEN: Executed with null I/O
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Success (stdin/stdout/stderr are set to null, not affecting FD3/FD4)
@@ -251,7 +251,7 @@ async fn bdd_memory_bomb_large_fd3_payload_handled() {
         vec![],
         5000,
         large_payload,
-    );
+    ).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Large payload is handled without OOM
@@ -277,7 +277,7 @@ async fn bdd_memory_bomb_payload_exceeding_10mb_rejected() {
         vec![],
         5000,
         huge_payload,
-    );
+    ).unwrap();
 
     // Note: The current implementation may write the length prefix first
     // so we test the boundary behavior
@@ -317,7 +317,7 @@ async fn bdd_memory_bomb_bounded_buffer_prevents_blocking() {
     make_executable(&script);
 
     // WHEN: Subprocess generates ~100KB output
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Large output is handled via bounded buffer (not blocking parent)
@@ -345,7 +345,7 @@ async fn bdd_memory_bomb_excessive_output_truncated() {
     make_executable(&script);
 
     // WHEN: Subprocess runs and generates ~10MB output
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 5000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Either succeeds with bounded output or fails gracefully
@@ -384,7 +384,7 @@ async fn bdd_process_lifecycle_self_kill_returns_process_failed() {
     make_executable(&script);
 
     // WHEN: Subprocess kills itself
-    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]);
+    let config = SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     // THEN: Error is returned (not a hang)
@@ -411,7 +411,7 @@ async fn bdd_process_lifecycle_concurrent_spawns_all_complete() {
 
     // WHEN: 5 concurrent subprocesses spawn
     let configs: Vec<_> = (0..5)
-        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]))
+        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 2000, vec![]).unwrap())
         .collect();
 
     let handles: Vec<_> = configs
@@ -436,7 +436,7 @@ async fn bdd_process_lifecycle_concurrent_timeouts_all_cleaned() {
 
     // WHEN: 5 concurrent subprocesses with short timeouts
     let configs: Vec<_> = (0..5)
-        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]))
+        .map(|_| SubprocessConfig::new(script.to_string_lossy().to_string(), vec![], 100, vec![]).unwrap())
         .collect();
 
     let handles: Vec<_> = configs

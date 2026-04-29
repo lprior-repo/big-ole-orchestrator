@@ -665,11 +665,11 @@ fn generate_api_key() -> String {
             CliError::ExecuteNode(format!("failed to spawn binary '{binary_path}': {e}"))
         })?;
 
-    let stdout = child
+    let mut stdout = child
         .stdout
         .take()
         .expect("child stdout should be piped");
-    let stderr = child
+    let mut stderr = child
         .stderr
         .take()
         .expect("child stderr should be piped");
@@ -699,7 +699,11 @@ fn generate_api_key() -> String {
     .await
     .map_err(|_| CliError::ExecuteNode(format!("timeout reading binary output")))?;
 
-    let (stdout_bytes, stderr_bytes) = result?;
+    let (stdout_result, stderr_result) = result.map_err(|e| {
+        CliError::ExecuteNode(format!("task join error: {e}"))
+    })?;
+    let stdout_bytes = stdout_result?;
+    let stderr_bytes = stderr_result?;
 
     let exit_code = child
         .wait()
@@ -734,7 +738,7 @@ async fn run_node_subprocess(
         vec![],
         timeout_secs * 1000,
         fd3_payload.to_vec(),
-    );
+    ).unwrap();
     vo_executor::run_subprocess(config).await.map_err(|e| {
         CliError::ExecuteNode(format!("subprocess execution failed: {e}"))
     })

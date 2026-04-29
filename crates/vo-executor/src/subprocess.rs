@@ -146,6 +146,46 @@ pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> 
     }
 }
 
+/// Validates that a binary path exists, is a file (not a directory),
+/// has the execute permission bit set, and returns the canonicalized path.
+///
+/// # Errors
+///
+/// Returns `SubprocessError` if:
+/// - The path does not exist → `BinaryNotFound`
+/// - The path is a directory → `BinaryIsDirectory`
+/// - The path lacks execute permission → `BinaryNotExecutable`
+pub fn validate_binary_path(path: &str) -> Result<String, SubprocessError> {
+    let p = std::path::Path::new(path);
+
+    if !p.exists() {
+        return Err(SubprocessError::BinaryNotFound(path.to_string()));
+    }
+
+    let metadata = p.metadata().map_err(|e| {
+        SubprocessError::BinaryNotFound(format!("{path}: {e}"))
+    })?;
+
+    if metadata.is_dir() {
+        return Err(SubprocessError::BinaryIsDirectory(path.to_string()));
+    }
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = metadata.permissions().mode();
+        if mode & 0o111 == 0 {
+            return Err(SubprocessError::BinaryNotExecutable(path.to_string()));
+        }
+    }
+
+    let canonical = p.canonicalize().map_err(|e| {
+        SubprocessError::BinaryNotFound(format!("{path}: {e}"))
+    })?;
+
+    Ok(canonical.to_string_lossy().to_string())
+}
+
 #[derive(Debug, Clone)]
 pub struct SubprocessConfig {
     executable_path: String,
@@ -155,19 +195,19 @@ pub struct SubprocessConfig {
 }
 
 impl SubprocessConfig {
-    #[must_use]
     pub fn new(
         executable_path: String,
         argv: Vec<String>,
         timeout_ms: u64,
         fd3_payload: Vec<u8>,
-    ) -> Self {
-        Self {
-            executable_path,
+    ) -> Result<Self, SubprocessError> {
+        let canonical = validate_binary_path(&executable_path)?;
+        Ok(Self {
+            executable_path: canonical,
             argv,
             timeout_ms,
             fd3_payload,
-        }
+        })
     }
 
     #[must_use]
@@ -219,6 +259,12 @@ pub enum SubprocessError {
     BinaryHashMismatch { expected: String, actual: String },
     #[error("binary versioning failed: {0}")]
     BinaryVersioningFailed(String),
+    #[error("binary not found: {0}")]
+    BinaryNotFound(String),
+    #[error("binary is not executable: {0}")]
+    BinaryNotExecutable(String),
+    #[error("binary is a directory, not a file: {0}")]
+    BinaryIsDirectory(String),
 }
 
 struct PipePair {
@@ -453,6 +499,7 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
 
     #[tokio::test]
     async fn test_bounded_buffer_constant() {
@@ -487,8 +534,8 @@ mod tests {
             vec!["true".to_string()],
             5000,
             vec![1, 2, 3],
-        );
-        assert_eq!(config.executable_path(), "/bin/true");
+        ).unwrap();
+        assert!(config.executable_path().ends_with("true"));
         assert_eq!(config.argv(), &["true".to_string()]);
         assert_eq!(config.timeout_ms(), 5000);
         assert_eq!(config.fd3_payload(), &[1, 2, 3]);
@@ -539,7 +586,7 @@ mod tests {
             vec!["cat".to_string()],
             5000,
             payload_200kb,
-        );
+        ).unwrap();
         assert_eq!(config.fd3_payload().len(), 204800);
     }
 
@@ -562,5 +609,161 @@ mod tests {
             remaining -= chunk_size;
         }
         assert_eq!(total_read, large_payload_size);
+    }
+
+    #[test]
+    fn test_validate_binary_path_nonexistent() {
+        let result = validate_binary_path("/nonexistent/binary/path");
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryNotFound(path) => {
+                assert_eq!(path, "/nonexistent/binary/path");
+            }
+            other => panic!("expected BinaryNotFound, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_binary_path_non_executable() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("not_exec.txt");
+        std::fs::write(&file_path, "not executable").unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        let result = validate_binary_path(file_path.to_str().unwrap());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryNotExecutable(path) => {
+                assert_eq!(path, file_path.to_str().unwrap());
+            }
+            other => panic!("expected BinaryNotExecutable, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_binary_path_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = validate_binary_path(dir.path().to_str().unwrap());
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryIsDirectory(path) => {
+                assert_eq!(path, dir.path().to_str().unwrap());
+            }
+            other => panic!("expected BinaryIsDirectory, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_validate_binary_path_executable_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("executable");
+        std::fs::write(&file_path, "#!/bin/sh\necho hello\n").unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        let result = validate_binary_path(file_path.to_str().unwrap());
+        assert!(result.is_ok());
+        let canonical = result.unwrap();
+        assert_eq!(canonical, file_path.canonicalize().unwrap().to_string_lossy().to_string());
+    }
+
+    #[test]
+    fn test_validate_binary_path_valid_bin_true() {
+        let result = validate_binary_path("/bin/true");
+        assert!(result.is_ok());
+        let canonical = result.unwrap();
+        assert!(canonical.ends_with("true"));
+        assert!(std::path::Path::new(&canonical).exists());
+    }
+
+    #[test]
+    fn test_subprocess_config_rejects_nonexistent_binary() {
+        let result = SubprocessConfig::new(
+            "/nonexistent/binary".to_string(),
+            vec!["nonexistent".to_string()],
+            5000,
+            vec![],
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryNotFound(_) => {}
+            other => panic!("expected BinaryNotFound, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_subprocess_config_rejects_non_executable() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("not_exec.txt");
+        std::fs::write(&file_path, "not executable").unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o644);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        let result = SubprocessConfig::new(
+            file_path.to_str().unwrap().to_string(),
+            vec!["not_exec".to_string()],
+            5000,
+            vec![],
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryNotExecutable(_) => {}
+            other => panic!("expected BinaryNotExecutable, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_subprocess_config_rejects_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = SubprocessConfig::new(
+            dir.path().to_str().unwrap().to_string(),
+            vec![],
+            5000,
+            vec![],
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::BinaryIsDirectory(_) => {}
+            other => panic!("expected BinaryIsDirectory, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_subprocess_config_accepts_valid_binary() {
+        let result = SubprocessConfig::new(
+            "/bin/true".to_string(),
+            vec!["true".to_string()],
+            5000,
+            vec![1, 2, 3],
+        );
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert!(config.executable_path().ends_with("true"));
+        assert_eq!(config.timeout_ms(), 5000);
+        assert_eq!(config.fd3_payload(), &[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_subprocess_config_canonicalizes_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let file_path = dir.path().join("canonicalize_test");
+        std::fs::write(&file_path, "#!/bin/sh\necho ok\n").unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+        let result = SubprocessConfig::new(
+            file_path.to_str().unwrap().to_string(),
+            vec!["canonicalize_test".to_string()],
+            5000,
+            vec![],
+        );
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert!(config.executable_path().starts_with('/'));
+        assert_eq!(
+            config.executable_path(),
+            file_path.canonicalize().unwrap().to_string_lossy().to_string()
+        );
     }
 }

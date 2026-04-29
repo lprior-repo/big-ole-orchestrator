@@ -191,7 +191,7 @@ mod subprocess_boundary_tests {
             vec!["true".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.executable_path(), "/bin/true");
         assert_eq!(config.timeout_ms(), 5000);
     }
@@ -204,7 +204,7 @@ mod subprocess_boundary_tests {
             vec!["sleep".to_string(), "1".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.executable_path(), "/bin/sleep");
         assert_eq!(config.timeout_ms(), 5000);
     }
@@ -218,7 +218,7 @@ mod subprocess_boundary_tests {
             argv.clone(),
             5000,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.argv(), &argv);
     }
 
@@ -241,7 +241,7 @@ mod subprocess_boundary_tests {
             vec!["cat".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.executable_path(), "/bin/cat");
     }
 
@@ -261,7 +261,7 @@ mod subprocess_boundary_tests {
             vec!["cat".to_string()],
             5000,
             payload_1mb,
-        );
+        ).unwrap();
         assert_eq!(config.fd3_payload().len(), 1_048_576);
     }
 
@@ -295,7 +295,7 @@ mod subprocess_boundary_tests {
             vec!["cat".to_string()],
             5000,
             payload_15mb,
-        );
+        ).unwrap();
         assert!(
             config.fd3_payload().len() > 10_485_760,
             "15MB exceeds 10MB limit"
@@ -325,7 +325,7 @@ mod subprocess_boundary_tests {
             vec!["sleep".to_string(), "300".to_string()],
             100,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.timeout_ms(), 100, "Timeout should be 100ms");
     }
 
@@ -467,7 +467,7 @@ mod subprocess_boundary_tests {
             vec!["true".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         assert_eq!(config.executable_path(), "/bin/true");
         assert_eq!(config.timeout_ms(), 5000);
@@ -482,7 +482,7 @@ mod subprocess_boundary_tests {
             vec!["sleep".to_string(), "1".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         assert_eq!(config.executable_path(), "/bin/sleep");
         assert_eq!(config.timeout_ms(), 5000);
@@ -497,7 +497,7 @@ mod subprocess_boundary_tests {
             vec!["sleep".to_string(), "300".to_string()],
             100,
             vec![],
-        );
+        ).unwrap();
 
         assert_eq!(
             config.timeout_ms(),
@@ -515,7 +515,7 @@ mod subprocess_boundary_tests {
             vec!["cat".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         assert_eq!(config.executable_path(), "/bin/cat");
     }
@@ -574,7 +574,7 @@ mod subprocess_boundary_tests {
             vec!["sleep".to_string(), "300".to_string()],
             100,
             vec![],
-        );
+        ).unwrap();
         assert_eq!(config.timeout_ms(), 100, "Timeout should be 100ms");
     }
 
@@ -586,7 +586,7 @@ mod subprocess_boundary_tests {
             vec!["true".to_string()],
             1,
             vec![],
-        );
+        ).unwrap();
         assert!(config.timeout_ms() > 0, "Timeout must be > 0");
     }
 
@@ -598,7 +598,7 @@ mod subprocess_boundary_tests {
             vec!["true".to_string()],
             u64::MAX - 1,
             vec![],
-        );
+        ).unwrap();
         assert!(config.timeout_ms() < u64::MAX, "Timeout must be < u64::MAX");
     }
 
@@ -674,7 +674,7 @@ mod adr012_subprocess_integration_tests {
             vec!["sleep-exit".to_string(), "0".to_string(), "42".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         let result = run_subprocess(config).await;
         assert!(result.is_ok(), "Subprocess should complete: {:?}", result);
         assert_eq!(
@@ -693,7 +693,7 @@ mod adr012_subprocess_integration_tests {
             vec!["sleep-exit".to_string(), "0".to_string(), "0".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         let result = run_subprocess(config).await;
         assert!(result.is_ok(), "Quick exit subprocess should be reaped");
         assert_eq!(result.unwrap().exit_code, Some(0));
@@ -708,7 +708,7 @@ mod adr012_subprocess_integration_tests {
             vec!["sleep-exit".to_string(), "50".to_string(), "0".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         let result = run_subprocess(config).await;
         assert!(result.is_ok(), "Short sleep subprocess should be reaped");
         assert_eq!(result.unwrap().exit_code, Some(0));
@@ -732,7 +732,7 @@ mod adr012_subprocess_integration_tests {
             vec!["sleep-exit".to_string(), "100".to_string(), "0".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
         let result = run_subprocess(config).await;
         assert!(result.is_ok(), "Subprocess should complete without FD leak");
         assert_eq!(result.unwrap().exit_code, Some(0));
@@ -1707,7 +1707,7 @@ mod adr012_bdd_scenario_tests {
             vec!["sleep-exit".to_string(), "10".to_string(), "0".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         let result = run_subprocess(config).await;
 
@@ -1738,7 +1738,7 @@ mod adr012_bdd_scenario_tests {
             vec!["sleep-exit".to_string(), "5".to_string(), "137".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         let result = run_subprocess(config).await;
 
@@ -1760,7 +1760,7 @@ mod adr012_bdd_scenario_tests {
             vec!["sleep-exit".to_string(), "50".to_string(), "0".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         let start = std::time::Instant::now();
         let result = run_subprocess(config).await;
@@ -1788,7 +1788,7 @@ mod adr012_bdd_scenario_tests {
             vec!["sleep-exit".to_string(), "0".to_string(), "42".to_string()],
             5000,
             vec![],
-        );
+        ).unwrap();
 
         let result = run_subprocess(config).await;
 
@@ -1879,7 +1879,7 @@ mod adr012_bdd_scenario_tests {
             vec!["sleep-exit".to_string(), "50".to_string(), "0".to_string()],
             100,
             vec![],
-        );
+        ).unwrap();
 
         let result = run_subprocess(config).await;
 

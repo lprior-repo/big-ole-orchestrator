@@ -64,7 +64,7 @@ async fn test_timeout_kills_process_tree() {
     let dir = TempDir::new().unwrap();
     let script = create_tree_spawn_script(&dir);
 
-    let config = SubprocessConfig::new(script, vec![], 200, vec![]);
+    let config = SubprocessConfig::new(script, vec![], 200, vec![]).unwrap();
 
     let result = run_subprocess(config).await;
 
@@ -81,7 +81,7 @@ async fn test_grandchild_killed_on_timeout() {
     // Clean up any leftover PID file
     let _ = std::fs::remove_file("/tmp/vo_gc_pid");
 
-    let config = SubprocessConfig::new(script, vec![], 200, vec![]);
+    let config = SubprocessConfig::new(script, vec![], 200, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     assert!(result.is_err(), "expected timeout: {:?}", result);
@@ -109,7 +109,7 @@ async fn test_simple_subprocess_times_out() {
     let dir = TempDir::new().unwrap();
     let script = create_simple_sleep_script(&dir);
 
-    let config = SubprocessConfig::new(script, vec![], 100, vec![]);
+    let config = SubprocessConfig::new(script, vec![], 100, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     assert!(result.is_err(), "should timeout");
@@ -126,7 +126,7 @@ async fn test_subprocess_exits_cleanly_within_timeout() {
     let dir = TempDir::new().unwrap();
     let script = create_quick_exit_script(&dir);
 
-    let config = SubprocessConfig::new(script, vec![], 5000, vec![]);
+    let config = SubprocessConfig::new(script, vec![], 5000, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     assert!(result.is_ok(), "should succeed: {:?}", result);
@@ -139,7 +139,7 @@ async fn test_timeout_reclaims_process_resources() {
     let dir = TempDir::new().unwrap();
     let script = create_tree_spawn_script(&dir);
 
-    let config = SubprocessConfig::new(script, vec![], 100, vec![]);
+    let config = SubprocessConfig::new(script, vec![], 100, vec![]).unwrap();
     let result = run_subprocess(config).await;
 
     assert!(result.is_err(), "should timeout");
