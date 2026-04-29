@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::cli::{ApiKeySubcommand, Cli, CliError, Command};
 use crate::handler::CommandHandler;
@@ -26,6 +27,7 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::HistoryHandler));
         registry.register(Box::new(handlers::ExecuteNodeHandler));
         registry.register(Box::new(handlers::ApiKeyHandler));
+        registry.register(Box::new(handlers::HardlineHandler));
         registry
     }
 }
@@ -643,6 +645,78 @@ mod handlers {
             })
         }
     }
+
+    pub struct HardlineHandler;
+
+    impl CommandHandler for HardlineHandler {
+        fn name(&self) -> &'static str {
+            "hardline"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::Hardline {
+                ref target,
+                ref engine_url,
+                timeout,
+                force,
+                dry_run,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not a hardline command".to_string()))
+                });
+            };
+            let target = target.clone();
+            let engine_url = engine_url.clone();
+            Box::pin(async move {
+                let client = reqwest::Client::builder()
+                    .timeout(Duration::from_secs(timeout))
+                    .build()
+                    .map_err(|e| {
+                        CliError::Dispatch(format!("Failed to build HTTP client: {e}"))
+                    })?;
+
+                #[derive(serde::Serialize)]
+                struct HardlineRequest {
+                    target: String,
+                    force: bool,
+                    dry_run: bool,
+                }
+
+                let url = format!("{}/api/v1/hardline", engine_url);
+                let response = client
+                    .post(&url)
+                    .json(&HardlineRequest {
+                        target,
+                        force,
+                        dry_run,
+                    })
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        CliError::Dispatch(format!("Failed to send hardline request: {e}"))
+                    })?;
+
+                let status = response.status();
+                if status.is_success() {
+                    println!("Hardline command executed successfully.");
+                    Ok(())
+                } else {
+                    let body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "unknown error".to_string());
+                    Err(CliError::Dispatch(format!(
+                        "Hardline command failed ({}): {}",
+                        status, body
+                    )))
+                }
+            })
+        }
+    }
 }
 
 fn generate_api_key() -> String {
@@ -764,6 +838,7 @@ mod tests {
         assert!(names.contains(&"rebuild"));
         assert!(names.contains(&"status"));
         assert!(names.contains(&"execute-node"));
+        assert!(names.contains(&"hardline"));
     }
 
     #[test]
@@ -820,5 +895,21 @@ mod tests {
         };
         let handler = registry.get(&cli).expect("handler found");
         assert_eq!(handler.name(), "compensate");
+    }
+
+    #[test]
+    fn registry_lookup_hardline() {
+        let registry = HandlerRegistry::default();
+        let cli = Cli {
+            command: Command::Hardline {
+                target: "test-target".to_string(),
+                engine_url: "http://localhost:3000".to_string(),
+                timeout: 60,
+                force: false,
+                dry_run: false,
+            },
+        };
+        let handler = registry.get(&cli).expect("handler found");
+        assert_eq!(handler.name(), "hardline");
     }
 }
