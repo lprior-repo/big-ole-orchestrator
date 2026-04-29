@@ -398,3 +398,97 @@ fn engine_receive_envelope_fails_on_identity_mismatch() {
     let result = engine_receive_envelope(&mut reader, "inst2", "node1");
     assert!(matches!(result, Err(IpcError::IdentityMismatch { .. })));
 }
+
+struct PartialReadCursor {
+    data: Vec<u8>,
+    chunk_size: usize,
+    offset: usize,
+}
+
+impl PartialReadCursor {
+    fn new(data: Vec<u8>, chunk_size: usize) -> Self {
+        Self {
+            data,
+            chunk_size,
+            offset: 0,
+        }
+    }
+}
+
+impl std::io::Read for PartialReadCursor {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.offset >= self.data.len() {
+            return Ok(0);
+        }
+        let remaining = self.data.len() - self.offset;
+        let to_read = remaining.min(self.chunk_size).min(buf.len());
+        buf[..to_read].copy_from_slice(&self.data[self.offset..self.offset + to_read]);
+        self.offset += to_read;
+        Ok(to_read)
+    }
+}
+
+#[test]
+fn read_envelope_handles_partial_header_reads() {
+    let env = Fd4Envelope {
+        version: 1,
+        instance_id: "inst1".into(),
+        node_id: "node1".into(),
+        result: TaskResult::Success {
+            output: serde_json::json!({"result": 42}),
+        },
+    };
+
+    let mut buffer = Vec::new();
+    write_envelope(&mut buffer, &env).unwrap();
+    let original_len = buffer.len();
+
+    let mut reader = PartialReadCursor::new(buffer, 4);
+    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
+    match result {
+        Ok(got) => assert_eq!(env, got),
+        Err(e) => panic!("Expected Ok (buffer was {} bytes), got {:?}", original_len, e),
+    }
+}
+
+#[test]
+fn read_envelope_handles_partial_payload_reads() {
+    let env = Fd4Envelope {
+        version: 1,
+        instance_id: "inst1".into(),
+        node_id: "node1".into(),
+        result: TaskResult::Success {
+            output: serde_json::json!({"result": 42}),
+        },
+    };
+
+    let mut buffer = Vec::new();
+    write_envelope(&mut buffer, &env).unwrap();
+
+    let mut reader = PartialReadCursor::new(buffer, 100);
+    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
+    match result {
+        Ok(got) => assert_eq!(env, got),
+        Err(e) => panic!("Expected Ok, got {:?}", e),
+    }
+}
+
+#[test]
+fn read_envelope_returns_incomplete_read_on_early_eof() {
+    let env = Fd4Envelope {
+        version: 1,
+        instance_id: "inst1".into(),
+        node_id: "node1".into(),
+        result: TaskResult::Success {
+            output: serde_json::json!({"result": 42}),
+        },
+    };
+
+    let mut buffer = Vec::new();
+    write_envelope(&mut buffer, &env).unwrap();
+    buffer.truncate(50);
+
+    let mut reader = PartialReadCursor::new(buffer, 4);
+    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
+    assert!(matches!(result, Err(IpcError::IncompleteRead { .. })));
+}

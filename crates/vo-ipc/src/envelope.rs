@@ -86,38 +86,39 @@ pub fn write_envelope<T: Serialize>(writer: &mut impl Write, envelope: &T) -> Re
 /// * `IpcError::SchemaViolation` - if the length prefix is invalid or schema validation fails.
 /// * `IpcError::InvalidJson` - if deserialization fails.
 pub fn read_envelope<T: DeserializeOwned>(reader: &mut impl Read) -> Result<T, IpcError> {
-    let mut header = Vec::with_capacity(4);
-    let n_header = reader.by_ref().take(4).read_to_end(&mut header)?;
-
-    if n_header < 4 {
-        return Err(IpcError::IncompleteRead {
-            expected: 4,
-            actual: n_header,
-        });
+    let mut header = [0u8; 4];
+    let mut bytes_read = 0;
+    while bytes_read < 4 {
+        let n = reader.read(&mut header[bytes_read..])?;
+        if n == 0 {
+            return Err(IpcError::IncompleteRead {
+                expected: 4,
+                actual: bytes_read,
+            });
+        }
+        bytes_read += n;
     }
 
-    let len_buf: [u8; 4] = match header.try_into() {
-        Ok(buf) => buf,
-        Err(_) => return Err(IpcError::SchemaViolation("Invalid header".into())),
-    };
-
-    let len = u32::from_be_bytes(len_buf);
+    let len = u32::from_be_bytes(header);
 
     if len > MAX_PAYLOAD_SIZE {
         return Err(IpcError::PayloadTooLarge(len));
     }
 
     let mut payload = Vec::with_capacity(len as usize);
-    let n_payload = reader
-        .by_ref()
-        .take(u64::from(len))
-        .read_to_end(&mut payload)?;
-
-    if n_payload < len as usize {
-        return Err(IpcError::IncompleteRead {
-            expected: len as usize,
-            actual: n_payload,
-        });
+    let mut total_read = 0;
+    while total_read < len as usize {
+        let remaining = (len as usize) - total_read;
+        let mut chunk = vec![0u8; 4096.min(remaining)];
+        let n = reader.by_ref().take(remaining as u64).read(&mut chunk)?;
+        if n == 0 {
+            return Err(IpcError::IncompleteRead {
+                expected: len as usize,
+                actual: total_read,
+            });
+        }
+        payload.extend_from_slice(&chunk[..n]);
+        total_read += n;
     }
 
     deserialize_and_validate(&payload)
