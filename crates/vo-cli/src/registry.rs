@@ -22,6 +22,8 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
         registry.register(Box::new(handlers::WorkspaceHandler));
+        registry.register(Box::new(handlers::ServeHandler));
+        registry.register(Box::new(handlers::ExecuteNodeHandler));
         registry
     }
 }
@@ -60,6 +62,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Hardline { .. } => Some("hardline"),
         Command::Serve { .. } => Some("serve"),
         Command::History { .. } => Some("history"),
+        Command::ExecuteNode { .. } => Some("execute-node"),
     }
 }
 
@@ -491,6 +494,68 @@ mod handlers {
             }
         }
     }
+
+    pub struct ExecuteNodeHandler;
+
+    impl CommandHandler for ExecuteNodeHandler {
+        fn name(&self) -> &'static str {
+            "execute-node"
+        }
+
+        fn execute(
+            &self,
+            cli: &Cli,
+        ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
+            let Command::ExecuteNode {
+                ref binary,
+                ref node_name,
+                ref instance_id,
+                ref node_id,
+                ref input,
+                ref secrets,
+                timeout_ms,
+                ref node_kind,
+            } = cli.command
+            else {
+                return Box::pin(async {
+                    Err(CliError::Dispatch("not an execute-node command".to_string()))
+                });
+            };
+            let binary = binary.clone();
+            let node_name = node_name.clone();
+            let instance_id = instance_id.clone();
+            let node_id = node_id.clone();
+            let input = input.clone();
+            let secrets = secrets.clone();
+            let timeout_ms = timeout_ms;
+            let node_kind = node_kind.clone();
+            Box::pin(async move {
+                let input_value = match input {
+                    Some(ref json_str) => serde_json::from_str(json_str)
+                        .map_err(|e| CliError::ExecuteNode(format!("invalid input JSON: {e}")))?,
+                    None => serde_json::Value::Null,
+                };
+                let secrets_map = crate::commands::execute_node::parse_secrets(&secrets)
+                    .map_err(|e| CliError::ExecuteNode(e.to_string()))?;
+                let kind = crate::commands::execute_node::parse_node_kind(&node_kind)
+                    .map_err(|e| CliError::ExecuteNode(e.to_string()))?;
+                let config = crate::commands::execute_node::ExecuteNodeConfig {
+                    binary,
+                    node_name,
+                    instance_id,
+                    node_id,
+                    input: input_value,
+                    secrets: secrets_map,
+                    timeout_ms,
+                    node_kind: kind,
+                };
+                crate::commands::execute_node::run_execute_node(&config)
+                    .await
+                    .map_err(|e| CliError::ExecuteNode(e.to_string()))?;
+                Ok(())
+            })
+        }
+    }
 }
 
 #[cfg(test)]
@@ -513,6 +578,7 @@ mod tests {
         assert!(names.contains(&"rebuild"));
         assert!(names.contains(&"status"));
         assert!(names.contains(&"workspace"));
+        assert!(names.contains(&"execute-node"));
     }
 
     #[test]
@@ -568,5 +634,24 @@ mod tests {
         };
         let handler = registry.get(&cli).expect("handler found");
         assert_eq!(handler.name(), "compensate");
+    }
+
+    #[test]
+    fn registry_lookup_execute_node() {
+        let registry = HandlerRegistry::default();
+        let cli = Cli {
+            command: Command::ExecuteNode {
+                binary: PathBuf::from("/bin/true"),
+                node_name: "test-node".to_string(),
+                instance_id: "inst-1".to_string(),
+                node_id: "exec-1".to_string(),
+                input: None,
+                secrets: vec![],
+                timeout_ms: 30000,
+                node_kind: "pure".to_string(),
+            },
+        };
+        let handler = registry.get(&cli).expect("handler found");
+        assert_eq!(handler.name(), "execute-node");
     }
 }

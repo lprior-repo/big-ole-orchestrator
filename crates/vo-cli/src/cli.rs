@@ -30,6 +30,10 @@ pub enum CliError {
     Status(#[from] crate::commands::status::StatusError),
     #[error(transparent)]
     Workspace(#[from] crate::commands::workspace::WorkspaceError),
+    #[error(transparent)]
+    Serve(#[from] crate::commands::serve::ServeError),
+    #[error("execute-node error: {0}")]
+    ExecuteNode(String),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -93,6 +97,16 @@ pub enum Command {
     },
     Workspace {
         action: WorkspaceAction,
+    },
+    ExecuteNode {
+        binary: PathBuf,
+        node_name: String,
+        instance_id: String,
+        node_id: String,
+        input: Option<String>,
+        secrets: Vec<String>,
+        timeout_ms: u64,
+        node_kind: String,
     },
 }
 
@@ -309,6 +323,63 @@ where
                                 .index(1)
                                 .help("Workspace ID"),
                         ),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("execute-node")
+                .about("Execute a single workflow node in a subprocess (ADR-003)")
+                .arg(
+                    clap::Arg::new("binary")
+                        .required(true)
+                        .index(1)
+                        .help("Path to the workflow binary"),
+                )
+                .arg(
+                    clap::Arg::new("node-name")
+                        .required(true)
+                        .index(2)
+                        .help("Name of the node to execute"),
+                )
+                .arg(
+                    clap::Arg::new("instance-id")
+                        .long("instance-id")
+                        .required(true)
+                        .value_name("ID")
+                        .help("Workflow instance ID"),
+                )
+                .arg(
+                    clap::Arg::new("node-id")
+                        .long("node-id")
+                        .required(true)
+                        .value_name("ID")
+                        .help("Node execution ID"),
+                )
+                .arg(
+                    clap::Arg::new("input")
+                        .long("input")
+                        .value_name("JSON")
+                        .help("JSON input payload for the node"),
+                )
+                .arg(
+                    clap::Arg::new("secret")
+                        .long("secret")
+                        .action(clap::ArgAction::Append)
+                        .value_name("KEY=VALUE")
+                        .help("Secret key-value pairs (repeatable)"),
+                )
+                .arg(
+                    clap::Arg::new("timeout")
+                        .long("timeout")
+                        .default_value("30000")
+                        .value_name("MS")
+                        .help("Timeout in milliseconds"),
+                )
+                .arg(
+                    clap::Arg::new("node-kind")
+                        .long("node-kind")
+                        .default_value("pure")
+                        .value_name("KIND")
+                        .help("Node kind: pure, managed_effect, unsafe, wait, signal"),
                 ),
         );
 
@@ -570,6 +641,65 @@ where
             }
             _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
         },
+        Some(("execute-node", sub_matches)) => {
+            let binary = match sub_matches.get_one::<String>("binary") {
+                Some(b) => PathBuf::from(b),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let node_name = match sub_matches.get_one::<String>("node-name") {
+                Some(n) => n.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let instance_id = match sub_matches.get_one::<String>("instance-id") {
+                Some(id) => id.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let node_id = match sub_matches.get_one::<String>("node-id") {
+                Some(id) => id.clone(),
+                None => {
+                    return Err(clap::Error::new(
+                        clap::error::ErrorKind::MissingRequiredArgument,
+                    ))
+                }
+            };
+            let input = sub_matches.get_one::<String>("input").cloned();
+            let secrets = sub_matches
+                .get_many::<String>("secret")
+                .map(|v| v.cloned().collect())
+                .unwrap_or_default();
+            let timeout_ms = sub_matches
+                .get_one::<String>("timeout")
+                .map(|s| s.parse().unwrap_or(30000))
+                .unwrap_or(30000);
+            let node_kind = sub_matches
+                .get_one::<String>("node-kind")
+                .cloned()
+                .unwrap_or_else(|| "pure".to_string());
+            Ok(Cli {
+                command: Command::ExecuteNode {
+                    binary,
+                    node_name,
+                    instance_id,
+                    node_id,
+                    input,
+                    secrets,
+                    timeout_ms,
+                    node_kind,
+                },
+            })
+        }
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -592,7 +722,9 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Rebuild(_)
         | CliError::Serve(_)
         | CliError::Status(_)
-        | CliError::Workspace(_) => 1,
+        | CliError::Workspace(_)
+        | CliError::Serve(_)
+        | CliError::ExecuteNode(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
@@ -714,5 +846,155 @@ mod tests {
         let args: Vec<OsString> = vec!["vo".into(), "status".into()];
         let result = interpret_cli_from(args);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_execute_node_minimal() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/usr/bin/true".into(),
+            "node-a".into(),
+            "--instance-id".into(),
+            "inst-1".into(),
+            "--node-id".into(),
+            "exec-1".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        assert_eq!(
+            cli.command,
+            Command::ExecuteNode {
+                binary: PathBuf::from("/usr/bin/true"),
+                node_name: "node-a".to_string(),
+                instance_id: "inst-1".to_string(),
+                node_id: "exec-1".to_string(),
+                input: None,
+                secrets: vec![],
+                timeout_ms: 30000,
+                node_kind: "pure".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn cli_execute_node_with_all_options() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "./target/wf-binary".into(),
+            "process-payment".into(),
+            "--instance-id".into(),
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+            "--node-id".into(),
+            "node-42".into(),
+            "--input".into(),
+            r#"{"amount": 100}"#.into(),
+            "--secret".into(),
+            "API_KEY=sk_live_abc".into(),
+            "--secret".into(),
+            "DB_PASS=hunter2".into(),
+            "--timeout".into(),
+            "5000".into(),
+            "--node-kind".into(),
+            "managed_effect".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        match cli.command {
+            Command::ExecuteNode {
+                binary,
+                node_name,
+                instance_id,
+                node_id,
+                input,
+                secrets,
+                timeout_ms,
+                node_kind,
+            } => {
+                assert_eq!(binary, PathBuf::from("./target/wf-binary"));
+                assert_eq!(node_name, "process-payment");
+                assert_eq!(instance_id, "01ARZ3NDEKTSV4RRFFQ69G5FAV");
+                assert_eq!(node_id, "node-42");
+                assert_eq!(input, Some(r#"{"amount": 100}"#.to_string()));
+                assert_eq!(secrets, vec!["API_KEY=sk_live_abc", "DB_PASS=hunter2"]);
+                assert_eq!(timeout_ms, 5000);
+                assert_eq!(node_kind, "managed_effect");
+            }
+            other => panic!("expected ExecuteNode, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn cli_execute_node_missing_binary_returns_error() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "--instance-id".into(),
+            "inst-1".into(),
+            "--node-id".into(),
+            "exec-1".into(),
+        ];
+        let result = interpret_cli_from(args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_execute_node_missing_node_name_returns_error() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/bin/true".into(),
+            "--instance-id".into(),
+            "inst-1".into(),
+            "--node-id".into(),
+            "exec-1".into(),
+        ];
+        let result = interpret_cli_from(args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn cli_execute_node_unsafe_kind() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/bin/true".into(),
+            "legacy-call".into(),
+            "--instance-id".into(),
+            "inst-2".into(),
+            "--node-id".into(),
+            "exec-2".into(),
+            "--node-kind".into(),
+            "unsafe".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        match cli.command {
+            Command::ExecuteNode { node_kind, .. } => {
+                assert_eq!(node_kind, "unsafe");
+            }
+            other => panic!("expected ExecuteNode, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn cli_execute_node_wait_kind() {
+        let args: Vec<OsString> = vec![
+            "vo".into(),
+            "execute-node".into(),
+            "/bin/true".into(),
+            "timer-node".into(),
+            "--instance-id".into(),
+            "inst-3".into(),
+            "--node-id".into(),
+            "exec-3".into(),
+            "--node-kind".into(),
+            "wait".into(),
+        ];
+        let cli = interpret_cli_from(args).unwrap();
+        match cli.command {
+            Command::ExecuteNode { node_kind, .. } => {
+                assert_eq!(node_kind, "wait");
+            }
+            other => panic!("expected ExecuteNode, got {:?}", other),
+        }
     }
 }

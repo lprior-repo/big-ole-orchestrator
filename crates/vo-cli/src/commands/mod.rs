@@ -2,6 +2,7 @@ pub mod check;
 pub mod compensate;
 pub mod doctor;
 pub mod doctor_checks;
+pub mod execute_node;
 pub mod gc;
 pub mod history;
 pub mod init;
