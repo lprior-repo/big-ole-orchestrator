@@ -1,18 +1,30 @@
-//! vel-k1t9: Add error handling and timeout for --execute-node (ADR-012)
+//! ADR-003: Raw Binary Execution via OS Subprocesses
 //!
-//! This crate provides:
-//! - `execute_step`: Execute a workflow step with timeout enforcement
-//! - `execute_step_with_retry`: Execute with retry policy
-//! - `cancel_execution`: Cancel an in-progress execution
-//! - `get_execution_status`: Get current execution status
-//! - `get_last_error`: Get the last error for a step
+//! This crate provides the core execution engine for veloxide workflows.
+//! Workflows are compiled Rust binaries discovered via `--graph` and executed
+//! via `--execute-node`, using `tokio::process::Command` as the execution boundary.
 //!
-//! ADR-018 (Pipe Deadlocks and I/O Boundaries) is implemented in the `subprocess` module.
-//! This module provides async pipe handling using tokio::select for concurrent FD3 write
-//! and FD4 read operations, preventing classic Unix pipe deadlocks with large payloads.
+//! # ADR-003 Step Classes
+//!
+//! - **Pure**: Child reads input, performs deterministic computation, returns output.
+//! - **ManagedEffect**: Child returns `EffectIntent` for engine-side commit.
+//! - **Wait / Signal**: Workflow suspends/resumes — no subprocess execution.
+//! - **Unsafe**: Child may perform arbitrary external side effects (at-least-once only).
+//!
+//! # Key Components
+//!
+//! - `dispatch_node`: Route execution based on `NodeKind` (ADR-003)
+//! - `execute_step` / `execute_step_with_retry`: Public execution API with timeout/retry
+//! - `run_subprocess`: ADR-018 async pipe deadlock prevention
+//! - `pin_binary` / `resolve_binary_path`: ADR-017 version pinning
+//!
+//! # IPC Contract
+//!
+//! Engine sends `Fd3Envelope` over fd3, child responds with `Fd4Envelope` over fd4.
+//! Stderr is captured with bounded truncation (ADR-023).
+//! All I/O is async via tokio to prevent pipe deadlocks (ADR-018).
 
-#![allow(clippy::expect_used)]
-
+pub mod dispatch;
 pub mod errors;
 pub mod execution;
 pub mod runtime;
@@ -33,5 +45,10 @@ pub use scheduler::{
 };
 pub use state::set_executing_state_for_test;
 pub use state::{clear_error, get_error_count, get_state_count, reset_all_state, set_error};
-pub use subprocess::{run_subprocess, SubprocessConfig, SubprocessError, SubprocessOutput};
+pub use subprocess::{
+    pin_binary, resolve_binary_path, run_subprocess, PinnedBinary, SubprocessConfig, SubprocessError,
+    SubprocessOutput, VERSION_BASE_PATH, BOUNDED_READ_BUFFER_SIZE, MAX_STEP_INPUT_BYTES,
+    MAX_STEP_OUTPUT_BYTES,
+};
+pub use dispatch::{dispatch_node, NodeDispatchResult};
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};

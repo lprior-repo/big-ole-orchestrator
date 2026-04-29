@@ -1,6 +1,6 @@
 //! Advanced ControlActor operations re-exports.
 //!
-//! Note: accept_and_resume and handle_continue_as_new are defined in control_actor.rs
-//! to avoid duplicate definition errors.
+//! Note: accept_and_resume and handle_continue_as_new are defined in lib.rs
+//! inline with ControlActor.
 
-pub use super::control_actor::ControlActor;
+pub use crate::ControlActor;

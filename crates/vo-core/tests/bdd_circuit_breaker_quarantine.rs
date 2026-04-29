@@ -12,8 +12,8 @@
 use std::time::{Duration, Instant};
 
 use vo_core::circuit_breaker::{
-    evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig,
-    CircuitBreakerState, RegistrationOutcome, RegistrationRequest, RegistrationStatus,
+    evaluate_registration, record_failure, unquarantine, CircuitBreakerConfig, CircuitBreakerState,
+    RegistrationOutcome, RegistrationRequest, RegistrationStatus,
 };
 use vo_types::{BinaryHash, WorkflowName};
 
@@ -66,10 +66,7 @@ fn given_workflow_registered_recently_when_deploy_attempted_then_rate_limited() 
     // THEN: The deploy is rate limited with retry_after_secs
     match result2 {
         Ok(RegistrationOutcome::RateLimited { retry_after_secs }) => {
-            assert!(
-                retry_after_secs > 0,
-                "retry_after_secs must be positive"
-            );
+            assert!(retry_after_secs > 0, "retry_after_secs must be positive");
         }
         Ok(other) => panic!("expected RateLimited, got {:?}", other),
         Err(e) => panic!("unexpected error: {:?}", e),
@@ -210,10 +207,22 @@ fn given_same_hash_repeated_failures_when_counted_then_only_counts_once() {
     let r4 = record_failure(&wf, &hash, &config, &state, now + Duration::from_secs(180));
 
     // THEN: Only one unique hash is counted
-    assert!(r1.unwrap().is_none(), "1st same-hash failure should not quarantine");
-    assert!(r2.unwrap().is_none(), "2nd same-hash failure should not quarantine");
-    assert!(r3.unwrap().is_none(), "3rd same-hash failure should not quarantine");
-    assert!(r4.unwrap().is_none(), "4th same-hash failure should still not quarantine");
+    assert!(
+        r1.unwrap().is_none(),
+        "1st same-hash failure should not quarantine"
+    );
+    assert!(
+        r2.unwrap().is_none(),
+        "2nd same-hash failure should not quarantine"
+    );
+    assert!(
+        r3.unwrap().is_none(),
+        "3rd same-hash failure should not quarantine"
+    );
+    assert!(
+        r4.unwrap().is_none(),
+        "4th same-hash failure should still not quarantine"
+    );
     assert_eq!(
         state.get_status(&wf),
         RegistrationStatus::Active,
@@ -249,16 +258,13 @@ fn given_failure_window_expired_when_new_failure_then_stale_entries_evicted() {
     );
 
     // THEN: Only h2 is counted (h1 expired), no quarantine yet
-    assert!(r2.unwrap().is_none(), "should not quarantine (only 1 active hash)");
+    assert!(
+        r2.unwrap().is_none(),
+        "should not quarantine (only 1 active hash)"
+    );
 
     // WHEN: Third failure with new hash
-    let r3 = record_failure(
-        &wf,
-        &h3,
-        &config,
-        &state,
-        now + Duration::from_secs(20),
-    );
+    let r3 = record_failure(&wf, &h3, &config, &state, now + Duration::from_secs(20));
 
     // THEN: Now 2 active hashes, quarantine triggered
     assert!(
@@ -281,9 +287,17 @@ fn given_workflow_quarantined_when_deploy_attempted_then_automatically_rejected(
     let now = Instant::now();
 
     // Quarantine the workflow by recording 5 distinct failures
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("eeee0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("eeee0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
     assert_eq!(
         state.get_status(&wf),
@@ -315,9 +329,17 @@ fn given_quarantined_workflow_when_force_deploy_attempted_then_allowed() {
     let now = Instant::now();
 
     // Quarantine the workflow
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("ffff0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("ffff0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
     assert_eq!(
         state.get_status(&wf),
@@ -349,9 +371,17 @@ fn given_workflow_quarantined_when_manual_unquarantine_by_operator_then_workflow
     let now = Instant::now();
 
     // Quarantine the workflow
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("gggg0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("gggg0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
     assert_eq!(
         state.get_status(&wf),
@@ -435,9 +465,7 @@ fn given_unknown_workflow_when_unquarantine_attempted_then_not_found_error() {
 
     // THEN: WorkflowNotFound error
     match result {
-        Err(vo_core::circuit_breaker::CircuitBreakerError::WorkflowNotFound {
-            workflow_name,
-        }) => {
+        Err(vo_core::circuit_breaker::CircuitBreakerError::WorkflowNotFound { workflow_name }) => {
             assert_eq!(workflow_name, "nonexistent-wf");
         }
         Ok(_) => panic!("unquarantine of nonexistent workflow should fail"),
@@ -458,17 +486,22 @@ fn given_workflow_unquarantined_when_unquarantine_attempted_again_then_idempoten
     let now = Instant::now();
 
     // Quarantine
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("iiii0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("iiii0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
 
     // First unquarantine
     let result1 = unquarantine(&wf, "operator@example.com", &state);
-    assert!(
-        result1.is_ok(),
-        "first unquarantine should succeed"
-    );
+    assert!(result1.is_ok(), "first unquarantine should succeed");
     assert_eq!(
         state.get_status(&wf),
         RegistrationStatus::Active,
@@ -494,9 +527,17 @@ fn given_quarantined_workflow_when_unquarantine_twice_rapidly_then_no_duplicate_
     let now = Instant::now();
 
     // Quarantine
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("jjjj0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("jjjj0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
 
     // Unquarantine
@@ -539,9 +580,17 @@ fn given_quarantine_event_when_callback_registered_then_notified() {
     state.set_quarantine_callback(callback);
 
     // WHEN: Workflow is quarantined
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("kkkk0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("kkkk0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
 
     // THEN: Callback was notified with the quarantine event
@@ -565,9 +614,17 @@ fn given_unquarantine_when_failure_window_cleared_then_audit_trail_records_count
     let now = Instant::now();
 
     // Quarantine with 5 distinct hashes
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("llll0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("llll0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
 
     // WHEN: Operator unquarantines
@@ -623,9 +680,17 @@ fn given_quarantined_workflow_when_status_queried_then_quarantined_returned() {
     let now = Instant::now();
 
     // Quarantine
-    let hashes: Vec<_> = (1..=5u8).map(|i| make_hash(&format!("nnnn0000000{}", i))).collect();
+    let hashes: Vec<_> = (1..=5u8)
+        .map(|i| make_hash(&format!("nnnn0000000{}", i)))
+        .collect();
     for (i, h) in hashes.iter().enumerate() {
-        record_failure(&wf, &h, &config, &state, now + Duration::from_secs(i as u64 * 60));
+        record_failure(
+            &wf,
+            &h,
+            &config,
+            &state,
+            now + Duration::from_secs(i as u64 * 60),
+        );
     }
 
     // WHEN: Status is queried
@@ -636,7 +701,8 @@ fn given_quarantined_workflow_when_status_queried_then_quarantined_returned() {
 }
 
 #[test]
-fn given_multiple_workflows_with_different_statuses_when_queried_then_each_returns_correct_status() {
+fn given_multiple_workflows_with_different_statuses_when_queried_then_each_returns_correct_status()
+{
     // GIVEN: Multiple workflows with different states
     let state = CircuitBreakerState::new();
     let config = default_config();

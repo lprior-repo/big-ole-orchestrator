@@ -11,7 +11,7 @@ use crate::payload_parser::{
 use crate::{ExternalReceipt, WorkflowVersionHash};
 
 /// Represents the kind of effect sink for an effect-prepared event.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SinkKind {
     BlobWrite,
     TimerWrite,

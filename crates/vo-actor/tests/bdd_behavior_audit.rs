@@ -18,8 +18,8 @@ use vo_actor::lifecycle::{
     ShutdownPropagator,
 };
 use vo_actor::message_router::{
-    ActorDestination, ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata,
-    MessageRouter, RouteError, TimestampMs as RouterTimestampMs,
+    ActorDestination, ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata, MessageRouter,
+    RouteError, TimestampMs as RouterTimestampMs,
 };
 use vo_actor::probe::{
     AggregatedStatus, BackoffConfig, ProbeConfig, ProbeId, ProbeRegistry, ProbeStatus,

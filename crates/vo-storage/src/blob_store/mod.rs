@@ -47,6 +47,7 @@
 pub mod blob_record;
 pub mod content_address;
 pub mod error;
+pub mod fjall_store;
 pub mod pack_index;
 pub mod r#trait;
 

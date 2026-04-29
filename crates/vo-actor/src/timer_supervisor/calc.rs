@@ -29,10 +29,7 @@ use vo_types::TimestampMs;
 /// `true` if timer should fire based on wall clock
 #[inline]
 #[must_use]
-pub fn verify_dual_clock(
-    fire_at_ms: TimestampMs,
-    now_ms: TimestampMs,
-) -> bool {
+pub fn verify_dual_clock(fire_at_ms: TimestampMs, now_ms: TimestampMs) -> bool {
     fire_at_ms <= now_ms
 }
 

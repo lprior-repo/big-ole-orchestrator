@@ -26,11 +26,11 @@ use vo_actor::reanimator::{
 };
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
 use vo_actor::timer_supervisor::{
-    supervisor::TimerSupervisor,
-    traits::WorkQueue as SyncWorkQueue,
-    types::TimerSupervisorError,
+    supervisor::TimerSupervisor, traits::WorkQueue as SyncWorkQueue, types::TimerSupervisorError,
 };
-use vo_common::ports::{TimerStorage as AsyncTimerStorage, TimerRecord as UnifiedTimerRecord, TimerStorageError};
+use vo_common::ports::{
+    TimerRecord as UnifiedTimerRecord, TimerStorage as AsyncTimerStorage, TimerStorageError,
+};
 
 fn ts_ms(value: u64) -> TimestampMs {
     TimestampMs::try_from(value).expect("valid timestamp")
@@ -296,12 +296,7 @@ mod timer_supervisor_panic_cleanup {
         let now_ms = TimestampMs::now();
         let instance_id = make_instance_id(0xB1);
         let scheduled_at = TimestampMs::new_unchecked(now_ms.as_u64().saturating_sub(2000));
-        let timer = UnifiedTimerRecord::new(
-            instance_id.clone(),
-            now_ms,
-            None,
-            scheduled_at,
-        );
+        let timer = UnifiedTimerRecord::new(instance_id.clone(), now_ms, None, scheduled_at);
 
         let storage: Arc<dyn AsyncTimerStorage> = Arc::new(PanicOnEnqueueStorage::new(vec![timer]));
         let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(PanicWorkQueue::new());
@@ -485,7 +480,9 @@ mod timer_supervisor_panic_cleanup {
                 _instance_id: &InstanceId,
                 _fire_at_ms: TimestampMs,
             ) -> Result<(), TimerStorageError> {
-                Err(TimerStorageError::StorageFailed("simulated failure".to_string()))
+                Err(TimerStorageError::StorageFailed(
+                    "simulated failure".to_string(),
+                ))
             }
             async fn get_timer(
                 &self,
@@ -539,12 +536,9 @@ mod timer_supervisor_panic_cleanup {
 
         let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(NoopQueue);
 
-        let supervisor = TimerSupervisor::new(
-            Duration::from_millis(50),
-            storage.clone(),
-            work_queue,
-        )
-        .expect("valid config");
+        let supervisor =
+            TimerSupervisor::new(Duration::from_millis(50), storage.clone(), work_queue)
+                .expect("valid config");
 
         // process_cycle should still complete (with errors logged)
         let result = supervisor.process_cycle().await;

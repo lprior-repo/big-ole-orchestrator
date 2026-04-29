@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use vo_types::{
     signal::{signal_match, SignalDedupeKey, SignalMatchResult},
-    BufferPolicy, IdempotencyKey, InstanceId, SignalAddress, TimestampMs, WaitKey, WaitRecord,
+    BufferPolicy, Epoch, IdempotencyKey, InstanceId, SignalAddress, TimestampMs, WaitKey, WaitRecord,
 };
 
 fn valid_instance_id() -> InstanceId {
@@ -38,7 +38,7 @@ mod exactly_one_wakeup_when_signal_matches {
         let signal =
             SignalAddress::lineage_wide(lineage_id.clone(), instance_id.clone(), wait_key.clone());
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_matched(),
@@ -67,7 +67,7 @@ mod exactly_one_wakeup_when_signal_matches {
             wait_key.clone(),
         );
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_mismatch(),
@@ -97,7 +97,7 @@ mod exactly_one_wakeup_when_signal_matches {
         let signal =
             SignalAddress::lineage_wide(lineage_id.clone(), other_instance, wait_key.clone());
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_mismatch(),
@@ -126,7 +126,7 @@ mod exactly_one_wakeup_when_signal_matches {
         let other_key = WaitKey::parse("rejection").expect("valid key");
         let signal = SignalAddress::lineage_wide(lineage_id.clone(), instance_id, other_key);
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_mismatch(),
@@ -173,7 +173,7 @@ mod exactly_one_wakeup_when_signal_matches {
         ];
 
         for signal in signals {
-            let result = signal_match(signal, &wait, &lineage_id);
+            let result = signal_match(signal, &wait, &lineage_id, Epoch::ZERO);
             assert!(
                 result.is_mismatch(),
                 "BDD: Non-matching signal must never wake workflow (no spurious wake-ups)"
@@ -212,7 +212,7 @@ mod immediate_wakeup_when_signal_arrived_before_wait {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_matched(),
@@ -237,7 +237,7 @@ mod immediate_wakeup_when_signal_arrived_before_wait {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_matched(),
@@ -262,7 +262,7 @@ mod immediate_wakeup_when_signal_arrived_before_wait {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_matched(),
@@ -293,7 +293,7 @@ mod immediate_wakeup_when_signal_arrived_before_wait {
         )
         .expect("valid wait record");
 
-        let result = signal_match(&signal, &wait, &lineage_id);
+        let result = signal_match(&signal, &wait, &lineage_id, Epoch::ZERO);
 
         assert!(
             result.is_matched(),

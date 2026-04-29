@@ -122,9 +122,7 @@ impl TimerSupervisor {
             .await
             .map_err(|e| TimerSupervisorError::StorageAdapterError(e.to_string()))?
             .into_iter()
-            .filter(|timer| {
-                verify_dual_clock(timer.fire_at_ms, now_ms)
-            })
+            .filter(|timer| verify_dual_clock(timer.fire_at_ms, now_ms))
             .collect::<Vec<_>>();
 
         let mut timers_fired = 0u32;
@@ -145,48 +143,43 @@ impl TimerSupervisor {
                 .await;
 
             match delete_result {
-                Ok(()) => {
-                    match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
-                        Ok(()) => {
-                            self.metrics.timers_fired.incr();
-                            timers_fired += 1;
-                        }
-                        Err(e) => {
-                            self.metrics.dispatch_errors.incr();
-                            self.metrics.timer_deleted_but_dispatch_failed.incr();
-                            error_count += 1;
+                Ok(()) => match self.work_queue.enqueue_resume(timer.instance_id.clone()) {
+                    Ok(()) => {
+                        self.metrics.timers_fired.incr();
+                        timers_fired += 1;
+                    }
+                    Err(e) => {
+                        self.metrics.dispatch_errors.incr();
+                        self.metrics.timer_deleted_but_dispatch_failed.incr();
+                        error_count += 1;
+                        tracing::error!(
+                            instance_id = %timer.instance_id,
+                            fire_at_ms = %fire_at_ms,
+                            error = %e,
+                            "Timer deleted but dispatch failed - attempting retry"
+                        );
+                        let retry_fire_at_ms =
+                            TimestampMs::new_unchecked(now_ms.as_u64().saturating_add(1000));
+                        if let Err(retry_err) =
+                            self.storage.retry_timer(&timer, retry_fire_at_ms).await
+                        {
                             tracing::error!(
                                 instance_id = %timer.instance_id,
                                 fire_at_ms = %fire_at_ms,
-                                error = %e,
-                                "Timer deleted but dispatch failed - attempting retry"
+                                retry_fire_at_ms = %retry_fire_at_ms,
+                                error = %retry_err,
+                                "CRITICAL: Timer deleted but dispatch failed AND retry failed - timer permanently lost"
                             );
-                            let retry_fire_at_ms = TimestampMs::new_unchecked(
-                                now_ms.as_u64().saturating_add(1000)
+                        } else {
+                            tracing::warn!(
+                                instance_id = %timer.instance_id,
+                                fire_at_ms = %fire_at_ms,
+                                retry_fire_at_ms = %retry_fire_at_ms,
+                                "Timer recovered via retry queue after dispatch failure"
                             );
-                            if let Err(retry_err) = self
-                                .storage
-                                .retry_timer(&timer, retry_fire_at_ms)
-                                .await
-                            {
-                                tracing::error!(
-                                    instance_id = %timer.instance_id,
-                                    fire_at_ms = %fire_at_ms,
-                                    retry_fire_at_ms = %retry_fire_at_ms,
-                                    error = %retry_err,
-                                    "CRITICAL: Timer deleted but dispatch failed AND retry failed - timer permanently lost"
-                                );
-                            } else {
-                                tracing::warn!(
-                                    instance_id = %timer.instance_id,
-                                    fire_at_ms = %fire_at_ms,
-                                    retry_fire_at_ms = %retry_fire_at_ms,
-                                    "Timer recovered via retry queue after dispatch failure"
-                                );
-                            }
                         }
                     }
-                }
+                },
                 Err(e) => {
                     self.metrics.dispatch_errors.incr();
                     error_count += 1;
@@ -326,10 +319,7 @@ mod tests {
     struct MockStorage;
     #[async_trait]
     impl TimerStorage for MockStorage {
-        async fn schedule_timer(
-            &self,
-            _record: TimerRecord,
-        ) -> Result<(), TimerStorageError> {
+        async fn schedule_timer(&self, _record: TimerRecord) -> Result<(), TimerStorageError> {
             Ok(())
         }
         async fn cancel_timer(

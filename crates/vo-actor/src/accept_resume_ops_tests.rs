@@ -79,7 +79,9 @@ async fn accept_and_resume_returns_invalid_lifecycle_when_running() {
         "sig-1".to_string(),
         SignalPayload::empty(),
     ) {
-        Err(AcceptResumeError::InvalidLifecycleState { actual, expected, .. }) => {
+        Err(AcceptResumeError::InvalidLifecycleState {
+            actual, expected, ..
+        }) => {
             assert_eq!(actual, crate::signal_messages::LifecycleState::Running);
             assert_eq!(
                 expected,

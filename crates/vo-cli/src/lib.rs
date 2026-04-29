@@ -38,6 +38,9 @@ pub use commands::doctor_checks::{
     format_report, format_report_json, CategoryReport, CheckCategory, CheckResult, DoctorReport,
     Severity,
 };
+pub use commands::execute_node::{
+    parse_node_kind, parse_secrets, run_execute_node, ExecuteNodeConfig, ExecuteNodeError,
+};
 pub use commands::gc::{
     delete_version_dir, fetch_pinned_hashes, find_unpinned_directories, run_gc, GcConfig, GcError,
     GcSummary,

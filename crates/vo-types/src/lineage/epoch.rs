@@ -27,6 +27,12 @@ impl Epoch {
     pub const fn value(self) -> u64 {
         self.0
     }
+
+    /// Returns the raw u64 value of this epoch (alias for `value`).
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
 }
 
 impl Default for Epoch {

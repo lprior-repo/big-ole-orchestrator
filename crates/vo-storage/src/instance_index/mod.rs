@@ -4,7 +4,10 @@
 //! `decode_instance_index_key`) → Actions (`instance_index_upsert`, `scan_by_status`,
 //! `scan_all_instances`).
 
+use std::sync::Arc;
+
 use crate::codec::StorageError;
+use crate::partitions::{get_partition_config, INSTANCES_PARTITION};
 use vo_types::{InstanceId, InstanceStatus, TimestampMs};
 
 #[cfg(test)]
@@ -230,5 +233,42 @@ impl Iterator for ScanIterator {
             }
             None => None,
         }
+    }
+}
+
+// -----------------------------------------------------------------------------
+// FjallInstanceIndex — persistent instance index store
+// -----------------------------------------------------------------------------
+
+/// Fjall-backed instance index store wrapping the instances partition.
+///
+/// Provides typed access to instance index operations with proper partition
+/// configuration applied at keyspace creation time.
+pub struct FjallInstanceIndex {
+    db: Arc<fjall::Database>,
+    partition: Arc<fjall::Keyspace>,
+}
+
+impl FjallInstanceIndex {
+    /// Opens the instances partition with proper [`PartitionConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `StorageError::Storage` if the partition cannot be opened.
+    pub fn open(db: &fjall::Database) -> Result<Self, StorageError> {
+        let config = get_partition_config(INSTANCES_PARTITION);
+        let partition = db
+            .keyspace(INSTANCES_PARTITION, || config.to_fjall_options())
+            .map_err(|e| StorageError::Storage)?;
+        Ok(Self {
+            db: Arc::new(db.clone()),
+            partition: Arc::new(partition),
+        })
+    }
+
+    /// Returns a reference to the underlying keyspace for use in batch operations.
+    #[must_use]
+    pub fn keyspace(&self) -> &fjall::Keyspace {
+        &self.partition
     }
 }

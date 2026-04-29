@@ -5442,7 +5442,6 @@ dependencies = [
  "vo-api",
  "vo-core",
  "vo-executor",
- "vo-sdk",
  "vo-storage",
  "vo-types",
 ]
@@ -5452,7 +5451,6 @@ name = "vo-common"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "criterion",
  "proptest",
  "rand 0.8.6",
  "serde",
@@ -5461,6 +5459,7 @@ dependencies = [
  "tokio",
  "tracing",
  "ulid",
+ "vo-types",
 ]
 
 [[package]]
@@ -5522,7 +5521,8 @@ dependencies = [
  "tracing",
  "ulid",
  "uuid",
- "vo-common",
+ "vo-ipc",
+ "vo-types",
 ]
 
 [[package]]

@@ -23,7 +23,7 @@ impl WorkflowLineage {
     /// Create a new lineage with the given ID at epoch ZERO.
     pub fn new(lineage_id: String) -> Result<Self, LineageError> {
         if lineage_id.is_empty() {
-            return Err(LineageError::InvalidLineageId);
+            return Err(LineageError::EmptyLineageId);
         }
         Ok(Self {
             lineage_id,
@@ -32,14 +32,45 @@ impl WorkflowLineage {
         })
     }
 
+    /// Creates a lineage with a parent epoch (for continue-as-new).
+    #[must_use]
+    pub fn with_parent(
+        lineage_id: String,
+        epoch: Epoch,
+        parent_epoch: Option<Epoch>,
+    ) -> Result<Self, LineageError> {
+        if lineage_id.is_empty() {
+            return Err(LineageError::EmptyLineageId);
+        }
+        if let Some(parent) = parent_epoch {
+            if parent >= epoch {
+                return Err(LineageError::InvalidEpochTransition { parent_epoch: parent, epoch });
+            }
+        }
+        Ok(Self {
+            lineage_id,
+            epoch,
+            parent_epoch,
+        })
+    }
+
     /// Create a new epoch within this lineage (continue-as-new).
     pub fn continue_as_new(&self) -> Result<Self, LineageError> {
         if self.epoch == Epoch::ZERO && self.parent_epoch.is_some() {
-            return Err(LineageError::InvalidEpochTransition);
+            if let Some(parent_epoch) = self.parent_epoch {
+                return Err(LineageError::InvalidEpochTransition {
+                    parent_epoch,
+                    epoch: self.epoch,
+                });
+            }
+        }
+        let new_epoch_value = self.epoch.value() + 1;
+        if new_epoch_value > u64::MAX {
+            return Err(LineageError::EpochOverflow);
         }
         Ok(Self {
             lineage_id: self.lineage_id.clone(),
-            epoch: Epoch::new(self.epoch.value() + 1),
+            epoch: Epoch::new(new_epoch_value),
             parent_epoch: Some(self.epoch),
         })
     }

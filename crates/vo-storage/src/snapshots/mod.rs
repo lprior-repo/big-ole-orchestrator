@@ -5,6 +5,47 @@ use vo_types::InstanceId;
 
 pub const CURRENT_SNAPSHOT_VERSION: u16 = 1;
 
+// ---------------------------------------------------------------------------
+// SnapshotStoreError
+// ---------------------------------------------------------------------------
+
+/// Errors from the snapshot store operations.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum SnapshotStoreError {
+    #[error("snapshot storage error: {reason}")]
+    Storage { reason: String },
+    #[error("snapshot codec error: {reason}")]
+    Codec { reason: String },
+    #[error("snapshot serialization failed")]
+    SerializationFailed,
+    #[error("snapshot deserialization failed")]
+    DeserializationFailed,
+    #[error("fjall error")]
+    FjallError,
+    #[error("invalid snapshot key")]
+    InvalidKey,
+}
+
+impl From<StorageError> for SnapshotStoreError {
+    fn from(e: StorageError) -> Self {
+        match e {
+            StorageError::FjallError => Self::FjallError,
+            StorageError::InvalidKey => Self::InvalidKey,
+            StorageError::DeserializationFailed => Self::DeserializationFailed,
+            other => Self::Storage {
+                reason: other.to_string(),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// FjallSnapshotStore
+// ---------------------------------------------------------------------------
+
+mod fjall_snapshot_store;
+pub use fjall_snapshot_store::FjallSnapshotStore;
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SnapshotHeader {
     pub version: u16,

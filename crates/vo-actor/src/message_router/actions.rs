@@ -251,12 +251,7 @@ impl MessageRouter {
             .map_err(|e| RouteError::ActorError(channel_id.clone(), e))
     }
 
-    fn send_to_dlq(
-        &mut self,
-        channel_id: &ChannelId,
-        type_name: &str,
-        reason: DeadLetterReason,
-    ) {
+    fn send_to_dlq(&mut self, channel_id: &ChannelId, type_name: &str, reason: DeadLetterReason) {
         let entry = DeadLetterEntry {
             channel_id: channel_id.clone(),
             message: DeadLetterMessage {

@@ -19,6 +19,7 @@ default-run = "vo-cli"
  vo-actor = { version = "0.1.0", path = "../vo-actor" }
  vo-api = { version = "0.1.0", path = "../vo-api" }
  vo-types = { version = "0.1.0", path = "../vo-types" }
+ vo-executor = { version = "0.1.0", path = "../vo-executor" }
  ulid = { workspace = true }
  uuid.workspace = true
  tracing.workspace = true

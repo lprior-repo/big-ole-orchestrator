@@ -1,11 +1,11 @@
 //! ControlActor Cancel and Resume test suite.
 
-use crate::control_actor::ControlActor;
 use crate::signal_messages::{
     BinaryHash, CancelError, ContinueAsNewError, InstanceResumed, LifecycleState, NodeName,
     ResumeError, SecretId, SignalAccepted, SignalName, SignalPayload, SignalStorage,
     SignalWorkQueue, TestStateLookup, TimestampMs, WaitKey, WorkflowCancelled, WorkflowContinued,
 };
+use crate::ControlActor;
 use crate::InstanceId;
 
 // ========================================================================
