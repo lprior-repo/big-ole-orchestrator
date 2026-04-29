@@ -192,13 +192,6 @@ mod tests {
     }
 
     #[test]
-    fn event_id_behaves_as_string() {
-        let eid: EventId = "evt-abc-123".into();
-        assert_eq!(eid.len(), 11);
-        assert_eq!(eid.as_str(), "evt-abc-123");
-    }
-
-    #[test]
     fn instance_id_empty_string() {
         let id = InstanceId::new("");
         assert_eq!(id.as_str(), "");

@@ -125,9 +125,8 @@ impl<T: Clone + Serialize> Octree<T> {
                         break;
                     }
                 }
-            } else {
-                self.empty_child_streak = 0;
             }
+            self.empty_child_streak = 0;
         }
     }
 

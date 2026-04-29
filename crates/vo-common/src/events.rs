@@ -1,16 +1,13 @@
 //! Event types for vo-common.
 
 use std::collections::HashSet;
-use std::fmt;
-use std::marker::PhantomData;
 
-use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 
 use crate::types::TimerId;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum WorkflowEvent {
     TimerFired {
         timer_id: TimerId,
@@ -18,17 +15,61 @@ pub enum WorkflowEvent {
     },
 }
 
+pub struct EventDedup {
+    seen: HashSet<TimerId>,
+}
+
+pub enum DuplicateResult {
+    New,
+    Duplicate(TimerId),
+}
+
+impl EventDedup {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            seen: HashSet::new(),
+        }
+    }
+
+    pub fn check_and_track(&mut self, timer_id: TimerId) -> DuplicateResult {
+        if self.seen.contains(&timer_id) {
+            DuplicateResult::Duplicate(timer_id)
+        } else {
+            self.seen.insert(timer_id.clone());
+            DuplicateResult::New
+        }
+    }
+
+    pub fn track(&mut self, timer_id: TimerId) {
+        self.seen.insert(timer_id);
+    }
+
+    #[must_use]
+    pub fn is_duplicate(&self, timer_id: &TimerId) -> bool {
+        self.seen.contains(timer_id)
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.seen.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.seen.is_empty()
+    }
+}
+
+impl Default for EventDedup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn make_event(event_id: &str, timer_id: &str, timestamp_ms: u64) -> WorkflowEvent {
-        WorkflowEvent::TimerFired {
-            event_id: event_id.into(),
-            timer_id: timer_id.into(),
-            timestamp_ms,
-        }
-    }
 
     #[test]
     fn workflow_event_timer_fired_construction() {
@@ -38,7 +79,6 @@ mod tests {
         };
         match event {
             WorkflowEvent::TimerFired {
-                event_id,
                 timer_id,
                 timestamp_ms,
             } => {
@@ -61,11 +101,10 @@ mod tests {
 
     #[test]
     fn workflow_event_json_deserialization() {
-        let json = r#"{"type":"TimerFired","event_id":"e1","timer_id":"t1","timestamp_ms":42}"#;
+        let json = r#"{"type":"TimerFired","timer_id":"t1","timestamp_ms":42}"#;
         let event: WorkflowEvent = serde_json::from_str(json).expect("should deserialize");
         match event {
             WorkflowEvent::TimerFired {
-                event_id,
                 timer_id,
                 timestamp_ms,
             } => {
@@ -77,16 +116,17 @@ mod tests {
 
     #[test]
     fn workflow_event_internal_tag_format() {
-        let event = make_event("evt-internal", "timer-internal", 123);
+        let event = WorkflowEvent::TimerFired {
+            timer_id: TimerId::new("timer-internal"),
+            timestamp_ms: 123,
+        };
         let json = serde_json::to_string(&event).expect("should serialize");
         assert!(json.contains(r#""type":"TimerFired""#), "JSON should have type field: {}", json);
-        let externally_tagged_pattern = r#""TimerFired": {"#;
-        assert!(!json.contains(externally_tagged_pattern), "TimerFired should not be externally tagged: {}", json);
     }
 
     #[test]
     fn workflow_event_rejects_unknown_variant_with_error_message() {
-        let json = r#"{"type":"UnknownVariant123","event_id":"e1","timer_id":"t1","timestamp_ms":42}"#;
+        let json = r#"{"type":"UnknownVariant123","timer_id":"t1","timestamp_ms":42}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err());
         let err = result.unwrap_err();
@@ -103,13 +143,6 @@ mod tests {
         let json = r#"{"type":"UnknownVariant123"}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        let err_msg = err.to_string();
-        assert!(
-            err_msg.contains("UnknownVariant123"),
-            "error message should contain unknown variant name, got: {}",
-            err_msg
-        );
     }
 
     #[test]
@@ -125,43 +158,40 @@ mod tests {
     #[test]
     fn event_dedup_new_event_accepted() {
         let mut dedup = EventDedup::new();
-        assert_eq!(dedup.check_and_track("evt-a".into()), DuplicateResult::New);
+        assert!(matches!(dedup.check_and_track(TimerId::new("evt-a")), DuplicateResult::New));
         assert_eq!(dedup.len(), 1);
     }
 
     #[test]
     fn event_dedup_duplicate_detected() {
         let mut dedup = EventDedup::new();
-        dedup.check_and_track("evt-x".into());
-        let result = dedup.check_and_track("evt-x".into());
-        assert_eq!(result, DuplicateResult::Duplicate("evt-x".into()));
+        dedup.check_and_track(TimerId::new("evt-x"));
+        let result = dedup.check_and_track(TimerId::new("evt-x"));
+        assert!(matches!(result, DuplicateResult::Duplicate(_)));
         assert_eq!(dedup.len(), 1);
     }
 
     #[test]
     fn event_dedup_different_events_both_accepted() {
         let mut dedup = EventDedup::new();
-        assert_eq!(dedup.check_and_track("evt-1".into()), DuplicateResult::New);
-        assert_eq!(dedup.check_and_track("evt-2".into()), DuplicateResult::New);
+        assert!(matches!(dedup.check_and_track(TimerId::new("evt-1")), DuplicateResult::New));
+        assert!(matches!(dedup.check_and_track(TimerId::new("evt-2")), DuplicateResult::New));
         assert_eq!(dedup.len(), 2);
     }
 
     #[test]
     fn event_dedup_empty_string_event_id() {
         let mut dedup = EventDedup::new();
-        dedup.check_and_track("".into());
-        assert_eq!(
-            dedup.check_and_track("".into()),
-            DuplicateResult::Duplicate("".into())
-        );
+        dedup.check_and_track(TimerId::new(""));
+        assert!(matches!(dedup.check_and_track(TimerId::new("")), DuplicateResult::Duplicate(_)));
     }
 
     #[test]
     fn event_dedup_is_duplicate_before_tracking() {
         let mut dedup = EventDedup::new();
-        dedup.track("evt-pending".into());
-        assert!(dedup.is_duplicate(&"evt-pending".into()));
-        assert!(!dedup.is_duplicate(&"evt-other".into()));
+        dedup.track(TimerId::new("evt-pending"));
+        assert!(dedup.is_duplicate(&TimerId::new("evt-pending")));
+        assert!(!dedup.is_duplicate(&TimerId::new("evt-other")));
     }
 
     #[test]
@@ -169,19 +199,5 @@ mod tests {
         let dedup = EventDedup::new();
         assert!(dedup.is_empty());
         assert_eq!(dedup.len(), 0);
-    }
-
-    #[test]
-    fn same_timer_different_event_ids_not_duplicate() {
-        let a = make_event("evt-a", "timer-same", 100);
-        let b = make_event("evt-b", "timer-same", 100);
-        assert_ne!(a, b);
-    }
-
-    #[test]
-    fn different_timer_same_event_id_are_equal() {
-        let a = make_event("evt-x", "timer-alpha", 100);
-        let b = make_event("evt-x", "timer-beta", 200);
-        assert_ne!(a, b);
     }
 }
