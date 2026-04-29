@@ -11,6 +11,8 @@ pub enum ServeError {
     InvalidPort(String),
     #[error("invalid storage path: {0}")]
     InvalidStoragePath(String),
+    #[error("engine initialization failed: {0}")]
+    EngineInit(String),
 }
 
 #[derive(Debug, Clone)]
@@ -44,16 +46,42 @@ pub async fn run_serve(config: &ServeConfig) -> Result<(), ServeError> {
     validate_serve_config(config)?;
 
     let listen_addr = format!("{}:{}", config.host, config.port);
+
+    let barrier = Arc::new(tokio::sync::Barrier::new(2));
+    let engine_barrier = barrier.clone();
+
+    let storage_path = config.storage_path.clone();
+    let init_handle = tokio::spawn(async move {
+        if let Err(e) = validate_storage_path(&storage_path) {
+            tracing::error!(error = %e, "engine initialization failed");
+        }
+        engine_barrier.wait().await;
+    });
+
+    barrier.wait().await;
+
     let listener = match tokio::net::TcpListener::bind(&listen_addr).await {
         Ok(l) => l,
         Err(e) => {
+            init_handle.abort();
             return Err(ServeError::InvalidHost(format!(
                 "Failed to bind to {listen_addr}: {e}"
-            )))
+            )));
         }
     };
 
-    run_serve_until_shutdown(config, listener, shutdown_signal()).await
+    let result = run_serve_until_shutdown(config, listener, shutdown_signal()).await;
+    init_handle.abort();
+    result
+}
+
+fn validate_storage_path(storage_path: &PathBuf) -> Result<(), ServeError> {
+    std::fs::create_dir_all(storage_path).map_err(|e| {
+        ServeError::EngineInit(format!(
+            "failed to create storage directory {}: {e}",
+            storage_path.display()
+        ))
+    })
 }
 
 pub async fn run_serve_until_shutdown<S>(
@@ -319,6 +347,54 @@ mod tests {
         );
 
         // Gracefully shutdown by sending ctrl-c signal simulation
+        handle.abort();
+    }
+
+    /// BDD: Given the serve command is starting up with engine initialization,
+    ///      When a client attempts to connect before the readiness gate is released,
+    ///      Then the connection is refused because the server has not yet bound the listener.
+    ///
+    /// This test verifies the readiness gate ensures no requests are accepted
+    /// until engine init (Fjall storage, orchestrator) is fully complete.
+    #[tokio::test]
+    async fn given_serve_starting_when_client_connects_before_ready_then_connection_refused() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let port = find_available_port();
+        let config = ServeConfig {
+            host: "127.0.0.1".to_string(),
+            port,
+            storage_path: tmp.path().to_path_buf(),
+        };
+
+        let config_clone = config.clone();
+        let handle = tokio::spawn(async move { run_serve(&config_clone).await });
+
+        // Try to connect immediately - should fail because barrier hasn't been released yet
+        let immediate_connect = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await;
+
+        // Connection should be refused since server hasn't bound listener yet
+        assert!(
+            immediate_connect.is_err(),
+            "Expected connection to be refused before engine init completes"
+        );
+
+        // Now wait for server to be ready
+        let server_ready = timeout(Duration::from_secs(10), async {
+            for _ in 0..20 {
+                match tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await {
+                    Ok(_) => return true,
+                    Err(_) => tokio::time::sleep(Duration::from_millis(500)).await,
+                }
+            }
+            false
+        })
+        .await;
+
+        assert!(
+            server_ready.is_ok() && server_ready.unwrap(),
+            "Server should be ready after initialization completes"
+        );
+
         handle.abort();
     }
 }

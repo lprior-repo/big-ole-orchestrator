@@ -42,6 +42,9 @@ pub enum WorkflowSseEvent {
     PhaseChanged {
         phase: String,
     },
+    Lagged {
+        skipped_count: u64,
+    },
 }
 
 impl WorkflowSseEvent {
@@ -96,6 +99,12 @@ impl WorkflowSseEvent {
                 serde_json::json!({
                     "type": "instance_failed",
                     "error": error,
+                })
+            }
+            WorkflowSseEvent::Lagged { skipped_count } => {
+                serde_json::json!({
+                    "type": "lagged",
+                    "skipped_count": skipped_count,
                 })
             }
         }
