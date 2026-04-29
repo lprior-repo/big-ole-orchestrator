@@ -13,6 +13,12 @@ ulid = { workspace = true, features = ["serde"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
+
+[[bench]]
+name = "octree_bench"
+harness = false
 
 [features]
 default = []

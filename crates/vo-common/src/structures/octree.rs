@@ -44,6 +44,8 @@ pub struct Octree<T: Clone + Serialize> {
     bounds: Bounds,
     data: Vec<(Vec3, T)>,
     children: Option<Box<[Octree<T>; 8]>>,
+    empty_child_streak: u8,
+    degenerate: bool,
 }
 
 impl<T: Clone + Serialize> Octree<T> {
@@ -55,12 +57,18 @@ impl<T: Clone + Serialize> Octree<T> {
             bounds,
             data: Vec::new(),
             children: None,
+            empty_child_streak: 0,
+            degenerate: false,
         }
     }
 
     pub fn insert(&mut self, point: Vec3, value: T) -> bool {
         if !self.bounds.contains(point) {
             return false;
+        }
+        if self.degenerate {
+            self.data.push((point, value));
+            return true;
         }
         if self.children.is_none() && self.data.len() < Self::CAPACITY {
             self.data.push((point, value));
@@ -113,6 +121,15 @@ impl<T: Clone + Serialize> Octree<T> {
                     .iter_mut()
                     .any(|child| child.insert(pt, val.clone()));
             });
+            let empty_count = children.iter().filter(|c| c.is_empty()).count();
+            if empty_count >= 7 {
+                self.empty_child_streak += 1;
+                if self.empty_child_streak > 3 {
+                    self.degenerate = true;
+                }
+            } else {
+                self.empty_child_streak = 0;
+            }
         }
     }
 
@@ -136,6 +153,9 @@ impl<T: Clone + Serialize> Octree<T> {
             if range.contains(*pt) {
                 out.push(val);
             }
+        }
+        if self.degenerate {
+            return;
         }
         if let Some(children) = &self.children {
             for child in children.iter() {

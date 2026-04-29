@@ -5128,7 +5128,9 @@ dependencies = [
 name = "vo-common"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "proptest",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
