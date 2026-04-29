@@ -8,11 +8,61 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::{Semaphore, TryAcquireError};
+use tokio::task::JoinHandle;
 
 use crate::semaphore::calc::status_from_config_and_state;
 use crate::semaphore::types::{
     AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
 };
+
+/// Guard that releases a semaphore permit on drop.
+///
+/// This ensures that even if an actor panics during execution,
+/// the permit is always released when the guard drops.
+pub struct PermitGuard {
+    semaphore: Arc<ExecutionSemaphore>,
+    permit: Option<std::mem::ManuallyDrop<tokio::sync::SemaphorePermit<'static>>>,
+}
+
+impl PermitGuard {
+    #[allow(unsafe_op_in_unsafe_fn)]
+    fn new(semaphore: Arc<ExecutionSemaphore>, permit: tokio::sync::SemaphorePermit<'static>) -> Self {
+        Self {
+            semaphore,
+            permit: Some(std::mem::ManuallyDrop::new(permit)),
+        }
+    }
+
+    #[allow(unsafe_op_in_unsafe_fn)]
+    fn release_permit(&self) {
+        self.semaphore.semaphore.add_permits(1);
+    }
+
+    /// Spawns an actor task with the permit guard in scope.
+    ///
+    /// The permit is held for the duration of the actor's execution.
+    /// If the actor panics, the guard drops and releases the permit.
+    pub fn spawn<F>(self, f: F) -> JoinHandle<F::Output>
+    where
+        F: std::future::Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        tokio::spawn(async move {
+            f.await
+        })
+    }
+}
+
+impl Drop for PermitGuard {
+    #[allow(unsafe_op_in_unsafe_fn)]
+    fn drop(&mut self) {
+        if let Some(mut permit) = self.permit.take() {
+            unsafe { std::mem::ManuallyDrop::drop(&mut permit) };
+        }
+        self.release_permit();
+        self.semaphore.available_permits.fetch_add(1, Ordering::Relaxed);
+    }
+}
 
 /// The global execution semaphore for binary spawn limiting.
 pub struct ExecutionSemaphore {
@@ -70,6 +120,33 @@ impl ExecutionSemaphore {
             Err(TryAcquireError::NoPermits) => None,
             Err(TryAcquireError::Closed) => None,
         }
+    }
+
+    /// Acquires a permit guard for panic-safe actor spawning.
+    ///
+    /// Returns a `PermitGuard` if a permit is available, `None` otherwise.
+    /// The guard ensures the permit is released even if the actor panics.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let guard = sem.try_acquire_guard().await;
+    /// let handle = guard.spawn(async move {
+    ///     // work that might panic
+    /// });
+    /// ```
+    #[allow(unsafe_op_in_unsafe_fn)]
+    pub fn try_acquire_guard(self: Arc<Self>) -> Option<PermitGuard> {
+        let sem_ptr = &self.semaphore as *const Semaphore;
+        let permit = match unsafe { (*sem_ptr).try_acquire() } {
+            Ok(p) => p,
+            Err(TryAcquireError::NoPermits) => return None,
+            Err(TryAcquireError::Closed) => return None,
+        };
+        self.available_permits.fetch_sub(1, Ordering::Relaxed);
+        let extended_permit = unsafe {
+            std::mem::transmute::<tokio::sync::SemaphorePermit<'_>, tokio::sync::SemaphorePermit<'static>>(permit)
+        };
+        Some(PermitGuard::new(self, extended_permit))
     }
 
     /// Attempts to acquire a permit from the reserved pool for recovery tasks.
@@ -327,5 +404,81 @@ mod tests {
         let sem = ExecutionSemaphore::default();
         assert_eq!(sem.current_status(), BackpressureStatus::Healthy);
         assert_eq!(sem.waiting_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn permit_guard_releases_on_drop() {
+        let sem = Arc::new(ExecutionSemaphore::default());
+        let initial = sem.available_permits();
+
+        let guard = sem.clone().try_acquire_guard().expect("should acquire permit");
+        assert_eq!(sem.available_permits(), initial - 1);
+
+        drop(guard);
+
+        assert_eq!(sem.available_permits(), initial);
+    }
+
+    #[tokio::test]
+    async fn permit_guard_releases_on_panic() {
+        let sem = Arc::new(ExecutionSemaphore::new(
+            SemaphoreConfig {
+                max_concurrent_binaries: 10,
+                ..Default::default()
+            }
+        ));
+        let initial = sem.available_permits();
+
+        let mut handles = Vec::new();
+        for i in 0..20 {
+            let sem = Arc::clone(&sem);
+            let handle = tokio::spawn(async move {
+                if let Some(guard) = sem.try_acquire_guard() {
+                    if i % 2 == 0 {
+                        panic!("panic in actor {}", i);
+                    }
+                    guard.spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    }).await.unwrap();
+                }
+            });
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            let _ = handle.await;
+        }
+
+        assert_eq!(
+            sem.available_permits(),
+            initial,
+            "All permits should be released even after panics"
+        );
+    }
+
+    #[tokio::test]
+    async fn permit_guard_spawn_keeps_permit_until_task_completes() {
+        let sem = Arc::new(ExecutionSemaphore::new(
+            SemaphoreConfig {
+                max_concurrent_binaries: 2,
+                ..Default::default()
+            }
+        ));
+
+        let guard1 = sem.clone().try_acquire_guard().expect("should get first permit");
+        let guard2 = sem.clone().try_acquire_guard().expect("should get second permit");
+        assert!(sem.clone().try_acquire_guard().is_none(), "should be exhausted");
+
+        let handle = guard1.spawn(async {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        });
+
+        assert!(sem.clone().try_acquire_guard().is_none(), "permit still held during spawn");
+
+        handle.await.unwrap();
+
+        drop(guard2);
+
+        assert_eq!(sem.available_permits(), 2, "all permits should be released");
     }
 }

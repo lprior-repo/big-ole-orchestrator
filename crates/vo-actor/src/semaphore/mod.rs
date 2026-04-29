@@ -18,7 +18,7 @@ pub mod workflow;
 
 pub use calc::{calculate_backpressure_status, estimate_wait_ms, is_workflow_saturated};
 pub use enforcer::{InvariantCheck, InvariantEnforcer, InvariantError};
-pub use execution::ExecutionSemaphore;
+pub use execution::{ExecutionSemaphore, PermitGuard};
 pub use types::{
     AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
     DEFAULT_MAX_CONCURRENT_BINARIES, DEFAULT_MAX_PER_WORKFLOW, DEFAULT_MAX_WAITERS_FOR_SHED,
