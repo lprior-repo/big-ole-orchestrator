@@ -33,11 +33,11 @@ pub use config::SubprocessConfig;
 pub use envelope::MAX_PAYLOAD_SIZE;
 pub use envelope::{
     engine_receive_envelope, negotiate_version, read_envelope, validate_identity,
-    write_envelope, Fd3Envelope, Fd4Envelope, TaskError, TaskResult, VersionNegotiation,
-    CURRENT_VERSION,
+    write_envelope, Fd3Envelope, Fd4Envelope, TaskError, TaskResult, VersionHandshake,
+    VersionNegotiation, CURRENT_VERSION, CURRENT_IPC_VERSION,
 };
 pub use error::{ConfigError, IpcError};
-pub use run::{run_subprocess, SubprocessOutput};
+pub use run::{run_subprocess, run_subprocess_with_handshake, HANDSHAKE_TIMEOUT_MS, SubprocessOutput};
 pub use stderr::{MAX_STDERR_BYTES, TRUNCATION_MARKER};
 
 #[cfg(test)]

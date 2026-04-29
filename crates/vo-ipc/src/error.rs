@@ -72,4 +72,6 @@ pub enum IpcError {
     IoError(#[from] std::io::Error),
     #[error("IPC reader already consumed")]
     AlreadyConsumed,
+    #[error("handshake timed out waiting for child response on fd4")]
+    HandshakeTimeout,
 }

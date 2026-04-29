@@ -7,6 +7,12 @@ use std::io::{Read, Write};
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
 pub const CURRENT_VERSION: u8 = 1;
+pub const CURRENT_IPC_VERSION: u8 = CURRENT_VERSION;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct VersionHandshake {
+    pub version: u8,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionNegotiation {
