@@ -31,6 +31,8 @@ ulid = { workspace = true }
 dashmap = { workspace = true }
 metrics = { workspace = true }
 zeroize = { workspace = true }
+wyhash = "0.5"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
