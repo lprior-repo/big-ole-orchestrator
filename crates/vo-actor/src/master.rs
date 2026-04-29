@@ -10,8 +10,11 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 use vo_types::InstanceId;
 
 use crate::{
-    CompensateError, InstancePhaseView, InstanceSnapshot, OrchestratorMsg, SignalError, StartError,
-    TerminateError, WorkflowParadigm,
+    actor_messages::{
+        CompensateError, InstanceSnapshot, OrchestratorMsg, SignalError, StartError,
+        TerminateError, WorkflowParadigm,
+    },
+    InstancePhaseView,
 };
 
 #[derive(Debug, Clone)]

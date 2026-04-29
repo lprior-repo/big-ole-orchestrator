@@ -1617,6 +1617,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "embedded-io"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef1a6892d9eef45c8fa6b9e0086428a2cca8491aca8f787c534a3d6d0bcb3ced"
+
+[[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5338,6 +5350,7 @@ dependencies = [
  "bytes",
  "criterion",
  "dashmap",
+ "fjall",
  "futures",
  "metrics",
  "parking_lot",
@@ -5439,8 +5452,9 @@ name = "vo-common"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "criterion",
  "proptest",
- "rand 0.8.5",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -5507,6 +5521,7 @@ dependencies = [
  "tracing",
  "ulid",
  "uuid",
+ "vo-common",
 ]
 
 [[package]]
@@ -5521,6 +5536,7 @@ dependencies = [
  "itertools 0.14.0",
  "js-sys",
  "regex",
+ "reqwest",
  "serde",
  "serde_json",
  "toml 0.8.23",
@@ -5571,7 +5587,6 @@ dependencies = [
  "chrono",
  "metrics",
  "proptest",
- "rmp-serde",
  "rstest 0.23.0",
  "serde",
  "serde_json",
@@ -5632,7 +5647,6 @@ dependencies = [
  "dashmap",
  "fjall",
  "generic-array",
- "hex",
  "memmap2",
  "metrics",
  "metrics-util",

@@ -3,7 +3,6 @@
 //! Provides the actor model implementation using the Ractor library.
 //! Actors are the fundamental units of computation in the engine.
 
-use bytes::Bytes;
 pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
 
@@ -21,7 +20,6 @@ pub mod instance_registry;
 pub mod lifecycle;
 pub mod master;
 pub mod message_router;
-pub mod orchestrator_msg;
 pub mod port;
 pub mod probe;
 pub mod reanimator;
@@ -51,7 +49,6 @@ mod instance_msgs;
 mod msg_eq_props;
 mod msg_partial_eq;
 mod msg_traits;
-mod orchestrator_msgs;
 
 #[cfg(test)]
 pub mod signal_buffer_tests;
@@ -59,197 +56,17 @@ pub mod signal_buffer_tests;
 #[cfg(test)]
 pub mod instance_registry_tests;
 
-#[derive(Debug, thiserror::Error)]
-pub enum TerminateError {
-    #[error("not found: {0}")]
-    NotFound(String),
-    #[error("failed: {0}")]
-    Failed(String),
-}
+// Re-exports from actor_messages for backward compatibility
+pub use crate::actor_messages::{
+    CompensateError, InstanceSnapshot, OrchestratorMsg, SignalError, TerminateError,
+    WorkflowParadigm,
+};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkflowParadigm {
-    Fsm,
-    Dag,
-    Procedural,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum InstancePhaseView {
-    Replay,
-    Live,
-    Terminated,
-}
-
-/// Messages sent to the orchestrator actor.
-#[derive(Debug)]
-pub enum OrchestratorMsg {
-    /// Start a new workflow instance
-    StartWorkflow {
-        namespace: String,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
-    },
-    /// Reserve resources for starting a workflow (two-phase start, phase 1)
-    ReserveWorkflowStart {
-        namespace: String,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
-    },
-    /// Commit a reserved workflow start (two-phase start, phase 2)
-    CommitWorkflowStart {
-        namespace: String,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), crate::StartError>>,
-    },
-    /// Abort a reserved workflow start
-    AbortWorkflowStart {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<()>,
-    },
-    ReserveWorkflowStart {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
-    },
-    CommitWorkflowStart {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
-    },
-    AbortWorkflowStart {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<()>,
-    },
-    /// Get status of a workflow instance
-    GetStatus {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Option<crate::InstanceSnapshot>>,
-    },
-    /// Terminate a workflow instance
-    Terminate {
-        namespace: String,
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// Reserve termination of a workflow instance (two-phase terminate, phase 1)
-    ReserveTerminate {
-        namespace: String,
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// Commit a reserved termination (two-phase terminate, phase 2)
-    CommitTerminate {
-        namespace: String,
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// Abort a reserved workflow transition
-    AbortWorkflowTransition {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<()>,
-    },
-    /// List all active workflow instances
-    ListActive {
-        reply: ractor::port::RpcReplyPort<Vec<crate::InstanceSnapshot>>,
-    },
-    /// Trigger compensation for a workflow instance
-    Compensate {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-    /// Reserve compensation for a workflow instance (two-phase compensate, phase 1)
-    ReserveCompensate {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-    /// Commit a reserved compensation (two-phase compensate, phase 2)
-    CommitCompensate {
-        namespace: String,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-    /// Send a signal to a workflow instance
-    Signal {
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-        payload: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-    /// Reserve a signal for a workflow instance
-    ReserveSignal {
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-    /// Commit a reserved signal
-    CommitSignal {
-        namespace: String,
-        instance_id: InstanceId,
-        signal_name: String,
-        payload: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-}
-
-/// Error type for compensation operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum CompensateError {
-    #[error("instance not found: {0}")]
-    NotFound(String),
-    #[error("compensation failed: {0}")]
-    Failed(String),
-}
-
-/// Error type for signal operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum SignalError {
-    #[error("instance not found: {0}")]
-    NotFound(String),
-    #[error("signal failed: {0}")]
-    Failed(String),
-}
-
-/// Instance snapshot for status queries.
-#[derive(Debug, Clone)]
-pub struct InstanceSnapshot {
-    pub instance_id: InstanceId,
-    pub namespace: String,
-    pub workflow_type: String,
-    pub paradigm: WorkflowParadigm,
-    pub phase: InstancePhaseView,
-    pub events_applied: u64,
-}
+pub use crate::start_budget::{ReservedPermitBudget, StartError};
 
 #[cfg(test)]
 mod signal_error_tests {
-    use super::*;
+    use crate::actor_messages::{OrchestratorMsg, SignalError};
 
     #[test]
     fn signal_error_variants_can_be_constructed() {
@@ -277,7 +94,7 @@ mod signal_error_tests {
 
 #[cfg(test)]
 mod terminate_error_tests {
-    use super::*;
+    use crate::actor_messages::TerminateError;
 
     #[test]
     fn terminate_error_variants_can_be_constructed() {
@@ -692,6 +509,7 @@ impl Default for ControlActor {
 
 #[cfg(test)]
 mod control_actor_tests {
+    use crate::actor_messages::{CompensateError, SignalError, StartError, TerminateError};
     use super::*;
     use vo_types::InstanceId;
 

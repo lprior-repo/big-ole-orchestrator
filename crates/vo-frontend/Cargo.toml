@@ -19,6 +19,7 @@ uuid.workspace = true
 vo-types.workspace = true
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
+reqwest = { workspace = true, optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window", "EventSource", "Event", "EventTarget", "HtmlInputElement", "File", "FileList", "Blob", "Url"] }
 gloo-timers = { version = "0.3", optional = true }
 js-sys = { version = "0.3", optional = true }
