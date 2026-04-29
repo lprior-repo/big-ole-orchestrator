@@ -7,6 +7,7 @@
 //! # Available Rules
 //!
 //! - [`random`] — L002: Detects non-deterministic random calls
+//! - [`retry_policy`] — L003-L006: Validates retry policy values are within safe bounds
 //!
 //! # Rule Architecture
 //!
@@ -16,8 +17,10 @@
 //! - Composability: Multiple rules can run concurrently without interference
 
 pub mod random;
+pub mod retry_policy;
 
 pub use random::check_random_in_workflow;
+pub use retry_policy::check_retry_policy_bounds;
 
 /// Trait for all linting rules.
 ///
