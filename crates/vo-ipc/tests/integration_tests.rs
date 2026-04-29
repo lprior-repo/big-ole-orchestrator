@@ -72,6 +72,13 @@ async fn stderr_under_limit_is_preserved() {
 }
 
 #[tokio::test]
+async fn empty_stdout_returns_empty_buffer() {
+    let output = run_subprocess(config("echo-fd3 hello", 500)).await.unwrap();
+    assert_eq!(output.stdout_bytes, Vec::<u8>::new());
+    assert!(!output.stdout_truncated);
+}
+
+#[tokio::test]
 async fn fd3_payload_is_delivered_raw() {
     let output = run_subprocess(config("echo-fd3 alpha beta gamma", 500))
         .await
