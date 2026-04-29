@@ -5,10 +5,12 @@
 //! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
 
 use std::any::Any;
+use std::sync::Arc;
 
 use thiserror::Error;
 use vo_types::{DedupeScope, GuaranteeClass, NodeKind, NodeName, RetryPolicy, WorkflowName};
 
+use crate::execution::{BoxedNodeFn, NodeFunctionRegistry};
 use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
@@ -475,6 +477,7 @@ impl Default for Dag {
 pub struct Workflow {
     dag: Dag,
     workflow_name: String,
+    registry: NodeFunctionRegistry,
 }
 
 impl Workflow {
@@ -484,78 +487,107 @@ impl Workflow {
         Self {
             dag: Dag::new(),
             workflow_name: name.to_string(),
+            registry: NodeFunctionRegistry::new(),
         }
     }
 
     /// Add a pure (side-effect free) node to the workflow.
-    pub fn pure<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn pure<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        self.dag.add_node_with_kind(name, NodeKind::Pure, f)
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Pure, ())
     }
 
     /// Add a managed-effect node to the workflow.
-    pub fn effect<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn effect<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
         self.dag
-            .add_node_with_kind(name, NodeKind::ManagedEffect, f)
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::ManagedEffect, ())
     }
 
     /// Add a wait node to the workflow.
-    pub fn wait<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn wait<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        self.dag.add_node_with_kind(name, NodeKind::Wait, f)
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())
     }
 
     /// Add a wait node with signal metadata to the workflow.
-    pub fn wait_with_meta<I, O, F>(
+    pub fn wait_with_meta<I: 'static, O: 'static, F>(
         &mut self,
         name: &str,
         f: F,
         meta: SignalNodeMeta,
     ) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        let handle = self.dag.add_node_with_kind(name, NodeKind::Wait, f)?;
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        let handle = self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())?;
         self.dag.set_signal_meta(meta);
         Ok(handle)
     }
 
     /// Add a signal node to the workflow.
-    pub fn signal<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn signal<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        self.dag.add_node_with_kind(name, NodeKind::Signal, f)
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())
     }
 
     /// Add a signal node with signal metadata to the workflow.
-    pub fn signal_with_meta<I, O, F>(
+    pub fn signal_with_meta<I: 'static, O: 'static, F>(
         &mut self,
         name: &str,
         f: F,
         meta: SignalNodeMeta,
     ) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        let handle = self.dag.add_node_with_kind(name, NodeKind::Signal, f)?;
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        let handle = self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())?;
         self.dag.set_signal_meta(meta);
         Ok(handle)
     }
 
     /// Add an unsafe node to the workflow.
-    pub fn unsafe_node<I, O, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn unsafe_node<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
     where
-        F: Fn(I) -> O + 'static,
+        F: Fn(I) -> O + Send + Sync + 'static,
     {
-        self.dag.add_node_with_kind(name, NodeKind::Unsafe, f)
+        let boxed: BoxedNodeFn<I, O> = Arc::new(f);
+        self.registry
+            .register(name, boxed)
+            .map_err(|e| map_registry_error(name, e))?;
+        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Unsafe, ())
     }
 
     /// Connect two nodes with compile-time type safety.
@@ -578,5 +610,29 @@ impl Workflow {
     /// Returns `DagError::EmptyWorkflow` if the workflow has no nodes.
     pub fn build(self) -> Result<WorkflowSpec, DagError> {
         self.dag.build(&self.workflow_name)
+    }
+
+    /// Consume the workflow and return the underlying function registry.
+    ///
+    /// This allows accessing the registry after building for runtime dispatch.
+    #[must_use]
+    pub fn into_registry(self) -> NodeFunctionRegistry {
+        self.registry
+    }
+
+    /// Returns a reference to the registry for testing purposes.
+    #[cfg(test)]
+    pub(crate) fn registry(&self) -> &NodeFunctionRegistry {
+        &self.registry
+    }
+}
+
+fn map_registry_error(name: &str, e: crate::execution::RegistryError) -> DagError {
+    use crate::execution::RegistryError;
+    match e {
+        RegistryError::AlreadyRegistered { .. } | RegistryError::NodeNotFound { .. } => {
+            DagError::InvalidNodeName { name: name.to_string() }
+        }
+        RegistryError::TypeMismatch { name } => DagError::DuplicateNodeName { name },
     }
 }

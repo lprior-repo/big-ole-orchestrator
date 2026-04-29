@@ -58,11 +58,13 @@
 //! This provides sub-millisecond startup vs ~200ms for a full Tokio multi-threaded runtime.
 
 pub mod dag;
+pub mod execution;
 pub mod graph;
 pub mod node_handle;
 pub mod runtime;
 
 pub use dag::{CycleError, Workflow};
+pub use execution::{BoxedNodeFn, NodeFunctionRegistry, RegistryError};
 pub use graph::{
     emit_graph_if_requested, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeSpec,
     SignalNodeMeta, ValidationError, WorkflowSpec,

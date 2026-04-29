@@ -289,3 +289,34 @@ fn workflow_fan_out_pattern() {
     assert_eq!(spec.nodes.len(), 3);
     assert_eq!(spec.edges.len(), 2);
 }
+
+#[test]
+fn workflow_nodes_auto_registered() {
+    let mut wf = Workflow::new("test_workflow");
+
+    let _a: NodeHandle<String, i32> = wf
+        .pure("node-a", |_s: String| -> i32 { 42 })
+        .expect("valid");
+    let _b: NodeHandle<i32, bool> = wf
+        .effect("node-b", |_i: i32| -> bool { true })
+        .expect("valid");
+    let _c: NodeHandle<bool, ()> = wf.wait("node-c", |_b: bool| ()).expect("valid");
+
+    let registry = wf.into_registry();
+
+    assert_eq!(registry.len(), 3);
+    assert!(registry.contains("node-a"));
+    assert!(registry.contains("node-b"));
+    assert!(registry.contains("node-c"));
+    assert!(!registry.contains("node-d"));
+
+    let func_a: crate::execution::BoxedNodeFn<String, i32> = registry
+        .lookup("node-a")
+        .expect("should exist");
+    assert_eq!(func_a("input".to_string()), 42);
+
+    let func_b: crate::execution::BoxedNodeFn<i32, bool> = registry
+        .lookup("node-b")
+        .expect("should exist");
+    assert!(func_b(0));
+}
