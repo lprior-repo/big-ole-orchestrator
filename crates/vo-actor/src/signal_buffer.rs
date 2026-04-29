@@ -1,8 +1,23 @@
 //! Signal buffering module per ADR-042.
 use crate::WaitKey;
 use std::collections::{HashMap, VecDeque};
+use tracing::warn;
 use vo_types::{BufferPolicy, SignalDelivery};
 use vo_types::{InstanceId, TimestampMs};
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum BufferError {
+    #[error("buffer overflow: {dropped_count} signal(s) dropped")]
+    Overflow { dropped_count: usize },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OverflowPolicy {
+    #[default]
+    DropOldest,
+    DropNewest,
+    Error,
+}
 
 /// A signal that has been buffered for later delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,15 +184,22 @@ impl SignalBuffer {
             BufferPolicy::BufferMany => {
                 let entry = self
                     .entries
-                    .entry(key)
+                    .entry(key.clone())
                     .or_insert_with(|| SignalBufferEntry::Many(VecDeque::new()));
                 match entry {
                     SignalBufferEntry::Many(queue) => {
                         if queue.len() >= self.config.max_buffered_per_key {
-                            return BufferResult::Dropped;
+                            queue.pop_front();
+                            queue.push_back(signal);
+                            warn!(
+                                "signal buffer overflow for {:?}, dropped oldest signal",
+                                key
+                            );
+                            BufferResult::Buffered
+                        } else {
+                            queue.push_back(signal);
+                            BufferResult::Buffered
                         }
-                        queue.push_back(signal);
-                        BufferResult::Buffered
                     }
                     SignalBufferEntry::Single(_) => {
                         let old_signal = match entry.get_single_cloned() {
@@ -189,6 +211,77 @@ impl SignalBuffer {
                         queue.push_back(signal);
                         *entry = SignalBufferEntry::Many(queue);
                         BufferResult::Buffered
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn buffer_signal_with_policy(
+        &mut self,
+        instance_id: InstanceId,
+        wait_key: WaitKey,
+        signal: BufferedSignal,
+        policy: BufferPolicy,
+        overflow_policy: OverflowPolicy,
+    ) -> Result<BufferResult, BufferError> {
+        let key = BufferKey {
+            instance_id: instance_id.clone(),
+            wait_key: wait_key.clone(),
+        };
+        match policy {
+            BufferPolicy::Reject => Ok(BufferResult::Rejected),
+            BufferPolicy::BufferOne => {
+                if self.entries.contains_key(&key) {
+                    return Ok(BufferResult::Rejected);
+                }
+                self.entries.insert(key, SignalBufferEntry::Single(signal));
+                Ok(BufferResult::Buffered)
+            }
+            BufferPolicy::BufferMany => {
+                let entry = self
+                    .entries
+                    .entry(key.clone())
+                    .or_insert_with(|| SignalBufferEntry::Many(VecDeque::new()));
+                match entry {
+                    SignalBufferEntry::Many(queue) => {
+                        if queue.len() >= self.config.max_buffered_per_key {
+                            match overflow_policy {
+                                OverflowPolicy::DropOldest => {
+                                    queue.pop_front();
+                                    queue.push_back(signal);
+                                    warn!(
+                                        "signal buffer overflow for {:?}, dropped oldest signal",
+                                        key
+                                    );
+                                    Ok(BufferResult::Buffered)
+                                }
+                                OverflowPolicy::DropNewest => {
+                                    warn!(
+                                        "signal buffer overflow for {:?}, dropped incoming signal",
+                                        key
+                                    );
+                                    Ok(BufferResult::Dropped)
+                                }
+                                OverflowPolicy::Error => {
+                                    Err(BufferError::Overflow { dropped_count: 1 })
+                                }
+                            }
+                        } else {
+                            queue.push_back(signal);
+                            Ok(BufferResult::Buffered)
+                        }
+                    }
+                    SignalBufferEntry::Single(_) => {
+                        let old_signal = match entry.get_single_cloned() {
+                            Some(s) => s,
+                            None => return Ok(BufferResult::Dropped),
+                        };
+                        let mut queue = VecDeque::new();
+                        queue.push_back(old_signal);
+                        queue.push_back(signal);
+                        *entry = SignalBufferEntry::Many(queue);
+                        Ok(BufferResult::Buffered)
                     }
                 }
             }
@@ -318,5 +411,281 @@ mod signal_buffer_entry_tests {
         queue.push_back(signal2);
         let entry = SignalBufferEntry::Many(queue);
         assert_eq!(entry.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod overflow_policy_tests {
+    use super::*;
+
+    fn make_signal(id: &str) -> BufferedSignal {
+        BufferedSignal::new(
+            id.to_string(),
+            crate::SignalPayload::empty(),
+            TimestampMs::now(),
+        )
+    }
+
+    #[test]
+    fn overflow_default_policy_is_drop_oldest() {
+        assert_eq!(OverflowPolicy::default(), OverflowPolicy::DropOldest);
+    }
+
+    #[test]
+    fn overflow_drop_oldest_removes_oldest_when_full() {
+        let config = SignalBufferConfig::new(3);
+        let mut buffer = SignalBuffer::new(config);
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let wait_key = WaitKey::parse("test-key").unwrap();
+
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-1"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropOldest,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-2"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropOldest,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-3"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropOldest,
+            )
+            .unwrap();
+
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let result = buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-4"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropOldest,
+            )
+            .unwrap();
+        assert_eq!(result, BufferResult::Buffered);
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let peeked = buffer.peek_all(&instance_id, &wait_key);
+        assert_eq!(peeked.len(), 3);
+        assert_eq!(peeked[0].signal_id, "sig-2");
+        assert_eq!(peeked[1].signal_id, "sig-3");
+        assert_eq!(peeked[2].signal_id, "sig-4");
+    }
+
+    #[test]
+    fn overflow_drop_newest_keeps_incoming_when_full() {
+        let config = SignalBufferConfig::new(3);
+        let mut buffer = SignalBuffer::new(config);
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let wait_key = WaitKey::parse("test-key").unwrap();
+
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-1"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropNewest,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-2"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropNewest,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-3"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropNewest,
+            )
+            .unwrap();
+
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let result = buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-4"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::DropNewest,
+            )
+            .unwrap();
+        assert_eq!(result, BufferResult::Dropped);
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let peeked = buffer.peek_all(&instance_id, &wait_key);
+        assert_eq!(peeked.len(), 3);
+        assert_eq!(peeked[0].signal_id, "sig-1");
+        assert_eq!(peeked[1].signal_id, "sig-2");
+        assert_eq!(peeked[2].signal_id, "sig-3");
+    }
+
+    #[test]
+    fn overflow_error_returns_error_when_full() {
+        let config = SignalBufferConfig::new(3);
+        let mut buffer = SignalBuffer::new(config);
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let wait_key = WaitKey::parse("test-key").unwrap();
+
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-1"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-2"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-3"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let result = buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-4"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            );
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BufferError::Overflow { dropped_count } if dropped_count == 1));
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 3);
+
+        let peeked = buffer.peek_all(&instance_id, &wait_key);
+        assert_eq!(peeked.len(), 3);
+        assert_eq!(peeked[0].signal_id, "sig-1");
+        assert_eq!(peeked[1].signal_id, "sig-2");
+        assert_eq!(peeked[2].signal_id, "sig-3");
+    }
+
+    #[test]
+    fn buffer_signal_with_default_overflow_policy_uses_drop_oldest() {
+        let config = SignalBufferConfig::new(2);
+        let mut buffer = SignalBuffer::new(config);
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let wait_key = WaitKey::parse("test-key").unwrap();
+
+        let _ = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-1"),
+            BufferPolicy::BufferMany,
+        );
+        let _ = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-2"),
+            BufferPolicy::BufferMany,
+        );
+
+        let result = buffer.buffer_signal(
+            instance_id.clone(),
+            wait_key.clone(),
+            make_signal("sig-3"),
+            BufferPolicy::BufferMany,
+        );
+        assert_eq!(result, BufferResult::Buffered);
+        assert_eq!(buffer.buffered_count(&instance_id, &wait_key), 2);
+
+        let peeked = buffer.peek_all(&instance_id, &wait_key);
+        assert_eq!(peeked[0].signal_id, "sig-2");
+        assert_eq!(peeked[1].signal_id, "sig-3");
+    }
+
+    #[test]
+    fn error_policy_preserves_existing_signals_on_overflow() {
+        let config = SignalBufferConfig::new(3);
+        let mut buffer = SignalBuffer::new(config);
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let wait_key = WaitKey::parse("test-key").unwrap();
+
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-1"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+        buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-2"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+
+        let result = buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-3"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap();
+        assert_eq!(result, BufferResult::Buffered);
+
+        let err = buffer
+            .buffer_signal_with_policy(
+                instance_id.clone(),
+                wait_key.clone(),
+                make_signal("sig-4"),
+                BufferPolicy::BufferMany,
+                OverflowPolicy::Error,
+            )
+            .unwrap_err();
+        assert!(matches!(err, BufferError::Overflow { dropped_count: 1 }));
+
+        let peeked = buffer.peek_all(&instance_id, &wait_key);
+        assert_eq!(peeked.len(), 3);
+        assert_eq!(peeked[0].signal_id, "sig-1");
+        assert_eq!(peeked[1].signal_id, "sig-2");
+        assert_eq!(peeked[2].signal_id, "sig-3");
     }
 }
