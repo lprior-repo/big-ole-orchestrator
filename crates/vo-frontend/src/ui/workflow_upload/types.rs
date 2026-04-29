@@ -333,3 +333,340 @@ pub struct UploadResult {
     pub instance_id: Option<String>,
     pub error: Option<String>,
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_workflow_definition() -> WorkflowDefinition {
+        WorkflowDefinition {
+            name: "TestWorkflow".to_string(),
+            guarantee_class: GuaranteeClassInput::BestEffort,
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "First Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 100.0,
+                y: 200.0,
+            }],
+            edges: vec![],
+        }
+    }
+
+    #[test]
+    fn validate_definition_accepts_valid_workflow() {
+        let def = valid_workflow_definition();
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+        assert!(result.issues.is_empty());
+    }
+
+    #[test]
+    fn validate_definition_rejects_empty_workflow_name() {
+        let def = WorkflowDefinition {
+            name: "".to_string(),
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("Workflow name is required")));
+    }
+
+    #[test]
+    fn validate_definition_rejects_whitespace_only_workflow_name() {
+        let def = WorkflowDefinition {
+            name: "   ".to_string(),
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+    }
+
+    #[test]
+    fn validate_definition_rejects_workflow_name_over_256_chars() {
+        let def = WorkflowDefinition {
+            name: "a".repeat(257),
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("256 characters")));
+    }
+
+    #[test]
+    fn validate_definition_accepts_workflow_name_at_256_chars() {
+        let def = WorkflowDefinition {
+            name: "a".repeat(256),
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+    }
+
+    #[test]
+    fn validate_definition_rejects_empty_node_id() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "".to_string(),
+                name: "Test Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 0.0,
+                y: 0.0,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("Node ID is required")));
+    }
+
+    #[test]
+    fn validate_definition_rejects_duplicate_node_ids() {
+        let def = WorkflowDefinition {
+            nodes: vec![
+                WorkflowNode {
+                    id: "node-1".to_string(),
+                    name: "Node 1".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 0.0,
+                    y: 0.0,
+                },
+                WorkflowNode {
+                    id: "node-1".to_string(),
+                    name: "Node 2".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 100.0,
+                    y: 100.0,
+                },
+            ],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("Duplicate node ID")));
+    }
+
+    #[test]
+    fn validate_definition_rejects_empty_node_name() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 0.0,
+                y: 0.0,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("Node name is required")));
+    }
+
+    #[test]
+    fn validate_definition_warns_on_extreme_node_position() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "Test Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 200_000.0,
+                y: 200_000.0,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+        assert!(!result.has_errors);
+        assert!(result.issues.iter().any(|i| {
+            i.severity == ValidationSeverity::Warning
+            && i.message.contains("extremely far from origin")
+        }));
+    }
+
+    #[test]
+    fn validate_definition_accepts_reasonable_node_position() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "Test Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 500.0,
+                y: 500.0,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+        assert!(result.issues.is_empty());
+    }
+
+    #[test]
+    fn validate_definition_rejects_edge_with_nonexistent_source() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "Test Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 0.0,
+                y: 0.0,
+            }],
+            edges: vec![WorkflowEdge {
+                source: "nonexistent".to_string(),
+                target: "node-1".to_string(),
+                condition: EdgeConditionInput::Always,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("non-existent source node")));
+    }
+
+    #[test]
+    fn validate_definition_rejects_edge_with_nonexistent_target() {
+        let def = WorkflowDefinition {
+            nodes: vec![WorkflowNode {
+                id: "node-1".to_string(),
+                name: "Test Node".to_string(),
+                kind: NodeKindInput::Pure,
+                config: None,
+                x: 0.0,
+                y: 0.0,
+            }],
+            edges: vec![WorkflowEdge {
+                source: "node-1".to_string(),
+                target: "nonexistent".to_string(),
+                condition: EdgeConditionInput::Always,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert!(result.issues.iter().any(|i| i.message.contains("non-existent target node")));
+    }
+
+    #[test]
+    fn validate_definition_accepts_valid_edge() {
+        let def = WorkflowDefinition {
+            nodes: vec![
+                WorkflowNode {
+                    id: "node-1".to_string(),
+                    name: "Node 1".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 0.0,
+                    y: 0.0,
+                },
+                WorkflowNode {
+                    id: "node-2".to_string(),
+                    name: "Node 2".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 100.0,
+                    y: 100.0,
+                },
+            ],
+            edges: vec![WorkflowEdge {
+                source: "node-1".to_string(),
+                target: "node-2".to_string(),
+                condition: EdgeConditionInput::Always,
+            }],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+    }
+
+    #[test]
+    fn validate_definition_warns_when_multiple_nodes_have_no_edges() {
+        let def = WorkflowDefinition {
+            nodes: vec![
+                WorkflowNode {
+                    id: "node-1".to_string(),
+                    name: "Node 1".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 0.0,
+                    y: 0.0,
+                },
+                WorkflowNode {
+                    id: "node-2".to_string(),
+                    name: "Node 2".to_string(),
+                    kind: NodeKindInput::Pure,
+                    config: None,
+                    x: 100.0,
+                    y: 100.0,
+                },
+            ],
+            edges: vec![],
+            ..valid_workflow_definition()
+        };
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+        assert!(!result.has_errors);
+        assert!(result.issues.iter().any(|i| {
+            i.severity == ValidationSeverity::Warning
+            && i.message.contains("no edges defined")
+        }));
+    }
+
+    #[test]
+    fn validate_definition_allows_single_node_with_no_edges() {
+        let def = valid_workflow_definition();
+        let result = validate_definition(&def);
+        assert!(result.is_valid());
+        assert!(!result.issues.iter().any(|i| i.message.contains("no edges defined")));
+    }
+
+    #[test]
+    fn validation_result_ok_produces_valid_result() {
+        let result = ValidationResult::ok();
+        assert!(result.is_valid());
+        assert!(!result.has_errors);
+        assert!(result.issues.is_empty());
+    }
+
+    #[test]
+    fn validation_result_new_marks_errors_correctly() {
+        let issues = vec![
+            ValidationIssue::error(None::<&str>, "Error 1".to_string()),
+            ValidationIssue::warning(None::<&str>, "Warning 1".to_string()),
+        ];
+        let result = ValidationResult::new(issues);
+        assert!(!result.is_valid());
+        assert!(result.has_errors);
+        assert_eq!(result.issues.len(), 2);
+    }
+
+    #[test]
+    fn validation_result_warnings_do_not_block_upload() {
+        let issues = vec![
+            ValidationIssue::warning(None::<&str>, "Warning 1".to_string()),
+            ValidationIssue::warning(None::<&str>, "Warning 2".to_string()),
+        ];
+        let result = ValidationResult::new(issues);
+        assert!(result.is_valid());
+        assert!(!result.has_errors);
+    }
+}
