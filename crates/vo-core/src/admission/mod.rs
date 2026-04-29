@@ -21,6 +21,7 @@ pub mod control;
 pub mod controller;
 pub mod metrics;
 pub mod pressure_guard;
+pub mod recovery_queue;
 pub mod types;
 pub mod workload;
 
@@ -40,4 +41,5 @@ pub use control::{AdmissionCheck, AdmissionResult, DedupeToken, RejectionReason}
 pub use controller::AdmissionController;
 pub use metrics::{BoolGauge, Gauge, WritePressureMetrics};
 pub use pressure_guard::{PressureGuardResult, WatchdogPressureGuard, WriterPressureGuard};
+pub use recovery_queue::{RecoveryQueue, RecoveryQueueError, RecoveryReason};
 pub use types::{AdmissionError, AdmissionThresholds, PressureIndicator, WritePressureState};
