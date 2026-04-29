@@ -166,38 +166,17 @@ pub enum OrchestratorMsg {
     },
     /// Terminate a running workflow instance
     Terminate {
-        namespace: NamespaceId,
         instance_id: InstanceId,
         reason: String,
         reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
     },
-    /// Compensate (rollback) a workflow instance
+    /// Trigger manual compensation for a workflow instance
     Compensate {
-        namespace: NamespaceId,
         instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
+        reply: ractor::port::RpcReplyPort<Result<(), String>>,
     },
-    /// Get the status of a workflow instance
-    GetStatus {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
-    },
-    /// List all active workflow instances
-    ListActive {
-        reply: ractor::port::RpcReplyPort<Vec<InstanceSnapshot>>,
-    },
-    /// Start a new workflow instance (legacy direct start)
+    /// Start a new workflow instance
     StartWorkflow {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<InstanceId, StartError>>,
-    },
-    /// Reserve capacity for a workflow start (two-phase commit step 1)
-    ReserveWorkflowStart {
         namespace: NamespaceId,
         instance_id: InstanceId,
         workflow_type: String,
@@ -205,77 +184,15 @@ pub enum OrchestratorMsg {
         input: Bytes,
         reply: ractor::port::RpcReplyPort<Result<(), StartError>>,
     },
-    /// Abort a reserved workflow start (two-phase commit rollback)
-    AbortWorkflowStart {
-        namespace: NamespaceId,
+    /// Get the status of a workflow instance
+    GetStatus {
         instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<()>,
+        reply: ractor::port::RpcReplyPort<Option<InstanceSnapshot>>,
     },
-    /// Commit a reserved workflow start (two-phase commit step 2)
-    CommitWorkflowStart {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        workflow_type: String,
-        paradigm: WorkflowParadigm,
-        input: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<InstanceId, StartError>>,
+    /// List all active workflow instances
+    ListActive {
+        reply: ractor::port::RpcReplyPort<Vec<InstanceSnapshot>>,
     },
-    /// Reserve capacity for a signal (two-phase commit step 1)
-    ReserveSignal {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        signal_name: String,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-    /// Commit a reserved signal (two-phase commit step 2)
-    CommitSignal {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        signal_name: String,
-        payload: Bytes,
-        reply: ractor::port::RpcReplyPort<Result<(), SignalError>>,
-    },
-    /// Abort a reserved workflow transition
-    AbortWorkflowTransition {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<()>,
-    },
-    /// Reserve a terminate operation (two-phase commit step 1)
-    ReserveTerminate {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// Commit a reserved terminate (two-phase commit step 2)
-    CommitTerminate {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reason: String,
-        reply: ractor::port::RpcReplyPort<Result<(), TerminateError>>,
-    },
-    /// Reserve a compensate operation (two-phase commit step 1)
-    ReserveCompensate {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-    /// Commit a reserved compensate (two-phase commit step 2)
-    CommitCompensate {
-        namespace: NamespaceId,
-        instance_id: InstanceId,
-        reply: ractor::port::RpcReplyPort<Result<(), CompensateError>>,
-    },
-}
-
-/// Error type for compensation operations.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum CompensateError {
-    #[error("instance not found: {0}")]
-    NotFound(String),
-    #[error("compensation failed: {0}")]
-    Failed(String),
 }
 
 /// Error type for signal operations.

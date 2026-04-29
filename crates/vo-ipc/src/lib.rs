@@ -31,8 +31,9 @@ pub mod stderr;
 pub use config::SubprocessConfig;
 pub use envelope::MAX_PAYLOAD_SIZE;
 pub use envelope::{
-    engine_receive_envelope, read_envelope, validate_identity, write_envelope, Fd3Envelope,
-    Fd4Envelope, TaskError, TaskResult,
+    engine_receive_envelope, negotiate_version, read_envelope, validate_identity,
+    write_envelope, Fd3Envelope, Fd4Envelope, TaskError, TaskResult, VersionNegotiation,
+    CURRENT_VERSION,
 };
 pub use error::{ConfigError, IpcError};
 pub use run::{run_subprocess, SubprocessOutput};

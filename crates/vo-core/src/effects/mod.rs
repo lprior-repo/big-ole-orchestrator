@@ -25,6 +25,8 @@ use vo_types::TimestampMs;
 use vo_types::{CompensationPolicy, EffectIntent, EffectKind, EffectRecord, EffectTransitionError};
 
 #[cfg(test)]
+mod serialization_tests;
+#[cfg(test)]
 mod tests;
 
 // ============================================================================

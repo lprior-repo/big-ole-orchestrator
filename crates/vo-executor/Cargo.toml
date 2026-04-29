@@ -11,7 +11,7 @@ test-sim = []
 [dependencies]
 vo-common = { path = "../vo-common" }
 thiserror.workspace = true
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["time", "sync", "io-util", "process"] }
 dashmap = { workspace = true }
 chrono = { workspace = true }
