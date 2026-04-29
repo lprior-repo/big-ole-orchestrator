@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::cli::{Cli, Command};
+use crate::cli::{Cli, CliError, Command};
 use crate::handler::CommandHandler;
 
 pub struct HandlerRegistry {
@@ -506,8 +506,8 @@ mod handlers {
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::ExecuteNode {
                 ref binary_path,
-                node_name,
-                input,
+                ref node_name,
+                ref input,
                 timeout,
             } = cli.command
             else {
@@ -518,7 +518,7 @@ mod handlers {
             let binary_path = binary_path.clone();
             let node_name = node_name.clone();
             let input = input.clone();
-            let timeout = *timeout;
+            let timeout = timeout;
             Box::pin(async move {
                 let binary_path_str = binary_path.to_string_lossy().to_string();
 
@@ -569,8 +569,8 @@ mod handlers {
     }
 }
 
-async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
-    use tokio::io::AsyncWriteExt;
+  async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::process::Command;
     use tokio::time::{timeout, Duration};
 
@@ -611,7 +611,9 @@ async fn execute_with_graph(binary_path: &str) -> Result<Vec<u8>, CliError> {
 
     let result = timeout(
         Duration::from_secs(10),
-        tokio::try_join!(read_stdout, read_stderr),
+        async {
+            tokio::try_join!(read_stdout, read_stderr)
+        },
     )
     .await
     .map_err(|_| CliError::ExecuteNode(format!("timeout reading binary output")))?;
@@ -646,189 +648,15 @@ async fn run_node_subprocess(
     fd3_payload: &[u8],
     timeout_secs: u64,
 ) -> Result<vo_executor::SubprocessOutput, CliError> {
-    use libc;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::process::Command;
-    use tokio::time::{timeout, Duration};
-
-    let fd3_pipe = create_pipe().map_err(|e| CliError::ExecuteNode(format!("pipe setup: {e}")))?;
-    let fd4_pipe = create_pipe().map_err(|e| CliError::ExecuteNode(format!("pipe setup: {e}")))?;
-
-    let fd3_read = fd3_pipe.0;
-    let fd3_write = fd3_pipe.1;
-    let fd4_read = fd4_pipe.0;
-    let fd4_write = fd4_pipe.1;
-
-    let mut child = Command::new(binary_path)
-        .env_clear()
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .pre_exec(move || {
-            if unsafe { libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) } != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if unsafe { libc::setpgid(0, 0) } != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if unsafe { libc::dup2(fd3_read, 3) } == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if unsafe { libc::dup2(fd4_write, 4) } == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if unsafe { libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) } == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if unsafe { libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) } == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(())
-        })
-        .spawn()
-        .map_err(|e| CliError::ExecuteNode(format!("failed to spawn: {e}")))?;
-
-    unsafe {
-        libc::close(fd3_read);
-        libc::close(fd4_write);
-    }
-
-    let fd3_writer =
-        unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-    let fd4_reader =
-        unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
-
-    let fd3_payload = fd3_payload.to_vec();
-
-    let res = timeout(Duration::from_secs(timeout_secs), async {
-        let ipc_result = perform_node_ipc(fd3_writer, fd4_reader, fd3_payload).await;
-        let exit_status = child.wait().await;
-        (ipc_result, exit_status)
+    let config = vo_executor::SubprocessConfig::new(
+        binary_path.to_string(),
+        vec![],
+        timeout_secs * 1000,
+        fd3_payload.to_vec(),
+    );
+    vo_executor::run_subprocess(config).await.map_err(|e| {
+        CliError::ExecuteNode(format!("subprocess execution failed: {e}"))
     })
-    .await;
-
-    match res {
-        Ok((Ok(output), exit_status)) => match exit_status {
-            Ok(status) => {
-                if let Some(exit_code) = status.code() {
-                    Ok(vo_executor::SubprocessOutput {
-                        fd4_bytes: output,
-                        exit_code: Some(exit_code),
-                    })
-                } else {
-                    Err(CliError::ExecuteNode(format!(
-                        "process terminated by signal"
-                    )))
-                }
-            }
-            Err(_) => Err(CliError::ExecuteNode("failed to wait for child".to_string())),
-        },
-        Ok((Err(e), _)) => Err(CliError::ExecuteNode(e.to_string())),
-        Err(_) => {
-            let _ = child.kill().await;
-            Err(CliError::ExecuteNode(format!(
-                "timeout after {timeout_secs}s"
-            )))
-        }
-    }
-}
-
-fn create_pipe() -> Result<(std::os::unix::io::RawFd, std::os::unix::io::RawFd), String> {
-    let mut fds = [0i32; 2];
-    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
-    if res != 0 {
-        return Err(std::io::Error::last_os_error().to_string());
-    }
-    Ok((fds[0], fds[1]))
-}
-
-async fn perform_node_ipc(
-    mut fd3_writer: tokio::fs::File,
-    mut fd4_reader: tokio::fs::File,
-    fd3_payload: Vec<u8>,
-) -> Result<Vec<u8>, std::io::Error> {
-    let write_handle = tokio::spawn(async move {
-        let len = u32::try_from(fd3_payload.len()).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "fd3 payload exceeds u32::MAX",
-            )
-        })?;
-        fd3_writer.write_all(&len.to_be_bytes()).await?;
-        fd3_writer.write_all(&fd3_payload).await?;
-        fd3_writer.shutdown().await?;
-        Ok::<(), std::io::Error>(())
-    });
-
-    let read_handle = tokio::spawn(async move { read_bounded_fd4(&mut fd4_reader).await });
-
-    let (write_res, read_res) = tokio::join!(write_handle, read_handle);
-
-    if let Err(e) = write_res {
-        return Err(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()));
-    }
-
-    read_res.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))??;
-
-    Ok(())
-}
-
-async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, std::io::Error> {
-    const MAX_OUTPUT_BYTES: usize = 10 * 1024 * 1024;
-    const BUFFER_SIZE: usize = 64 * 1024;
-
-    let mut header = [0u8; 4];
-    let mut total_read = 0;
-
-    while total_read < 4 {
-        let n = reader
-            .read(&mut header[total_read..])
-            .await
-            .map_err(|e| std::io::Error::new(e.kind(), format!("failed to read header: {e}")))?;
-        if n == 0 {
-            if total_read == 0 {
-                return Ok(vec![]);
-            }
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "early eof during header",
-            ));
-        }
-        total_read += n;
-    }
-
-    let len = u32::from_be_bytes(header);
-
-    if len as usize > MAX_OUTPUT_BYTES {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!(
-                "payload too large: {len} bytes (max {MAX_OUTPUT_BYTES} bytes)"
-            ),
-        ));
-    }
-
-    let mut bytes = Vec::with_capacity(len as usize);
-    let mut remaining = len as usize;
-
-    while remaining > 0 {
-        let chunk_size = remaining.min(BUFFER_SIZE);
-        let mut chunk = vec![0u8; chunk_size];
-        let n = reader
-            .read(&mut chunk)
-            .await
-            .map_err(|e| std::io::Error::new(e.kind(), format!("failed to read payload: {e}")))?;
-        if n == 0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "early eof during payload",
-            ));
-        }
-        bytes.extend_from_slice(&chunk[..n]);
-        remaining -= n;
-    }
-
-    Ok(bytes)
 }
 
 #[cfg(test)]
