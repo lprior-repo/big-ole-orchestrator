@@ -91,8 +91,8 @@ pub async fn terminate_workflow(
 
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::CommitTerminate {
-                namespace,
+            |tx| OrchestratorMsg::Terminate {
+                namespace: namespace.clone(),
                 instance_id,
                 reason,
                 reply: tx,
@@ -366,8 +366,8 @@ pub async fn compensate_workflow(
 
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::CommitCompensate {
-                namespace,
+            |tx| OrchestratorMsg::Compensate {
+                namespace: namespace.clone(),
                 instance_id,
                 reply: tx,
             },

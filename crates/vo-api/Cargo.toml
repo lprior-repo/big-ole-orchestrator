@@ -5,13 +5,13 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-vo-common = { path = "../vo-common" }
-vo-types = { path = "../vo-types" }
-vo-core = { path = "../vo-core" }
-vo-storage = { path = "../vo-storage" }
-fjall = { workspace = true }
-vo-actor = { path = "../vo-actor" }
-vo-worker = { path = "../vo-worker" }
+vo-common.workspace = true
+vo-types.workspace = true
+vo-core.workspace = true
+vo-storage.workspace = true
+fjall.workspace = true
+vo-actor.workspace = true
+vo-worker.workspace = true
 
 ractor = { workspace = true }
 

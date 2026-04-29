@@ -617,7 +617,7 @@ mod tests {
     fn parse_task_detects_async_with_return_type() {
         let input = quote! { async fn fetch() -> Result<Vec<u8>, Error> {} };
         let expected_ty: Type = parse_quote!(Result<Vec<u8>, Error>);
-        let result = parse_task(&input, TaskOpts::default()).unwrap();
+        let result = parse_task(&input).unwrap();
         assert!(
             result.is_async,
             "async fn with return type should have is_async = true"
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn parse_task_detects_async_unsafe_function() {
         let input = quote! { async unsafe fn low_level_op() {} };
-        let result = parse_task(&input, TaskOpts::default()).unwrap();
+        let result = parse_task(&input).unwrap();
         assert!(
             result.is_async,
             "async unsafe fn should have is_async = true"

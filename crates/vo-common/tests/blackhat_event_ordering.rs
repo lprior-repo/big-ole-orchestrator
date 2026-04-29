@@ -136,7 +136,7 @@ fn extra_whitespace_does_not_affect_equality() {
 fn numeric_string_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
-        "type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": "999"
+        "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": "999"}
     }))
     .is_err());
 }
@@ -145,7 +145,7 @@ fn numeric_string_timestamp_rejected() {
 fn boolean_timestamp_rejected() {
     use serde_json::json;
     assert!(serde_json::from_value::<WorkflowEvent>(json!({
-        "type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": true
+        "TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": true}
     }))
     .is_err());
 }

@@ -11,6 +11,8 @@
 //! This module provides async pipe handling using tokio::select for concurrent FD3 write
 //! and FD4 read operations, preventing classic Unix pipe deadlocks with large payloads.
 
+#![allow(clippy::expect_used)]
+
 pub mod errors;
 pub mod execution;
 pub mod runtime;

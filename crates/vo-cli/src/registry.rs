@@ -127,7 +127,6 @@ mod handlers {
                 });
             };
             let path = path.clone();
-            let workflow = workflow;
             Box::pin(async move {
                 if workflow {
                     let def = crate::commands::check::validate_workflow_spec(&path)?;
@@ -169,12 +168,10 @@ mod handlers {
             let engine_url = engine_url.clone();
             let workflow_id = workflow_id.clone();
             Box::pin(async move {
-                if !force {
-                    if !crate::commands::compensate::prompt_confirmation(&workflow_id) {
-                        return Err(CliError::Compensate(
-                            crate::commands::compensate::CompensateError::Aborted,
-                        ));
-                    }
+                if !force && !crate::commands::compensate::prompt_confirmation(&workflow_id) {
+                    return Err(CliError::Compensate(
+                        crate::commands::compensate::CompensateError::Aborted,
+                    ));
                 }
                 let config = crate::commands::compensate::CompensateConfig {
                     engine_url,

@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use vo_types::InstanceId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -86,6 +88,7 @@ impl BinaryHash {
 pub struct TimestampMs(pub i64);
 
 impl TimestampMs {
+    #[allow(clippy::unwrap_used)]
     pub fn now() -> Self {
         Self(
             std::time::SystemTime::now()

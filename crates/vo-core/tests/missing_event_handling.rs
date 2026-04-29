@@ -6,8 +6,7 @@
 //! bead_id: ve-4946q
 
 use vo_core::replay::{ReplayEngine, ReplayError};
-use vo_types::events::payload::RoutingProjection;
-use vo_types::events::{EventEnvelope, EventMetadata, EventPayload};
+use vo_types::events::{EventEnvelope, EventMetadata, EventPayload, StepOutput};
 
 fn make_event(instance_id: &str, sequence: u64, payload: EventPayload) -> EventEnvelope {
     let json = serde_json::json!({"type": format!("{:?}", payload)});
@@ -56,10 +55,10 @@ fn single_missing_event_in_middle_of_sequence_reports_gap() {
                 completed_at_ms: 3000,
                 attempt: 1,
                 fence: 0,
-                routing_projection: Some(RoutingProjection::default()),
+                routing_projection: serde_json::json!({}),
                 output_ref: None,
                 output_hash: None,
-                output: serde_json::json!(null),
+                output: StepOutput::Null,
             },
         ),
     ];
@@ -164,10 +163,10 @@ fn replay_succeeds_then_gap_at_end_reports_truncation() {
                 completed_at_ms: 5000,
                 attempt: 1,
                 fence: 0,
-                routing_projection: Some(RoutingProjection::default()),
+                routing_projection: serde_json::json!({}),
                 output_ref: None,
                 output_hash: None,
-                output: serde_json::json!(null),
+                output: StepOutput::Null,
             },
         ),
     ];

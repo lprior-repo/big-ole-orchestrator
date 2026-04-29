@@ -220,12 +220,12 @@ impl ProjectionRegistry {
     }
 
     pub fn update_sequence(&self, sequence: u64) {
-        let mut current = self.current_sequence.write().unwrap();
+        let mut current = self.current_sequence.write().unwrap_or_else(|e| e.into_inner());
         *current = sequence;
     }
 
     pub fn current_sequence(&self) -> u64 {
-        *self.current_sequence.read().unwrap()
+        *self.current_sequence.read().unwrap_or_else(|e| e.into_inner())
     }
 
     pub fn detect_staleness(
@@ -288,7 +288,7 @@ impl ProjectionRegistry {
 
         let result = rebuilder.rebuild_full(events);
 
-        self.engine.release_rebuild_slot();
+        self.engine.release_rebuild_slot(projection_id);
 
         match result {
             Ok(res) => {

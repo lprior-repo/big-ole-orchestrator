@@ -1,4 +1,4 @@
-//! Errors from content-addressed blob store operations.
+//! Blob store error taxonomy.
 
 /// Errors from content-addressed blob store operations.
 #[non_exhaustive]

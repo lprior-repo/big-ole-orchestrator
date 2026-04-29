@@ -155,7 +155,8 @@ impl ReanimatorLoop {
     /// 1. Scans for pending timers (timers that were in-flight when crash occurred)
     /// 2. Cleans up stale pending timers (older than STALE_PENDING_THRESHOLD_MS)
     /// 3. Replays pending timers by enqueueing resume work
-    async fn run_crash_recovery<S, Q>(
+    #[allow(clippy::expect_used)]
+    pub async fn run_crash_recovery<S, Q>(
         storage: &Arc<S>,
         work_queue: &Arc<Q>,
     ) -> Result<(), ReanimatorError>
@@ -171,7 +172,7 @@ impl ReanimatorLoop {
                 .as_u64()
                 .saturating_sub(STALE_PENDING_THRESHOLD_MS),
         )
-        .unwrap_or_else(|_| TimestampMs::new_unchecked(0));
+        .unwrap_or_else(|_| TimestampMs::try_from(0u64).expect("0 is valid"));
 
         let cleaned = storage
             .cleanup_stale_pending_timers(stale_threshold)
@@ -339,7 +340,8 @@ impl ReanimatorLoop {
         // Scan for due timers
         let scan_result = storage
             .scan_due_timers(
-                vo_types::TimestampMs::new_unchecked(0),
+                #[allow(clippy::expect_used)]
+                vo_types::TimestampMs::try_from(0u64).expect("0 is valid TimestampMs"),
                 current_time,
                 config.max_timers_per_cycle,
             )

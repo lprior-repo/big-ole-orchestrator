@@ -16,6 +16,8 @@ mod recovery_tests;
 mod tests;
 #[cfg(test)]
 mod tests_types;
+#[cfg(test)]
+mod timing_attack_tests;
 pub mod traits;
 pub mod types;
 #[cfg(kani)]

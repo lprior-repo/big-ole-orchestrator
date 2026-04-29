@@ -545,3 +545,53 @@ fn double_recovery_race_first_writer_wins() {
         *recovery_1.token()
     ));
 }
+
+/// AQ-23: Each successful acquire returns a strictly increasing fence token.
+#[test]
+fn fence_token_is_strictly_monotonic_across_successive_acquires() {
+    let store = DeterministicLeaseStore::new();
+    let mut prev_token: u64 = 0;
+
+    for cycle in 0..100u64 {
+        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+
+        let current_token = lease.token().inner().get();
+        assert!(
+            current_token > prev_token,
+            "token {} not strictly greater than {} in cycle {cycle}",
+            current_token,
+            prev_token
+        );
+        prev_token = current_token;
+
+        store.set_time(cycle.saturating_add(1));
+    }
+
+    assert_eq!(prev_token, 100);
+}
+
+/// AQ-24: Fence tokens are strictly monotonic across alternating release and expiry cycles.
+#[test]
+fn fence_token_monotonic_across_mixed_release_and_expiry_cycles() {
+    let store = DeterministicLeaseStore::new();
+    let mut prev_token: u64 = 0;
+
+    for cycle in 0..50u64 {
+        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+
+        let current_token = lease.token().inner().get();
+        assert!(
+            current_token > prev_token,
+            "token {} not strictly greater than {} in cycle {cycle}",
+            current_token,
+            prev_token
+        );
+        prev_token = current_token;
+
+        if cycle % 2 == 0 {
+            store.set_time(cycle + 1);
+        } else {
+            store.release(&lease).unwrap();
+        }
+    }
+}

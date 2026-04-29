@@ -30,6 +30,7 @@ proptest = { workspace = true, optional = true }
 dashmap = { workspace = true }
 
 [dev-dependencies]
+vo-core.workspace = true
 proptest.workspace = true
 criterion = { workspace = true }
 tempfile = { workspace = true }

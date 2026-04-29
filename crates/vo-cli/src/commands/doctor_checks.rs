@@ -941,6 +941,7 @@ pub fn check_port_availability(project_dir: &Path, _vo_dir: &Path) -> CategoryRe
 // Display
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::unwrap_used)]
 pub fn format_report(report: &DoctorReport) -> (String, String) {
     let mut stdout = String::new();
     let mut stderr = String::new();

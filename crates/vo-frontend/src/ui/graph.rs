@@ -111,7 +111,8 @@ pub mod workflow_node {
     }
 
     impl WorkflowNode {
-        pub fn from_str(s: &str) -> Result<Self, ()> {
+        #[allow(clippy::result_unit_err)]
+        pub fn from_node_type(s: &str) -> Result<Self, ()> {
             match s {
                 "run" => Ok(Self::Run(RunConfig::default())),
                 "parallel" => Ok(Self::Parallel(ParallelConfig::default())),

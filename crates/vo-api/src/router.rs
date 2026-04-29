@@ -61,6 +61,7 @@ pub struct AppState {
 ///
 /// All state is provided up-front via [`AppState`]. The returned router is
 /// ready to pass to `axum::serve(listener, router)`.
+#[allow(deprecated)]
 pub fn create_router(state: AppState) -> Router {
     let auth_layer = middleware::from_fn_with_state(state.api_key_state.clone(), api_key_auth);
 

@@ -1,6 +1,5 @@
 use reqwest::Client;
 use std::time::Duration;
-use thiserror::Error;
 
 #[derive(Debug, Clone)]
 pub struct CompensateConfig {

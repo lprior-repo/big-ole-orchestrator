@@ -49,7 +49,7 @@ pub async fn get_timeline(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let iter = replay_events(&state.db, &instance_id);
     let mut entries = Vec::new();
     let mut total_replayed = 0usize;
 
@@ -118,11 +118,8 @@ pub async fn get_history(
         }
     };
 
-    let offset = params.offset.unwrap_or(0);
-    let limit = params.limit.unwrap_or(100).min(1000);
-
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
-    let mut all_entries = Vec::new();
+    let iter = replay_events(&state.db, &instance_id);
+    let mut entries = Vec::new();
 
     for result in iter {
         match result {
@@ -204,7 +201,7 @@ pub async fn get_effect_journal(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let iter = replay_events(&state.db, &instance_id);
     let mut entries = Vec::new();
 
     for result in iter {
@@ -279,7 +276,7 @@ pub async fn get_workflow_version(
         }
     };
 
-    let iter = replay_events_in_namespace(&state.db, &namespace, &instance_id);
+    let iter = replay_events(&state.db, &instance_id);
     let mut event_count = 0u64;
     let mut last_sequence = None;
     let mut last_timestamp_ms = None;
@@ -357,13 +354,16 @@ pub async fn search(
     let engine = build_search_engine_from_workspace(&workspace);
 
     let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
-        engine.search(&parsed_query).map_err(|e| {
-            tracing::error!(error = %e, "search failed");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ApiError::new("search_error", e.to_string())),
-            )
-        });
+        match engine {
+            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
+                tracing::error!(error = %e, "search failed");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ApiError::new("search_error", e.to_string())),
+                )
+            }),
+            Err(e) => Err(e),
+        };
 
     let results = match results {
         Ok(r) => r,

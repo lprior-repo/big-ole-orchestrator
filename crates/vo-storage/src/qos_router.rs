@@ -31,6 +31,7 @@ impl std::fmt::Display for CapacityError {
 
 impl std::error::Error for CapacityError {}
 
+#[allow(private_bounds)]
 trait Classifiable {
     fn write_class(&self) -> WriteClass;
 }
@@ -131,6 +132,7 @@ impl<T> QosRouter<T> {
         }
     }
 
+    #[allow(private_bounds)]
     pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Classifiable,

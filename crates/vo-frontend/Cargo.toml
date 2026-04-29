@@ -16,7 +16,7 @@ toml = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 ulid.workspace = true
 uuid.workspace = true
-vo-types = { path = "../vo-types" }
+vo-types.workspace = true
 wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window", "EventSource", "Event", "EventTarget", "HtmlInputElement", "File", "FileList", "Blob", "Url"] }

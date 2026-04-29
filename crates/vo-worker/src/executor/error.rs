@@ -20,11 +20,23 @@ pub enum ManagedEffectError {
 
     #[error("connector not found: {0}")]
     ConnectorNotFound(String),
+
+    #[error("connector handler panicked: {0}")]
+    HandlerPanic(String),
+
+    #[error("connector operation timed out after {0:?}")]
+    Timeout(std::time::Duration),
 }
 
 impl ManagedEffectError {
     #[must_use]
     pub fn is_retryable(&self) -> bool {
-        matches!(self, Self::CommitFailed(_) | Self::ReconciliationFailed(_))
+        matches!(
+            self,
+            Self::CommitFailed(_)
+                | Self::ReconciliationFailed(_)
+                | Self::HandlerPanic(_)
+                | Self::Timeout(_)
+        )
     }
 }

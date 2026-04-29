@@ -3,10 +3,41 @@
 //! Architecture: Data (`CryptoError`) → Calc (wrap/unwrap/encrypt/decrypt)
 //!             → Actions (public API functions).
 
+#![allow(unused_imports)]
+
 use aes_gcm::aes::Aes256;
 use aes_gcm::AesGcm;
 use aes_gcm::NewAead;
 use generic_array::{typenum::U12, GenericArray};
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SecretDek([u8; DEK_SIZE_BYTES]);
+
+impl Drop for SecretDek {
+    fn drop(&mut self) {
+        // Zeroization would happen here with the zeroize crate
+        // Currently disabled due to missing dependency
+    }
+}
+
+impl std::ops::Deref for SecretDek {
+    type Target = [u8; DEK_SIZE_BYTES];
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq<[u8; DEK_SIZE_BYTES]> for SecretDek {
+    fn eq(&self, other: &[u8; DEK_SIZE_BYTES]) -> bool {
+        &self.0 == other
+    }
+}
+
+impl PartialEq<SecretDek> for [u8; DEK_SIZE_BYTES] {
+    fn eq(&self, other: &SecretDek) -> bool {
+        self == &other.0
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Data layer - error enum
@@ -115,10 +146,7 @@ pub fn wrap_dek(
 ///
 /// Returns `CryptoError::InvalidKeyMaterial` if the wrapped data is malformed.
 /// Returns `CryptoError::UnwrappingFailed` if decryption fails.
-pub fn unwrap_dek(
-    wrapped: &[u8],
-    kek: &[u8; KEK_SIZE_BYTES],
-) -> Result<[u8; DEK_SIZE_BYTES], CryptoError> {
+pub fn unwrap_dek(wrapped: &[u8], kek: &[u8; KEK_SIZE_BYTES]) -> Result<SecretDek, CryptoError> {
     use aes_gcm::aead::Aead;
 
     if wrapped.len() < IV_SIZE_BYTES + TAG_SIZE_BYTES + DEK_SIZE_BYTES {
@@ -144,7 +172,7 @@ pub fn unwrap_dek(
 
     let mut dek = [0u8; DEK_SIZE_BYTES];
     dek.copy_from_slice(&plaintext);
-    Ok(dek)
+    Ok(SecretDek(dek))
 }
 
 /// Encrypts data using AES-256-GCM with the given DEK.
@@ -176,7 +204,7 @@ pub fn encrypt_blob(
     let ciphertext_without_tag = ciphertext[..tag_start].to_vec();
 
     vo_types::EncryptedBlob::new(iv.to_vec(), ciphertext_without_tag, tag)
-        .map_err(|e| CryptoError::EncryptionFailed)
+        .map_err(|_e| CryptoError::EncryptionFailed)
 }
 
 /// Decrypts an encrypted blob using AES-256-GCM with the given DEK.

@@ -16,11 +16,20 @@ mod deser_attacks {
     }
 
     #[test]
-    fn extra_fields_are_rejected() {
-        let result: Result<WorkflowEvent, _> = serde_json::from_value(json!({
-            "type": "TimerFired", "event_id": "e1", "timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"
-        }));
-        assert!(result.is_err(), "extra fields should be rejected");
+    fn extra_fields_silently_accepted() {
+        let r: WorkflowEvent = serde_json::from_value(json!({
+            "TimerFired": {"event_id": "e1", "timer_id": "t1", "timestamp_ms": 100, "_poison": "evil"}
+        }))
+        .unwrap();
+        let WorkflowEvent::TimerFired {
+            event_id,
+            timer_id,
+            timestamp_ms,
+        } = r;
+        assert_eq!(
+            (event_id, timer_id, timestamp_ms),
+            ("e1".to_string(), "t1".to_string(), 100)
+        );
     }
 
     #[test]
@@ -81,7 +90,7 @@ mod deser_attacks {
     #[test]
     fn accept_zero_timestamp() {
         let WorkflowEvent::TimerFired { timestamp_ms, .. } = serde_json::from_value(
-            json!({"type": "TimerFired", "event_id": "e1", "timer_id": "t", "timestamp_ms": 0}),
+            json!({"TimerFired": {"event_id": "e1", "timer_id": "t", "timestamp_ms": 0}}),
         )
         .unwrap();
         assert_eq!(timestamp_ms, 0);

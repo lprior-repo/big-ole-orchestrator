@@ -22,7 +22,7 @@ pub struct FjallDekStore {
 impl FjallDekStore {
     pub fn open(db: &fjall::Database) -> Result<Self, DekStoreError> {
         let dek_partition = db
-            .keyspace(DEK_PARTITION, || fjall::KeyspaceCreateOptions::default())
+            .keyspace(DEK_PARTITION, fjall::KeyspaceCreateOptions::default)
             .map_err(|e| DekStoreError::Storage {
                 reason: format!("failed to open dek_store partition: {e}"),
             })?;
@@ -86,7 +86,7 @@ impl FjallDekStore {
 
     fn insert_dek_entry(&self, entry: &DekEntry) -> Result<(), DekStoreError> {
         let key = Self::encode_dek_key(entry.dek_id());
-        let value = super::encode_dek_entry(entry);
+        let value = super::encode_dek_entry(entry)?;
         self.dek_partition
             .insert(&key, &value)
             .map_err(|e| DekStoreError::Storage {
@@ -123,7 +123,7 @@ impl FjallDekStore {
             Ok(Some(bytes)) => {
                 let mut entry = super::decode_dek_entry(&bytes)?;
                 entry.retire();
-                let value = super::encode_dek_entry(&entry);
+                let value = super::encode_dek_entry(&entry)?;
                 self.dek_partition
                     .insert(&key, &value)
                     .map_err(|e| DekStoreError::Storage {
@@ -206,7 +206,7 @@ impl DekStore for FjallDekStore {
             reason: format!("failed to unwrap DEK: {e}"),
         })?;
 
-        Ok(raw_dek)
+        Ok(*raw_dek)
     }
 
     fn get_active_dek_id(&self, instance_id: &InstanceId) -> Result<DekId, DekStoreError> {

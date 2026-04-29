@@ -316,9 +316,10 @@ impl CompensationManifest {
         let mut result: Vec<String> = Vec::with_capacity(pending_effects.len());
 
         for effect_id in pending_effects.iter().rev() {
+            #[allow(clippy::unnecessary_map_or)]
             let all_deps_emitted = dependents
                 .get(effect_id)
-                .is_none_or(|deps| deps.iter().all(|d| emitted.contains(d)));
+                .map_or(true, |deps| deps.iter().all(|d| emitted.contains(d)));
 
             if all_deps_emitted {
                 result.push((*effect_id).clone());

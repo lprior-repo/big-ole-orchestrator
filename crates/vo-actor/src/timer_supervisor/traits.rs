@@ -1,6 +1,6 @@
 //! Timer supervisor traits
 //!
-//! Contains the storage trait definition. WorkQueue is shared in crate::work_queue.
+//! Contains the storage and work queue trait definitions.
 
 use vo_types::InstanceId;
 

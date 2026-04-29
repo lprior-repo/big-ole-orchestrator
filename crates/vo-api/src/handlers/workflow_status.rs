@@ -82,7 +82,7 @@ pub async fn get_workflow(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::GetStatus {
-                namespace: query_namespace,
+                namespace: namespace.clone(),
                 instance_id,
                 reply: tx,
             },
@@ -211,7 +211,7 @@ pub async fn get_workflow_status(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::GetStatus {
-                namespace: query_namespace,
+                namespace: namespace.clone(),
                 instance_id,
                 reply: tx,
             },

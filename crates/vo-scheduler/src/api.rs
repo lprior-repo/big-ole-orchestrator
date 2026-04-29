@@ -1,7 +1,7 @@
 //! Scheduler API operations per ADR-047 §5.
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue};
+use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue, SerializedPayload};
 
 pub async fn schedule_job(
     queue: &mut SchedulerQueue,
@@ -72,7 +72,8 @@ pub async fn update_job_schedule(
 mod tests {
     use super::*;
     use crate::types::{
-        JobKind, JobPriority, RetryPolicy, SchedulePolicy, SerializedPayload,
+        priority::JobPriority,
+        JobKind, JobState, RetryPolicy, SchedulePolicy, SerializedPayload,
     };
     use chrono::{Duration, Utc};
 

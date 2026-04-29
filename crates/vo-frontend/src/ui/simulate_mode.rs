@@ -44,6 +44,7 @@ impl SimProceduralState {
         self.current_op
     }
 
+    /// # Errors
     pub fn provide_result(
         &mut self,
         result: String,

@@ -142,6 +142,8 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
     fn insert_node(
         mut root: CartesianNodeBox<K, T>,
         mut new_node: CartesianNodeBox<K, T>,
@@ -256,7 +258,14 @@ impl<K: Ord, T: Clone> CartesianTree<K, T> {
         )
     }
 
-    fn split_node(node: Option<Box<CartesianNode<K, T>>>, key: &K) -> SplitNodeResult<K, T> {
+    #[allow(clippy::type_complexity)]
+    fn split_node(
+        node: Option<Box<CartesianNode<K, T>>>,
+        key: &K,
+    ) -> (
+        Option<Box<CartesianNode<K, T>>>,
+        Option<Box<CartesianNode<K, T>>>,
+    ) {
         match node {
             None => (None, None),
             Some(mut n) => {

@@ -151,7 +151,7 @@ impl HierarchicalSaga {
                     }
                 } else {
                     // Dependency might be a root effect - check if it's terminal
-                    if let Some(entry) = self.root_saga.manifest().lock().unwrap().get(dep_id) {
+                    if let Some(entry) = self.root_saga.manifest().lock().unwrap_or_else(|e| e.into_inner()).get(dep_id) {
                         if !entry.is_terminal() {
                             return false;
                         }
@@ -222,7 +222,7 @@ impl HierarchicalSaga {
 
         for nested_id in execution_order {
             if let Some(nested) = self.nested_sagas.get(&nested_id) {
-                let mut nested_saga = nested.saga.lock().unwrap();
+                let mut nested_saga = nested.saga.lock().unwrap_or_else(|e| e.into_inner());
 
                 // Get compensation order for nested saga
                 let order = nested_saga.get_compensation_order();
@@ -256,7 +256,7 @@ impl HierarchicalSaga {
                     continue;
                 }
 
-                let mut nested_saga = nested.saga.lock().unwrap();
+                let mut nested_saga = nested.saga.lock().unwrap_or_else(|e| e.into_inner());
 
                 let order = nested_saga.get_compensation_order();
                 for effect_id in order {
@@ -282,7 +282,7 @@ impl HierarchicalSaga {
         let mut all_effects = Vec::new();
 
         // Add root saga effects
-        let root_manifest = self.root_saga.manifest().lock().unwrap();
+        let root_manifest = self.root_saga.manifest().lock().unwrap_or_else(|e| e.into_inner());
         let root_order: Vec<String> = root_manifest
             .registration_order
             .iter()
@@ -294,7 +294,7 @@ impl HierarchicalSaga {
         // Add nested saga effects in compensation order
         for nested_id in &self.nested_registration_order {
             if let Some(nested) = self.nested_sagas.get(nested_id) {
-                let nested_manifest = nested.saga.lock().unwrap();
+                let nested_manifest = nested.saga.lock().unwrap_or_else(|e| e.into_inner());
                 let nested_order: Vec<String> = nested_manifest
                     .registration_order
                     .iter()
@@ -318,7 +318,7 @@ impl HierarchicalSaga {
         // Compensate nested sagas first (in reverse order)
         for nested_id in self.get_compensation_order() {
             if let Some(nested) = self.nested_sagas.get(&nested_id) {
-                let nested_manifest = nested.saga.lock().unwrap();
+                let nested_manifest = nested.saga.lock().unwrap_or_else(|e| e.into_inner());
                 let nested_order: Vec<String> = nested_manifest
                     .registration_order
                     .iter()
@@ -330,7 +330,7 @@ impl HierarchicalSaga {
         }
 
         // Then compensate root effects (in reverse order)
-        let root_manifest = self.root_saga.manifest().lock().unwrap();
+        let root_manifest = self.root_saga.manifest().lock().unwrap_or_else(|e| e.into_inner());
         let root_order: Vec<String> = root_manifest
             .registration_order
             .iter()

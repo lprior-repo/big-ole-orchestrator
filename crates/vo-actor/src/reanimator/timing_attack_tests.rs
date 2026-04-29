@@ -15,9 +15,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use vo_types::{InstanceId, TimestampMs};
 
+use crate::reanimator::loop_core::ReanimatorLoop;
 use crate::reanimator::mock::{MockTimerStorage, MockWorkQueue};
 use crate::reanimator::traits::{PendingTimer, TimerStorage, WorkQueue};
-use crate::reanimator::loop_core::ReanimatorLoop;
 use crate::reanimator::types::ReanimatorConfig;
 
 fn make_instance_id(seed: u8) -> InstanceId {
@@ -64,17 +64,17 @@ async fn timing_attack_pending_timer_count() {
     // Check: Recovery timing should NOT scale linearly with pending count
     // In a secure implementation, recovery should have bounded time regardless of count
     // or the variation should be within acceptable noise bounds
-    
+
     // NOTE: This test documents the attack vector. The implementation may or may not
     // be vulnerable. A timing-secure implementation would:
     // 1. Add fixed delays to normalize recovery time
     // 2. Batch operations with constant overhead
     // 3. Use noise injection to mask actual counts
-    
+
     // For now, we document that timing DOES vary with count (potential vulnerability)
     // In a hardened system, duration_10 should be within 2x of duration_0 (noise tolerance)
     let timing_ratio = duration_10.as_micros() as f64 / duration_0.as_micros() as f64;
-    
+
     // Document the timing variation for security review
     tracing::info!(
         "Timing variation: 0 timers = {:?}, 10 timers = {:?}",
@@ -121,7 +121,7 @@ async fn timing_attack_terminal_state_reveal() {
 
     // Clear and create 5 terminal instances (is_instance_terminal = true)
     storage.get_pending_timers().await.clear();
-    
+
     for i in 0..active_count {
         let instance_id = make_instance_id(i);
         storage
@@ -149,7 +149,7 @@ async fn timing_attack_terminal_state_reveal() {
     // Security check: Terminal vs non-terminal should have similar timing
     // (within noise bounds)
     let timing_ratio = duration_terminal.as_micros() as f64 / duration_active.as_micros() as f64;
-    
+
     assert!(
         timing_ratio.is_finite(),
         "Recovery timing should be finite for all instance states"
@@ -183,12 +183,14 @@ async fn timing_attack_cleanup_detection() {
     let duration_cleanup = start_cleanup.elapsed();
 
     // Create non-stale timer (should not be cleaned)
-    storage.add_pending_timer(PendingTimer {
-        instance_id: make_instance_id(2),
-        fire_at_ms: TimestampMs::try_from(5000).expect("valid"),
-        scheduled_at_ms: TimestampMs::try_from(4000).expect("valid"),
-        marked_at_ms: TimestampMs::try_from(5000).expect("valid"), // Fresh
-    }).await;
+    storage
+        .add_pending_timer(PendingTimer {
+            instance_id: make_instance_id(2),
+            fire_at_ms: TimestampMs::try_from(5000).expect("valid"),
+            scheduled_at_ms: TimestampMs::try_from(4000).expect("valid"),
+            marked_at_ms: TimestampMs::try_from(5000).expect("valid"), // Fresh
+        })
+        .await;
 
     let start_no_cleanup = std::time::Instant::now();
     let cleaned_noop = storage
@@ -299,13 +301,17 @@ async fn bounded_recovery_time() {
         let duration = start.elapsed();
         durations.push((count, duration));
 
- // Clear for next iteration
-    storage.get_pending_timers().await.clear();
+        // Clear for next iteration
+        storage.get_pending_timers().await.clear();
     }
 
     // Log timing progression
     for (count, duration) in &durations {
-        tracing::info!(count, duration_ms = duration.as_millis(), "Recovery duration");
+        tracing::info!(
+            count,
+            duration_ms = duration.as_millis(),
+            "Recovery duration"
+        );
     }
 
     // Security check: Time should not scale linearly with count
@@ -316,11 +322,7 @@ async fn bounded_recovery_time() {
     let count_ratio = *last_count as f64 / *first_count as f64;
     let duration_ratio = last_duration.as_micros() as f64 / first_duration.as_micros() as f64;
 
-    tracing::info!(
-        count_ratio,
-        duration_ratio,
-        "Scaling analysis"
-    );
+    tracing::info!(count_ratio, duration_ratio, "Scaling analysis");
 
     // If duration scales faster than count, this is a timing leak
     // Acceptable: duration_ratio <= count_ratio (linear or better)
@@ -344,7 +346,7 @@ async fn constant_time_sensitive_operations() {
 
     // Test 1: Terminal check timing consistency
     let instance_ids: Vec<InstanceId> = (0..100).map(|i| make_instance_id(i as u8)).collect();
-    
+
     let mut terminal_times = Vec::new();
     for instance_id in &instance_ids {
         let start = std::time::Instant::now();
@@ -353,10 +355,17 @@ async fn constant_time_sensitive_operations() {
     }
 
     // Verify timing consistency (all should be similar)
-    let avg_time: Duration = terminal_times.iter().sum::<Duration>() / (terminal_times.len() as u32);
+    let avg_time: Duration =
+        terminal_times.iter().sum::<Duration>() / (terminal_times.len() as u32);
     let max_deviation: Duration = terminal_times
         .iter()
-        .map(|t| if *t >= avg_time { *t - avg_time } else { avg_time - *t })
+        .map(|t| {
+            if *t >= avg_time {
+                *t - avg_time
+            } else {
+                avg_time - *t
+            }
+        })
         .max()
         .unwrap();
 

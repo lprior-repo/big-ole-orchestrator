@@ -293,11 +293,10 @@ fn re_encryption_with_rotated_key_produces_different_ciphertext() {
 
     assert_ne!(encrypted_old.iv, encrypted_new.iv);
     assert_ne!(encrypted_old.ciphertext, encrypted_new.ciphertext);
-    assert_eq!(decrypt_blob(&encrypted_old, &dek).unwrap(), data.as_slice());
-    assert_eq!(
-        decrypt_blob(&encrypted_new, &new_dek).unwrap(),
-        data.as_slice()
-    );
+    let decrypted_old = decrypt_blob(&encrypted_old, &dek).unwrap();
+    let decrypted_new = decrypt_blob(&encrypted_new, &new_dek).unwrap();
+    assert_eq!(decrypted_old.as_slice(), data.as_slice());
+    assert_eq!(decrypted_new.as_slice(), data.as_slice());
 }
 
 #[test]
@@ -322,7 +321,7 @@ fn encryption_roundtrip_large_payload() {
     let encrypted = encrypt_blob(&data, &dek).expect("encrypt");
     let decrypted = decrypt_blob(&encrypted, &dek).expect("decrypt");
 
-    assert_eq!(data, decrypted);
+    assert_eq!(data.as_slice(), decrypted.as_slice());
 }
 
 #[test]

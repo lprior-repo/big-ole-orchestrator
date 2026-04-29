@@ -841,9 +841,9 @@ mod tests {
     }
 
     #[test]
-    fn timer_id_accepts_any_non_empty_chars_when_opaque_string() {
-        let ti = TimerId::parse("timer@#$%^&*()").expect("valid");
-        assert_eq!(ti.as_str(), "timer@#$%^&*()");
+    fn timer_id_rejects_non_identifier_chars_when_invalid_input() {
+        let result = TimerId::parse("timer@#$%^&*()");
+        assert!(result.is_err(), "TimerId must reject non-identifier chars");
     }
 
     #[test]
@@ -883,15 +883,15 @@ mod tests {
     }
 
     #[test]
-    fn timer_id_accepts_unicode_when_input_has_non_ascii_chars() {
-        let ti = TimerId::parse("\u{00e9}\u{00f1}").expect("valid");
-        assert_eq!(ti.as_str(), "\u{00e9}\u{00f1}");
+    fn timer_id_rejects_unicode_chars_when_input_has_non_ascii() {
+        let result = TimerId::parse("\u{00e9}\u{00f1}");
+        assert!(result.is_err(), "TimerId must reject unicode chars");
     }
 
     #[test]
-    fn timer_id_accepts_trailing_whitespace_when_opaque_type_preserves_input() {
-        let ti = TimerId::parse("timer ").expect("valid");
-        assert_eq!(ti.as_str(), "timer ");
+    fn timer_id_rejects_whitespace_chars_when_input_has_space() {
+        let result = TimerId::parse("timer ");
+        assert!(result.is_err(), "TimerId must reject whitespace");
     }
 
     #[test]

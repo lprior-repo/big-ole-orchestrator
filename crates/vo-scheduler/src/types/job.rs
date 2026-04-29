@@ -2,7 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy};
+use crate::types::priority::JobPriority;
+use crate::types::{JobId, JobKind, JobState, RetryPolicy, SchedulePolicy};
 
 pub type SerializedPayload = bytes::Bytes;
 

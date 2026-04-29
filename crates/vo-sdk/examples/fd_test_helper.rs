@@ -149,10 +149,10 @@ fn main() {
 
 #[derive(Debug)]
 enum TestError {
-    Io(std::io::Error),
-    Json(serde_json::Error),
-    Sdk(vo_sdk::SdkError),
-    Assertion(String),
+    Io(#[allow(dead_code)] std::io::Error),
+    Json(#[allow(dead_code)] serde_json::Error),
+    Sdk(#[allow(dead_code)] vo_sdk::SdkError),
+    Assertion(#[allow(dead_code)] String),
 }
 
 impl From<std::io::Error> for TestError {

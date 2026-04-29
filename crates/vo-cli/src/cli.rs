@@ -1,8 +1,4 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
-
-use crate::commands::purge::PurgeError;
-use vo_types::workspace::{WorkspaceId, WorkspaceName, WorkspacePath};
 
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {

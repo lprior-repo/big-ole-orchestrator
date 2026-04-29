@@ -8,6 +8,7 @@ pub mod error;
 pub mod events;
 pub mod structures;
 pub mod types;
+pub mod ports;
 
 pub use error::{ExecutionError, JobRunError, RetryError, SchedulerError, VoError};
 pub use events::{DuplicateResult, EventDedup, WorkflowEvent};

@@ -596,18 +596,10 @@ use vo_actor::work_queue::WorkQueue;
 
         #[async_trait::async_trait]
         impl WorkQueue for TerminalWorkQueue {
-            async fn enqueue_spawn(
-                &self,
-                _instance_id: InstanceId,
-                _executable: std::path::PathBuf,
-                _args: Vec<String>,
-            ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-                Ok(())
-            }
             async fn enqueue_resume(
                 &self,
                 instance_id: InstanceId,
-            ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            ) -> Result<(), vo_actor::reanimator::ReanimatorError> {
                 self.inner.enqueue_resume(instance_id).await
             }
             async fn is_instance_terminal(

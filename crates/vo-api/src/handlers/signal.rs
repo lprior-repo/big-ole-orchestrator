@@ -137,8 +137,8 @@ pub async fn send_signal(
 
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::CommitSignal {
-                namespace: actor_namespace,
+            |tx| OrchestratorMsg::Signal {
+                namespace: namespace.clone(),
                 instance_id,
                 signal_name: req.signal_name.clone(),
                 payload,

@@ -1,3 +1,9 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::needless_borrows_for_generic_args
+)]
+
 use vo_types::InstanceId;
 
 fn main() {
@@ -12,7 +18,7 @@ fn main() {
     let events_p = keyspace
         .keyspace("events", fjall::KeyspaceCreateOptions::default)
         .unwrap();
-    let event_count = events_p.prefix(&id_bytes).count();
+    let event_count = events_p.prefix(id_bytes).count();
 
     let instances_p = keyspace
         .keyspace("instances", fjall::KeyspaceCreateOptions::default)

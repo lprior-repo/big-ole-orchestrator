@@ -173,7 +173,7 @@ impl OptimizedReplayIterator {
     ///
     /// Returns `StorageError::Storage` if the events partition cannot be opened.
     pub fn from_plan(plan: &QueryPlan, keyspace: &fjall::Database) -> Result<Self, StorageError> {
-        let partition = keyspace.keyspace("events", || fjall::KeyspaceCreateOptions::default())?;
+        let partition = keyspace.keyspace("events", fjall::KeyspaceCreateOptions::default)?;
         let scan_start = plan.scan_range_start.clone().unwrap_or_else(|| {
             let mut s = plan.prefix.clone();
             s.extend_from_slice(&1u64.to_be_bytes());

@@ -91,6 +91,12 @@ impl MockTimerStorage {
             .await
             .insert(pending.instance_id.clone(), pending);
     }
+
+    /// Gets a clone of pending timers (for testing purposes).
+    #[cfg(test)]
+    pub async fn get_pending_timers(&self) -> HashMap<InstanceId, PendingTimer> {
+        self.pending_timers.lock().await.clone()
+    }
 }
 
 #[async_trait::async_trait]

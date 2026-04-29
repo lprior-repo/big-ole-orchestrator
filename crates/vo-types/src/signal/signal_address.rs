@@ -167,7 +167,7 @@ impl fmt::Display for SignalAddress {
             self.instance_id.as_str(),
             self.wait_key.as_str(),
             match self.epoch_id {
-                Some(epoch) => format!("epoch={}", epoch.0),
+                Some(epoch) => format!("epoch={}", epoch.get()),
                 None => "lineage-wide".to_string(),
             }
         )

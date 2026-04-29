@@ -1,3 +1,9 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::needless_borrows_for_generic_args
+)]
+
 use vo_storage::codec::encode_event_key;
 use vo_storage::instance_index::instance_index_upsert;
 use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimestampMs};
@@ -22,7 +28,7 @@ fn main() {
     for i in 1..=5 {
         let seq = SequenceNumber::try_from(i as u64).unwrap();
         let key = encode_event_key(&terminal_id, &seq).unwrap();
-        events_p.insert(&key, b"event-data").unwrap();
+        events_p.insert(key, b"event-data").unwrap();
     }
 
     keyspace.persist(fjall::PersistMode::SyncAll).unwrap();

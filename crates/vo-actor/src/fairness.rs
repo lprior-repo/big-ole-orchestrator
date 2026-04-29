@@ -2,9 +2,55 @@
 //!
 //! Re-exports the canonical `WorkloadClass` from `vo_types::workload_class`.
 
-pub use vo_types::workload_class::{
-    WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES,
-};
+use std::fmt;
+use std::str::FromStr;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum WorkloadClass {
+    Recovery,
+    NewInstance,
+    #[default]
+    Internal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum WorkloadClassParseError {
+    #[error(
+        "unknown workload class: \"{input}\". Valid classes: recovery, new_instance, internal"
+    )]
+    Unknown { input: String },
+}
+
+impl FromStr for WorkloadClass {
+    type Err = WorkloadClassParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "recovery" => Ok(Self::Recovery),
+            "new_instance" | "newinstance" => Ok(Self::NewInstance),
+            "internal" => Ok(Self::Internal),
+            _ => Err(WorkloadClassParseError::Unknown {
+                input: s.to_string(),
+            }),
+        }
+    }
+}
+
+impl fmt::Display for WorkloadClass {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Recovery => write!(f, "recovery"),
+            Self::NewInstance => write!(f, "new_instance"),
+            Self::Internal => write!(f, "internal"),
+        }
+    }
+}
+
+pub const ALL_WORKLOAD_CLASSES: [WorkloadClass; 3] = [
+    WorkloadClass::Recovery,
+    WorkloadClass::NewInstance,
+    WorkloadClass::Internal,
+];
 
 #[cfg(test)]
 mod tests {

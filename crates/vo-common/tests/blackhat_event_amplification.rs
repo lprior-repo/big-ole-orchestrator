@@ -231,7 +231,10 @@ mod serialization_bomb {
     #[test]
     fn json_output_size_bounded_by_input() {
         let id = "x".repeat(100);
-        let event = make_evt("evt-json-size", &id, 42);
+        let event = WorkflowEvent::TimerFired {
+            timer_id: id.clone(),
+            timestamp_ms: 42,
+        };
         let json_str = serde_json::to_string(&event).unwrap();
         assert!(
             json_str.len() < id.len() * 5,
@@ -244,12 +247,18 @@ mod serialization_bomb {
     #[test]
     fn many_events_vec_no_leak() {
         let events: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| make_evt(&format!("evt-{i}"), &format!("evt-{i}"), i))
+            .map(|i| WorkflowEvent::TimerFired {
+                timer_id: format!("evt-{i}"),
+                timestamp_ms: i,
+            })
             .collect();
         assert_eq!(events.len(), 10_000);
         drop(events);
         let events2: Vec<WorkflowEvent> = (0..10_000)
-            .map(|i| make_evt(&format!("evt2-{i}"), &format!("evt2-{i}"), i))
+            .map(|i| WorkflowEvent::TimerFired {
+                timer_id: format!("evt-{i}"),
+                timestamp_ms: i,
+            })
             .collect();
         assert_eq!(events2.len(), 10_000);
     }
@@ -263,21 +272,39 @@ mod serialization_bomb {
 
     #[test]
     fn identical_events_are_equal() {
-        let e1 = make_evt("evt-replay", "replay", 100);
-        let e2 = make_evt("evt-replay", "replay", 100);
+        let e1 = WorkflowEvent::TimerFired {
+            timer_id: "replay".into(),
+            timestamp_ms: 100,
+        };
+        let e2 = WorkflowEvent::TimerFired {
+            timer_id: "replay".into(),
+            timestamp_ms: 100,
+        };
         assert_eq!(e1, e2);
     }
 
     #[test]
     fn timestamp_diff_distinguishes_replay() {
-        let e1 = make_evt("evt-same1", "same-id", 100);
-        let e2 = make_evt("evt-same2", "same-id", 101);
-        assert_ne!(e1, e2, "replayed event with different timestamp must be distinct");
+        let e1 = WorkflowEvent::TimerFired {
+            timer_id: "same-id".into(),
+            timestamp_ms: 100,
+        };
+        let e2 = WorkflowEvent::TimerFired {
+            timer_id: "same-id".into(),
+            timestamp_ms: 101,
+        };
+        assert_ne!(
+            e1, e2,
+            "replayed event with different timestamp must be distinct"
+        );
     }
 
     #[test]
     fn json_replay_deterministic() {
-        let event = make_evt("evt-det", "det", 42);
+        let event = WorkflowEvent::TimerFired {
+            timer_id: "det".into(),
+            timestamp_ms: 42,
+        };
         let j1 = serde_json::to_string(&event).unwrap();
         let j2 = serde_json::to_string(&event).unwrap();
         assert_eq!(j1, j2, "same event must produce identical JSON");

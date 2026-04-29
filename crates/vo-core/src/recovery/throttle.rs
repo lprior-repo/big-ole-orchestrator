@@ -102,6 +102,7 @@ impl TokenBucket {
         self.depth += 1;
     }
 
+    #[allow(dead_code)]
     pub fn pop(&mut self) {
         if self.depth > 0 {
             self.depth -= 1;

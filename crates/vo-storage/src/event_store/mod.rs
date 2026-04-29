@@ -1,4 +1,4 @@
-//! EventStore trait for append-only event log storage (ADR-002).
+//! `EventStore` trait for append-only event log storage (ADR-002).
 //!
 //! Architecture: Data (`EventStoreError`) → Calc (`append_events_checked`) → Actions
 //! (`EventStore` async trait).
@@ -28,13 +28,11 @@ pub enum EventStoreError {
 impl From<EventStoreError> for vo_types::events::Error {
     fn from(e: EventStoreError) -> Self {
         match e {
-            EventStoreError::OccConflict { .. } => vo_types::events::Error::PayloadDecodeSkipped,
-            EventStoreError::Storage { .. } => vo_types::events::Error::PayloadDecodeFailed {
-                source: Box::new(vo_types::events::Error::InvalidEnvelopeFormat),
+            EventStoreError::OccConflict { .. } => Self::PayloadDecodeSkipped,
+            EventStoreError::Storage { .. } => Self::PayloadDecodeFailed {
+                source: Box::new(Self::InvalidEnvelopeFormat),
             },
-            EventStoreError::InvalidArgument { .. } => {
-                vo_types::events::Error::InvalidEnvelopeFormat
-            }
+            EventStoreError::InvalidArgument { .. } => Self::InvalidEnvelopeFormat,
         }
     }
 }
@@ -47,10 +45,7 @@ pub trait EventStore: Send + Sync {
         events: Vec<EventEnvelope>,
     ) -> Result<u64, EventStoreError>;
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError>;
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError>;
 }
 
 #[derive(Debug, Clone)]
@@ -60,6 +55,7 @@ pub struct InMemoryEventStore {
 }
 
 impl InMemoryEventStore {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             sequences: DashMap::new(),
@@ -68,11 +64,9 @@ impl InMemoryEventStore {
     }
 
     #[cfg(test)]
-    pub fn with_events(
-        self,
-        instance_id: InstanceId,
-        events: Vec<EventEnvelope>,
-    ) -> Self {
+    pub fn with_events(self, instance_id: InstanceId, events: Vec<EventEnvelope>) -> Self {
+        let mut seq_store = self.sequences.write().unwrap();
+        let mut event_store = self.events.write().unwrap();
         if let Some(last) = events.last() {
             self.sequences.insert(instance_id.clone(), last.sequence);
         }
@@ -89,6 +83,7 @@ impl Default for InMemoryEventStore {
 
 #[async_trait]
 impl EventStore for InMemoryEventStore {
+    #[allow(clippy::unwrap_used)]
     async fn append(
         &self,
         instance_id: &InstanceId,
@@ -102,7 +97,7 @@ impl EventStore for InMemoryEventStore {
 
         let first_sequence = events
             .first()
-            .ok_or(EventStoreError::InvalidArgument {
+            .ok_or_else(|| EventStoreError::InvalidArgument {
                 reason: "events batch cannot be empty".to_string(),
             })?
             .sequence;
@@ -116,11 +111,13 @@ impl EventStore for InMemoryEventStore {
             .unwrap_or(0);
 
         if first_sequence != expected_sequence + 1 {
-            let actual_sequence = self
-                .events
-                .get(instance_id)
-                .and_then(|e| e.last().map(|ev| ev.sequence))
-                .unwrap_or(0);
+            let actual_sequence = {
+                let events_store = self.events.read().unwrap();
+                events_store
+                    .get(instance_id)
+                    .and_then(|e| e.last())
+                    .map_or(0, |e| e.sequence)
+            };
             return Err(EventStoreError::OccConflict {
                 instance_id: instance_id.to_string(),
                 expected_sequence: expected_sequence + 1,
@@ -141,20 +138,25 @@ impl EventStore for InMemoryEventStore {
             }
         }
 
-        self.sequences.insert(instance_id.clone(), final_sequence);
-        self.events
-            .entry(instance_id.clone())
-            .or_default()
-            .extend(events);
+        let final_sequence = events.last().unwrap().sequence;
+
+        {
+            let mut sequences = self.sequences.write().unwrap();
+            let mut events_store = self.events.write().unwrap();
+            sequences.insert(instance_id.clone(), final_sequence);
+            events_store.entry(instance_id.clone()).or_default();
+            if let Some(existing) = events_store.get_mut(instance_id) {
+                existing.extend(events);
+            }
+        }
 
         Ok(final_sequence)
     }
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError> {
-        Ok(self.sequences.get(instance_id).map(|r| *r).unwrap_or(0))
+    #[allow(clippy::unwrap_used)]
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
+        let sequences = self.sequences.read().unwrap();
+        Ok(sequences.get(instance_id).copied().unwrap_or(0))
     }
 }
 
@@ -341,9 +343,6 @@ mod tests {
         let events = vec![make_envelope(&instance_id, 1)];
 
         let result = store.append(&instance_id, events).await;
-        assert!(matches!(
-            result,
-            Err(EventStoreError::Storage { .. })
-        ));
+        assert!(matches!(result, Err(EventStoreError::Storage { .. })));
     }
 }

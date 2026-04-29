@@ -35,10 +35,10 @@ pub enum WorkflowDefinitionError {
     CycleDetected { cycle_nodes: Vec<NodeName> },
 
     /// An edge references a node name that does not exist in the nodes list.
-    #[error("edge from '{edge_source}' references unknown target node '{unknown_target}'")]
+    #[error("edge from '{edge_source}' references unknown node '{unknown_node}'")]
     UnknownNode {
         edge_source: NodeName,
-        unknown_target: NodeName,
+        unknown_node: NodeName,
     },
 
     /// The nodes list contains duplicate node names.
@@ -162,13 +162,13 @@ impl WorkflowDefinition {
             if !node_names.contains(&edge.source_node) {
                 return Err(WorkflowDefinitionError::UnknownNode {
                     edge_source: edge.source_node.clone(),
-                    unknown_target: edge.source_node.clone(),
+                    unknown_node: edge.source_node.clone(),
                 });
             }
             if !node_names.contains(&edge.target_node) {
                 return Err(WorkflowDefinitionError::UnknownNode {
                     edge_source: edge.source_node.clone(),
-                    unknown_target: edge.target_node.clone(),
+                    unknown_node: edge.target_node.clone(),
                 });
             }
             Ok(())

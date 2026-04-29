@@ -5,6 +5,14 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 
+pub mod job;
+pub mod priority;
+pub mod queue;
+
+pub use self::job::{ScheduledJob, SerializedPayload};
+pub use priority::JobPriority;
+pub use queue::SchedulerQueue;
+
 use crate::error::SchedulerError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -254,27 +262,5 @@ impl RetryPolicy {
 
     pub fn can_retry(&self, attempt_count: u32) -> bool {
         attempt_count < self.max_attempts
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
-#[repr(u8)]
-pub enum JobPriority {
-    Critical = 0,
-    High = 1,
-    Normal = 2,
-    Low = 3,
-    Background = 4,
-}
-
-impl fmt::Display for JobPriority {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Critical => write!(f, "critical"),
-            Self::High => write!(f, "high"),
-            Self::Normal => write!(f, "normal"),
-            Self::Low => write!(f, "low"),
-            Self::Background => write!(f, "background"),
-        }
     }
 }

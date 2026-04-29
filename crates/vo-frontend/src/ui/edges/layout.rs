@@ -181,6 +181,7 @@ pub(crate) fn create_smooth_step_path(
     )
 }
 
+#[allow(dead_code)]
 pub(crate) fn resolve_edge_anchors(
     edges: &[Connection],
     nodes: &[Node],
