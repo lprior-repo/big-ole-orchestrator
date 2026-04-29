@@ -9,7 +9,7 @@ pub use api::{
 };
 pub use key::TimerKey;
 pub use record::TimerRecord;
-pub use storage::Storage;
+pub use storage::{FjallTimerIndexStore, Storage, TIMER_INDEX_PARTITION};
 pub use value::TimerValue;
 
 pub(crate) type ScanResult = Vec<(Vec<u8>, Vec<u8>)>;
