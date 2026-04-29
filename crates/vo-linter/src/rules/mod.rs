@@ -16,9 +16,11 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
+pub mod mirror;
 pub mod random;
+pub mod retry_policy;
 
-pub use mirror::check_mirror_test;
+pub use mirror::check_mirror_types_in_api_test;
 pub use random::check_random_in_workflow;
 pub use retry_policy::check_retry_policy_bounds;
 

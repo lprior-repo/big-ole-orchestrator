@@ -23,6 +23,7 @@ reqwest = { workspace = true, optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window", "EventSource", "Event", "EventTarget", "HtmlInputElement", "File", "FileList", "Blob", "Url"] }
 gloo-timers = { version = "0.3", optional = true }
 js-sys = { version = "0.3", optional = true }
+reqwest = { workspace = true, optional = true }
 regex = { workspace = true }
 reqwest = { workspace = true, optional = true }
 
