@@ -32,6 +32,7 @@ use tracing;
 
 use vo_core::db_writer_message::DbWriterMessage;
 use vo_storage::partitions::StorageEngine;
+use vo_types::{InstanceId, InstanceStatus, SequenceNumber, TimestampMs};
 
 // ---------------------------------------------------------------------------
 // Constants (ADR-015)
@@ -312,7 +313,7 @@ impl DbWriterActor {
     ) -> Result<(), ActorProcessingErr> {
         let db = state.storage.db();
         let mut batch = db.batch();
-        apply_message_to_batch(message, &mut batch);
+        apply_message_to_batch(db, message, &mut batch);
         batch.commit().map_err(|e| {
             ActorProcessingErr::from(format!("batch commit failed: {e}"))
         })?;
@@ -328,7 +329,7 @@ impl DbWriterActor {
         let db = state.storage.db();
         let mut batch = db.batch();
         for msg in messages {
-            apply_message_to_batch(msg, &mut batch);
+            apply_message_to_batch(db, msg, &mut batch);
         }
         batch.commit().map_err(|e| {
             ActorProcessingErr::from(format!("batch commit failed: {e}"))
@@ -345,26 +346,280 @@ impl DbWriterActor {
 ///
 /// This function translates the high-level `DbWriterMessage` variants
 /// into the appropriate fjall partition key-value operations.
-/// Currently a placeholder that will be filled in as partitions are wired.
 fn apply_message_to_batch(
-    _message: &DbWriterMessage,
-    _batch: &mut fjall::OwnedWriteBatch,
+    db: &fjall::Database,
+    message: &DbWriterMessage,
+    batch: &mut fjall::OwnedWriteBatch,
 ) {
-    // TODO: Implement per-variant partition routing.
-    // Each DbWriterMessage variant maps to one or more partition writes:
-    //
-    // AppendEvent        -> events partition insert
-    // RecordInstanceStatus -> instances partition insert
-    // AcquireLease       -> leases partition insert
-    // ReleaseLease       -> leases partition remove
-    // UpsertTimer        -> timers partition insert
-    // DeleteTimer        -> timers partition remove
-    // RecordEffect       -> effects partition insert
-    // TakeSnapshot       -> snapshots partition insert
-    // AtomicTransition   -> multi-partition atomic write
-    //
-    // The partition keyspaces need to be opened and stored in DbWriterState
-    // for this to work. This will be wired in a follow-up commit.
+    match message {
+        DbWriterMessage::AppendEvent {
+            instance_id,
+            sequence_number,
+            idempotency_key: _,
+        } => {
+            let events_ks = db
+                .keyspace(
+                    vo_storage::partitions::EVENTS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("events partition");
+            let key = vo_storage::key_encoding::encode_event_key(
+                instance_id,
+                *sequence_number,
+            );
+            batch.insert(&events_ks, key, &[] as &[u8]);
+        }
+        DbWriterMessage::RecordInstanceStatus {
+            instance_id,
+            status_byte,
+        } => {
+            let instances_ks = db
+                .keyspace(
+                    vo_storage::partitions::INSTANCES_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("instances partition");
+            let status =
+                vo_types::InstanceStatus::from_byte(*status_byte)
+                    .unwrap_or(vo_types::InstanceStatus::Running);
+            let now = vo_types::TimestampMs::now();
+            let key = vo_storage::instance_index::encode_instance_index_key(
+                status,
+                now,
+                instance_id,
+            )
+            .expect("instance index key");
+            batch.insert(&instances_ks, key, &[] as &[u8]);
+        }
+        DbWriterMessage::AcquireLease {
+            instance_id,
+            step_id,
+            fence: _,
+        } => {
+            let leases_ks = db
+                .keyspace(
+                    vo_storage::partitions::LEASE_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("leases partition");
+            let key = format!("{instance_id}::{step_id}").into_bytes();
+            batch.insert(&leases_ks, key, &[] as &[u8]);
+        }
+        DbWriterMessage::ReleaseLease {
+            instance_id,
+            step_id,
+        } => {
+            let leases_ks = db
+                .keyspace(
+                    vo_storage::partitions::LEASE_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("leases partition");
+            let key = format!("{instance_id}::{step_id}").into_bytes();
+            batch.remove(&leases_ks, key);
+        }
+        DbWriterMessage::UpsertTimer {
+            instance_id,
+            timer_id,
+            fire_at,
+        } => {
+            let timers_ks = db
+                .keyspace(
+                    vo_storage::partitions::TIMERS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("timers partition");
+            let key = encode_timer_key(instance_id, timer_id, fire_at);
+            batch.insert(&timers_ks, key, &[] as &[u8]);
+        }
+        DbWriterMessage::DeleteTimer {
+            instance_id,
+            timer_id,
+        } => {
+            let timers_ks = db
+                .keyspace(
+                    vo_storage::partitions::TIMERS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("timers partition");
+            let fire_at_ms = 0u64;
+            let key = encode_timer_key_raw(instance_id, timer_id, fire_at_ms);
+            batch.remove(&timers_ks, key);
+        }
+        DbWriterMessage::RecordEffect { effect } => {
+            let effects_ks = db
+                .keyspace(
+                    vo_storage::partitions::EFFECTS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("effects partition");
+            let placeholder_instance_id = InstanceId::from_bytes([0u8; 16]);
+            let effect_id = vo_storage::effect_journal::EffectId::new(
+                &placeholder_instance_id,
+                effect.intent_id(),
+            )
+            .expect("valid effect id");
+            let key = vo_storage::effect_journal::encode_effect_key(&effect_id);
+            let value = vo_storage::effect_journal::encode_effect_record(effect)
+                .expect("encode effect record");
+            batch.insert(&effects_ks, key, &value);
+        }
+        DbWriterMessage::TakeSnapshot {
+            instance_id,
+            sequence_number,
+            snapshot_data,
+        } => {
+            let snapshots_ks = db
+                .keyspace(
+                    vo_storage::partitions::SNAPSHOTS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("snapshots partition");
+            let key = vo_storage::snapshots::encode_snapshot_key(
+                instance_id,
+                sequence_number.as_u64(),
+            )
+            .expect("snapshot key");
+            let value =
+                serde_json::to_vec(snapshot_data).expect("serialize snapshot");
+            batch.insert(&snapshots_ks, key, &value);
+        }
+        DbWriterMessage::AtomicTransition {
+            step_id: _,
+            instance_status,
+            timer_ops,
+            snapshot,
+            event,
+        } => {
+            let events_ks = db
+                .keyspace(
+                    vo_storage::partitions::EVENTS_PARTITION,
+                    fjall::KeyspaceCreateOptions::default,
+                )
+                .expect("events partition");
+            let event_key = vo_storage::key_encoding::encode_event_key(
+                &vo_types::InstanceId::parse(&event.instance_id)
+                    .expect("valid instance id"),
+                vo_types::SequenceNumber::try_from(event.sequence)
+                    .expect("valid sequence"),
+            );
+            let event_value =
+                serde_json::to_vec(event).expect("serialize event envelope");
+            batch.insert(&events_ks, event_key, &event_value);
+
+            if let Some(status) = instance_status {
+                let instances_ks = db
+                    .keyspace(
+                        vo_storage::partitions::INSTANCES_PARTITION,
+                        fjall::KeyspaceCreateOptions::default,
+                    )
+                    .expect("instances partition");
+                let now = vo_types::TimestampMs::now();
+                let instance_id = vo_types::InstanceId::parse(&event.instance_id)
+                    .expect("valid instance id");
+                let key = vo_storage::instance_index::encode_instance_index_key(
+                    *status,
+                    now,
+                    &instance_id,
+                )
+                .expect("instance index key");
+            batch.insert(&instances_ks, key, &[] as &[u8]);
+            }
+
+            for op in timer_ops {
+                match op {
+                    vo_core::db_writer_message::TimerOp::Upsert {
+                        timer_id,
+                        fire_at,
+                    } => {
+                        let timers_ks = db
+                            .keyspace(
+                                vo_storage::partitions::TIMERS_PARTITION,
+                                fjall::KeyspaceCreateOptions::default,
+                            )
+                            .expect("timers partition");
+                        let instance_id =
+                            vo_types::InstanceId::parse(&event.instance_id)
+                                .expect("valid instance id");
+                        let key =
+                            encode_timer_key(&instance_id, timer_id, fire_at);
+                        batch.insert(&timers_ks, key, &[] as &[u8]);
+                    }
+                    vo_core::db_writer_message::TimerOp::Delete {
+                        timer_id,
+                    } => {
+                        let timers_ks = db
+                            .keyspace(
+                                vo_storage::partitions::TIMERS_PARTITION,
+                                fjall::KeyspaceCreateOptions::default,
+                            )
+                            .expect("timers partition");
+                        let instance_id =
+                            vo_types::InstanceId::parse(&event.instance_id)
+                                .expect("valid instance id");
+                        let key = encode_timer_key_raw(
+                            &instance_id,
+                            timer_id,
+                            0u64,
+                        );
+                        batch.remove(&timers_ks, key);
+                    }
+                }
+            }
+
+            if let Some(snap) = snapshot {
+                let snapshots_ks = db
+                    .keyspace(
+                        vo_storage::partitions::SNAPSHOTS_PARTITION,
+                        fjall::KeyspaceCreateOptions::default,
+                    )
+                    .expect("snapshots partition");
+                let instance_id =
+                    vo_types::InstanceId::parse(&event.instance_id)
+                        .expect("valid instance id");
+                let key = vo_storage::snapshots::encode_snapshot_key(
+                    &instance_id,
+                    snap.sequence_number().as_u64(),
+                )
+                .expect("snapshot key");
+                let value =
+                    serde_json::to_vec(snap).expect("serialize snapshot");
+batch.insert(&snapshots_ks, key, &value);
+            }
+        }
+    }
+}
+
+fn encode_timer_key(
+    instance_id: &vo_types::InstanceId,
+    timer_id: &vo_types::TimerId,
+    fire_at: &vo_types::FireAtMs,
+) -> Vec<u8> {
+    let mut key = Vec::with_capacity(8 + 16 + 16);
+    key.extend_from_slice(&fire_at.as_u64().to_be_bytes());
+    key.extend_from_slice(
+        &instance_id.to_bytes().expect("instance id to bytes"),
+    );
+    key.extend_from_slice(
+        &timer_id.to_bytes().expect("timer id to bytes"),
+    );
+    key
+}
+
+fn encode_timer_key_raw(
+    instance_id: &vo_types::InstanceId,
+    timer_id: &vo_types::TimerId,
+    fire_at_ms: u64,
+) -> Vec<u8> {
+    let mut key = Vec::with_capacity(8 + 16 + 16);
+    key.extend_from_slice(&fire_at_ms.to_be_bytes());
+    key.extend_from_slice(
+        &instance_id.to_bytes().expect("instance id to bytes"),
+    );
+    key.extend_from_slice(
+        &timer_id.to_bytes().expect("timer id to bytes"),
+    );
+    key
 }
 
 // ---------------------------------------------------------------------------
