@@ -553,7 +553,7 @@ mod handlers {
                 println!("  retry_policy: {:?}", node.retry_policy);
 
                 let fd3_payload = input.unwrap_or_default();
-                let output = run_node_subprocess(&binary_path_str, &fd3_payload, timeout).await?;
+                let output = super::run_node_subprocess(&binary_path_str, &fd3_payload, timeout).await?;
 
                 let output_str = String::from_utf8_lossy(&output.fd4_bytes);
                 if !output_str.is_empty() {
