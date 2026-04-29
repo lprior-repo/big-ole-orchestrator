@@ -22,7 +22,7 @@ use vo_common::connection_pool::{
     PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
-use vo_common::types::TimestampMs;
+use vo_types::TimestampMs;
 
 pub use vo_common::connection_pool::HealthCheckResult;
 

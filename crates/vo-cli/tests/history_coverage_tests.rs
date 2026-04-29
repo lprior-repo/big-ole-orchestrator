@@ -12,6 +12,7 @@ fn test_snapshot() -> WorkflowSnapshot {
             compensation_policy: None,
             node_name: NodeName::parse("node-a").unwrap(),
             retry_policy: RetryPolicy::new(3, 1000, 2.0).unwrap(),
+            compensation_policy: None,
         }],
         vec![],
     )
@@ -142,7 +143,7 @@ fn get_history_after_save_has_entry() {
         .unwrap();
     let output = get_history(&history);
     assert_eq!(output.entries.len(), 1);
-    assert!(output.entries[0].command_id.len() > 0);
+    assert!(!output.entries[0].command_id.is_empty());
 }
 
 #[test]

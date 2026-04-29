@@ -40,6 +40,7 @@ impl ProjectionRecord {
 }
 
 // =====================================================================
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionResult<S> {
     pub state: S,
@@ -71,6 +72,7 @@ impl<S> ProjectionResult<S> {
 }
 
 // =====================================================================
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionState {
     Building,
@@ -103,6 +105,7 @@ impl ProjectionState {
 }
 
 // =====================================================================
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StaleReason {
     SchemaVersionMismatch { expected: u8, actual: u8 },
@@ -112,6 +115,7 @@ pub enum StaleReason {
 }
 
 // =====================================================================
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProjectionEvent {
     ProjectionStarted {
@@ -142,6 +146,7 @@ pub enum ProjectionEvent {
 }
 
 // =====================================================================
+
 pub trait Projector<S, E>
 where
     S: Clone + Default + serde::Serialize,

@@ -96,6 +96,7 @@ impl ServerProcess {
     }
 }
 
+#[allow(clippy::unused_async)]
 async fn spawn_server(storage_path: PathBuf) -> TestResult<ServerProcess> {
     let port = free_port()?;
     let child = Command::new(vo_cli_binary())

@@ -315,8 +315,7 @@ where
 mod tests {
     use super::*;
     use crate::replay::test_helpers::{
-        make_event, step_completed_payload, step_scheduled_payload, step_started_payload,
-        workflow_started_payload,
+        make_event, step_scheduled_payload, step_started_payload, workflow_started_payload,
     };
 
     #[test]
@@ -386,7 +385,7 @@ mod tests {
     #[test]
     fn recovery_context_new() {
         let ctx = RecoveryContext::new();
-        assert!(ctx.harness().should_crash(CrashPoint::DedupeWrite) == false);
+        assert!(!ctx.harness().should_crash(CrashPoint::DedupeWrite));
     }
 
     fn make_test_event_for_dedup(instance_id: &str, sequence: u64) -> EventEnvelope {

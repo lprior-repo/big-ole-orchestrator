@@ -27,11 +27,11 @@ pub struct V3StartRequest {
     /// Deprecated: use `command_envelope.command_id` instead for ADR-036 compliance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dedupe_key: Option<String>,
-    /// Command envelope for ADR-036 command identity, correlation, and causation.
-    /// When provided, the engine uses `command_id` for deduplication and propagates
-    /// command metadata into all events emitted by this workflow.
+    /// Command envelope carrying command identity metadata (ADR-036).
+    /// Required. Contains version, command_id, correlation_id, causation_id,
+    /// issuer, and issued_at.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub command_envelope: Option<CommandEnvelope>,
+    pub command_envelope: Option<serde_json::Value>,
 }
 
 /// Response to POST /api/v1/workflows on success (HTTP 201).
@@ -253,6 +253,17 @@ pub struct SearchResponse {
 mod tests {
     use super::*;
 
+    fn valid_envelope_json() -> serde_json::Value {
+        serde_json::json!({
+            "version": 1,
+            "command_id": "cmd-test-001",
+            "correlation_id": "corr-test-001",
+            "causation_id": "cause-test-001",
+            "issuer": "api_client",
+            "issued_at": 1700000000
+        })
+    }
+
     #[test]
     fn v3_start_request_skip_none_fields() {
         let req = V3StartRequest {
@@ -263,10 +274,12 @@ mod tests {
             workflow_binary_hash: None,
             instance_id: None,
             dedupe_key: None,
+            command_envelope: None,
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(!json.contains("instance_id"));
         assert!(!json.contains("dedupe_key"));
+        assert!(!json.contains("command_envelope"));
     }
 
     #[test]
@@ -279,10 +292,12 @@ mod tests {
             workflow_binary_hash: None,
             instance_id: Some("custom-id".to_string()),
             dedupe_key: Some("dedupe-1".to_string()),
+            command_envelope: Some(valid_envelope_json()),
         };
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("custom-id"));
         assert!(json.contains("dedupe-1"));
+        assert!(json.contains("command_envelope"));
     }
 
     #[test]
@@ -295,11 +310,39 @@ mod tests {
             workflow_binary_hash: None,
             instance_id: None,
             dedupe_key: None,
+            command_envelope: Some(valid_envelope_json()),
         };
         let json = serde_json::to_string(&req).unwrap();
         let back: V3StartRequest = serde_json::from_str(&json).unwrap();
         assert_eq!(back.namespace, "payments");
         assert_eq!(back.workflow_type, "charge");
+        assert!(back.command_envelope.is_some());
+    }
+
+    #[test]
+    fn v3_start_request_command_envelope_deserializes_from_json() {
+        let json = serde_json::json!({
+            "namespace": "ns",
+            "workflow_type": "wf",
+            "paradigm": "fsm",
+            "input": {},
+            "command_envelope": {
+                "version": 1,
+                "command_id": "cmd-001",
+                "correlation_id": "corr-001",
+                "causation_id": "cause-001",
+                "issuer": "system",
+                "issued_at": 1700000000
+            }
+        });
+        let req: V3StartRequest = serde_json::from_value(json).unwrap();
+        assert!(req.command_envelope.is_some());
+        let env = req.command_envelope.unwrap();
+        assert_eq!(env["command_id"], "cmd-001");
+        assert_eq!(env["correlation_id"], "corr-001");
+        assert_eq!(env["causation_id"], "cause-001");
+        assert_eq!(env["issuer"], "system");
+        assert_eq!(env["issued_at"], 1700000000);
     }
 
     #[test]

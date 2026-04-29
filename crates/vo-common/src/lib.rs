@@ -6,14 +6,15 @@
 pub mod connection_pool;
 pub mod error;
 pub mod events;
-pub mod structures;
+pub mod pool;
+mod structures;
 pub mod types;
 pub mod ports;
 
-pub use error::{ExecutionError, JobRunError, RetryError, SchedulerError, VoError};
-pub use events::{DuplicateResult, EventDedup, WorkflowEvent};
+pub use error::{ExecutionError, RetryExhaustedError, SchedulerError, VoError};
+pub use events::WorkflowEvent;
 pub use structures::{Bounds, Octree, Vec3};
-pub use types::{EventId, InstanceId, NamespaceId, TimerId};
+pub use types::{InstanceId, NamespaceId, TimerId};
 
 #[cfg(feature = "telemetry")]
 pub mod telemetry;

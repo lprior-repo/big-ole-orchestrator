@@ -13,8 +13,17 @@ use uuid::Uuid;
 pub use vo_types::GuaranteeClass;
 use vo_types::NodeKind;
 
-/// Re-export ExecutionState from edges::graph_types for UI compatibility.
-pub use crate::ui::edges::graph_types::ExecutionState;
+/// Execution state for workflow nodes (ADR-031).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+pub enum ExecutionState {
+    #[default]
+    Idle,
+    Running,
+    Completed,
+    Failed,
+    Skipped,
+    Queued,
+}
 
 impl ExecutionState {
     pub const fn status_badge_class(self) -> &'static str {
@@ -228,6 +237,67 @@ pub fn node_kind_to_category(kind: NodeKind) -> NodeCategory {
     }
 }
 
+/// Validate a node name for the frontend.
+///
+/// Allows printable ASCII characters (including spaces) but rejects characters
+/// that could enable XSS: `<`, `>`, `&`, `"`, `'`, and control characters.
+/// This is less strict than backend `NodeName::parse` (which restricts to
+/// identifier chars) because the frontend uses display names that may contain
+/// spaces, parentheses, etc.
+///
+/// Returns the name on success, or `None` if invalid.
+#[must_use]
+pub fn validate_node_name(name: &str) -> Option<String> {
+    if name.is_empty() || name.len() > 256 {
+        return None;
+    }
+    for ch in name.chars() {
+        match ch {
+            '\0'..='\x08' | '\x0b' | '\x0c' | '\x0e'..='\x1f' | '\x7f' => return None,
+            '<' | '>' | '&' | '"' | '\'' => return None,
+            _ => {}
+        }
+    }
+    Some(name.to_string())
+}
+
+/// Sanitize freeform text fields (description, notes) by stripping HTML tags.
+///
+/// This prevents stored XSS payloads from becoming exploitable if future
+/// rendering switches from Dioxus text interpolation to raw HTML (e.g.
+/// markdown rendering). The defense-in-depth layer catches payloads that
+/// Dioxus RSX escaping handles today but a future code change might not.
+#[must_use]
+pub fn sanitize_text(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut in_tag = false;
+    for ch in input.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+            }
+            '>' if in_tag => {
+                in_tag = false;
+            }
+            _ if !in_tag => {
+                result.push(ch);
+            }
+            _ => {}
+        }
+    }
+    result
+}
+
+/// Validate an icon name: reject CSS expression payloads and HTML.
+#[must_use]
+pub fn validate_icon_name(icon: &str) -> Option<String> {
+    let lower = icon.to_lowercase();
+    if lower.contains("expression(") || lower.contains("javascript:") || lower.contains("<") {
+        return None;
+    }
+    Some(icon.to_string())
+}
+
 /// A workflow node with its properties and category.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Node {
@@ -245,11 +315,15 @@ pub struct Node {
 
 impl Node {
     /// Create a new node with the given ID and kind.
+    ///
+    /// The name is validated against backend `NodeName` identifier rules.
+    /// Returns `None` if the name contains invalid characters (XSS payloads, etc.).
     #[must_use]
-    pub fn new(id: NodeId, name: String, kind: NodeKind) -> Self {
+    pub fn new(id: NodeId, name: String, kind: NodeKind) -> Option<Self> {
+        let name = validate_node_name(&name)?;
         let category = node_kind_to_category(kind);
         let icon = category_to_icon(category);
-        Self {
+        Some(Self {
             id,
             name,
             description: String::new(),
@@ -260,12 +334,20 @@ impl Node {
             y: 0.0,
             config: serde_json::Value::Object(Default::default()),
             execution_state: ExecutionState::Idle,
-        }
+        })
     }
 
     /// Create a node from a workflow node variant.
+    ///
+    /// The name is validated against backend `NodeName` identifier rules.
     #[must_use]
-    pub fn from_workflow_node(name: String, workflow_node: WorkflowNode, x: f64, y: f64) -> Self {
+    pub fn from_workflow_node(
+        name: String,
+        workflow_node: WorkflowNode,
+        x: f64,
+        y: f64,
+    ) -> Option<Self> {
+        let name = validate_node_name(&name)?;
         let (kind, category, icon) = match workflow_node {
             WorkflowNode::Run(_) => {
                 let kind = NodeKind::ManagedEffect;
@@ -280,7 +362,7 @@ impl Node {
                 (kind, category, icon)
             }
         };
-        Self {
+        Some(Self {
             id: NodeId::new(),
             name,
             description: String::new(),
@@ -291,7 +373,7 @@ impl Node {
             y,
             config: serde_json::Value::Object(Default::default()),
             execution_state: ExecutionState::Idle,
-        }
+        })
     }
 
     /// Update the node kind and recalculate the category.
@@ -299,6 +381,39 @@ impl Node {
         self.kind = kind;
         self.category = node_kind_to_category(kind);
         self.icon = category_to_icon(self.category);
+    }
+
+    /// Set the node name with validation.
+    ///
+    /// Returns `false` if the name is invalid (contains XSS payloads, etc.).
+    pub fn set_name(&mut self, name: &str) -> bool {
+        if let Some(validated) = validate_node_name(name) {
+            self.name = validated;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Set the node description with sanitization.
+    ///
+    /// HTML tags are stripped to prevent stored XSS. The description is a
+    /// freeform text field, so only tag stripping is applied (not full
+    /// identifier validation).
+    pub fn set_description(&mut self, description: &str) {
+        self.description = sanitize_text(description);
+    }
+
+    /// Set the node icon with validation.
+    ///
+    /// Returns `false` if the icon contains CSS expression payloads or HTML.
+    pub fn set_icon(&mut self, icon: &str) -> bool {
+        if let Some(validated) = validate_icon_name(icon) {
+            self.icon = validated;
+            true
+        } else {
+            false
+        }
     }
 
     /// Apply a config update to the node.
@@ -333,7 +448,8 @@ pub struct Workflow {
     pub nodes: Vec<Node>,
     pub connections: Vec<Connection>,
     pub name: String,
-    pub guarantee_class: GuaranteeClass,
+    pub execution_queue: Vec<NodeId>,
+    pub current_step: usize,
 }
 
 impl Workflow {
@@ -344,13 +460,57 @@ impl Workflow {
             nodes: Vec::new(),
             connections: Vec::new(),
             name,
-            guarantee_class,
+            execution_queue: Vec::new(),
+            current_step: 0,
         }
+    }
+
+    /// Create a new empty workflow with no name (for testing).
+    #[must_use]
+    pub fn new_test() -> Self {
+        Self::new(String::new(), GuaranteeClass::default())
     }
 
     /// Add a node to the workflow.
     pub fn add_node(&mut self, node: Node) {
         self.nodes.push(node);
+    }
+
+    /// Add a node by name and position (for testing compatibility).
+    /// Returns the ID of the added node.
+    pub fn add_node_simple(&mut self, name: &str, x: f64, y: f64) -> NodeId {
+        let kind = if name.contains("http") || name.contains("handler") {
+            vo_types::NodeKind::ManagedEffect
+        } else {
+            vo_types::NodeKind::Pure
+        };
+        let node = Node::new(NodeId::new(), name.to_string(), kind)
+            .expect("Node::new should not fail for valid name");
+        let id = node.id.clone();
+        self.nodes.push(node);
+        id
+    }
+
+    /// Add a connection between two nodes.
+    pub fn add_connection(
+        &mut self,
+        source: NodeId,
+        target: NodeId,
+        source_port: &PortName,
+        target_port: &PortName,
+    ) -> Result<(), String> {
+        if self.nodes.iter().any(|n| n.id == source) && self.nodes.iter().any(|n| n.id == target) {
+            self.connections.push(Connection {
+                id: Uuid::new_v4(),
+                source,
+                target,
+                source_port: source_port.clone(),
+                target_port: target_port.clone(),
+            });
+            Ok(())
+        } else {
+            Err("Source or target node not found".to_string())
+        }
     }
 
     /// Remove a node from the workflow.
@@ -510,7 +670,8 @@ mod tests {
 
     #[test]
     fn node_creates_with_correct_category() {
-        let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        let node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         assert_eq!(node.category, NodeCategory::Flow);
         assert_eq!(node.kind, NodeKind::Pure);
         assert_eq!(node.icon, "zap");
@@ -518,7 +679,8 @@ mod tests {
 
     #[test]
     fn node_set_kind_updates_category() {
-        let mut node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        let mut node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         assert_eq!(node.category, NodeCategory::Flow);
 
         node.set_kind(NodeKind::ManagedEffect);
@@ -528,8 +690,9 @@ mod tests {
 
     #[test]
     fn workflow_add_and_remove_node() {
-        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
-        let node = Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure);
+        let mut workflow = Workflow::new("test".to_string());
+        let node =
+            Node::new(NodeId::new(), "test".to_string(), NodeKind::Pure).expect("valid name");
         let node_id = node.id.clone();
 
         workflow.add_node(node);
@@ -542,10 +705,29 @@ mod tests {
     }
 
     #[test]
+    fn connection_stores_edge_data() {
+        let src = NodeId::new();
+        let tgt = NodeId::new();
+        let conn = Connection {
+            id: Uuid::new_v4(),
+            source: src.clone(),
+            target: tgt.clone(),
+            source_port: PortName::from("out"),
+            target_port: PortName::from("in"),
+        };
+        assert_eq!(conn.source, src);
+        assert_eq!(conn.target, tgt);
+        assert_eq!(conn.source_port, PortName::from("out"));
+        assert_eq!(conn.target_port, PortName::from("in"));
+    }
+
+    #[test]
     fn workflow_nodes_by_id() {
-        let mut workflow = Workflow::new("test".to_string(), GuaranteeClass::BestEffort);
-        let node1 = Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure);
-        let node2 = Node::new(NodeId::new(), "test2".to_string(), NodeKind::Wait);
+        let mut workflow = Workflow::new("test".to_string());
+        let node1 =
+            Node::new(NodeId::new(), "test1".to_string(), NodeKind::Pure).expect("valid name");
+        let node2 =
+            Node::new(NodeId::new(), "test2".to_string(), NodeKind::Wait).expect("valid name");
         let node1_id = node1.id.0.clone();
         let node2_id = node2.id.0.clone();
 

@@ -36,39 +36,49 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     command.stdout(std::process::Stdio::piped());
     command.stderr(std::process::Stdio::piped());
 
-    unsafe {
-        command.pre_exec(move || {
-            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::setpgid(0, 0) != 0 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::dup2(fd3_read, 3) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::dup2(fd4_write, 4) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            // Close the original pipe FDs in the child (they've been dup'd to 3 and 4)
-            libc::close(fd3_read);
-            libc::close(fd4_write);
-            Ok(())
-        });
+    {
+        // SAFETY: pre_exec is unsafe because it runs in the child before exec.
+        // We set PR_SET_PDEATHSIG so the child dies if parent exits,
+        // setpgid to prevent SIGTTIN, and dup2 to set up fd3/fd4.
+        // The file descriptors are valid pipe ends created with O_CLOEXEC.
+        unsafe {
+            command.pre_exec(move || {
+                // SAFETY: prctl with PR_SET_PDEATHSIG is a safe syscall that
+                // only affects signal handling. Setting to SIGTERM is standard.
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                // SAFETY: setpgid is a safe syscall to create process group.
+                // This prevents the child from receiving SIGTTIN from terminal.
+                if libc::setpgid(0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                // SAFETY: dup2 with explicit fd numbers 3 and 4 is safe because
+                // we created these FDs and they are not used elsewhere in the child.
+                if libc::dup2(fd3_read, 3) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if libc::dup2(fd4_write, 4) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
     }
 
     let mut child = command.spawn().map_err(|e| IpcError::SpawnFailed {
         detail: e.to_string(),
     })?;
 
-    // Parent closes child's ends
-    unsafe {
-        libc::close(fd3_read);
-        libc::close(fd4_write);
-    }
+    // Parent closes child's ends of the pipes.
+    // The child now owns these FDs via dup2; parent must close them.
+    let _ = fd3_read;
+    let _ = fd4_write;
 
-    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+    let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
+    let fd3_writer = tokio::fs::File::from_std(fd3_writer);
+    let fd4_reader = unsafe { std::fs::File::from_raw_fd(fd4_read) };
+    let fd4_reader = tokio::fs::File::from_std(fd4_reader);
     let stderr_reader = child
         .stderr
         .take()
@@ -272,11 +282,17 @@ async fn terminate_child(child: &mut tokio::process::Child) {
         return;
     };
     let kill_pgid = pid.cast_signed();
+
+    // SAFETY: kill with negative PID sends signal to process group.
+    // We created this process group with setpgid in pre_exec,
+    // so sending SIGTERM to the group is safe for cleanup.
     unsafe {
         libc::kill(-kill_pgid, libc::SIGTERM);
     }
     let res = tokio::time::timeout(std::time::Duration::from_millis(100), child.wait()).await;
     if res.is_err() {
+        // SAFETY: SIGKILL is force-kill when graceful termination fails.
+        // This is safe because we own this process group.
         unsafe {
             libc::kill(-kill_pgid, libc::SIGKILL);
         }

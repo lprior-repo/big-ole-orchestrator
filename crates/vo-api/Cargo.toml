@@ -18,7 +18,9 @@ ractor = { workspace = true }
 # Web framework
 axum = { workspace = true, features = ["ws"] }
 tower = { workspace = true }
-tower-http = { workspace = true }
+tower-http = { workspace = true, features = ["cors", "timeout", "trace"] }
+rust-embed = { workspace = true }
+mime_guess = { workspace = true }
 reqwest = { workspace = true }
 
 # Async
@@ -55,3 +57,5 @@ rstest = { workspace = true }
 tempfile = { workspace = true }
 http-body-util = "0.1"
 tokio = { workspace = true }
+axum-test = "19.1"
+

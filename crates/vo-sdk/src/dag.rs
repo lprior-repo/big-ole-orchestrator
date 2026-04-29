@@ -1,17 +1,16 @@
-//! Dag: compile-time type-safe workflow graph construction (ADR-010).
+//! Dag: compile-time type-safe workflow graph construction (ADR-004, ADR-010).
 //!
 //! The [`Workflow`] struct provides a fluent builder API for constructing
 //! workflow graphs. After building with [`Workflow::build`], a validated
-//! [`WorkflowSpec`](crate::graph_args::WorkflowSpec) is emitted.
+//! [`WorkflowSpec`] is emitted.
 
 use std::any::Any;
 use std::sync::Arc;
 
 use thiserror::Error;
-use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeKind, NodeName, WorkflowName};
+use vo_types::{GuaranteeClass, NodeKind, NodeName, WorkflowName};
 
-use crate::execution::{BoxedNodeFn, NodeFunctionRegistry};
-use crate::graph::{EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
+use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
 /// Errors that can occur when building a DAG.
@@ -29,8 +28,6 @@ pub enum DagError {
     DuplicateNodeName { name: String },
     #[error("self-loop not allowed on node: {name}")]
     SelfLoop { name: String },
-    #[error("orphan node (no edges): {name}")]
-    OrphanNode { name: String },
 }
 
 /// Error returned when a cycle is detected during DAG validation.
@@ -66,6 +63,22 @@ struct DagNodeRecord {
 /// Nodes are registered via `add_node` and connected via `connect`.
 /// The `connect` method enforces at compile time that the output type
 /// of the source node matches the input type of the target node.
+///
+/// # Example
+///
+/// ```
+/// use vo_sdk::dag::Dag;
+/// use vo_sdk::node_handle::NodeHandle;
+/// use vo_sdk::graph::NodeKind;
+///
+/// let mut dag = Dag::new();
+/// let a: NodeHandle<(), i32> = dag.add_node_with_kind("a", NodeKind::Pure, |_input: ()| -> i32 { 42 }).unwrap();
+/// let b: NodeHandle<i32, i32> = dag.add_node_with_kind("b", NodeKind::ManagedEffect, |x: i32| -> i32 { x + 1 }).unwrap();
+/// dag.connect(&a, &b).unwrap();
+/// assert_eq!(dag.node_count(), 2);
+/// assert_eq!(dag.edge_count(), 1);
+/// assert_eq!(dag.edges(), vec![("a", "b")]);
+/// ```
 #[derive(Debug)]
 pub struct Dag {
     nodes: Vec<DagNodeRecord>,
@@ -154,6 +167,11 @@ impl Dag {
         from: &NodeHandle<impl Any, T>,
         to: &NodeHandle<T, impl Any>,
     ) -> Result<(), DagError> {
+        if from.name() == to.name() {
+            return Err(DagError::SelfLoop {
+                name: from.name().to_string(),
+            });
+        }
         let from_idx = self.find_index(from.name())?;
         let to_idx = self.find_index(to.name())?;
         self.edges.push((from_idx, to_idx));
@@ -251,25 +269,23 @@ impl Dag {
     ///
     /// Returns `DagError::EmptyWorkflow` if the DAG has no nodes.
     /// Returns `DagError::CycleDetected` if the DAG contains a cycle.
-    /// Returns `DagError::OrphanNode` if the DAG contains disconnected nodes.
     pub fn build(self, workflow_name: &str) -> Result<WorkflowSpec, DagError> {
         if self.nodes.is_empty() {
             return Err(DagError::EmptyWorkflow);
         }
 
+        // Cycle detection via Kahn's algorithm (topological sort).
+        // Failing test: dag_tests::build_detects_simple_cycle
         let n = self.nodes.len();
         let mut in_degree = vec![0u32; n];
-        let mut out_degree = vec![0u32; n];
-        for &(from, to) in &self.edges {
+        for &(_, to) in &self.edges {
             in_degree[to] += 1;
-            out_degree[from] += 1;
         }
-
         let mut queue: std::collections::VecDeque<usize> =
             (0..n).filter(|&i| in_degree[i] == 0).collect();
-        let mut visited = vec![false; n];
+        let mut visited = 0usize;
         while let Some(node) = queue.pop_front() {
-            visited[node] = true;
+            visited += 1;
             for &(_, to) in self.edges.iter().filter(|&&(_from, _)| _from == node) {
                 in_degree[to] -= 1;
                 if in_degree[to] == 0 {
@@ -277,32 +293,9 @@ impl Dag {
                 }
             }
         }
-        if visited.iter().any(|&v| !v) {
-            let mut orphan_nodes = Vec::new();
-            let mut cycle_nodes = Vec::new();
-            for i in 0..n {
-                if visited[i] {
-                    continue;
-                }
-                if in_degree[i] == 0 && out_degree[i] == 0 {
-                    orphan_nodes.push(self.nodes[i].name.as_str().to_string());
-                } else {
-                    cycle_nodes.push(self.nodes[i].name.as_str().to_string());
-                }
-            }
-            if !cycle_nodes.is_empty() {
-                let cycle_str = if cycle_nodes.len() == 1 {
-                    format!("{} -> {}", cycle_nodes[0], cycle_nodes[0])
-                } else {
-                    Self::find_cycle_nodes(&self.nodes, &self.edges)
-                };
-                return Err(DagError::CycleDetected { cycle: cycle_str });
-            }
-            if !orphan_nodes.is_empty() {
-                return Err(DagError::OrphanNode {
-                    name: orphan_nodes.join(", "),
-                });
-            }
+        if visited != n {
+            let cycle_nodes = Self::find_cycle_nodes(&self.nodes, &self.edges);
+            return Err(DagError::CycleDetected { cycle: cycle_nodes });
         }
 
         let wf_name =
@@ -316,8 +309,7 @@ impl Dag {
             .map(|n| NodeSpec {
                 name: n.name.clone(),
                 kind: n.kind,
-                retry_policy: crate::graph::default_retry_policy(),
-                signal_meta: n.signal_meta.clone(),
+                retry_policy: None,
             })
             .collect();
 
@@ -334,7 +326,6 @@ impl Dag {
             workflow_name: wf_name,
             nodes: node_specs,
             edges: edge_specs,
-            dedupe_scope: DedupeScope::default(),
             guarantee_class: GuaranteeClass::default(),
         })
     }
@@ -466,8 +457,87 @@ impl Default for Dag {
 
 /// Fluent builder for constructing workflows (ADR-004).
 ///
-/// # Example
+/// # Compile-tested Examples
 ///
+/// ## Basic Workflow with Pure and Effect Nodes
+///
+/// ```
+/// use vo_sdk::Workflow;
+///
+/// let mut wf = Workflow::new("checkout");
+/// let validate = wf.pure("validate", |input: String| -> bool {
+///     !input.is_empty()
+/// }).unwrap();
+/// let charge = wf.effect("charge", |input: bool| -> Result<String, String> {
+///     if input {
+///         Ok("charged".to_string())
+///     } else {
+///         Err("invalid".to_string())
+///     }
+/// }).unwrap();
+/// wf.connect(&validate, &charge).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.workflow_name.as_str(), "checkout");
+/// assert_eq!(spec.nodes.len(), 2);
+/// assert_eq!(spec.edges.len(), 1);
+/// ```
+///
+/// ## Workflow with Wait Node
+///
+/// ```
+/// use vo_sdk::Workflow;
+///
+/// let mut wf = Workflow::new("async-workflow");
+/// let fetch = wf.pure("fetch", |_input: ()| -> Vec<u8> {
+///     vec![1, 2, 3]
+/// }).unwrap();
+/// let process = wf.wait("process", |input: Vec<u8>| -> String {
+///     format!("processed {} bytes", input.len())
+/// }).unwrap();
+/// wf.connect(&fetch, &process).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.nodes.len(), 2);
+/// ```
+///
+/// ## Workflow with Signal Node
+///
+/// ```
+/// use vo_sdk::Workflow;
+/// use vo_sdk::graph::SignalNodeMeta;
+///
+/// let mut wf = Workflow::new("signal-flow");
+/// let trigger = wf.signal("trigger", |_input: ()| -> bool {
+///     true
+/// }).unwrap();
+/// let wait = wf.wait_with_meta(
+///     "wait",
+///     |_input: bool| -> String {
+///         "done".to_string()
+///     },
+///     SignalNodeMeta { signal_name: Some("external-event".to_string()), timeout_ms: Some(5000) },
+/// ).unwrap();
+/// wf.connect(&trigger, &wait).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.nodes.len(), 2);
+/// ```
+///
+/// ## Type-Safe Node Connections
+///
+/// The type parameters enforce that only compatible nodes can be connected:
+/// ```
+/// use vo_sdk::Workflow;
+///
+/// let mut wf = Workflow::new("typed-flow");
+/// let string_node = wf.pure("string_node", |_input: ()| -> String {
+///     "hello".to_string()
+/// }).unwrap();
+/// let len_node = wf.pure("len_node", |s: String| -> usize {
+///     s.len()
+/// }).unwrap();
+/// wf.connect(&string_node, &len_node).unwrap();
+/// let spec = wf.build().unwrap();
+/// assert_eq!(spec.edges[0].from.as_str(), "string_node");
+/// assert_eq!(spec.edges[0].to.as_str(), "len_node");
 /// ```
 /// use vo_sdk::{Workflow, dag::Dag};
 ///
@@ -642,7 +712,7 @@ impl Workflow {
         self.dag.connect(from, to)
     }
 
-    /// Build and return the validated [`WorkflowSpec`](crate::graph_args::WorkflowSpec).
+    /// Build and return the validated [`WorkflowSpec`].
     ///
     /// # Errors
     ///

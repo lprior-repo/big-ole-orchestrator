@@ -93,7 +93,7 @@ fn dur_001_write_10k_events_kill_restart_verify_all() {
 
         // Scan all events for this instance using prefix scan
         let id_bytes = id.to_bytes().unwrap();
-        for item in ks.prefix(&id_bytes) {
+        for item in ks.prefix(id_bytes) {
             let (_key, value) = item.into_inner().unwrap();
             let event: serde_json::Value = serde_json::from_slice(&value).unwrap();
             count += 1;

@@ -1,18 +1,17 @@
+use super::backpressure::BackpressureSignal;
+use super::queue::{BudgetQueues, BudgetQueuesError, QueueConfig, QueueStats};
+use super::write_class::{WriteBudget, WriteClass};
+use super::write_types::{AppendEntry, BlobWrite, ControlPlaneWrite, ProjectionWrite};
 use std::sync::{Arc, Mutex};
 
-use super::backpressure::BackpressureSignal;
-use super::budget::WriteBudget;
-use super::entries::{AppendEntry, BlobWrite, ControlPlaneWrite, ProjectionWrite};
-use super::queue::{BudgetQueuesError, QueueConfig, QueueStats};
-
 pub struct Appender {
-    queues: super::queue::BudgetQueues<AppendEntry>,
+    queues: BudgetQueues<AppendEntry>,
 }
 
 impl Appender {
     pub fn new(config: &QueueConfig, budget: WriteBudget) -> Self {
         Self {
-            queues: super::queue::BudgetQueues::new(config, budget),
+            queues: BudgetQueues::new(&config, budget),
         }
     }
 
@@ -44,17 +43,14 @@ impl Appender {
     }
 
     pub fn dequeue_critical(&self) -> Option<AppendEntry> {
-        self.queues
-            .dequeue(super::write_class::WriteClass::CriticalControlPlane)
+        self.queues.dequeue(WriteClass::CriticalControlPlane)
     }
 
     pub fn dequeue_projection(&self) -> Option<AppendEntry> {
-        self.queues
-            .dequeue(super::write_class::WriteClass::OperatorProjection)
+        self.queues.dequeue(WriteClass::OperatorProjection)
     }
 
     pub fn dequeue_blob(&self) -> Option<AppendEntry> {
-        self.queues
-            .dequeue(super::write_class::WriteClass::BulkBlob)
+        self.queues.dequeue(WriteClass::BulkBlob)
     }
 }

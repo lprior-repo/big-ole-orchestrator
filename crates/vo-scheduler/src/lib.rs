@@ -1,4 +1,8 @@
+pub mod api;
 pub mod error;
+pub mod metrics;
+pub mod queue;
+pub mod store;
 pub mod types;
 
 pub use job_store::FjallJobStore;
@@ -8,10 +12,7 @@ pub use scheduler::{
 };
 
 #[cfg(test)]
-mod job_tests;
-
-#[cfg(test)]
 mod queue_tests;
 
 #[cfg(test)]
-mod types_tests;
+mod retry_tests;

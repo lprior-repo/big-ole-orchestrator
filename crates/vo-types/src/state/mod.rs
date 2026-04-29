@@ -8,12 +8,6 @@ mod lifecycle;
 mod semantic_types;
 mod transition;
 
-pub use compiler::{
-    allows_recovery, create_lifecycle_table, CompilerTransitionError, Guard, GuardFn, GuardResult,
-    is_valid_transition, SideEffect, SideEffectFn, SideEffectResult, TransitionBuilder,
-    TransitionRule, TransitionTable, TransitionTableBuilder,
-};
-
 pub use lifecycle::{BlockedReason, LifecycleState, OperationalStatus, TransitionEvent};
 pub use semantic_types::{AttemptNumber, InstanceState, NodeName, TimerId};
 pub use transition::{
@@ -39,4 +33,7 @@ mod tests_lease;
 mod tests_proptest;
 
 #[cfg(test)]
-mod tests_bdd_lifecycle;
+mod tests_integration_paths;
+
+#[cfg(feature = "proptest")]
+mod tests_properties;

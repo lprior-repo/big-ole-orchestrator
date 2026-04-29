@@ -32,18 +32,34 @@
 //! exactly once even across system failures.
 
 pub mod admission;
-pub mod calc;
+pub mod atomic_transition_committer;
 pub mod circuit_breaker;
+pub mod command_dedup;
 pub mod compensation_order;
 pub mod config_hot_reload;
 pub mod connector;
+pub mod db_writer_actor;
 pub mod db_writer_message;
 pub mod debounce;
 pub mod effects;
 pub mod exact_once_verification;
-pub mod execution;
+pub mod ghost_workflow;
+pub mod lease_calc;
+pub mod lineage_projection;
+pub mod storage_watchdog;
+pub mod transaction;
+
+pub use exact_once_verification::assertions::{
+    assert_fence_token_ordering, assert_invariant_no_orphans, assert_no_duplicate_effects,
+    RecoveryAssertion, RecoveryAssertionError, RecoveryContext,
+};
+pub use exact_once_verification::crash_points::{CrashPoint, CrashPosition, CrashScenario};
+pub use exact_once_verification::harness::{
+    LineageRolloverEvent, LineageRoutingState, VerificationHarness,
+};
+pub use exact_once_verification::macros::CrashError;
 pub mod quadtree;
-pub mod recovery;
+pub mod red_black_tree;
 pub mod replay;
 pub mod resource_quota;
 pub mod scheduler;
@@ -56,16 +72,18 @@ pub mod validation;
 pub mod vault;
 pub mod workflow_definition_hot_reload;
 pub mod workflow_version;
+pub mod workload_budget;
 pub mod workload_class;
 pub mod workspace_swap;
 pub mod write_class;
 
+pub use command_dedup::{
+    check_command_duplicate, dedupe_key_from_envelope, is_command_duplicate, CommandDedupError,
+    CommandDedupResult,
+};
 pub use validation::{
-    validate_dedupe_policy, validate_effect_kinds, validate_managed_effect_sinks,
-    validate_no_unsafe_in_exact_workflow, validate_unsafe_nodes, validate_workflow_effects,
-    validate_workflow_sinks, DedupePolicyError, KnownSinks, UnsafeNodeInExactWorkflow,
-    UnsafePublishError, UnsupportedConnectorSink, UnsupportedSinkError, WorkflowPublishSpec,
-    WorkflowSinkValidator,
+    validate_effect_kinds, validate_workflow_effects, validate_workflow_sinks, KnownSinks,
+    UnsupportedSinkError, WorkflowSinkValidator,
 };
 
 #[cfg(kani)]
@@ -74,4 +92,4 @@ pub mod shedding_verification;
 pub mod write_class_verification;
 
 #[cfg(test)]
-mod invalid_business_data_tests;
+mod invalid_business_data;

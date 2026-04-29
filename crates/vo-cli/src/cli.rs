@@ -5,7 +5,7 @@ pub enum CliError {
     #[error("{0}")]
     Clap(#[from] clap::Error),
     #[error(transparent)]
-    Purge(#[from] PurgeError),
+    Purge(#[from] crate::commands::purge::PurgeError),
     #[error("invalid numeric: {0}")]
     InvalidNumeric(String),
     #[error("dispatch error: {0}")]
@@ -25,11 +25,11 @@ pub enum CliError {
     #[error(transparent)]
     Rebuild(#[from] crate::commands::rebuild::RebuildError),
     #[error(transparent)]
-    Status(#[from] crate::commands::status::StatusError),
-    #[error(transparent)]
     Serve(#[from] crate::commands::serve::ServeError),
     #[error(transparent)]
-    History(#[from] crate::commands::history::HistoryError),
+    Status(#[from] crate::commands::status::StatusError),
+    #[error(transparent)]
+    Workspace(#[from] crate::commands::workspace::WorkspaceError),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -37,7 +37,6 @@ pub enum Command {
     Purge {
         instance: String,
         storage_path: PathBuf,
-        dry_run: bool,
     },
     Check {
         workflow: bool,
@@ -50,6 +49,7 @@ pub enum Command {
     },
     Gc {
         engine_url: String,
+        versions_dir: PathBuf,
         dry_run: bool,
     },
     Init {
@@ -90,6 +90,17 @@ pub enum Command {
         storage_path: PathBuf,
         canonical: bool,
     },
+    Workspace {
+        action: WorkspaceAction,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum WorkspaceAction {
+    List,
+    Create { name: String },
+    Delete { id: String },
+    Show { id: String },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -109,10 +120,8 @@ where
     let cmd = clap::Command::new("vo")
         .version("0.1.0")
         .subcommand_required(true)
-        .arg_required_else_help(true)
         .subcommand(
             clap::Command::new("purge")
-                .about("Purge all data for a terminated workflow instance (ADR-025)")
                 .arg(
                     clap::Arg::new("instance")
                         .long("instance")
@@ -123,14 +132,8 @@ where
                 .arg(
                     clap::Arg::new("storage-path")
                         .long("storage-path")
-                        .env("VO_STORAGE_PATH")
-                        .default_value(".vo/storage"),
-                )
-                .arg(
-                    clap::Arg::new("dry-run")
-                        .long("dry-run")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Show what would be purged without deleting"),
+                        .default_value(".vo/storage")
+                        .help("Storage path for fjall database"),
                 ),
         )
         .subcommand(
@@ -150,7 +153,13 @@ where
                     clap::Arg::new("workflow-id")
                         .required(true)
                         .index(1)
-                        .help("The workflow instance ID to compensate"),
+                        .help("The workflow instance ID to compensate")
+                        .value_parser(|s: &str| {
+                            if s.is_empty() {
+                                return Err(clap::Error::new(clap::error::ErrorKind::InvalidValue));
+                            }
+                            Ok(s.to_string())
+                        }),
                 )
                 .arg(
                     clap::Arg::new("engine-url")
@@ -174,6 +183,12 @@ where
                         .action(clap::ArgAction::Set)
                         .env("VO_ENGINE_URL")
                         .default_value("http://localhost:3000"),
+                )
+                .arg(
+                    clap::Arg::new("versions-dir")
+                        .long("versions-dir")
+                        .default_value(".vo/versions")
+                        .help("Versions directory to garbage collect"),
                 )
                 .arg(
                     clap::Arg::new("dry-run")
@@ -264,154 +279,38 @@ where
                 ),
         )
         .subcommand(
-            clap::Command::new("hardline")
-                .about("Execute hardline command")
-                .arg(
-                    clap::Arg::new("target")
-                        .required(true)
-                        .index(1)
-                        .help("Target identifier"),
-                )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .action(clap::ArgAction::Set)
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
-                )
-                .arg(
-                    clap::Arg::new("timeout")
-                        .long("timeout")
-                        .value_name("SECONDS")
-                        .default_value("60")
-                        .help("Timeout in seconds"),
-                )
-                .arg(
-                    clap::Arg::new("force")
-                        .long("force")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Skip confirmation"),
-                )
-                .arg(
-                    clap::Arg::new("dry-run")
-                        .long("dry-run")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Dry run mode"),
-                ),
-        )
-       .subcommand(
-            clap::Command::new("history")
-                .about("Show workflow instance history (ADR-008, ADR-025)")
-                .arg(
-                    clap::Arg::new("instance")
-                        .required(true)
-                        .index(1)
-                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
-                )
-                .arg(
-                    clap::Arg::new("engine-url")
-                        .long("engine-url")
-                        .env("VO_ENGINE_URL")
-                        .default_value("http://localhost:3000")
-                        .help("Engine URL"),
-                )
-                .arg(
-                    clap::Arg::new("json")
-                        .long("json")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Output redacted workflow history as stable JSON (operator projection)"),
-                )
-                .arg(
-                    clap::Arg::new("canonical")
-                        .long("canonical")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Output canonical encrypted state for deep forensic inspection (privileged)"),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("execute-node")
-                .about("Execute a single workflow node outside the full engine for standalone testing")
-                .arg(
-                    clap::Arg::new("binary-path")
-                        .required(true)
-                        .index(1)
-                        .help("Path to the workflow binary to execute"),
-                )
-                .arg(
-                    clap::Arg::new("node-name")
-                        .required(true)
-                        .index(2)
-                        .help("Name of the node to execute within the workflow"),
-                )
-                .arg(
-                    clap::Arg::new("input")
-                        .long("input")
-                        .value_name("DATA")
-                        .help("Input data to pass to the node via FD3 (reads from stdin if not provided)"),
-                )
-                .arg(
-                    clap::Arg::new("timeout")
-                        .long("timeout")
-                        .value_name("SECONDS")
-                        .default_value("30")
-                        .help("Timeout in seconds for node execution"),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("apikey")
-                .about("Manage API keys for authentication")
+            clap::Command::new("workspace")
+                .about("Manage workspaces")
+                .subcommand(clap::Command::new("list").about("List all workspaces"))
                 .subcommand(
                     clap::Command::new("create")
-                        .about("Create a new API key")
+                        .about("Create a new workspace")
                         .arg(
                             clap::Arg::new("name")
                                 .required(true)
                                 .index(1)
-                                .help("Human-readable name for the API key"),
-                        )
-                        .arg(
-                            clap::Arg::new("expires-in-days")
-                                .long("expires-in-days")
-                                .value_name("DAYS")
-                                .help("Number of days until the key expires (optional)"),
+                                .help("Workspace name"),
                         ),
                 )
                 .subcommand(
-                    clap::Command::new("list")
-                        .about("List all API keys"),
-                )
-                .subcommand(
-                    clap::Command::new("revoke")
-                        .about("Revoke an API key")
+                    clap::Command::new("delete")
+                        .about("Delete a workspace")
                         .arg(
-                            clap::Arg::new("key-id")
+                            clap::Arg::new("id")
                                 .required(true)
                                 .index(1)
-                                .help("The ID of the API key to revoke"),
+                                .help("Workspace ID"),
                         ),
-                ),
-        )
-        .subcommand(
-            clap::Command::new("history")
-                .about("Query workflow instance history (AI-native JSON output)")
-                .arg(
-                    clap::Arg::new("instance")
-                        .required(true)
-                        .index(1)
-                        .help("Workflow instance ID (e.g., namespace/01ARZ3NDEKTSV4RRFFQ69G5FAV)"),
                 )
-                .arg(
-                    clap::Arg::new("storage-path")
-                        .long("storage-path")
-                        .default_value(".vo/storage")
-                        .help("Path to Fjall storage directory"),
-                )
-                .arg(
-                    clap::Arg::new("canonical")
-                        .long("canonical")
-                        .action(clap::ArgAction::SetTrue)
-                        .help("Show canonical (unredacted) payloads for forensic inspection"),
+                .subcommand(
+                    clap::Command::new("show")
+                        .about("Show workspace details")
+                        .arg(
+                            clap::Arg::new("id")
+                                .required(true)
+                                .index(1)
+                                .help("Workspace ID"),
+                        ),
                 ),
         );
 
@@ -427,12 +326,10 @@ where
                 .get_one::<String>("storage-path")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| PathBuf::from(".vo/storage"));
-            let dry_run = purge_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Purge {
                     instance,
                     storage_path,
-                    dry_run,
                 },
             })
         }
@@ -477,10 +374,15 @@ where
                 Some(u) => u.clone(),
                 None => "http://localhost:3000".to_string(),
             };
+            let versions_dir = sub_matches
+                .get_one::<String>("versions-dir")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(".vo/versions"));
             let dry_run = sub_matches.get_flag("dry-run");
             Ok(Cli {
                 command: Command::Gc {
                     engine_url,
+                    versions_dir,
                     dry_run,
                 },
             })
@@ -627,6 +529,47 @@ where
                 },
             })
         }
+        Some(("workspace", sub_matches)) => match sub_matches.subcommand() {
+            Some(("list", _)) => Ok(Cli {
+                command: Command::Workspace {
+                    action: WorkspaceAction::List,
+                },
+            }),
+            Some(("create", create_matches)) => {
+                let name = create_matches
+                    .get_one::<String>("name")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Create { name },
+                    },
+                })
+            }
+            Some(("delete", delete_matches)) => {
+                let id = delete_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Delete { id },
+                    },
+                })
+            }
+            Some(("show", show_matches)) => {
+                let id = show_matches
+                    .get_one::<String>("id")
+                    .cloned()
+                    .unwrap_or_default();
+                Ok(Cli {
+                    command: Command::Workspace {
+                        action: WorkspaceAction::Show { id },
+                    },
+                })
+            }
+            _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
+        },
         _ => Err(clap::Error::new(clap::error::ErrorKind::InvalidSubcommand)),
     }
 }
@@ -635,9 +578,7 @@ where
 pub fn map_error_to_exit_code(err: &CliError) -> i32 {
     match err {
         CliError::Clap(e) => match e.kind() {
-            clap::error::ErrorKind::DisplayHelp
-            | clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
-            | clap::error::ErrorKind::DisplayVersion => 0,
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion => 0,
             _ => 2,
         },
         CliError::Dispatch(_)
@@ -649,9 +590,9 @@ pub fn map_error_to_exit_code(err: &CliError) -> i32 {
         | CliError::Lock(_)
         | CliError::Doctor(_)
         | CliError::Rebuild(_)
-        | CliError::Status(_)
         | CliError::Serve(_)
-        | CliError::History(_) => 1,
+        | CliError::Status(_)
+        | CliError::Workspace(_) => 1,
         CliError::InvalidNumeric(_) => 2,
     }
 }
@@ -675,7 +616,6 @@ mod tests {
             Command::Purge {
                 instance: "123".to_string(),
                 storage_path: PathBuf::from(".vo/storage"),
-                dry_run: false,
             }
         );
     }

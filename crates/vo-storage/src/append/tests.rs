@@ -81,7 +81,7 @@ fn append_entry_classification() {
         metadata: EventMetadata::default(),
     };
 
-    let cp_write = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+    let cp_write = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));
     assert_eq!(cp_write.write_class(), WriteClass::CriticalControlPlane);
 
     let proj_write = AppendEntry::Projection(ProjectionWrite::new("proj-1".to_string(), 200));
@@ -94,7 +94,7 @@ fn append_entry_classification() {
 #[test]
 fn appender_queues_control_plane_write() {
     let config = QueueConfig::default();
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let appender = Appender::new(&config, budget);
 
     let event = EventEnvelope {
@@ -141,7 +141,7 @@ fn appender_rejects_when_queue_full() {
         projection_capacity: 1,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let appender = Appender::new(&config, budget);
 
     let event = EventEnvelope {
@@ -164,7 +164,7 @@ fn appender_rejects_when_queue_full() {
 #[test]
 fn appender_dequeue_returns_queued_items() {
     let config = QueueConfig::default();
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let appender = Appender::new(&config, budget);
 
     let event = EventEnvelope {
@@ -283,7 +283,7 @@ fn budget_queues_emits_backpressure_on_full() {
         projection_capacity: 1,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let queues = super::queue::BudgetQueues::new(&config, budget);
 
     let event = EventEnvelope {
@@ -316,7 +316,7 @@ fn budget_queues_clears_backpressure_on_dequeue() {
         projection_capacity: 1,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let queues = super::queue::BudgetQueues::new(&config, budget);
 
     let event = EventEnvelope {
@@ -331,7 +331,7 @@ fn budget_queues_clears_backpressure_on_dequeue() {
     let write1 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
     assert!(queues.try_enqueue(&write1).is_ok());
 
-    let write2 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event.clone(), 100));
+    let write2 = AppendEntry::ControlPlane(ControlPlaneWrite::new(event, 100));
     assert!(matches!(
         queues.try_enqueue(&write2),
         Err(BudgetQueuesError::QueueFull { .. })
@@ -351,7 +351,7 @@ fn budget_queues_clears_backpressure_on_dequeue() {
 #[test]
 fn dequeue_prioritized_returns_critical_first() {
     let config = QueueConfig::default();
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let queues = super::queue::BudgetQueues::new(&config, budget);
 
     let event = EventEnvelope {
@@ -377,8 +377,7 @@ fn dequeue_prioritized_returns_critical_first() {
         .unwrap();
     queues
         .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
-            event.clone(),
-            100,
+            event, 100,
         )))
         .unwrap();
 
@@ -397,7 +396,7 @@ fn dequeue_prioritized_returns_critical_first() {
 #[test]
 fn dequeue_prioritized_skips_empty_queues() {
     let config = QueueConfig::default();
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let queues = super::queue::BudgetQueues::new(&config, budget);
 
     queues
@@ -427,7 +426,7 @@ fn appender_backpressure_signal_integrated() {
         projection_capacity: 1,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let appender = Appender::new(&config, budget);
 
     let signal = appender.backpressure().clone();
@@ -461,7 +460,7 @@ fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is
         projection_capacity: 512,
         blob_capacity: 2,
     };
-    let budget = WriteBudget::new(100000, 100000, 100000);
+    let budget = WriteBudget::new(100_000, 100_000, 100_000);
     let appender = Appender::new(&config, budget);
 
     let event = EventEnvelope {
@@ -491,7 +490,7 @@ fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is
     );
 
     // When: critical control-plane write arrives
-    let critical_write = ControlPlaneWrite::new(event.clone(), 100);
+    let critical_write = ControlPlaneWrite::new(event, 100);
     let result = appender.append_control_plane(critical_write);
 
     // Then: critical write is accepted (not starved by blob backlog)
@@ -528,7 +527,7 @@ fn given_blob_queue_saturated_when_critical_write_arrives_then_critical_write_is
         projection_capacity: 512,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(100000, 100000, 100000);
+    let budget = WriteBudget::new(100_000, 100_000, 100_000);
     let queues = super::queue::BudgetQueues::new(&config, budget);
 
     let event = EventEnvelope {
@@ -598,7 +597,7 @@ fn metrics_queue_depth_and_rejection_emitted() {
         projection_capacity: 1,
         blob_capacity: 1,
     };
-    let budget = WriteBudget::new(10000, 10000, 10000);
+    let budget = WriteBudget::new(10_000, 10_000, 10_000);
     let queues = super::queue::BudgetQueues::<AppendEntry>::new(&config, budget);
 
     queues

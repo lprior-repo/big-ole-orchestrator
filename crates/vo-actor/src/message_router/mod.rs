@@ -30,8 +30,8 @@ pub mod dlq;
 pub use actions::MessageRouter;
 pub use calc::RouteError;
 pub use data::{
-    ActorDestination, ChannelEntry, ChannelId, MessageMetadata, RouterConfig, RoutingDestination,
-    TimestampMs, TypedMessage,
+    ActorDestination, ChannelEntry, ChannelId, MessageMetadata, MessageSink, RouterConfig,
+    RouterEnvelope, RoutingDestination, TimestampMs, TypedMessage,
 };
 pub use dlq::{DeadLetterEntry, DeadLetterMessage, DeadLetterQueue, DeadLetterReason};
 
@@ -45,7 +45,7 @@ mod tests {
     }
 
     fn test_destination() -> ActorDestination {
-        ActorDestination::new(String::from("test-actor"))
+        ActorDestination::test()
     }
 
     #[test]

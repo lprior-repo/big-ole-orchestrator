@@ -131,7 +131,7 @@ mod tests {
             make_name("test-workflow"),
             make_hash(),
             1,
-            make_ts(1712200000000u64),
+            make_ts(1_712_200_000_000u64),
             "/var/wtf/versions/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/test-workflow".to_string(),
         ).unwrap()
     }
@@ -263,7 +263,7 @@ mod tests {
             make_hash(),
             1,
             make_ts(1000),
-            "".to_string(),
+            String::new(),
         );
         assert!(result.is_err());
     }

@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
+use std::hint::black_box;
 use vo_storage::instance_index::{decode_instance_index_key, encode_instance_index_key};
 use vo_storage::key_encoding::{
     decode_dedupe_key, decode_effect_key, decode_event_key, decode_instance_id, decode_lease_key,

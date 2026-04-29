@@ -1,1 +1,0 @@
-Consume TaskResult outcomes, append deterministic completion or failure events, and transition actor lifecycle without mixing in retry policy concerns.

@@ -7,7 +7,7 @@ use vo_types::InstanceId;
 use super::{Receipt, ReceiptStore, ReceiptStoreError, RECEIPTS_PARTITION};
 
 pub struct FjallReceiptStore {
-    _partition: Arc<fjall::PartitionHandle>,
+    _partition: Arc<fjall::Keyspace>,
 }
 
 impl std::fmt::Debug for FjallReceiptStore {
@@ -17,9 +17,9 @@ impl std::fmt::Debug for FjallReceiptStore {
 }
 
 impl FjallReceiptStore {
-    pub fn open(keyspace: &fjall::Keyspace) -> Result<Self, ReceiptStoreError> {
-        let partition = keyspace
-            .open_partition(RECEIPTS_PARTITION, fjall::PartitionCreateOptions::default())
+    pub fn open(db: &fjall::Database) -> Result<Self, ReceiptStoreError> {
+        let _partition = db
+            .keyspace(RECEIPTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| ReceiptStoreError::Storage {
                 reason: format!("failed to open receipts partition: {e}"),
             })?;

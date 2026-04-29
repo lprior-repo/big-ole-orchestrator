@@ -75,7 +75,7 @@ proptest! {
         prop_assert!(is_written, "guard must always be set");
         if result.is_ok() {
             let written: serde_json::Value =
-                serde_json::from_slice(&buf).expect("should be valid JSON");
+                serde_json::from_slice(&buf[4..]).expect("should be valid JSON");
             prop_assert_eq!(written["status"].as_str(), Some("success"));
         }
     }
@@ -94,7 +94,7 @@ proptest! {
         if message.len() <= 1024 {
             prop_assert!(result.is_ok(), "messages <= 1024 bytes should succeed");
             let written: serde_json::Value =
-                serde_json::from_slice(&buf).expect("should be valid JSON");
+                serde_json::from_slice(&buf[4..]).expect("should be valid JSON");
             prop_assert_eq!(written["status"].as_str(), Some("failure"));
         } else {
             prop_assert_eq!(result, Err(SdkError::InvalidInput));
@@ -112,7 +112,7 @@ proptest! {
         let mut is_written = false;
         write_failure_inner(&mut buf, kind, "msg", &mut is_written).unwrap();
         let written: serde_json::Value =
-            serde_json::from_slice(&buf).expect("valid JSON");
+            serde_json::from_slice(&buf[4..]).expect("valid JSON");
         prop_assert_eq!(written["status"].as_str(), Some("failure"));
         prop_assert_eq!(written["kind"].as_str(), Some(kind.as_str()));
     }

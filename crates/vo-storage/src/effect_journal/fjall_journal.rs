@@ -5,7 +5,9 @@ use std::sync::Arc;
 use vo_types::EffectIntent;
 use vo_types::{EffectRecord, InstanceId};
 
-use super::{EffectId, EffectJournal, EffectJournalError, EFFECTS_PARTITION};
+use super::{
+    get_effect_key_prefix, EffectId, EffectJournal, EffectJournalError, EFFECTS_PARTITION,
+};
 
 pub struct FjallEffectJournal {
     partition: Arc<fjall::Keyspace>,
@@ -139,8 +141,7 @@ impl EffectJournal for FjallEffectJournal {
         &self,
         instance_id: &InstanceId,
     ) -> Result<Vec<EffectRecord>, EffectJournalError> {
-        let prefix = format!("{instance_id}::");
-        let prefix_bytes = prefix.as_bytes();
+        let prefix_bytes = get_effect_key_prefix(instance_id);
         let mut results = Vec::new();
 
         let iter = self.partition.iter();
@@ -150,7 +151,7 @@ impl EffectJournal for FjallEffectJournal {
                     reason: e.to_string(),
                 })?;
 
-            if !key_bytes.starts_with(prefix_bytes) {
+            if !key_bytes.starts_with(&prefix_bytes) {
                 continue;
             }
 

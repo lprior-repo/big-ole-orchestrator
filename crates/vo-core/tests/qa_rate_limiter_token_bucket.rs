@@ -31,7 +31,11 @@ fn make_request(workflow: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(workflow),
         binary_hash: make_hash("abcdef01"),
-        force,
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -39,7 +43,11 @@ fn make_request_with_hash(workflow: &str, hash: &str, force: bool) -> Registrati
     RegistrationRequest {
         workflow_name: make_wf(workflow),
         binary_hash: make_hash(hash),
-        force,
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -346,6 +354,7 @@ fn qa_cr007_force_bypasses_quarantine() {
 
     state.set_status(wf, RegistrationStatus::Quarantined);
 
+    state.register_operator_token("test-operator-token".into());
     let req = make_request("blocked-wf", true);
     let result = evaluate_registration(&req, &config, &state, Instant::now()).unwrap();
     assert_eq!(
@@ -363,6 +372,7 @@ fn qa_cr007_force_bypasses_deactivated() {
 
     state.set_status(wf, RegistrationStatus::Deactivated);
 
+    state.register_operator_token("test-operator-token".into());
     let req = make_request("dead-wf", true);
     let result = evaluate_registration(&req, &config, &state, Instant::now()).unwrap();
     assert_eq!(
@@ -380,6 +390,7 @@ fn qa_cr007_force_bypasses_rate_limit() {
 
     state.set_rate_limit(wf, Instant::now());
 
+    state.register_operator_token("test-operator-token".into());
     let req = make_request("limited-wf", true);
     let result = evaluate_registration(&req, &config, &state, Instant::now()).unwrap();
     assert_eq!(
@@ -437,6 +448,7 @@ fn qa_cr007_full_ordering_force_wins_over_all() {
     state.set_status(wf.clone(), RegistrationStatus::Quarantined);
     state.set_rate_limit(wf, t0);
 
+    state.register_operator_token("test-operator-token".into());
     let req = make_request("triple-wf", true);
     let result = evaluate_registration(&req, &config, &state, t0).unwrap();
     assert_eq!(

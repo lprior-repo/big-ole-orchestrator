@@ -1,13 +1,21 @@
-//! Event replay query engine — Data → Calc → Actions layering.
+//! Event replay query engine — pure key/encode/decode functions + stateful iterator.
 //!
-//! Lineage-aware query routing (ADR-038, ADR-042): [`LineageQuery`] supports
-//! instance-id, lineage-wide, and epoch-specific range scans.
+//! Architecture: Data (`StorageError`, `IteratorState`) → Calc (`encode_key`, `decode_key`,
+//! `prefix_generator`, `error_mapper`) → Actions (`EventReplayIterator`, `replay_events`).
+//!
+//! ## Lineage-Aware Query Routing (ADR-038, ADR-042)
+//!
+//! Workflows may perform continue-as-new, creating new execution epochs while maintaining
+//! a stable lineage_id. Lineage-aware query routing enables:
+//!
+//! - **Lineage-wide queries**: Retrieve all events across all epochs of a lineage
+//! - **Epoch-specific queries**: Retrieve events for a specific epoch within a lineage
+//!
+//! The routing is determined by [`LineageQuery`] which specifies whether to query
+//! by instance_id directly, or by lineage_id (+ optional epoch).
 
 pub use crate::codec::StorageError;
 use vo_types::{Epoch, EventEnvelope, EventError, InstanceId};
-
-pub mod lineage;
-pub mod optimizer;
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +33,8 @@ pub enum LineageQuery<'a> {
 
 /// Encode a sequence number as big-endian bytes.
 ///
+/// # Errors
+///
 /// Returns `StorageError::InvalidArgument` if `sequence` is zero.
 #[must_use = "encode_key performs a pure encoding computation"]
 pub const fn encode_key(sequence: u64) -> Result<[u8; 8], StorageError> {
@@ -35,6 +45,8 @@ pub const fn encode_key(sequence: u64) -> Result<[u8; 8], StorageError> {
 }
 
 /// Decode a big-endian 8-byte slice into a sequence number.
+///
+/// # Errors
 ///
 /// Returns `StorageError::Storage` if the slice is not exactly 8 bytes.
 /// Returns `StorageError::InvalidArgument` if the slice decodes to zero.
@@ -48,7 +60,14 @@ pub fn decode_key(bytes: &[u8]) -> Result<u64, StorageError> {
 }
 
 /// Produce the prefix bytes for range-scanning a given instance.
-/// Returns `StorageError::InvalidArgument` if the instance ID exceeds 255 bytes or contains null bytes.
+///
+/// Accepts the domain `InstanceId` type directly — callers should not
+/// pre-extract the string representation.
+///
+/// # Errors
+///
+/// Returns `StorageError::InvalidArgument` if the instance ID exceeds 255 bytes.
+/// Returns `StorageError::InvalidArgument` if the instance ID contains null bytes.
 pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageError> {
     let id_str = instance_id.as_str();
     if id_str.len() > 255 {
@@ -63,8 +82,6 @@ pub fn prefix_generator(instance_id: &InstanceId) -> Result<Vec<u8>, StorageErro
 pub const LINEAGE_ID_NULL_BYTE: u8 = 0xFF;
 pub const LINEAGE_ID_MAX_LEN: usize = 255;
 
-/// Produce the lineage prefix bytes for range-scanning.
-/// Returns `StorageError::InvalidArgument` if the lineage ID is empty, too long, or contains null bytes.
 pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageError> {
     if lineage_id.is_empty() {
         return Err(StorageError::InvalidArgument);
@@ -82,19 +99,15 @@ pub fn lineage_prefix_generator(lineage_id: &str) -> Result<Vec<u8>, StorageErro
     Ok(prefix)
 }
 
-/// Produce the epoch-specific prefix bytes for range-scanning.
-/// Returns `StorageError::InvalidArgument` if the lineage ID is invalid.
 pub fn epoch_prefix_generator(lineage_id: &str, epoch: Epoch) -> Result<Vec<u8>, StorageError> {
     let lineage_prefix = lineage_prefix_generator(lineage_id)?;
-    let epoch_bytes = epoch.get().to_be_bytes();
+    let epoch_bytes = epoch.value().to_be_bytes();
     let mut prefix = lineage_prefix;
     prefix.extend_from_slice(&epoch_bytes);
     Ok(prefix)
 }
 
-impl LineageQuery<'_> {
-    /// Converts this query into a prefix byte vector for range scanning.
-    /// Returns `StorageError::InvalidArgument` if any component is invalid.
+impl<'a> LineageQuery<'a> {
     pub fn to_prefix(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             LineageQuery::InstanceId(instance_id) => prefix_generator(instance_id),
@@ -107,7 +120,21 @@ impl LineageQuery<'_> {
 }
 
 /// Map an envelope decode error into the storage-layer replay taxonomy.
-/// Intentionally collapses errors: `UnsupportedVersion` for version mismatches, `CorruptEventPayload` otherwise.
+///
+/// ## Why this intentionally collapses errors
+///
+/// `replay_events` is a storage-boundary API. Its responsibility is to:
+/// - read bytes from storage,
+/// - recover an `EventEnvelope`, and
+/// - stop replay when storage ordering or envelope validity is violated.
+///
+/// At this layer we intentionally do **not** preserve every fine-grained
+/// `EventError` variant. For replay callers, the actionable distinction is:
+/// - `UnsupportedVersion`: the envelope is well-formed but from an unsupported version.
+/// - `CorruptEventPayload`: the stored envelope bytes are malformed or incomplete.
+///
+/// This keeps the replay API stable while still distinguishing the only versioning
+/// concern that callers can reasonably react to differently.
 #[must_use]
 pub const fn error_mapper(error: &EventError) -> StorageError {
     match error {
@@ -115,6 +142,10 @@ pub const fn error_mapper(error: &EventError) -> StorageError {
         _ => StorageError::CorruptEventPayload,
     }
 }
+
+// ---------------------------------------------------------------------------
+// Data layer — iterator state machine
+// ---------------------------------------------------------------------------
 
 pub struct IteratorState {
     expected: Option<u64>,
@@ -160,6 +191,10 @@ impl IteratorState {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Actions layer — iterator + constructor
+// ---------------------------------------------------------------------------
+
 pub struct EventReplayIterator {
     state: IteratorState,
     inner: Option<Box<dyn DoubleEndedIterator<Item = fjall::Guard>>>,
@@ -193,11 +228,13 @@ impl Iterator for EventReplayIterator {
 }
 
 impl EventReplayIterator {
-    pub(crate) fn error(err: StorageError) -> Self {
+    /// Create an iterator that immediately returns an error.
+    #[must_use]
+    pub fn error(error: StorageError) -> Self {
         Self {
             state: IteratorState::new(),
             inner: None,
-            init_error: Some(err),
+            init_error: Some(error),
         }
     }
 
@@ -250,33 +287,142 @@ impl EventReplayIterator {
 }
 
 #[must_use]
-pub fn replay_events_by_prefix(keyspace: &fjall::Database, prefix: Vec<u8>) -> EventReplayIterator {
-    let Ok(partition) = keyspace.keyspace("events", fjall::KeyspaceCreateOptions::default) else {
-        return EventReplayIterator::error(StorageError::Storage);
+pub fn replay_events(db: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
+    let prefix = match prefix_generator(instance_id) {
+        Ok(p) => p,
+        Err(e) => {
+            return EventReplayIterator {
+                state: IteratorState::new(),
+                inner: None,
+                init_error: Some(e),
+            };
+        }
+    };
+    let Ok(partition) = db.keyspace("events", || fjall::KeyspaceCreateOptions::default()) else {
+        return EventReplayIterator {
+            state: IteratorState::new(),
+            inner: None,
+            init_error: Some(StorageError::Storage),
+        };
     };
     let Ok(min_seq) = encode_key(1) else {
-        return EventReplayIterator::error(StorageError::Storage);
+        return EventReplayIterator {
+            state: IteratorState::new(),
+            inner: None,
+            init_error: Some(StorageError::Storage),
+        };
     };
     let Ok(max_seq) = encode_key(u64::MAX) else {
-        return EventReplayIterator::error(StorageError::Storage);
+        return EventReplayIterator {
+            state: IteratorState::new(),
+            inner: None,
+            init_error: Some(StorageError::Storage),
+        };
     };
     let mut start = prefix.clone();
     start.extend_from_slice(&min_seq);
     let mut end = prefix;
     end.extend_from_slice(&max_seq);
+    let iter = partition.range(start..=end);
     EventReplayIterator {
         state: IteratorState::new(),
-        inner: Some(Box::new(partition.range(start..=end))),
+        inner: Some(Box::new(iter)),
         init_error: None,
     }
 }
 
+/// Replay events using a pre-computed prefix key.
+///
+/// This is used by `vo_storage::event_log` to replay namespaced event streams.
 #[must_use]
-pub fn replay_events(keyspace: &fjall::Database, instance_id: &InstanceId) -> EventReplayIterator {
-    match prefix_generator(instance_id) {
-        Ok(prefix) => replay_events_by_prefix(keyspace, prefix),
-        Err(e) => EventReplayIterator::error(e),
+pub fn replay_events_by_prefix(db: &fjall::Database, prefix: Vec<u8>) -> EventReplayIterator {
+    let partition = match db.keyspace("events", || fjall::KeyspaceCreateOptions::default()) {
+        Ok(p) => p,
+        Err(e) => {
+            return EventReplayIterator::error(e.into());
+        }
+    };
+    let min_seq = match encode_key(1) {
+        Ok(s) => s,
+        Err(e) => {
+            return EventReplayIterator::error(e);
+        }
+    };
+    let max_seq = match encode_key(u64::MAX) {
+        Ok(s) => s,
+        Err(e) => {
+            return EventReplayIterator::error(e);
+        }
+    };
+    let mut start = prefix.clone();
+    start.extend_from_slice(&min_seq);
+    let mut end = prefix;
+    end.extend_from_slice(&max_seq);
+    let iter = partition.range(start..=end);
+    EventReplayIterator {
+        state: IteratorState::new(),
+        inner: Some(Box::new(iter)),
+        init_error: None,
     }
 }
 
-pub use lineage::{replay_events_for_lineage, LineageReplayIterator};
+#[allow(dead_code)]
+pub struct LineageReplayIterator {
+    instance_iter: Option<EventReplayIterator>,
+    lineage_id: Option<String>,
+    epoch: Option<Epoch>,
+}
+
+impl Iterator for LineageReplayIterator {
+    type Item = Result<EventEnvelope, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(ref mut iter) = self.instance_iter {
+            return iter.next();
+        }
+        None
+    }
+}
+
+#[must_use]
+pub fn replay_events_for_lineage(
+    db: &fjall::Database,
+    query: &LineageQuery,
+) -> LineageReplayIterator {
+    match query {
+        LineageQuery::InstanceId(instance_id) => {
+            let iter = replay_events(db, instance_id);
+            LineageReplayIterator {
+                instance_iter: Some(iter),
+                lineage_id: None,
+                epoch: None,
+            }
+        }
+        LineageQuery::LineageWide { lineage_id: _ } => LineageReplayIterator {
+            instance_iter: None,
+            lineage_id: Some(
+                query
+                    .to_prefix()
+                    .map(|p| String::from_utf8_lossy(&p).to_string())
+                    .unwrap_or_default(),
+            ),
+            epoch: None,
+        },
+        LineageQuery::EpochSpecific {
+            lineage_id: _,
+            epoch: _,
+        } => LineageReplayIterator {
+            instance_iter: None,
+            lineage_id: Some(
+                query
+                    .to_prefix()
+                    .map(|p| String::from_utf8_lossy(&p).to_string())
+                    .unwrap_or_default(),
+            ),
+            epoch: Some(match query {
+                LineageQuery::EpochSpecific { epoch, .. } => *epoch,
+                _ => Epoch::ZERO,
+            }),
+        },
+    }
+}

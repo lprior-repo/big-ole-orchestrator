@@ -1,7 +1,10 @@
 //! Integration tests for spawn supervisor.
 //!
-//! These tests verify the async process supervisor contract and expose
-//! implementation gaps identified in the test plan.
+//! Decomposed into focused submodules:
+//! - spawn_supervisor_unit: unit tests (pure functions, error classification, types)
+//! - spawn_supervisor_lifecycle: supervisor lifecycle and process cycle integration tests
+//! - spawn_supervisor_backoff: backoff/respawn timing integration tests
+//! - spawn_supervisor_validation: supervisor constructor validation tests
 //!
 //! TDD Red Phase: These tests document expected behavior that is NOT
 //! yet implemented correctly.
@@ -11,9 +14,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use vo_actor::spawn_supervisor::{
-    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult, ProcessHandle,
-    ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor, SpawnSupervisorError,
-    SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
+    calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult,
+    ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+    SpawnSupervisor, SpawnSupervisorError, SpawnSupervisorMetrics, SpawnSupervisorState, WorkQueue,
 };
 use vo_types::InstanceId;
 
@@ -269,19 +272,9 @@ async fn supervisor_spawn_transitions_to_running() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
-
-    let handle = supervisor.spawn().expect("Should spawn");
-
-    assert_eq!(handle.current_state(), SpawnSupervisorState::Running);
-}
-
-#[tokio::test]
-async fn supervisor_shutdown_transitions_to_shutdown() {
-    let storage = Arc::new(MockSpawnStorage::new());
-    let process_manager = Arc::new(MockProcessManager::new());
-    let work_queue = Arc::new(MockWorkQueue::new());
 
     let supervisor = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -292,6 +285,7 @@ async fn supervisor_shutdown_transitions_to_shutdown() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -324,6 +318,7 @@ async fn process_cycle_spawns_record_in_spawn_phase() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -373,6 +368,7 @@ async fn process_cycle_health_check_uses_correct_pid() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -429,6 +425,7 @@ async fn process_cycle_spawn_failure_records_error() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -481,6 +478,7 @@ async fn process_cycle_max_attempts_exceeded_skips_record() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -517,6 +515,7 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -526,6 +525,64 @@ async fn process_cycle_health_check_failure_transitions_to_failed() {
         .expect("Process cycle should succeed");
 
     assert_eq!(supervisor.metrics.health_checks_failed.get(), 2);
+}
+
+#[tokio::test]
+async fn given_health_checks_exhausted_when_processed_then_failed_record_is_persisted() {
+    let storage = Arc::new(MockSpawnStorage::new());
+    let process_manager = Arc::new(MockProcessManager::new());
+    let work_queue = Arc::new(MockWorkQueue::new());
+
+    let instance_id = test_instance_id();
+    let mut record = SpawnRecord::new(instance_id.clone(), PathBuf::from("./worker"), vec![], None);
+    record.spawn_phase = SpawnPhase::HealthCheck;
+    record.spawn_attempts = 5; // Already at max spawn attempts
+    storage.add_record(record);
+
+    // Health check always returns false (process not healthy)
+    process_manager.set_health_check_result(Ok(false));
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3, // max_health_checks = 3
+        Duration::from_millis(1000),
+        2.0,
+        5, // max_spawn_attempts = 5
+        storage.clone(),
+        process_manager.clone(),
+        work_queue.clone(),
+    )
+    .expect("Valid config");
+
+    supervisor
+        .process_cycle()
+        .await
+        .expect("Process cycle should succeed");
+
+    let records = storage.get_records();
+    assert_eq!(records.len(), 1, "Should have one record");
+
+    let failed_record = records.first().expect("Should have a record");
+    assert_eq!(
+        failed_record.spawn_phase,
+        SpawnPhase::Failed,
+        "Record should be in Failed phase after health checks exhausted"
+    );
+
+    assert!(
+        failed_record.last_error.is_some(),
+        "Record should have last_error set"
+    );
+
+    let last_error = failed_record
+        .last_error
+        .as_ref()
+        .expect("last_error is Some");
+    assert!(
+        matches!(last_error, SpawnSupervisorError::HealthCheckFailed { .. }),
+        "last_error should be HealthCheckFailed, got: {:?}",
+        last_error
+    );
 }
 
 #[tokio::test]
@@ -554,6 +611,7 @@ async fn process_cycle_respawn_uses_work_queue() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -594,6 +652,7 @@ async fn process_cycle_increments_spawns_successful_metric() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -634,6 +693,7 @@ async fn process_cycle_increments_spawns_failed_metric() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -666,6 +726,7 @@ async fn process_cycle_increments_health_checks_performed_metric() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -714,6 +775,7 @@ async fn process_cycle_increments_zombies_detected_metric() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -873,6 +935,7 @@ fn supervisor_rejects_zero_health_check_interval() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(result.is_err());
@@ -895,6 +958,7 @@ fn supervisor_rejects_zero_max_health_checks() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(result.is_err());
@@ -917,6 +981,7 @@ fn supervisor_rejects_zero_initial_backoff() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(result.is_err());
@@ -939,6 +1004,7 @@ fn supervisor_rejects_backoff_multiplier_less_than_one() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(result.is_err());
@@ -961,6 +1027,7 @@ fn supervisor_accepts_valid_config() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(result.is_ok());
@@ -1301,6 +1368,7 @@ async fn respawn_after_health_check_failure_delays_by_backoff() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -1349,6 +1417,7 @@ async fn respawn_failed_phase_delays_by_backoff() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 
@@ -1402,6 +1471,7 @@ async fn respawn_exponential_backoff_increases_with_attempts() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .expect("Valid config");
 

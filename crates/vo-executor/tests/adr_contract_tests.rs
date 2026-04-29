@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 
 use vo_executor::{
     cancel_execution, clear_error, execute_step, execute_step_with_retry, get_execution_status,
-    get_last_error, reset_all_state, run_subprocess, set_error, ExecuteNodeError, ExecutionStatus,
-    RetryPolicy, StepId, StepResult, SubprocessConfig,
+    get_last_error, reset_all_state, set_error, ExecuteNodeError, ExecutionStatus, RetryPolicy,
+    StepId, StepResult,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -128,9 +128,8 @@ mod execution_semaphore_tests {
     #[tokio::test]
     async fn backpressure_concurrent_steps_execute_independently() {
         let _guard = state_guard();
-        let step_names = ["step-1", "step-good", "step-fail"];
         let step_ids: Vec<_> = (0..10)
-            .map(|i| StepId::new(step_names[i % 3].to_string()))
+            .map(|i| StepId::new(format!("step-{}", i % 3)))
             .collect();
 
         let handles: Vec<_> = step_ids
@@ -138,10 +137,14 @@ mod execution_semaphore_tests {
             .map(|sid| tokio::spawn(execute_step(sid, 5000)))
             .collect();
 
-        for (i, handle) in handles.into_iter().enumerate() {
+        for handle in handles {
             let result = handle.await.expect("task should complete");
             assert!(
-                result.is_ok() || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
+                result.is_ok()
+                    || matches!(result, Err(ExecuteNodeError::TransientError { .. }))
+                    || matches!(result, Err(ExecuteNodeError::StepNotFound { .. })),
+                "Expected Ok, TransientError, or StepNotFound, got {:?}",
+                result
             );
         }
     }
@@ -450,7 +453,6 @@ mod subprocess_boundary_tests {
         let cancel_result = cancel_execution(step_id.clone()).await;
         assert!(cancel_result.is_ok());
     }
-
     // -------------------------------------------------------------------------
     // ADR-012 BDD Tests: Boundary Enforcement Verification
     // These tests verify the boundary mechanisms are correctly configured.

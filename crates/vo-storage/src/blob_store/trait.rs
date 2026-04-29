@@ -1,8 +1,8 @@
-//! Storage interface for content-addressed blob storage with SHA-256 dedup.
+//! Blob store trait and partition constants.
 
+use super::blob_record::BlobRecord;
 use super::content_address::ContentAddress;
 use super::error::BlobStoreError;
-use super::blob_record::BlobRecord;
 
 /// Partition name for the blob store pack index.
 pub const BLOB_STORE_PARTITION: &str = "blob_store";

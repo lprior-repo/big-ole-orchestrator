@@ -88,13 +88,29 @@ pub enum EffectCompressionError {
 }
 
 /// Persisted record of a managed effect.
+///
+/// Schema evolution guarantees (ADR-035 alignment):
+/// - `committed_at` has `#[serde(default)]` so records persisted before this
+///   field was added (or when it was `None`) deserialize correctly.
+/// - Unknown fields are silently ignored (forward compatibility: old code can
+///   read records written by newer versions without error).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct EffectRecord {
     intent_id: String,
     kind: EffectKind,
     params_json: serde_json::Value,
     status: EffectIntent,
+    #[serde(default)]
     committed_at: Option<crate::types::TimestampMs>,
+}
+
+/// Error returned when effect idempotency key validation fails.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum EffectIdempotencyError {
+    #[error("Empty idempotency key not permitted")]
+    EmptyKey,
+    #[error("Idempotency key exceeds maximum length of {max} characters (got {actual})")]
+    KeyTooLong { max: usize, actual: usize },
 }
 
 // ============================================================================
@@ -144,6 +160,9 @@ impl CompensationPolicy {
 }
 
 impl EffectRecord {
+    /// Maximum length for effect idempotency keys.
+    pub const MAX_IDEMPOTENCY_KEY_LEN: usize = 256;
+
     /// Construct a new EffectRecord.
     ///
     /// Returns `None` if `intent_id` is empty (INV-EFF-003).
@@ -165,6 +184,29 @@ impl EffectRecord {
             status,
             committed_at,
         })
+    }
+
+    /// Validate an idempotency key for effect records.
+    ///
+    /// Returns `Ok(())` if the key is valid, or `EffectIdempotencyError` if invalid.
+    ///
+    /// # Rules
+    ///
+    /// - Keys must be non-empty
+    /// - Keys must not exceed `MAX_IDEMPOTENCY_KEY_LEN` characters
+    /// - Same key can be reused across different EffectKind variants (per-type uniqueness)
+    #[must_use]
+    pub fn validate_idempotency_key(key: &str) -> Result<(), EffectIdempotencyError> {
+        if key.is_empty() {
+            return Err(EffectIdempotencyError::EmptyKey);
+        }
+        if key.len() > Self::MAX_IDEMPOTENCY_KEY_LEN {
+            return Err(EffectIdempotencyError::KeyTooLong {
+                max: Self::MAX_IDEMPOTENCY_KEY_LEN,
+                actual: key.len(),
+            });
+        }
+        Ok(())
     }
 
     #[must_use]
@@ -615,6 +657,119 @@ mod tests {
     }
 
     // ========================================================================
+    // Schema Evolution Tests
+    // ========================================================================
+
+    /// Old-format record (no `committed_at` field) deserializes correctly.
+    /// This simulates records persisted before `committed_at` was added or when
+    /// a future version drops the field. The `#[serde(default)]` ensures it
+    /// becomes `None`.
+    #[test]
+    fn schema_evolution_old_format_without_committed_at_deserializes() {
+        let old_json = r#"{
+            "intent_id": "fx-old-1",
+            "kind": "HttpCall",
+            "params_json": {"url": "https://legacy.example.com"},
+            "status": "Prepared"
+        }"#;
+        let record: EffectRecord = serde_json::from_str(old_json).unwrap();
+        assert_eq!(record.intent_id(), "fx-old-1");
+        assert_eq!(record.kind(), EffectKind::HttpCall);
+        assert_eq!(record.status(), EffectIntent::Prepared);
+        assert_eq!(record.committed_at(), None);
+    }
+
+    /// Old-format record with all statuses deserializes without `committed_at`.
+    #[test]
+    fn schema_evolution_old_format_all_statuses() {
+        for (status_str, expected) in [
+            ("\"Prepared\"", EffectIntent::Prepared),
+            ("\"Committed\"", EffectIntent::Committed),
+            ("\"RolledBack\"", EffectIntent::RolledBack),
+        ] {
+            let old_json = format!(
+                r#"{{"intent_id": "fx-old-status", "kind": "SqlQuery", "params_json": {{}}, "status": {status_str}}}"#
+            );
+            let record: EffectRecord = serde_json::from_str(&old_json).unwrap();
+            assert_eq!(record.status(), expected);
+            assert_eq!(record.committed_at(), None);
+        }
+    }
+
+    /// New-format record with all fields including `committed_at` deserializes.
+    #[test]
+    fn schema_evolution_new_format_with_committed_at_deserializes() {
+        let new_json = r#"{
+            "intent_id": "fx-new-1",
+            "kind": "BlobWrite",
+            "params_json": {"bucket": "data"},
+            "status": "Committed",
+            "committed_at": 1700000000
+        }"#;
+        let record: EffectRecord = serde_json::from_str(new_json).unwrap();
+        assert_eq!(record.intent_id(), "fx-new-1");
+        assert_eq!(record.kind(), EffectKind::BlobWrite);
+        assert_eq!(record.status(), EffectIntent::Committed);
+        assert!(record.committed_at().is_some());
+    }
+
+    /// Forward compatibility: unknown fields from a future version are ignored.
+    /// Old code reading records written by a newer version must not break.
+    #[test]
+    fn schema_evolution_unknown_fields_ignored() {
+        let future_json = r#"{
+            "intent_id": "fx-future-1",
+            "kind": "HttpCall",
+            "params_json": {},
+            "status": "Prepared",
+            "committed_at": null,
+            "future_field_a": "some value",
+            "future_field_b": 42,
+            "nested_future": {"deep": [1, 2, 3]}
+        }"#;
+        let record: EffectRecord = serde_json::from_str(future_json).unwrap();
+        assert_eq!(record.intent_id(), "fx-future-1");
+        assert_eq!(record.kind(), EffectKind::HttpCall);
+        assert_eq!(record.status(), EffectIntent::Prepared);
+        assert_eq!(record.committed_at(), None);
+    }
+
+    /// Round-trip preserves `committed_at: Some(...)` across serialize/deserialize.
+    #[test]
+    fn schema_evolution_roundtrip_with_committed_at_some() {
+        let ts = crate::types::TimestampMs(1700000000);
+        let record = EffectRecord::new(
+            "fx-rt-ts".to_string(),
+            EffectKind::SqlQuery,
+            json!({"q": "SELECT 1"}),
+            EffectIntent::Committed,
+            Some(ts),
+        )
+        .unwrap();
+        let json = serde_json::to_string(&record).unwrap();
+        let recovered: EffectRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.committed_at(), Some(&ts));
+    }
+
+    /// Round-trip preserves `committed_at: None` — serialized JSON omits it
+    /// when using serde default, or includes null. Either way, deserialization
+    /// must yield None.
+    #[test]
+    fn schema_evolution_roundtrip_with_committed_at_none() {
+        let record = EffectRecord::new(
+            "fx-rt-none".to_string(),
+            EffectKind::BlobWrite,
+            json!({"bucket": "b"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json = serde_json::to_string(&record).unwrap();
+        let recovered: EffectRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(recovered.committed_at(), None);
+    }
+
+    // ========================================================================
     // EffectTransitionError Tests
     // ========================================================================
 
@@ -672,7 +827,324 @@ mod tests {
     #[case(EffectKind::HttpCall)]
     #[case(EffectKind::SqlQuery)]
     #[case(EffectKind::BlobWrite)]
-    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(#[case] kind: EffectKind) {
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
+        #[case] kind: EffectKind,
+    ) {
+        let record = EffectRecord::new(
+            "fx-test-kind".to_string(),
+            kind,
+            json!({"query": "SELECT * FROM table"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[test]
+    fn effectrecord_compress_decompress_roundtrip_with_complex_params() {
+        let record = EffectRecord::new(
+            "fx-complex".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "headers": {"Authorization": "Bearer token123", "Content-Type": "application/json"},
+                "body": {"items": [{"id": 1, "name": "first"}, {"id": 2, "name": "second"}]},
+                "timeout_ms": 5000
+            }),
+            EffectIntent::Committed,
+            Some(crate::types::TimestampMs(9999)),
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Ratio Verification
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_compression_reduces_size_for_text_heavy_payload() {
+        let record = EffectRecord::new(
+            "fx-large".to_string(),
+            EffectKind::HttpCall,
+            json!({
+                "body": "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(100)
+            }),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Compressed size ({}) should be smaller than JSON size ({})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    #[test]
+    fn effectrecord_compression_still_smaller_for_small_records() {
+        let record = EffectRecord::new(
+            "a".to_string(),
+            EffectKind::SqlQuery,
+            json!({"q": "x"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let json_bytes = serde_json::to_vec(&record).unwrap();
+        let compressed = record.compress().unwrap();
+        assert!(
+            compressed.len() < json_bytes.len(),
+            "Even small records should compress (compressed: {}, json: {})",
+            compressed.len(),
+            json_bytes.len()
+        );
+    }
+
+    // ========================================================================
+    // EffectRecord Compression — Decompression Error Handling
+    // ========================================================================
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_empty_input() {
+        let result = EffectRecord::decompress(&[]);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_random_bytes() {
+        let result = EffectRecord::decompress(b"not zstd compressed data at all");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_truncated_zstd() {
+        let record = EffectRecord::new(
+            "fx-trunc".to_string(),
+            EffectKind::BlobWrite,
+            json!({"bucket": "test"}),
+            EffectIntent::Prepared,
+            None,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let truncated = &compressed[..compressed.len() / 2];
+        let result = EffectRecord::decompress(truncated);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_corrupted_zstd() {
+        let mut corrupted = vec![0x28, 0xb5, 0x2f, 0xfd];
+        corrupted.extend_from_slice(b"invalid zstd frame");
+        let result = EffectRecord::decompress(&corrupted);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn effectrecord_decompress_returns_error_for_valid_zstd_invalid_utf8() {
+        let valid_zstd_magic = [0x28, 0xb5, 0x2f, 0xfd];
+        let result = EffectRecord::decompress(&valid_zstd_magic);
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            EffectCompressionError::DecompressionFailed(_)
+        ));
+    }
+}
+
+    // ========================================================================
+    // EffectRecord Compression — Round-Trip Correctness
+    // ========================================================================
+
+#[cfg(feature = "proptest")]
+#[allow(clippy::unwrap_used)]
+mod proptests {
+    use super::*;
+    use proptest::prop_assert;
+    use proptest::prop_assert_eq;
+
+    proptest::proptest! {
+        /// INV: Serde round-trip preserves EffectIntent equality for all variants.
+        #[test]
+        fn effectintent_serde_roundtrip_preserves_equality(
+            variant in proptest::sample::select(&[
+                EffectIntent::Prepared,
+                EffectIntent::Committed,
+                EffectIntent::RolledBack,
+            ])
+        ) {
+            let json = serde_json::to_string(&variant).unwrap();
+            let recovered: EffectIntent = serde_json::from_str(&json).unwrap();
+            prop_assert_eq!(variant, recovered);
+        }
+
+        /// INV: Serde round-trip preserves EffectKind equality for all variants.
+        #[test]
+        fn effectkind_serde_roundtrip_preserves_equality(
+            variant in proptest::sample::select(&[
+                EffectKind::HttpCall,
+                EffectKind::SqlQuery,
+                EffectKind::BlobWrite,
+            ])
+        ) {
+            let json = serde_json::to_string(&variant).unwrap();
+            let recovered: EffectKind = serde_json::from_str(&json).unwrap();
+            prop_assert_eq!(variant, recovered);
+        }
+
+        /// INV: EffectRecord field immutability — accessors return construction values.
+        #[test]
+        fn effectrecord_accessors_return_construction_values(
+            id in "[a-zA-Z0-9_-]{1,100}",
+            kind_idx in 0usize..3,
+            status_idx in 0usize..3,
+        ) {
+            let kinds = [EffectKind::HttpCall, EffectKind::SqlQuery, EffectKind::BlobWrite];
+            let statuses = [EffectIntent::Prepared, EffectIntent::Committed, EffectIntent::RolledBack];
+            let kind = kinds[kind_idx];
+            let status = statuses[status_idx];
+            let params = serde_json::json!({"test": "value"});
+            let ts = crate::types::TimestampMs(42);
+
+            let record = EffectRecord::new(id.clone(), kind, params.clone(), status, Some(ts));
+            prop_assert!(record.is_some());
+            let r = record.unwrap();
+            prop_assert_eq!(r.intent_id(), id);
+            prop_assert_eq!(r.kind(), kind);
+            prop_assert_eq!(r.status(), status);
+        }
+
+        /// INV: Effect idempotency key validation accepts any non-empty string <= MAX_LEN.
+        #[test]
+        fn idempotency_key_validation_accepts_valid_keys(
+            key in ".{1,256}"
+        ) {
+            prop_assert!(EffectRecord::validate_idempotency_key(&key).is_ok());
+        }
+
+        /// INV: Effect idempotency key validation rejects empty strings.
+        #[test]
+        fn idempotency_key_validation_rejects_empty_key() {
+            prop_assert!(matches!(
+                EffectRecord::validate_idempotency_key(""),
+                Err(EffectIdempotencyError::EmptyKey)
+            ));
+        }
+
+        /// INV: Effect idempotency key validation rejects strings > MAX_LEN.
+        #[test]
+        fn idempotency_key_validation_rejects_keys_exceeding_max_length(
+            key in ".{257,1000}"
+        ) {
+            prop_assert!(matches!(
+                EffectRecord::validate_idempotency_key(&key),
+                Err(EffectIdempotencyError::KeyTooLong {
+                    max: 256,
+                    actual: len
+                }) if len == key.len()
+            ));
+        }
+
+        /// INV: Same intent_id can be used with different EffectKind variants.
+        #[test]
+        fn idempotency_key_uniqueness_per_effect_kind(
+            id in "[a-zA-Z0-9_-]{1,50}",
+            kind_idx in 0usize..3,
+        ) {
+            let kinds = [EffectKind::HttpCall, EffectKind::SqlQuery, EffectKind::BlobWrite];
+            let kind = kinds[kind_idx];
+
+            let record = EffectRecord::new(
+                id.clone(),
+                kind,
+                serde_json::json!({}),
+                EffectIntent::Prepared,
+                None,
+            );
+
+            prop_assert!(record.is_some());
+            let r = record.unwrap();
+            prop_assert_eq!(r.intent_id(), id);
+            prop_assert_eq!(r.kind(), kind);
+        }
+    }
+}
+
+// ============================================================================
+// Kani Verification Harnesses
+// ============================================================================
+
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// K-01: Verify apply_effect_transition exhaustiveness.
+    /// All 3×2 = 6 combinations must be covered without panic.
+    #[kani::proof]
+    fn verify_effect_transition_exhaustiveness() {
+        let state: u8 = kani::any();
+        let event: u8 = kani::any();
+        kani::assume(state < 3);
+        kani::assume(event < 2);
+
+        let current = match state {
+            0 => EffectIntent::Prepared,
+            1 => EffectIntent::Committed,
+            _ => EffectIntent::RolledBack,
+        };
+        let evt = match event {
+            0 => EffectTransitionEvent::Commit,
+            _ => EffectTransitionEvent::Rollback,
+        };
+
+        // Must not panic — all combinations handled
+        let _ = apply_effect_transition(current, evt);
+    }
+
+    /// K-02: Verify EffectRecord::new rejects empty intent_id.
+    #[kani::proof]
+    fn verify_effect_record_rejects_empty_intent_id() {
+        let intent_id = String::new();
+        let result = EffectRecord::new(
+            intent_id,
+            EffectKind::HttpCall,
+            json!({"url": "https://api.example.com"}),
+            status,
+            committed_at,
+        )
+        .unwrap();
+        let compressed = record.compress().unwrap();
+        let decompressed = EffectRecord::decompress(&compressed).unwrap();
+        assert_eq!(decompressed, record);
+    }
+
+    #[rstest]
+    #[case(EffectKind::HttpCall)]
+    #[case(EffectKind::SqlQuery)]
+    #[case(EffectKind::BlobWrite)]
+    fn effectrecord_compress_decompress_roundtrip_preserves_all_kinds(
+        #[case] kind: EffectKind,
+    ) {
         let record = EffectRecord::new(
             "fx-test-kind".to_string(),
             kind,

@@ -23,11 +23,11 @@ pub enum LifecycleState {
     /// Step is actively executing
     StepExecuting,
 
-    /// Preparing a managed effect for commit (ADR-039)
-    PreparingEffect,
-
     /// Waiting for external timer/callback
     WaitingForTimer,
+
+    /// Waiting for external signal matching wait_key (ADR-039, ADR-042)
+    WaitingForSignal,
 
     /// Publication barrier: waiting for blob to be verified durable (ADR-040)
     PendingPublication,
@@ -59,9 +59,10 @@ impl LifecycleState {
             LifecycleState::Pending
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
-            | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect => OperationalStatus::Healthy,
-            LifecycleState::WaitingForTimer => OperationalStatus::Healthy,
+            | LifecycleState::StepExecuting => OperationalStatus::Healthy,
+            LifecycleState::WaitingForTimer | LifecycleState::WaitingForSignal => {
+                OperationalStatus::Healthy
+            }
             LifecycleState::PendingPublication => {
                 OperationalStatus::Blocked(BlockedReason::DependenciesPending)
             }
@@ -104,19 +105,10 @@ impl LifecycleState {
             | LifecycleState::StepExecuting => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Active
             }
-            LifecycleState::PreparingEffect => {
-                crate::lifecycle_superstate::LifecycleSuperstate::Compensating
-            }
             LifecycleState::WaitingForTimer
-            | LifecycleState::PendingPublication
-            | LifecycleState::Hibernated => {
+            | LifecycleState::WaitingForSignal
+            | LifecycleState::PendingPublication => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
-            }
-            LifecycleState::Reconciling => {
-                crate::lifecycle_superstate::LifecycleSuperstate::Recovering
-            }
-            LifecycleState::Compensating => {
-                crate::lifecycle_superstate::LifecycleSuperstate::Compensating
             }
             LifecycleState::Failed => crate::lifecycle_superstate::LifecycleSuperstate::Recovering,
             LifecycleState::Completed | LifecycleState::Cancelled => {
@@ -149,15 +141,9 @@ impl LifecycleState {
             }
             LifecycleState::StepExecuting => vec![
                 TransitionEvent::WaitForTimer,
+                TransitionEvent::WaitForSignal,
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
-                TransitionEvent::PrepareEffect,
-                TransitionEvent::BeginCompensation,
-                TransitionEvent::Cancel,
-                TransitionEvent::Fail,
-            ],
-            LifecycleState::PreparingEffect => vec![
-                TransitionEvent::EffectPrepared,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -165,6 +151,11 @@ impl LifecycleState {
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
                 TransitionEvent::Hibernate,
+                TransitionEvent::Cancel,
+                TransitionEvent::Fail,
+            ],
+            LifecycleState::WaitingForSignal => vec![
+                TransitionEvent::SignalReceived,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -238,16 +229,16 @@ pub enum TransitionEvent {
 
     // From StepExecuting
     WaitForTimer,
+    WaitForSignal,
     CompleteStep,
     YieldWithBlob,
-    PrepareEffect,
-
-    // From PreparingEffect
-    EffectPrepared,
 
     // From WaitingForTimer
     TimerFired,
     TimerExpired,
+
+    // From WaitingForSignal (ADR-039, ADR-042)
+    SignalReceived,
 
     // From PendingPublication
     ConfirmPublication,
@@ -292,12 +283,12 @@ impl TransitionEvent {
             TransitionEvent::Fail,
             TransitionEvent::ExecuteStep,
             TransitionEvent::WaitForTimer,
+            TransitionEvent::WaitForSignal,
             TransitionEvent::CompleteStep,
             TransitionEvent::YieldWithBlob,
-            TransitionEvent::PrepareEffect,
-            TransitionEvent::EffectPrepared,
             TransitionEvent::TimerFired,
             TransitionEvent::TimerExpired,
+            TransitionEvent::SignalReceived,
             TransitionEvent::ConfirmPublication,
             TransitionEvent::PublicationFailed,
             TransitionEvent::EmitOutputRef,

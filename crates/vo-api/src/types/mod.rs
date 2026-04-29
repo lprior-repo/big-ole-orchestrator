@@ -9,6 +9,7 @@
 //! - [`helpers`] - Helper functions for type conversions
 
 pub mod errors;
+pub mod events;
 pub mod helpers;
 pub mod ingress;
 pub mod mutation;
@@ -26,6 +27,7 @@ mod v1_test;
 mod v3_test;
 
 pub use errors::*;
+pub use helpers::*;
 pub use names::*;
 pub use v1::*;
 pub use v3::*;

@@ -4,7 +4,7 @@
 #![warn(clippy::pedantic)]
 
 use dioxus::prelude::*;
-use oya_frontend::flow_extender::ExtensionPatchPreview;
+use crate::flow_extender::ExtensionPatchPreview;
 use std::collections::HashMap;
 
 use crate::ui::graph::NodeCategory;
@@ -81,7 +81,7 @@ pub fn SelectedNodePanel(
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
                                     if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
-                                        node.name = evt.value();
+                                        let _ = node.set_name(&evt.value());
                                     }
                                 }
                             }
@@ -97,7 +97,7 @@ pub fn SelectedNodePanel(
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
                                     if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
-                                        node.description = evt.value();
+                                        node.set_description(&evt.value());
                                     }
                                 }
                             }

@@ -40,7 +40,9 @@ mod red_queen_priority_inversion_tests {
         };
         let scheduler = Scheduler::new(config);
 
-        let _low_permit = scheduler.try_acquire().expect("low priority should acquire");
+        let _low_permit = scheduler
+            .try_acquire()
+            .expect("low priority should acquire");
 
         let critical_result = scheduler.try_acquire_with_priority(JobPriority::Critical);
 
@@ -253,10 +255,7 @@ mod red_queen_inversion_stress_tests {
             critical.is_none(),
             "CRITICAL cannot acquire when permit held"
         );
-        assert!(
-            high.is_none(),
-            "HIGH cannot acquire when permit held"
-        );
+        assert!(high.is_none(), "HIGH cannot acquire when permit held");
     }
 
     #[tokio::test]

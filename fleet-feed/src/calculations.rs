@@ -1,8 +1,9 @@
-use crate::data::{BeadId, FleetEntry, PolecatName, PolecatStatus, GT_ROOT, RIG_NAME};
+use crate::data::{BeadId, FleetEntry, PolecatName, PolecatStatus, Rig};
+use std::collections::{HashMap, HashSet};
 
-pub fn build_prompt(name: &PolecatName, bead: &BeadId) -> String {
+pub fn build_prompt(rig: &Rig, name: &PolecatName, bead: &BeadId) -> String {
     format!(
-        "[GAS TOWN] polecat {} (rig: veloxide). \
+        "[GAS TOWN] polecat {} (rig: {}). \
          Claim bead {}. Run bd update {} --claim. \
          Then gt prime --hook and begin work. \
          AFTER completing your bead: \
@@ -15,6 +16,7 @@ pub fn build_prompt(name: &PolecatName, bead: &BeadId) -> String {
          (4) If NO code changes (QA/audit only): skip git push, just exit. \
          NEVER run gt done. Exit cleanly after bd close.",
         name.as_str(),
+        rig.name,
         bead.as_str(),
         bead.as_str(),
         bead.as_str(),
@@ -25,36 +27,47 @@ pub fn build_prompt(name: &PolecatName, bead: &BeadId) -> String {
     )
 }
 
+pub fn shell_quote(value: &str) -> String {
+    if value.is_empty() {
+        "''".to_string()
+    } else {
+        format!("'{}'", value.replace('\'', "'\"'\"'"))
+    }
+}
+
 pub fn build_env_vars(entry: &FleetEntry, branch: &str) -> String {
     let name = &entry.name;
-    let clone = name.worktree_path();
+    let rig = entry.rig;
+    let clone = name.worktree_path(rig);
     format!(
         "GT_BRANCH={branch} \
          GT_POLECAT={p} \
          GT_POLECAT_PATH={clone} \
-         GT_RIG={rig} \
+         GT_RIG={rig_name} \
          GT_ROLE={role} \
          GT_TOWN_ROOT={gt_root} \
          BD_ACTOR={role} \
          BD_DOLT_AUTO_COMMIT=off \
          BEADS_AGENT_NAME={agent} \
-         BEADS_DOLT_PORT=3307 \
-         GT_DOLT_PORT=3307 \
+         BEADS_DOLT_PORT={dolt_port} \
+         GT_DOLT_PORT={dolt_port} \
          GT_AGENT={agent_flag}",
         branch = branch,
         p = name.as_str(),
         clone = clone.display(),
-        rig = RIG_NAME,
-        role = name.role(),
-        gt_root = GT_ROOT,
-        agent = name.agent_name(),
+        rig_name = rig.name,
+        role = name.role(rig),
+        gt_root = rig.gt_root,
+        agent = name.agent_name(rig),
         agent_flag = entry.runtime.agent_flag,
+        dolt_port = rig.dolt_port,
     )
 }
 
 pub fn build_pre_launch(clone_path: &str) -> String {
+    let quoted_clone = shell_quote(clone_path);
     format!(
-        "cd {clone_path} && \
+        "cd {quoted_clone} && \
          git checkout main && \
          git pull origin main && \
          gt agents fix -a 2>/dev/null; \
@@ -69,11 +82,12 @@ pub fn build_opencode_launch_cmd(
     pre: &str,
     prompt: &str,
 ) -> String {
+    let quoted_prompt = shell_quote(prompt);
     format!(
         "export {env} GT_PROCESS_NAMES=opencode,node,bun \
          OPENCODE_PERMISSION='{{\"*\":\"allow\"}}' && \
          {pre} && \
-         opencode -m {model} --prompt \"{prompt}\"",
+         opencode -m {model} --prompt {quoted_prompt}",
         model = entry.runtime.model,
     )
 }
@@ -85,15 +99,16 @@ pub fn build_claude_launch_cmd(
     pre: &str,
     prompt: &str,
 ) -> String {
+    let quoted_prompt = shell_quote(prompt);
     format!(
         "export {env} GT_PROCESS_NAMES=claude && \
          {pre} && \
-         claude --model {model} --dangerously-skip-permissions \"{prompt}\"",
+         claude --model {model} --dangerously-skip-permissions {quoted_prompt}",
         model = entry.runtime.model,
     )
 }
 
-pub fn classify_status(session_exists: bool, has_children: bool) -> PolecatStatus {
+pub const fn classify_status(session_exists: bool, has_children: bool) -> PolecatStatus {
     match (session_exists, has_children) {
         (true, true) => PolecatStatus::Working,
         (true, false) => PolecatStatus::Idle,
@@ -101,22 +116,71 @@ pub fn classify_status(session_exists: bool, has_children: bool) -> PolecatStatu
     }
 }
 
+pub fn parse_tmux_session_pids(stdout: &str) -> HashMap<String, String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            line.trim()
+                .split_once(':')
+                .map(|(name, pid)| (name.to_string(), pid.trim().to_string()))
+        })
+        .collect()
+}
+
+pub fn parse_active_parent_pids(stdout: &str) -> HashSet<String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            match (parts.next(), parts.next()) {
+                (Some(ppid), Some(_pid)) if !ppid.is_empty() && ppid != "0" => {
+                    Some(ppid.to_string())
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+pub fn classify_batch_status(
+    session: &str,
+    session_pids: &HashMap<String, String>,
+    active_parent_pids: &HashSet<String>,
+) -> PolecatStatus {
+    match session_pids.get(session) {
+        Some(pid) if pid.is_empty() => PolecatStatus::Idle,
+        Some(pid) => classify_status(true, active_parent_pids.contains(pid)),
+        None => PolecatStatus::Dead,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{BeadJson, Fleet, RuntimeKind};
+    use crate::data::{
+        BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, TWERK_RIG, VELOXIDE_RIG,
+    };
 
     #[test]
     fn prompt_contains_bead_and_findings_path() {
         let name = PolecatName::new("brahmin");
         let bead = BeadId("ve-6v8i7".into());
-        let prompt = build_prompt(&name, &bead);
+        let prompt = build_prompt(&VELOXIDE_RIG, &name, &bead);
         assert!(prompt.contains("ve-6v8i7"));
         assert!(prompt.contains("brahmin"));
         assert!(prompt.contains("findings.md"));
         assert!(prompt.contains("bd close"));
         assert!(prompt.contains("NEVER run gt done"));
         assert!(!prompt.contains('\''));
+    }
+
+    #[test]
+    fn prompt_uses_rig_name() {
+        let name = PolecatName::new("rust");
+        let bead = BeadId("ha-test".into());
+        let prompt = build_prompt(&HARDLINE_RIG, &name, &bead);
+        assert!(prompt.contains("rig: hardline"));
+        assert!(!prompt.contains("rig: veloxide"));
     }
 
     #[test]
@@ -136,14 +200,60 @@ mod tests {
     }
 
     #[test]
-    fn fleet_has_20_entries() {
-        let fleet = Fleet::all();
-        assert_eq!(fleet.len(), 20);
+    fn parse_tmux_session_pids_collects_named_sessions() {
+        let sessions = parse_tmux_session_pids("ve-brahmin:101\nve-rust:202\n");
+        assert_eq!(sessions.get("ve-brahmin"), Some(&"101".to_string()));
+        assert_eq!(sessions.get("ve-rust"), Some(&"202".to_string()));
+    }
+
+    #[test]
+    fn parse_active_parent_pids_collects_parent_processes() {
+        let parents = parse_active_parent_pids("101 9001\n202 9002\n202 9003\n0 1\n");
+        assert!(parents.contains("101"));
+        assert!(parents.contains("202"));
+        assert!(!parents.contains("0"));
+    }
+
+    #[test]
+    fn classify_batch_status_distinguishes_dead_idle_and_working() {
+        let sessions = parse_tmux_session_pids("ve-brahmin:101\nve-rust:\n");
+        let active = parse_active_parent_pids("101 9001\n");
+
+        assert_eq!(
+            classify_batch_status("ve-brahmin", &sessions, &active),
+            PolecatStatus::Working
+        );
+        assert_eq!(
+            classify_batch_status("ve-rust", &sessions, &active),
+            PolecatStatus::Idle
+        );
+        assert_eq!(
+            classify_batch_status("ve-missing", &sessions, &active),
+            PolecatStatus::Dead
+        );
+    }
+
+    #[test]
+    fn fleet_has_31_entries() {
+        let fleet = Fleet::for_rig(&VELOXIDE_RIG);
+        assert_eq!(fleet.len(), 31);
+    }
+
+    #[test]
+    fn hardline_fleet_has_31_entries() {
+        let fleet = Fleet::for_rig(&HARDLINE_RIG);
+        assert_eq!(fleet.len(), 31);
+    }
+
+    #[test]
+    fn twerk_fleet_has_31_entries() {
+        let fleet = Fleet::for_rig(&TWERK_RIG);
+        assert_eq!(fleet.len(), 31);
     }
 
     #[test]
     fn fleet_runtimes_are_correct() {
-        let fleet = Fleet::all();
+        let fleet = Fleet::for_rig(&VELOXIDE_RIG);
         let opencode_count = fleet
             .iter()
             .filter(|e| e.runtime.kind == RuntimeKind::OpenCode)
@@ -152,13 +262,13 @@ mod tests {
             .iter()
             .filter(|e| e.runtime.kind == RuntimeKind::Claude)
             .count();
-        assert_eq!(opencode_count, 16);
-        assert_eq!(claude_count, 4);
+        assert_eq!(opencode_count, 23);
+        assert_eq!(claude_count, 8);
     }
 
     #[test]
     fn env_vars_contain_required_fields() {
-        let entry = Fleet::all()
+        let entry = Fleet::for_rig(&VELOXIDE_RIG)
             .into_iter()
             .find(|e| e.name.as_str() == "brahmin")
             .unwrap();
@@ -171,7 +281,7 @@ mod tests {
 
     #[test]
     fn opencode_uses_prompt_flag() {
-        let entry = Fleet::all()
+        let entry = Fleet::for_rig(&VELOXIDE_RIG)
             .into_iter()
             .find(|e| e.name.as_str() == "brahmin")
             .unwrap();
@@ -187,7 +297,7 @@ mod tests {
 
     #[test]
     fn claude_does_not_use_prompt_flag() {
-        let entry = Fleet::all()
+        let entry = Fleet::for_rig(&VELOXIDE_RIG)
             .into_iter()
             .find(|e| e.name.as_str() == "rust")
             .unwrap();
@@ -205,13 +315,23 @@ mod tests {
     #[test]
     fn find_unassigned_skips_claimed_in_batch() {
         let beads = vec![
-            BeadJson { id: "ve-abc".into(), assignee: Some("a".into()) },
-            BeadJson { id: "ve-def".into(), assignee: None },
-            BeadJson { id: "ve-ghi".into(), assignee: None },
+            BeadJson {
+                id: "ve-abc".into(),
+                assignee: Some("a".into()),
+            },
+            BeadJson {
+                id: "ve-def".into(),
+                assignee: None,
+            },
+            BeadJson {
+                id: "ve-ghi".into(),
+                assignee: None,
+            },
         ];
         let mut claimed: Vec<String> = Vec::new();
 
-        let first = beads.iter()
+        let first = beads
+            .iter()
             .find(|b| b.assignee.is_none() && !claimed.contains(&b.id))
             .map(|b| {
                 claimed.push(b.id.clone());
@@ -219,12 +339,37 @@ mod tests {
             });
         assert_eq!(first.map(|b| b.as_str().to_string()), Some("ve-def".into()));
 
-        let second = beads.iter()
+        let second = beads
+            .iter()
             .find(|b| b.assignee.is_none() && !claimed.contains(&b.id))
             .map(|b| {
                 claimed.push(b.id.clone());
                 BeadId(b.id.clone())
             });
-        assert_eq!(second.map(|b| b.as_str().to_string()), Some("ve-ghi".into()));
+        assert_eq!(
+            second.map(|b| b.as_str().to_string()),
+            Some("ve-ghi".into())
+        );
+    }
+
+    #[test]
+    fn rig_all_returns_six() {
+        assert_eq!(Rig::all().len(), 6);
+    }
+
+    #[test]
+    fn bead_category_prefixes() {
+        assert_eq!(BeadCategory::Blackhat.prefix(), "BLACKHAT");
+        assert_eq!(BeadCategory::QaManual.prefix(), "QA-MANUAL");
+        assert_eq!(BeadCategory::RedQueen.prefix(), "REDQUEEN");
+        assert_eq!(BeadCategory::ArchDrift.prefix(), "ARCH-DRIFT");
+    }
+
+    #[test]
+    fn tmux_prefix_correct() {
+        let name = PolecatName::new("brahmin");
+        assert_eq!(name.tmux_session(&VELOXIDE_RIG), "ve-brahmin");
+        assert_eq!(name.tmux_session(&HARDLINE_RIG), "hl-brahmin");
+        assert_eq!(name.tmux_session(&TWERK_RIG), "tw-brahmin");
     }
 }

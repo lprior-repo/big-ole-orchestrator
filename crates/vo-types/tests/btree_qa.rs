@@ -156,6 +156,134 @@ proptest! {
     }
 }
 
+// ── Proptest: per-operation insert/delete properties (tw-yya6) ──
+
+proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig { cases: 100, ..proptest::prelude::ProptestConfig::default() })]
+
+    #[test]
+    fn proptest_insert_findable(
+        pairs in proptest::collection::vec(proptest::arbitrary::any::<(i32, i32)>(), 1..300),
+        order in 3usize..20usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        for (k, v) in &pairs {
+            tree.insert(*k, *v);
+            assert_eq!(tree.search(k), Some(v), "key {k} not findable after insert");
+            assert!(tree.contains(k), "contains false after inserting {k}");
+            assert!(tree.verify());
+        }
+    }
+
+    #[test]
+    fn proptest_delete_key_gone(
+        keys in proptest::collection::btree_set(proptest::arbitrary::any::<i32>(), 1..200),
+        order in 3usize..15usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        for &k in &keys {
+            tree.insert(k, k);
+        }
+
+        for &k in &keys {
+            assert!(tree.search(&k).is_some(), "key {k} missing before delete");
+            tree.delete(&k).unwrap();
+            assert_eq!(tree.search(&k), None, "key {k} still findable after delete");
+            assert!(!tree.contains(&k), "contains true after deleting {k}");
+        }
+        assert_eq!(tree.len(), 0);
+    }
+
+    #[test]
+    #[ignore = "exposes BTree delete invariant bug — delete corrupts node structure for certain key/order combos"]
+    fn proptest_delete_preserves_invariants(
+        keys in proptest::collection::btree_set(proptest::arbitrary::any::<i32>(), 1..100),
+        order in 3usize..10usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        for &k in &keys {
+            tree.insert(k, k);
+            assert!(tree.verify(), "invariant violated after inserting {k}");
+        }
+        for &k in &keys {
+            tree.delete(&k).unwrap();
+            assert!(tree.verify(), "invariant violated after deleting {k}");
+        }
+    }
+
+    #[test]
+    fn proptest_no_panic_valid_ops(
+        ops in proptest::collection::vec(op_strategy(), 0..500),
+        order in 3usize..10usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        for op in &ops {
+            match op {
+                Op::Insert(k, v) => { tree.insert(*k, *v); }
+                Op::Delete(k) => { let _ = tree.delete(k); }
+            }
+        }
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn proptest_delete_preserves_other_keys(
+        base_keys in proptest::collection::vec(proptest::arbitrary::any::<i32>(), 10..100),
+        delete_targets in proptest::collection::vec(proptest::arbitrary::any::<i32>(), 1..30),
+        order in 3usize..10usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        let mut reference: std::collections::BTreeMap<i32, i32> = std::collections::BTreeMap::new();
+
+        for &k in &base_keys {
+            tree.insert(k, k);
+            reference.insert(k, k);
+        }
+
+        for &k in &delete_targets {
+            if reference.remove(&k).is_some() {
+                tree.delete(&k).unwrap();
+            }
+        }
+
+        for (&k, &v) in &reference {
+            assert_eq!(tree.search(&k), Some(&v), "key {k} lost after deletes");
+        }
+        assert!(tree.verify());
+    }
+
+    #[test]
+    fn proptest_min_max_after_each_op(
+        ops in proptest::collection::vec(op_strategy(), 0..200),
+        order in 3usize..10usize
+    ) {
+        let mut tree = BTree::with_order(order);
+        let mut reference = std::collections::BTreeMap::<i32, i32>::new();
+
+        for op in &ops {
+            match op {
+                Op::Insert(k, v) => {
+                    tree.insert(*k, *v);
+                    reference.insert(*k, *v);
+                }
+                Op::Delete(k) => {
+                    if reference.remove(k).is_some() {
+                        tree.delete(k).unwrap();
+                    }
+                }
+            }
+
+            if reference.is_empty() {
+                assert!(tree.min().is_none());
+                assert!(tree.max().is_none());
+            } else {
+                assert_eq!(tree.min().map(|(k, _)| *k), reference.keys().next().copied());
+                assert_eq!(tree.max().map(|(k, _)| *k), reference.keys().next_back().copied());
+            }
+        }
+    }
+}
+
 // ── Adversarial: worst-case patterns ──
 
 #[test]

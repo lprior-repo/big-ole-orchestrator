@@ -44,7 +44,7 @@ fn scan_iterator_decodes_valid_entries_from_real_partition() {
     let ts = make_test_timestamp(500);
     let key = encode_instance_index_key(InstanceStatus::Running, ts, &id).unwrap();
 
-    partition.insert(&key, &Vec::new()).unwrap();
+    partition.insert(key, Vec::new()).unwrap();
 
     let iter = partition.iter();
     let mut scan = ScanIterator {

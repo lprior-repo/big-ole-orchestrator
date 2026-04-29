@@ -4,8 +4,8 @@ use super::*;
 use crate::admission::types::WritePressureState;
 use crate::admission::workload::{
     acquire_slot, check_budget, compute_degraded_mode, is_class_accepted_in_mode, release_slot,
-    set_degraded_mode, BudgetAllocation, BudgetCheckResult, BudgetRejectionReason, DegradedMode,
-    WorkloadBudget, WorkloadClass,
+    set_degraded_mode, BudgetAllocation, BudgetCheckResult, DegradedMode, WorkloadBudget,
+    WorkloadClass,
 };
 
 #[test]
@@ -173,9 +173,14 @@ fn budget_allocation_can_acquire_true() {
 }
 
 #[test]
-fn budget_allocation_can_acquire_true_when_slots_available() {
-    let alloc = BudgetAllocation::new(WorkloadClass::Live, 50, 50);
-    assert!(alloc.can_acquire());
+fn budget_allocation_can_acquire_false_when_exhausted() {
+    let alloc = BudgetAllocation {
+        class: WorkloadClass::Live,
+        max_slots: 50,
+        used_slots: 50,
+        reserved_min: 25,
+    };
+    assert!(!alloc.can_acquire());
 }
 
 #[test]
@@ -190,7 +195,7 @@ fn budget_allocation_is_exhausted_true() {
         class: WorkloadClass::Live,
         max_slots: 50,
         used_slots: 50,
-        reserved_min: 50,
+        reserved_min: 25,
     };
     assert!(alloc.is_exhausted());
     assert!(!alloc.can_acquire());

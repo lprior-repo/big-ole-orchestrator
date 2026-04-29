@@ -10,12 +10,13 @@
 //! Also provides `WorkloadBudget` for per-class permit tracking and
 //! `RejectionDetail` for load-shedding transparency.
 
-mod budget;
-mod class;
-mod degraded;
-mod error;
+pub mod budget;
+pub mod classification;
+pub mod priority;
+pub mod proptest;
+#[cfg(test)]
+pub mod tests;
 
-pub use budget::{RejectionDetail, RejectionReason, WorkloadBudget};
-pub use class::{adr033_class_index, ADR033_CLASSES, WorkloadClass};
-pub use degraded::DegradedBudget;
-pub use error::WorkloadClassError;
+pub use budget::WorkloadBudget;
+pub use classification::{WorkloadClass, WorkloadClassError};
+pub use priority::{RejectionDetail, RejectionReason};

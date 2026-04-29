@@ -1,18 +1,36 @@
 //! Declarative State Machine Compiler
 //!
-//! Provides a declarative `TransitionTable` with builder API, guard conditions,
+//! Provides a declarative TransitionTable with builder API, guard conditions,
 //! side effects, and DOT visualization output.
+//!
+//! # Example
+//!
+//! ```rust
+//! use vo-types::state::lifecycle::{LifecycleState, TransitionEvent};
+//! use vo-types::state::compiler::{TransitionTable, Guard, SideEffect};
+//!
+//! let table = TransitionTable::builder()
+//!     .add_transition(LifecycleState::Pending, TransitionEvent::AssignToNode)
+//!         .to(LifecycleState::RunningDecision)
+//!         .with_guard(Guard::Always)
+//!         .with_side_effect(SideEffect::None)
+//!         .build()
+//!     .build();
+//! ```
 
-mod definition;
-mod transitions;
-mod validation;
+mod guard;
+mod lifecycle_table;
+mod side_effect;
+mod transition_rule;
+mod transition_table;
 
-pub use definition::{
-    CompilerTransitionError, TransitionBuilder, TransitionRule, TransitionTable,
-    TransitionTableBuilder,
+pub use guard::{Guard, GuardFn, GuardResult};
+pub use lifecycle_table::create_lifecycle_table;
+pub use side_effect::{SideEffect, SideEffectFn, SideEffectResult};
+pub use transition_rule::TransitionRule;
+pub use transition_table::{
+    CompilerTransitionError, TransitionBuilder, TransitionTable, TransitionTableBuilder,
 };
-pub use transitions::create_lifecycle_table;
-pub use validation::{
-    allows_recovery, is_valid_transition, Guard, GuardFn, GuardResult, SideEffect, SideEffectFn,
-    SideEffectResult,
-};
+
+#[cfg(test)]
+mod tests;

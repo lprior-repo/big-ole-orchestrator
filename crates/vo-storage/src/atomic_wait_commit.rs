@@ -350,8 +350,8 @@ mod tests {
         let now_ms = 1_000_000u64;
 
         let params = make_params(
-            instance_id.clone(),
-            timer_id.clone(),
+            instance_id,
+            timer_id,
             now_ms + 60_000, // fire 60s in future
             now_ms,          // trigger now
             60_000,          // 60s duration
@@ -403,8 +403,8 @@ mod tests {
         let now_ms = 2_000_000u64;
 
         let params = make_params(
-            instance_id.clone(),
-            timer_id.clone(),
+            instance_id,
+            timer_id,
             now_ms + 30_000,
             now_ms,
             30_000,

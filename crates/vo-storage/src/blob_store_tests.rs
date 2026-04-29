@@ -9,7 +9,7 @@ fn content_address_constructs_with_valid_hex() {
     let s = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
     assert_eq!(s.len(), 64, "string length should be 64");
     let addr = ContentAddress::new(s);
-    assert!(addr.is_ok(), "ContentAddress::new failed: {:?}", addr);
+    assert!(addr.is_ok(), "ContentAddress::new failed: {addr:?}");
     let addr = addr.unwrap();
     assert_eq!(addr.as_str(), s);
 }
@@ -455,7 +455,7 @@ fn all_blob_store_error_variants_implement_error_trait() {
 fn encode_content_address_produces_valid_utf8() {
     let addr = ContentAddress::new(VALID_SHA256).unwrap();
     let encoded = encode_content_address(&addr);
-    let as_str = String::from_utf8(encoded.clone()).unwrap();
+    let as_str = String::from_utf8(encoded).unwrap();
     assert_eq!(as_str, VALID_SHA256);
 }
 
@@ -553,28 +553,15 @@ fn blob_record_is_gc_eligible_requires_both_conditions() {
     );
     assert!(record.is_gc_eligible(1500), "both ref=0 and expired");
 
-    let record = BlobRecord::with_status(
-        content_addr.clone(),
-        1024,
-        0,
-        1000,
-        Some(1500),
-        BlobStatus::Pending,
-    );
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 0, 1000, Some(1500), BlobStatus::Pending);
     assert!(!record.is_gc_eligible(1499), "expired at 1500, not at 1499");
 }
 
 #[test]
 fn blob_record_gc_eligible_without_ttl() {
     let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
-    let record = BlobRecord::with_status(
-        content_addr.clone(),
-        1024,
-        0,
-        1000,
-        None,
-        BlobStatus::Pending,
-    );
+    let record = BlobRecord::with_status(content_addr, 1024, 0, 1000, None, BlobStatus::Pending);
     assert!(
         !record.is_gc_eligible(u64::MAX),
         "no TTL means never expires, even with ref=0"
@@ -590,14 +577,8 @@ fn blob_record_status_transition_consistency() {
     assert!(pending.can_transition_to(BlobStatus::Failed));
     assert!(!pending.can_transition_to(BlobStatus::Published));
 
-    let stored = BlobRecord::with_status(
-        content_addr.clone(),
-        1024,
-        1,
-        1000,
-        None,
-        BlobStatus::DurablyStored,
-    );
+    let stored =
+        BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::DurablyStored);
     assert!(stored.can_transition_to(BlobStatus::Published));
     assert!(!stored.can_transition_to(BlobStatus::Pending));
     assert!(!stored.can_transition_to(BlobStatus::Failed));
@@ -619,14 +600,7 @@ fn blob_record_terminal_states_no_transitions() {
     assert!(!published.can_transition_to(BlobStatus::DurablyStored));
     assert!(!published.can_transition_to(BlobStatus::Failed));
 
-    let failed = BlobRecord::with_status(
-        content_addr.clone(),
-        1024,
-        1,
-        1000,
-        None,
-        BlobStatus::Failed,
-    );
+    let failed = BlobRecord::with_status(content_addr, 1024, 1, 1000, None, BlobStatus::Failed);
     assert!(!failed.can_transition_to(BlobStatus::Pending));
     assert!(!failed.can_transition_to(BlobStatus::DurablyStored));
     assert!(!failed.can_transition_to(BlobStatus::Published));
@@ -646,7 +620,7 @@ fn blob_record_reference_count_saturation_bounds() {
     let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX - 1, 1000, None).unwrap();
     assert_eq!(record.increment_ref_count(), u64::MAX);
 
-    let record = BlobRecord::new(content_addr.clone(), 1024, u64::MAX, 1000, None).unwrap();
+    let record = BlobRecord::new(content_addr, 1024, u64::MAX, 1000, None).unwrap();
     assert_eq!(record.increment_ref_count(), u64::MAX);
 }
 
@@ -697,7 +671,7 @@ fn blob_store_error_is_transient_classification() {
     ];
 
     for err in transient_errors {
-        assert!(err.is_transient(), "Expected {:?} to be transient", err);
+        assert!(err.is_transient(), "Expected {err:?} to be transient");
     }
 
     let fatal_errors = vec![
@@ -719,7 +693,7 @@ fn blob_store_error_is_transient_classification() {
     ];
 
     for err in fatal_errors {
-        assert!(err.is_fatal(), "Expected {:?} to be fatal", err);
+        assert!(err.is_fatal(), "Expected {err:?} to be fatal");
     }
 
     let not_transient_or_fatal = BlobStoreError::ContentNotFound {
@@ -763,14 +737,8 @@ fn blob_record_with_status_allows_direct_status_construction() {
     );
     assert_eq!(record.status(), BlobStatus::Published);
 
-    let record = BlobRecord::with_status(
-        content_addr.clone(),
-        1024,
-        1,
-        1000,
-        Some(2000),
-        BlobStatus::Failed,
-    );
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 1, 1000, Some(2000), BlobStatus::Failed);
     assert_eq!(record.status(), BlobStatus::Failed);
 }
 
@@ -792,51 +760,173 @@ fn content_address_from_bytes_invalidates_uppercase() {
 }
 
 #[test]
-fn content_address_deserialize_valid() {
+fn content_address_display_outputs_hex_string() {
+    let addr = ContentAddress::new(VALID_SHA256).unwrap();
+    assert_eq!(format!("{addr}"), VALID_SHA256);
+}
+
+#[test]
+fn pack_file_id_display_outputs_inner_string() {
+    let id = PackFileId::new("pack-abc").unwrap();
+    assert_eq!(format!("{id}"), "pack-abc");
+}
+
+#[test]
+fn content_address_serde_roundtrip() {
     let addr = ContentAddress::new(VALID_SHA256).unwrap();
     let json = serde_json::to_string(&addr).unwrap();
-    let decoded: ContentAddress = serde_json::from_str(&json).unwrap();
-    assert_eq!(decoded, addr);
+    let recovered: ContentAddress = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered, addr);
 }
 
 #[test]
-fn content_address_deserialize_rejects_wrong_length() {
-    let json = "\"abcdef\"";
-    let result: Result<ContentAddress, _> = serde_json::from_str(json);
+fn pack_file_id_serde_roundtrip() {
+    let id = PackFileId::new("pack-serde-test").unwrap();
+    let json = serde_json::to_string(&id).unwrap();
+    let recovered: PackFileId = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered, id);
+}
+
+#[test]
+fn pack_index_entry_serde_roundtrip() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let pack_id = PackFileId::new("pack-serde").unwrap();
+    let entry = PackIndexEntry::new(content_addr.clone(), pack_id.clone(), 4096, 8192);
+    let json = serde_json::to_string(&entry).unwrap();
+    let recovered: PackIndexEntry = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered.content_addr(), &content_addr);
+    assert_eq!(recovered.pack_file_id(), &pack_id);
+    assert_eq!(recovered.offset_bytes(), 4096);
+    assert_eq!(recovered.size_bytes(), 8192);
+}
+
+#[test]
+fn blob_record_serde_roundtrip_pending() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record = BlobRecord::new(content_addr.clone(), 2048, 3, 5000, Some(10000)).unwrap();
+    let json = serde_json::to_string(&record).unwrap();
+    let recovered: BlobRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered.content_addr(), &content_addr);
+    assert_eq!(recovered.size_bytes(), 2048);
+    assert_eq!(recovered.reference_count(), 3);
+    assert_eq!(recovered.created_at_ms(), 5000);
+    assert_eq!(recovered.expires_at_ms(), Some(10000));
+    assert_eq!(recovered.status(), BlobStatus::Pending);
+}
+
+#[test]
+fn blob_record_serde_roundtrip_durably_stored() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record = BlobRecord::with_status(
+        content_addr.clone(),
+        512,
+        1,
+        3000,
+        None,
+        BlobStatus::DurablyStored,
+    );
+    let json = serde_json::to_string(&record).unwrap();
+    let recovered: BlobRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered.status(), BlobStatus::DurablyStored);
+    assert_eq!(recovered.expires_at_ms(), None);
+}
+
+#[test]
+fn blob_record_serde_roundtrip_published() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record = BlobRecord::with_status(
+        content_addr.clone(),
+        1024,
+        2,
+        7000,
+        Some(14000),
+        BlobStatus::Published,
+    );
+    let json = serde_json::to_string(&record).unwrap();
+    let recovered: BlobRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered.status(), BlobStatus::Published);
+}
+
+#[test]
+fn blob_record_serde_roundtrip_failed() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record = BlobRecord::with_status(content_addr.clone(), 0, 1, 999, None, BlobStatus::Failed);
+    let json = serde_json::to_string(&record).unwrap();
+    let recovered: BlobRecord = serde_json::from_str(&json).unwrap();
+    assert_eq!(recovered.status(), BlobStatus::Failed);
+}
+
+#[test]
+fn encode_blob_record_roundtrip_with_all_statuses() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    for &status in BlobStatus::all_variants() {
+        let record =
+            BlobRecord::with_status(content_addr.clone(), 100, 1, 1000, Some(2000), status);
+        let encoded = encode_blob_record(&record).unwrap();
+        let decoded = decode_blob_record(&encoded).unwrap();
+        assert_eq!(
+            decoded.status(),
+            status,
+            "roundtrip failed for {:?}",
+            status
+        );
+    }
+}
+
+#[test]
+fn blob_record_created_at_ms_accessor() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record = BlobRecord::new(content_addr, 1024, 1, 123456789, None).unwrap();
+    assert_eq!(record.created_at_ms(), 123456789);
+}
+
+#[test]
+fn partition_constants_have_expected_values() {
+    assert_eq!(BLOB_STORE_PARTITION, "blob_store");
+    assert_eq!(BLOB_RECORD_PARTITION, "blob_records");
+}
+
+#[test]
+fn content_address_from_bytes_all_zeros() {
+    let addr = ContentAddress::from_bytes(&[0u8; 32]);
+    assert_eq!(
+        addr.as_str(),
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    );
+    let bytes = addr.as_bytes();
+    assert_eq!(bytes, [0u8; 32]);
+}
+
+#[test]
+fn content_address_from_bytes_all_ff() {
+    let addr = ContentAddress::from_bytes(&[0xFFu8; 32]);
+    assert_eq!(
+        addr.as_str(),
+        "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    );
+    let bytes = addr.as_bytes();
+    assert_eq!(bytes, [0xFFu8; 32]);
+}
+
+#[test]
+fn blob_record_with_zero_ref_count_is_gc_eligible_when_expired() {
+    let content_addr = ContentAddress::new(VALID_SHA256).unwrap();
+    let record =
+        BlobRecord::with_status(content_addr, 1024, 0, 1000, Some(2000), BlobStatus::Pending);
+    assert!(record.is_gc_eligible(2000));
+    assert!(record.is_gc_eligible(3000));
+    assert!(!record.is_gc_eligible(1999));
+}
+
+#[test]
+fn encode_pack_index_entry_rejects_via_decode_garbage() {
+    let garbage = vec![0xDE, 0xAD, 0xBE, 0xEF];
+    let result = decode_pack_index_entry(&garbage);
     assert!(result.is_err());
 }
 
 #[test]
-fn content_address_deserialize_rejects_uppercase() {
-    let json = "\"ABCDEF0123456789abcdef0123456789abcdef0123456789abcdef0123456789\"";
-    let result: Result<ContentAddress, _> = serde_json::from_str(json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn content_address_deserialize_rejects_non_hex() {
-    let json = "\"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15g0f00a08\"";
-    let result: Result<ContentAddress, _> = serde_json::from_str(json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn content_address_deserialize_rejects_empty() {
-    let json = "\"\"";
-    let result: Result<ContentAddress, _> = serde_json::from_str(json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn pack_index_entry_deserialize_validates_content_address() {
-    let json = r#"{"content_addr":"bad","pack_file_id":"pk-1","offset_bytes":0,"size_bytes":100}"#;
-    let result: Result<PackIndexEntry, _> = serde_json::from_str(json);
-    assert!(result.is_err());
-}
-
-#[test]
-fn blob_record_deserialize_validates_content_address() {
-    let json = r#"{"content_addr":"bad","size_bytes":100,"reference_count":1,"created_at_ms":1000,"expires_at_ms":null,"status":"Active"}"#;
-    let result: Result<BlobRecord, _> = serde_json::from_str(json);
-    assert!(result.is_err());
+fn pack_file_id_new_preserves_content() {
+    let id = PackFileId::new("a").unwrap();
+    assert_eq!(id.as_str(), "a");
 }

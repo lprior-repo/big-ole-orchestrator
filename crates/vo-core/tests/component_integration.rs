@@ -2,14 +2,6 @@
 //!
 //! These tests exercise integration between multiple vo-core components to verify
 //! that they work correctly when composed together.
-//!
-//! Components tested:
-//! - WriteClass (write taxonomy)
-//! - ResourceQuota (resource limits)
-//! - Admission (write pressure handling)
-//! - CircuitBreaker (fault tolerance)
-//! - Replay (event sourcing)
-//! - Upcaster (event versioning)
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -42,7 +34,11 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -417,6 +413,7 @@ fn circuit_breaker_force_bypasses_all_protections() {
         .rate_limiter
         .insert(make_wf("stuck-wf"), now - Duration::from_secs(30));
 
+    state.register_operator_token("test-operator-token".into());
     let force_request = make_request("stuck-wf", "abcdef01", true);
     let result = evaluate_registration(&force_request, &config, &state, now);
     assert_eq!(
@@ -1454,7 +1451,8 @@ fn make_version(wf: &str, hash: &str) -> WorkflowVersion {
     let name = vo_types::WorkflowName::parse(wf).expect("workflow name should be valid");
     let hash = vo_types::BinaryHash::parse(hash).expect("hash should be valid");
     let ts = vo_types::TimestampMs::try_from(1712200000000u64).unwrap();
-    WorkflowVersion::new(name, hash, ts).expect("version should be created")
+    WorkflowVersion::new(name, hash, ts, vo_types::VERSION_BASE_PATH)
+        .expect("version should be created")
 }
 
 #[test]
@@ -1474,7 +1472,7 @@ fn workflow_version_rejects_short_hash() {
     let short_hash = vo_types::BinaryHash::parse("aabbccdd").unwrap();
     let ts = vo_types::TimestampMs::try_from(1712200000000u64).unwrap();
 
-    let result = WorkflowVersion::new(name, short_hash, ts);
+    let result = WorkflowVersion::new(name, short_hash, ts, vo_types::VERSION_BASE_PATH);
     assert_eq!(result, Err(WorkflowVersionError::HashTooShort));
 }
 

@@ -1,3 +1,5 @@
+#![allow(clippy::doc_markdown)]
+
 //! Proptest suite for vo-worker pure functions and invariants.
 //!
 //! This module contains property-based tests for:
@@ -26,9 +28,9 @@ use vo_worker::retry::RetryConfig;
 // RETRY CONFIG PROPTESTS
 //==============================================================================
 
-/// Invariant: Backoff calculation is monotonically non-decreasing with attempt number
-/// Strategy: Random initial_backoff (1-10000ms), multiplier (1.0-5.0), attempts (1-10)
-/// Anti-invariant: Later attempt has strictly smaller backoff than earlier attempt
+// Invariant: Backoff calculation is monotonically non-decreasing with attempt number
+// Strategy: Random initial_backoff (1-10000ms), multiplier (1.0-5.0), attempts (1-10)
+// Anti-invariant: Later attempt has strictly smaller backoff than earlier attempt
 proptest! {
     #[test]
     fn test_retry_backoff_monotonicity(
@@ -50,9 +52,9 @@ proptest! {
     }
 }
 
-/// Invariant: Backoff respects max_backoff cap
-/// Strategy: Random initial_backoff, multiplier, max_backoff
-/// Anti-invariant: Some backoff exceeds max_backoff
+// Invariant: Backoff respects max_backoff cap
+// Strategy: Random initial_backoff, multiplier, max_backoff
+// Anti-invariant: Some backoff exceeds max_backoff
 proptest! {
     #[test]
     fn test_retry_backoff_respects_max_cap(
@@ -73,9 +75,9 @@ proptest! {
     }
 }
 
-/// Invariant: Zero jitter factor returns exactly base duration
-/// Strategy: Random base durations
-/// Anti-invariant: Returned duration differs from base by any amount
+// Invariant: Zero jitter factor returns exactly base duration
+// Strategy: Random base durations
+// Anti-invariant: Returned duration differs from base by any amount
 proptest! {
     #[test]
     fn test_zero_jitter_returns_base_duration(
@@ -94,9 +96,9 @@ proptest! {
     }
 }
 
-/// Invariant: Jitter is symmetric around base (positive and negative equal range)
-/// Strategy: Random base, jitter factor
-/// Anti-invariant: Jitter consistently biased positive or negative
+// Invariant: Jitter is symmetric around base (positive and negative equal range)
+// Strategy: Random base, jitter factor
+// Anti-invariant: Jitter consistently biased positive or negative
 proptest! {
     #[test]
     fn test_jitter_symmetry(
@@ -126,9 +128,9 @@ proptest! {
 // HASH RING PROPTESTS
 //==============================================================================
 
-/// Invariant: Empty ring returns None for any key
-/// Strategy: Empty ring, random keys
-/// Anti-invariant: Empty ring returns Some node
+// Invariant: Empty ring returns None for any key
+// Strategy: Empty ring, random keys
+// Anti-invariant: Empty ring returns Some node
 proptest! {
     #[test]
     fn test_empty_ring_returns_none(
@@ -143,9 +145,9 @@ proptest! {
     }
 }
 
-/// Invariant: Single node ring always returns that node
-/// Strategy: Ring with single node, random keys
-/// Anti-invariant: Single node ring returns different node or None
+// Invariant: Single node ring always returns that node
+// Strategy: Ring with single node, random keys
+// Anti-invariant: Single node ring returns different node or None
 proptest! {
     #[test]
     fn test_single_node_always_returns_that_node(
@@ -165,9 +167,9 @@ proptest! {
     }
 }
 
-/// Invariant: Node count equals number of added nodes
-/// Strategy: Sequence of add/remove operations
-/// Anti-invariant: Node count != actual distinct node count
+// Invariant: Node count equals number of added nodes
+// Strategy: Sequence of add/remove operations
+// Anti-invariant: Node count != actual distinct node count
 proptest! {
     #[test]
     fn test_node_count_invariant(
@@ -196,9 +198,9 @@ proptest! {
     }
 }
 
-/// Invariant: get_nodes returns unique pool IDs
-/// Strategy: Ring with multiple nodes, request multiple nodes
-/// Anti-invariant: get_nodes returns duplicate pool IDs
+// Invariant: get_nodes returns unique pool IDs
+// Strategy: Ring with multiple nodes, request multiple nodes
+// Anti-invariant: get_nodes returns duplicate pool IDs
 proptest! {
     #[test]
     fn test_get_nodes_returns_unique_pools(
@@ -231,9 +233,9 @@ proptest! {
     }
 }
 
-/// Invariant: Total virtual nodes equals sum of (virtual_nodes * weight) for all nodes
-/// Strategy: Random configuration and nodes
-/// Anti-invariant: total_virtual_nodes != expected sum
+// Invariant: Total virtual nodes equals sum of (virtual_nodes * weight) for all nodes
+// Strategy: Random configuration and nodes
+// Anti-invariant: total_virtual_nodes != expected sum
 proptest! {
     #[test]
     fn test_total_virtual_nodes_invariant(
@@ -263,9 +265,9 @@ proptest! {
     }
 }
 
-/// Invariant: Consistent hashing produces deterministic results for same key
-/// Strategy: Ring with nodes, random keys
-/// Anti-invariant: Same key maps to different nodes on repeated lookups
+// Invariant: Consistent hashing produces deterministic results for same key
+// Strategy: Ring with nodes, random keys
+// Anti-invariant: Same key maps to different nodes on repeated lookups
 proptest! {
     #[test]
     fn test_consistent_hashing_determinism(
@@ -296,9 +298,9 @@ proptest! {
     }
 }
 
-/// Invariant: get_nodes count never exceeds requested count
-/// Strategy: Ring with nodes, various request counts
-/// Anti-invariant: get_nodes returns more than requested
+// Invariant: get_nodes count never exceeds requested count
+// Strategy: Ring with nodes, various request counts
+// Anti-invariant: get_nodes returns more than requested
 proptest! {
     #[test]
     fn test_get_nodes_count_limit(
@@ -328,9 +330,9 @@ proptest! {
 // POOL CONFIG PROPTESTS
 //==============================================================================
 
-/// Invariant: Valid configs pass validation
-/// Strategy: Valid parameter combinations
-/// Anti-invariant: Valid parameters fail validation
+// Invariant: Valid configs pass validation
+// Strategy: Valid parameter combinations
+// Anti-invariant: Valid parameters fail validation
 proptest! {
     #[test]
     fn test_valid_configs_pass_validation(
@@ -367,9 +369,9 @@ proptest! {
     }
 }
 
-/// Invariant: Invalid configs fail with appropriate error
-/// Strategy: Various invalid parameter combinations
-/// Anti-invariant: Invalid parameters pass validation
+// Invariant: Invalid configs fail with appropriate error
+// Strategy: Various invalid parameter combinations
+// Anti-invariant: Invalid parameters pass validation
 proptest! {
     #[test]
     fn test_invalid_configs_rejected(
@@ -393,9 +395,9 @@ proptest! {
     }
 }
 
-/// Invariant: min_connections <= max_connections is required
-/// Strategy: Random min/max pairs
-/// Anti-invariant: min > max passes validation
+// Invariant: min_connections <= max_connections is required
+// Strategy: Random min/max pairs
+// Anti-invariant: min > max passes validation
 proptest! {
     #[test]
     fn test_min_leq_max_constraint(
@@ -412,9 +414,9 @@ proptest! {
     }
 }
 
-/// Invariant: All timeout/interval fields must be > 0
-/// Strategy: Random timeout values including zero
-/// Anti-invariant: Zero timeout passes validation
+// Invariant: All timeout/interval fields must be > 0
+// Strategy: Random timeout values including zero
+// Anti-invariant: Zero timeout passes validation
 proptest! {
     #[test]
     fn test_timeout_fields_nonzero(
@@ -436,9 +438,9 @@ proptest! {
     }
 }
 
-/// Invariant: max_pending_acquires can be zero
-/// Strategy: Zero and non-zero values
-/// Anti-invariant: Zero max_pending_acquires fails validation
+// Invariant: max_pending_acquires can be zero
+// Strategy: Zero and non-zero values
+// Anti-invariant: Zero max_pending_acquires fails validation
 proptest! {
     #[test]
     fn test_max_pending_acquires_zero_allowed(
@@ -453,9 +455,9 @@ proptest! {
     }
 }
 
-/// Invariant: with_defaults produces valid config
-/// Strategy: None (deterministic)
-/// Anti-invariant: with_defaults produces invalid config
+// Invariant: with_defaults produces valid config
+// Strategy: None (deterministic)
+// Anti-invariant: with_defaults produces invalid config
 #[test]
 fn test_with_defaults_valid() {
     let config = PoolConfig::with_defaults();
@@ -473,9 +475,9 @@ fn test_with_defaults_valid() {
 // CIRCUIT BREAKER PROPTESTS
 //==============================================================================
 
-/// Invariant: Circuit breaker starts in Closed state
-/// Strategy: None (deterministic)
-/// Anti-invariant: Circuit breaker starts in Open or HalfOpen state
+// Invariant: Circuit breaker starts in Closed state
+// Strategy: None (deterministic)
+// Anti-invariant: Circuit breaker starts in Open or HalfOpen state
 #[test]
 fn test_initial_state_is_closed() {
     let cb = CircuitBreaker::new();
@@ -484,9 +486,9 @@ fn test_initial_state_is_closed() {
     assert_eq!(cb.state(), CircuitBreakerState::Closed);
 }
 
-/// Invariant: Success resets consecutive failures to 0
-/// Strategy: Random failure count, then success
-/// Anti-invariant: Success does not reset failures
+// Invariant: Success resets consecutive failures to 0
+// Strategy: Random failure count, then success
+// Anti-invariant: Success does not reset failures
 proptest! {
     #[test]
     fn test_success_resets_failures(
@@ -512,9 +514,9 @@ proptest! {
     }
 }
 
-/// Invariant: Open state rejects requests, Closed/HalfOpen allow
-/// Strategy: Record failures to trip circuit to Open, or timeout for HalfOpen
-/// Anti-invariant: State allows/rejects incorrectly
+// Invariant: Open state rejects requests, Closed/HalfOpen allow
+// Strategy: Record failures to trip circuit to Open, or timeout for HalfOpen
+// Anti-invariant: State allows/rejects incorrectly
 proptest! {
     #[test]
     fn test_state_request_policy(
@@ -548,9 +550,9 @@ proptest! {
     }
 }
 
-/// Invariant: reset() returns to initial Closed state with clean state
-/// Strategy: Random failure count, then reset
-/// Anti-invariant: reset() does not return to clean Closed state
+// Invariant: reset() returns to initial Closed state with clean state
+// Strategy: Random failure count, then reset
+// Anti-invariant: reset() does not return to clean Closed state
 proptest! {
     #[test]
     fn test_reset_clears_state(
@@ -579,9 +581,9 @@ proptest! {
     }
 }
 
-/// Invariant: Circuit opens after 50% failure rate in window
-/// Strategy: Random mix of successes and failures
-/// Anti-invariant: Circuit stays closed despite 50%+ failure rate
+// Invariant: Circuit opens after 50% failure rate in window
+// Strategy: Random mix of successes and failures
+// Anti-invariant: Circuit stays closed despite 50%+ failure rate
 proptest! {
     #[test]
     fn test_circuit_opens_after_high_failure_rate(
@@ -618,9 +620,9 @@ proptest! {
     }
 }
 
-/// Invariant: Success in HalfOpen closes circuit
-/// Strategy: Simulate HalfOpen via failures, then success
-/// Anti-invariant: Success in HalfOpen does not close
+// Invariant: Success in HalfOpen closes circuit
+// Strategy: Simulate HalfOpen via failures, then success
+// Anti-invariant: Success in HalfOpen does not close
 proptest! {
     #[test]
     fn test_half_open_success_closes(
@@ -644,9 +646,9 @@ proptest! {
     }
 }
 
-/// Invariant: Failure count tracks correctly through operations
-/// Strategy: Random sequences of successes and failures
-/// Anti-invariant: Failure count diverges from actual recorded failures
+// Invariant: Failure count tracks correctly through operations
+// Strategy: Random sequences of successes and failures
+// Anti-invariant: Failure count diverges from actual recorded failures
 proptest! {
     #[test]
     fn test_failure_count_accuracy(
@@ -681,9 +683,9 @@ proptest! {
     }
 }
 
-/// Invariant: Circuit stays closed with all successes
-/// Strategy: Random number of successes (0-100)
-/// Anti-invariant: Circuit opens with only successes
+// Invariant: Circuit stays closed with all successes
+// Strategy: Random number of successes (0-100)
+// Anti-invariant: Circuit opens with only successes
 proptest! {
     #[test]
     fn test_all_successes_keeps_closed(
@@ -707,9 +709,9 @@ proptest! {
 // TYPE CONVERSION INVARIANTS
 //==============================================================================
 
-/// Invariant: PoolConfig <-> VoPoolConfig conversion is lossless
-/// Strategy: Random valid PoolConfig parameters
-/// Anti-invariant: Conversion loses or changes any field
+// Invariant: PoolConfig <-> VoPoolConfig conversion is lossless
+// Strategy: Random valid PoolConfig parameters
+// Anti-invariant: Conversion loses or changes any field
 proptest! {
     #[test]
     fn test_pool_config_conversion_lossless(
@@ -749,9 +751,9 @@ proptest! {
     }
 }
 
-/// Invariant: Conversion preserves all fields exactly
-/// Strategy: Random valid config
-/// Anti-invariant: Any field differs after conversion
+// Invariant: Conversion preserves all fields exactly
+// Strategy: Random valid config
+// Anti-invariant: Any field differs after conversion
 proptest! {
     #[test]
     fn test_conversion_field_preservation(
@@ -787,9 +789,9 @@ proptest! {
 // COMPOSITE INVARIANTS
 //==============================================================================
 
-/// Invariant: Hash ring distribution is fair across equal-weight nodes
-/// Strategy: Multiple equal-weight nodes, many keys
-/// Anti-invariant: One node gets >90% of requests (extreme imbalance)
+// Invariant: Hash ring distribution is fair across equal-weight nodes
+// Strategy: Multiple equal-weight nodes, many keys
+// Anti-invariant: One node gets >90% of requests (extreme imbalance)
 proptest! {
     #[test]
     fn test_fair_distribution(
@@ -828,9 +830,9 @@ proptest! {
     }
 }
 
-/// Invariant: Weighted distribution proportional to weights
-/// Strategy: Nodes with different weights
-/// Anti-invariant: High-weight node gets fewer requests than low-weight node
+// Invariant: Weighted distribution proportional to weights
+// Strategy: Nodes with different weights
+// Anti-invariant: High-weight node gets fewer requests than low-weight node
 proptest! {
     #[test]
     fn test_weighted_distribution_proportional(
@@ -878,7 +880,7 @@ proptest! {
 // These tests should NOT pass and are kept as documentation of what NOT to allow.
 
 /*
-/// Anti-invariant: Backoff decreases (should fail)
+// Anti-invariant: Backoff decreases (should fail)
 proptest! {
     #[test]
     fn anti_invariant_backoff_decreases(
@@ -899,7 +901,7 @@ proptest! {
 // PROPERTY TEST STRATEGIES
 //==============================================================================
 
-/// Strategy for generating valid PoolConfig parameters
+// Strategy for generating valid PoolConfig parameters
 pub fn pool_config_strategy() -> impl Strategy<Value = PoolConfig> {
     (
         1u32..50u32,                                   // min_connections
@@ -915,12 +917,12 @@ pub fn pool_config_strategy() -> impl Strategy<Value = PoolConfig> {
         })
 }
 
-/// Strategy for generating random keys for hash ring
+// Strategy for generating random keys for hash ring
 pub fn hash_ring_key_strategy() -> impl Strategy<Value = String> {
     any::<String>()
 }
 
-/// Strategy for generating random nodes
+// Strategy for generating random nodes
 pub fn ring_node_strategy(
     virtual_nodes: u32,
 ) -> impl Strategy<Value = (HashRingConfig, Vec<RingNode>)> {

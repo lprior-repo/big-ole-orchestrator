@@ -138,10 +138,9 @@ fn get_valid_transitions_returns_correct_events_for_step_executing() {
     let transitions = get_valid_transitions(LifecycleState::StepExecuting);
     assert_eq!(transitions.len(), 7);
     assert!(transitions.contains(&TransitionEvent::WaitForTimer));
+    assert!(transitions.contains(&TransitionEvent::WaitForSignal));
     assert!(transitions.contains(&TransitionEvent::YieldWithBlob));
     assert!(transitions.contains(&TransitionEvent::CompleteStep));
-    assert!(transitions.contains(&TransitionEvent::PrepareEffect));
-    assert!(transitions.contains(&TransitionEvent::BeginCompensation));
     assert!(transitions.contains(&TransitionEvent::Cancel));
     assert!(transitions.contains(&TransitionEvent::Fail));
 }

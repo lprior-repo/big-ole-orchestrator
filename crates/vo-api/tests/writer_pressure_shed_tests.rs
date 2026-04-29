@@ -82,11 +82,20 @@ fn build_test_app(
     writer_pressure: Arc<dyn WriterPressureGuard>,
     master: ActorRef<OrchestratorMsg>,
 ) -> Router {
+    use vo_core::circuit_breaker::CircuitBreakerState;
+    let circuit_breaker = Arc::new(CircuitBreakerState::new());
+    let tmp = tempfile::tempdir().expect("create temp dir");
+    let db = Arc::new(fjall::Database::open(fjall::Config::new(tmp.path())).expect("open test db"));
+    db.keyspace("events", fjall::KeyspaceCreateOptions::default)
+        .expect("create events partition");
+    std::mem::forget(tmp);
     Router::new()
         .route("/api/v1/workflows", post(start_workflow))
         .layer(Extension(master))
         .layer(Extension(writer_pressure))
         .layer(Extension(dedupe_store))
+        .layer(Extension(circuit_breaker))
+        .layer(Extension(db))
 }
 
 fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
@@ -97,6 +106,7 @@ fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
         input: json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: Some(dedupe_key.to_string()),
+        workflow_binary_hash: None,
     }
 }
 
@@ -265,8 +275,8 @@ async fn app_state_includes_writer_pressure_field() {
         .expect("spawn");
 
     let state = AppState {
-        query: vo_api::handlers::query::QueryState {
-            db: Arc::new(
+        query: vo_api::handlers::query::QueryState::new(
+            Arc::new(
                 vo_storage::partitions::StorageEngine::open(
                     tempfile::tempdir().expect("tempdir").path(),
                 )
@@ -274,10 +284,11 @@ async fn app_state_includes_writer_pressure_field() {
                 .db()
                 .clone(),
             ),
-            workspace_index: Arc::new(std::sync::RwLock::new(
+            Arc::new(std::sync::RwLock::new(
                 vo_types::workspace::WorkspaceIndex::new(),
             )),
-        },
+            Arc::new(std::sync::RwLock::new(vo_types::search::SearchEngine::new())),
+        ),
         sse: vo_api::handlers::sse::SseState::new(),
         ws: vo_api::handlers::ws::WsState::new(),
         master: Arc::new(master_ref),

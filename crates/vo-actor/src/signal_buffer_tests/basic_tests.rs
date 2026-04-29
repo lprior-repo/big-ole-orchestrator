@@ -14,7 +14,7 @@ mod signal_buffer_basic_tests {
     fn buffer_count_returns_zero_for_unknown_key() {
         let buffer = SignalBuffer::with_default_config();
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             0
         );
     }
@@ -22,7 +22,7 @@ mod signal_buffer_basic_tests {
     #[test]
     fn buffer_has_buffered_signals_false_for_unknown_key() {
         let buffer = SignalBuffer::with_default_config();
-        assert!(!buffer.has_buffered_signals(&instance_id_a(), &wait_key_approval()));
+        assert!(!buffer.has_buffered_signals(&instance_id_a(), wait_key_approval()));
     }
 
     #[test]

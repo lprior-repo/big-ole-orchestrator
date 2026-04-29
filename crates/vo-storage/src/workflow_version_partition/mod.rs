@@ -69,7 +69,7 @@ mod tests {
             make_hash(),
             1,
             make_ts(1000),
-            "".to_string(),
+            String::new(),
         );
         assert!(matches!(
             result,
@@ -106,7 +106,7 @@ mod tests {
         let err = WorkflowVersionStoreError::Storage {
             reason: "disk full".to_string(),
         };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains("disk full"));
         assert!(msg.contains("storage error"));
     }
@@ -117,7 +117,7 @@ mod tests {
         let err = WorkflowVersionStoreError::KeyNotFound {
             hash: hash.to_string(),
         };
-        let msg = format!("{}", err);
+        let msg = format!("{err}");
         assert!(msg.contains(&hash.to_string()));
     }
 }

@@ -32,7 +32,7 @@ fn doctor_error_display_io() {
     let err = DoctorError::Io {
         path: PathBuf::from("/some/path"),
         reason: "disk full".into(),
-        source: std::io::Error::new(std::io::ErrorKind::Other, "oops"),
+        source: std::io::Error::other("oops"),
     };
     let msg = err.to_string();
     assert!(msg.contains("I/O error"));

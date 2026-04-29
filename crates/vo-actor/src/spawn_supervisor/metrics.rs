@@ -1,46 +1,65 @@
-//! Metrics: `Counter` and `SpawnSupervisorMetrics`
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use std::sync::atomic::AtomicU64;
-
-/// Simple counter for metrics using AtomicU64
 #[derive(Debug, Default)]
 pub struct Counter {
     value: AtomicU64,
 }
 
 impl Counter {
-    /// Creates a new Counter.
     #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Gets the current value.
     pub fn get(&self) -> u64 {
-        self.value.load(std::sync::atomic::Ordering::SeqCst)
+        self.value.load(Ordering::SeqCst)
     }
 
-    /// Increments the counter.
     pub fn incr(&self) {
-        self.value.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.value.fetch_add(1, Ordering::SeqCst);
     }
 }
 
-/// Metrics for `SpawnSupervisor`
 #[derive(Debug, Default)]
 pub struct SpawnSupervisorMetrics {
-    /// Number of successful spawns.
     pub spawns_successful: Counter,
-    /// Number of spawns that failed.
     pub spawns_failed: Counter,
-    /// Number of health checks performed.
     pub health_checks_performed: Counter,
-    /// Number of health checks that failed.
     pub health_checks_failed: Counter,
-    /// Number of zombie processes detected.
     pub zombies_detected: Counter,
-    /// Number of respawns.
     pub respawns: Counter,
-    /// Number of dispatch errors.
     pub dispatch_errors: Counter,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn counter_new() {
+        let counter = Counter::new();
+        assert_eq!(counter.get(), 0);
+    }
+
+    #[test]
+    fn counter_increment() {
+        let counter = Counter::new();
+        counter.incr();
+        assert_eq!(counter.get(), 1);
+        counter.incr();
+        counter.incr();
+        assert_eq!(counter.get(), 3);
+    }
+
+    #[test]
+    fn spawn_supervisor_metrics_default() {
+        let metrics = SpawnSupervisorMetrics::default();
+        assert_eq!(metrics.spawns_successful.get(), 0);
+        assert_eq!(metrics.spawns_failed.get(), 0);
+        assert_eq!(metrics.health_checks_performed.get(), 0);
+        assert_eq!(metrics.health_checks_failed.get(), 0);
+        assert_eq!(metrics.zombies_detected.get(), 0);
+        assert_eq!(metrics.respawns.get(), 0);
+        assert_eq!(metrics.dispatch_errors.get(), 0);
+    }
 }

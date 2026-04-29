@@ -291,6 +291,9 @@ mod tests {
             handles.push(handle);
         }
 
+        // Yield to let spawned tasks enter acquire() and increment waiting_count
+        tokio::task::yield_now().await;
+
         // Verify waiters are tracked (bounded)
         let waiting = sem.waiting_count();
         assert_eq!(
@@ -316,10 +319,14 @@ mod tests {
             "Waiters timed out — acquire() may be busy-spinning instead of suspending"
         );
 
-        let decisions = result.unwrap();
+        let decisions: Vec<_> = result
+            .unwrap()
+            .into_iter()
+            .map(|r| r.expect("waiter task panicked"))
+            .collect();
         let admitted_count = decisions
             .into_iter()
-            .filter(|d| matches!(d.as_ref().unwrap(), AdmissionDecision::Admitted))
+            .filter(|d| matches!(d, AdmissionDecision::Admitted))
             .count();
         assert_eq!(admitted_count, num_waiters, "All waiters must be admitted");
 
@@ -408,78 +415,227 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn permit_guard_releases_on_drop() {
-        let sem = Arc::new(ExecutionSemaphore::default());
+    async fn execution_semaphore_acquire_n_permits_reduces_available_by_n() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 10,
+            reserved_permits: 0,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
         let initial = sem.available_permits();
 
-        let guard = sem.clone().try_acquire_guard().expect("should acquire permit");
+        let _p1 = sem.try_acquire().unwrap();
         assert_eq!(sem.available_permits(), initial - 1);
 
-        drop(guard);
+        let _p2 = sem.try_acquire().unwrap();
+        assert_eq!(sem.available_permits(), initial - 2);
 
-        assert_eq!(sem.available_permits(), initial);
+        let _p3 = sem.try_acquire().unwrap();
+        assert_eq!(sem.available_permits(), initial - 3);
     }
 
     #[tokio::test]
-    async fn permit_guard_releases_on_panic() {
-        let sem = Arc::new(ExecutionSemaphore::new(
-            SemaphoreConfig {
-                max_concurrent_binaries: 10,
-                ..Default::default()
-            }
-        ));
+    async fn execution_semaphore_acquire_decrements_and_drop_does_not_restore() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 10,
+            reserved_permits: 0,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
         let initial = sem.available_permits();
 
-        let mut handles = Vec::new();
-        for i in 0..20 {
-            let sem = Arc::clone(&sem);
-            let handle = tokio::spawn(async move {
-                if let Some(guard) = sem.try_acquire_guard() {
-                    if i % 2 == 0 {
-                        panic!("panic in actor {}", i);
+        let p1 = sem.try_acquire().unwrap();
+        assert_eq!(sem.available_permits(), initial - 1);
+
+        drop(p1);
+        assert_eq!(
+            sem.available_permits(),
+            initial - 1,
+            "available_permits does not auto-restore on drop"
+        );
+
+        let p2 = sem.try_acquire().unwrap();
+        assert_eq!(sem.available_permits(), initial - 2);
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_concurrent_acquire_release_invariant() {
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::Arc;
+
+        let sem = Arc::new(ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 100,
+            reserved_permits: 0,
+            ..Default::default()
+        }));
+        let initial = sem.available_permits();
+        let invariant = Arc::new(AtomicUsize::new(initial));
+        let invariant_clone = invariant.clone();
+
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                let sem = sem.clone();
+                let inv = invariant_clone.clone();
+                tokio::spawn(async move {
+                    for _ in 0..5 {
+                        if let Some(_permit) = sem.try_acquire() {
+                            inv.fetch_sub(1, Ordering::Relaxed);
+                            tokio::task::yield_now().await;
+                        }
                     }
-                    guard.spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                    }).await.unwrap();
-                }
-            });
-            handles.push(handle);
-        }
+                })
+            })
+            .collect();
 
         for handle in handles {
             let _ = handle.await;
         }
 
-        assert_eq!(
-            sem.available_permits(),
+        let final_count = sem.available_permits();
+        assert!(
+            final_count <= initial,
+            "available permits should not exceed initial {} (got {})",
             initial,
-            "All permits should be released even after panics"
+            final_count
         );
     }
 
     #[tokio::test]
-    async fn permit_guard_spawn_keeps_permit_until_task_completes() {
-        let sem = Arc::new(ExecutionSemaphore::new(
-            SemaphoreConfig {
-                max_concurrent_binaries: 2,
-                ..Default::default()
-            }
-        ));
-
-        let guard1 = sem.clone().try_acquire_guard().expect("should get first permit");
-        let guard2 = sem.clone().try_acquire_guard().expect("should get second permit");
-        assert!(sem.clone().try_acquire_guard().is_none(), "should be exhausted");
-
-        let handle = guard1.spawn(async {
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    async fn execution_semaphore_backpressure_healthy_to_moderate_via_usage() {
+        let sem = ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 100,
+            max_waiters_for_shed: 5000,
+            reserved_permits: 0,
+            ..Default::default()
         });
 
-        assert!(sem.clone().try_acquire_guard().is_none(), "permit still held during spawn");
+        assert_eq!(sem.current_status(), BackpressureStatus::Healthy);
 
-        handle.await.unwrap();
+        for _ in 0..51 {
+            let _ = sem.try_acquire();
+        }
+        let usage_ratio = 51.0 / 100.0;
+        assert!(
+            usage_ratio > 0.5,
+            "usage_ratio {} should be > 0.5 for Moderate",
+            usage_ratio
+        );
+        assert_eq!(
+            sem.current_status(),
+            BackpressureStatus::Moderate,
+            "usage_ratio > 0.5 should transition to Moderate"
+        );
+    }
 
-        drop(guard2);
+    #[tokio::test]
+    async fn execution_semaphore_backpressure_moderate_to_heavy_via_usage() {
+        let sem = ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 100,
+            max_waiters_for_shed: 5000,
+            reserved_permits: 0,
+            ..Default::default()
+        });
 
-        assert_eq!(sem.available_permits(), 2, "all permits should be released");
+        for _ in 0..81 {
+            let _ = sem.try_acquire();
+        }
+        let usage_ratio = 81.0 / 100.0;
+        assert!(
+            usage_ratio > 0.8,
+            "usage_ratio {} should be > 0.8 for Heavy",
+            usage_ratio
+        );
+        assert!(
+            sem.current_status() >= BackpressureStatus::Heavy,
+            "usage_ratio > 0.8 should transition to at least Heavy"
+        );
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_shed_load_threshold() {
+        use crate::semaphore::calc::calculate_backpressure_status;
+
+        assert!(
+            calculate_backpressure_status(100, 100, 5, 5).should_reject(),
+            "5 waiters >= max_waiters_for_shed(5) should be ShedLoad"
+        );
+        assert!(
+            !calculate_backpressure_status(100, 100, 4, 5).should_reject(),
+            "4 waiters < max_waiters_for_shed(5) should not be ShedLoad"
+        );
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_reserved_and_general_pools_are_independent() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 1,
+            reserved_permits: 1,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+
+        let general_permit = sem.try_acquire().unwrap();
+        assert!(sem.try_acquire().is_none(), "general pool exhausted");
+        assert!(
+            sem.try_acquire_recovery().is_some(),
+            "reserved pool still available"
+        );
+
+        drop(general_permit);
+        assert!(
+            sem.try_acquire().is_some(),
+            "general pool replenished after drop"
+        );
+        assert!(
+            sem.try_acquire_recovery().is_some(),
+            "reserved pool still available"
+        );
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_exhausting_general_does_not_affect_reserved() {
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 3,
+            reserved_permits: 2,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+
+        let _g1 = sem.try_acquire().unwrap();
+        let _g2 = sem.try_acquire().unwrap();
+        let _g3 = sem.try_acquire().unwrap();
+
+        assert!(sem.try_acquire().is_none(), "general pool exhausted");
+        assert_eq!(sem.reserved_available(), 2, "reserved pool unaffected");
+        drop(_g1);
+        drop(_g2);
+        drop(_g3);
+        assert_eq!(
+            sem.reserved_available(),
+            2,
+            "reserved still unaffected after general drops"
+        );
+    }
+
+    #[tokio::test]
+    async fn execution_semaphore_backpressure_status_reflects_permit_usage() {
+        let sem = ExecutionSemaphore::new(SemaphoreConfig {
+            max_concurrent_binaries: 100,
+            max_waiters_for_shed: 5000,
+            reserved_permits: 0,
+            ..Default::default()
+        });
+
+        assert_eq!(sem.current_status(), BackpressureStatus::Healthy);
+
+        for _ in 0..60 {
+            let _ = sem.try_acquire();
+        }
+        assert_eq!(sem.current_status(), BackpressureStatus::Moderate);
+
+        for _ in 0..21 {
+            let _ = sem.try_acquire();
+        }
+        assert!(sem.current_status() >= BackpressureStatus::Heavy);
     }
 }

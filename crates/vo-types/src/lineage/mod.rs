@@ -6,11 +6,17 @@
 //! - [`LineageError`] enumerates construction failures
 //!
 //! Split into:
-//! - [`parent`] — `Epoch`, `WorkflowLineage`, `LineageError`
+//! - [`epoch`] — `Epoch` newtype wrapper
+//! - [`error`] — `LineageError` enum and validation
+//! - [`workflow`] — `WorkflowLineage` struct
 //! - [`trace`] — `LineageStatus`, `LineageState`
 
-mod parent;
+mod epoch;
+mod error;
 mod trace;
+mod workflow;
 
-pub use parent::{Epoch, LineageError, WorkflowLineage};
+pub use epoch::Epoch;
+pub use error::LineageError;
 pub use trace::{LineageState, LineageStatus};
+pub use workflow::WorkflowLineage;

@@ -3,6 +3,8 @@
 use std::fmt;
 use std::fmt::Write as _;
 
+use serde::{Deserialize, Serialize};
+
 use super::error::BlobStoreError;
 
 /// Content address based on SHA-256 hash (64 lowercase hex characters).
@@ -11,10 +13,18 @@ use super::error::BlobStoreError;
 ///
 /// `content_addr` is always exactly 64 characters of lowercase hex (0-9, a-f),
 /// representing a full SHA-256 digest.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
-#[expect(clippy::unsafe_derive_deserialize)]
-#[derive(serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
 pub struct ContentAddress(String);
+
+impl<'de> Deserialize<'de> for ContentAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        ContentAddress::new(&s).map_err(|e| serde::de::Error::custom(e))
+    }
+}
 
 impl ContentAddress {
     const LENGTH: usize = 64;
@@ -78,6 +88,10 @@ impl fmt::Display for ContentAddress {
         write!(f, "{}", self.0)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Calc Layer — Content Address Encoding
+// ---------------------------------------------------------------------------
 
 #[must_use]
 const fn hex_nibble(byte: u8) -> u8 {

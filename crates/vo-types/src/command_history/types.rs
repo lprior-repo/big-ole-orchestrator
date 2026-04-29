@@ -1,14 +1,9 @@
-//! Core types for the command history subsystem.
+//! Constants, error types, ID wrappers, and command classification enums.
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use thiserror::Error;
-
-use crate::command_envelope::CommandEnvelope;
-use crate::command_metadata::Issuer;
-use crate::types::TimestampMs;
-use crate::workflow::{DagNode, Edge};
-
-use super::ids::{BatchId, CommandId, SnapshotId};
+use ulid::Ulid;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -69,6 +64,194 @@ pub enum CommandHistoryError {
         current_status: HistoryEntryStatus,
         attempted_action: String,
     },
+}
+
+// ---------------------------------------------------------------------------
+// ID Types
+// ---------------------------------------------------------------------------
+
+/// Unique identifier for a command in the history.
+/// Uses ULID for time-ordered unique identifiers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CommandId(String);
+
+impl CommandId {
+    /// Generate a new unique CommandId.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Ulid::new().to_string())
+    }
+
+    /// Parse a CommandId from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CommandHistoryError::EntryNotFound` if the input is empty.
+    pub fn parse(input: &str) -> Result<Self, CommandHistoryError> {
+        if input.is_empty() {
+            return Err(CommandHistoryError::EntryNotFound {
+                command_id: input.to_string(),
+            });
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for CommandId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for CommandId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for CommandId {
+    type Error = CommandHistoryError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl From<CommandId> for String {
+    fn from(id: CommandId) -> Self {
+        id.0
+    }
+}
+
+impl Serialize for CommandId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for CommandId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::parse(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Unique identifier for a snapshot.
+/// Uses ULID for time-ordered unique identifiers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SnapshotId(String);
+
+impl SnapshotId {
+    /// Generate a new unique SnapshotId.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Ulid::new().to_string())
+    }
+
+    /// Parse a SnapshotId from a string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CommandHistoryError::SnapshotNotFound` if the input is empty.
+    pub fn parse(input: &str) -> Result<Self, CommandHistoryError> {
+        if input.is_empty() {
+            return Err(CommandHistoryError::SnapshotNotFound {
+                snapshot_id: input.to_string(),
+            });
+        }
+        Ok(Self(input.to_string()))
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for SnapshotId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Display for SnapshotId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<String> for SnapshotId {
+    type Error = CommandHistoryError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::parse(&value)
+    }
+}
+
+impl From<SnapshotId> for String {
+    fn from(id: SnapshotId) -> Self {
+        id.0
+    }
+}
+
+impl Serialize for SnapshotId {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SnapshotId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::parse(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Unique identifier for a batch of extensions.
+/// Uses ULID for time-ordered unique identifiers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct BatchId(String);
+
+impl std::fmt::Display for BatchId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl BatchId {
+    /// Generate a new unique BatchId.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Ulid::new().to_string())
+    }
+
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Default for BatchId {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -140,146 +323,6 @@ impl std::fmt::Display for HistoryEntryStatus {
             HistoryEntryStatus::Undone => write!(f, "Undone"),
             HistoryEntryStatus::Redone => write!(f, "Redone"),
             HistoryEntryStatus::Failed => write!(f, "Failed"),
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Workflow Snapshot
-// ---------------------------------------------------------------------------
-
-/// Captures the complete workflow graph state at a point in time.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct WorkflowSnapshot {
-    pub snapshot_id: SnapshotId,
-    pub captured_at: TimestampMs,
-    pub workflow_name: String,
-    pub nodes: Vec<DagNode>,
-    pub edges: Vec<Edge>,
-    pub checksum: u32,
-}
-
-impl WorkflowSnapshot {
-    /// Create a new workflow snapshot with a computed checksum.
-    ///
-    /// # Arguments
-    ///
-    /// * `workflow_name` - Name of the workflow
-    /// * `nodes` - Current node state
-    /// * `edges` - Current edge state
-    ///
-    /// # Notes
-    ///
-    /// Checksum is computed using CRC32 of a normalized representation.
-    pub fn new(workflow_name: String, nodes: Vec<DagNode>, edges: Vec<Edge>) -> Self {
-        let snapshot_id = SnapshotId::new();
-        let captured_at = TimestampMs::now();
-        let checksum = Self::compute_checksum(&nodes, &edges);
-        Self {
-            snapshot_id,
-            captured_at,
-            workflow_name,
-            nodes,
-            edges,
-            checksum,
-        }
-    }
-
-    /// Compute CRC32 checksum of the workflow graph.
-    pub(crate) fn compute_checksum(nodes: &[DagNode], edges: &[Edge]) -> u32 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-
-        let mut hasher = DefaultHasher::new();
-        let mut node_names: Vec<_> = nodes.iter().map(|n| n.node_name.to_string()).collect();
-        node_names.sort();
-        node_names.hash(&mut hasher);
-        let mut edge_pairs: Vec<_> = edges
-            .iter()
-            .map(|e| (e.source_node.to_string(), e.target_node.to_string()))
-            .collect();
-        edge_pairs.sort();
-        edge_pairs.hash(&mut hasher);
-
-        let hash = hasher.finish();
-        (hash as u32).wrapping_add(0x9e3779b9) // Spread bits
-    }
-
-    #[must_use]
-    pub fn checksum(&self) -> u32 {
-        self.checksum
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Extension Batch Metadata
-// ---------------------------------------------------------------------------
-
-/// Metadata about a batch of extensions applied.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExtensionBatchMetadata {
-    pub batch_id: BatchId,
-    pub snapshot_id: SnapshotId,
-    pub mode: ExtensionApplyMode,
-    pub applied_keys: Vec<String>,
-    pub created_nodes: Vec<String>,
-    pub parent_command_id: CommandId,
-}
-
-// ---------------------------------------------------------------------------
-// History Entry
-// ---------------------------------------------------------------------------
-
-/// A single entry in the command history stack.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct HistoryEntry {
-    pub envelope: CommandEnvelope,
-    pub kind: CommandKind,
-    pub snapshot_before: Option<WorkflowSnapshot>,
-    pub snapshot_after: Option<WorkflowSnapshot>,
-    pub batch_metadata: Option<ExtensionBatchMetadata>,
-    pub status: HistoryEntryStatus,
-}
-
-impl HistoryEntry {
-    /// Create a new history entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `kind` - The command kind
-    /// * `snapshot_before` - State before the command
-    /// * `snapshot_after` - State after the command
-    /// * `batch_metadata` - Optional batch metadata for extension commands
-    /// * `command_id` - Optional pre-generated command ID (for undo tracking)
-    pub fn new(
-        kind: CommandKind,
-        snapshot_before: Option<WorkflowSnapshot>,
-        snapshot_after: Option<WorkflowSnapshot>,
-        batch_metadata: Option<ExtensionBatchMetadata>,
-        command_id: Option<CommandId>,
-    ) -> Self {
-        let cmd_id = command_id.unwrap_or_default();
-        let metadata = crate::command_metadata::CommandMetadata {
-            command_id: crate::IdempotencyKey::parse(cmd_id.as_str())
-                .expect("IdempotencyKey parsing from String should succeed"),
-            correlation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
-            causation_id: crate::IdempotencyKey::parse(&ulid::Ulid::new().to_string())
-                .expect("IdempotencyKey parsing from ULID string should succeed"),
-            issuer: Issuer::Operator,
-            issued_at: TimestampMs::now(),
-        };
-        let envelope = CommandEnvelope {
-            schema_version: 1,
-            metadata,
-        };
-        Self {
-            envelope,
-            kind,
-            snapshot_before,
-            snapshot_after,
-            batch_metadata,
-            status: HistoryEntryStatus::Committed,
         }
     }
 }

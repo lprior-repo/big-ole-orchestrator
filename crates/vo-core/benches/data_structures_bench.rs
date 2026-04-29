@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use vo_core::quadtree::{Point as QtPoint, Quadtree, AABB as QtAABB};
 use vo_core::segment_tree::{LazySegmentTree, SegmentTree};
 
@@ -81,7 +82,8 @@ fn bench_lazy_segment_tree(c: &mut Criterion) {
         b.iter_batched(
             || LazySegmentTree::from_slice(&data, merge, identity, apply, compose),
             |mut tree| {
-                black_box(tree.update_range(black_box(0), black_box(10_000), black_box(1)));
+                let _: () = tree.update_range(black_box(0), black_box(10_000), black_box(1));
+                black_box(());
                 tree
             },
             BatchSize::SmallInput,
@@ -92,7 +94,8 @@ fn bench_lazy_segment_tree(c: &mut Criterion) {
         b.iter_batched(
             || LazySegmentTree::from_slice(&data, merge, identity, apply, compose),
             |mut tree| {
-                black_box(tree.update_range(black_box(100), black_box(200), black_box(5)));
+                let _: () = tree.update_range(black_box(100), black_box(200), black_box(5));
+                black_box(());
                 tree
             },
             BatchSize::SmallInput,

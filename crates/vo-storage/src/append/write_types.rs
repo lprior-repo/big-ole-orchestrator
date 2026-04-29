@@ -1,3 +1,5 @@
+use super::queue::ClassifiedWrite;
+use super::write_class::WriteClass;
 use vo_types::events::EventEnvelope;
 
 #[derive(Debug, Clone)]
@@ -7,8 +9,8 @@ pub enum AppendEntry {
     Blob(BlobWrite),
 }
 
-impl super::ClassifiedWrite for AppendEntry {
-    fn write_class(&self) -> super::WriteClass {
+impl ClassifiedWrite for AppendEntry {
+    fn write_class(&self) -> WriteClass {
         match self {
             Self::ControlPlane(w) => w.write_class(),
             Self::Projection(w) => w.write_class(),
@@ -38,9 +40,9 @@ impl ControlPlaneWrite {
     }
 }
 
-impl super::ClassifiedWrite for ControlPlaneWrite {
-    fn write_class(&self) -> super::WriteClass {
-        super::WriteClass::CriticalControlPlane
+impl ClassifiedWrite for ControlPlaneWrite {
+    fn write_class(&self) -> WriteClass {
+        WriteClass::CriticalControlPlane
     }
 
     fn size_bytes(&self) -> u64 {
@@ -64,9 +66,9 @@ impl ProjectionWrite {
     }
 }
 
-impl super::ClassifiedWrite for ProjectionWrite {
-    fn write_class(&self) -> super::WriteClass {
-        super::WriteClass::OperatorProjection
+impl ClassifiedWrite for ProjectionWrite {
+    fn write_class(&self) -> WriteClass {
+        WriteClass::OperatorProjection
     }
 
     fn size_bytes(&self) -> u64 {
@@ -78,7 +80,7 @@ impl super::ClassifiedWrite for ProjectionWrite {
 pub struct BlobWrite {
     pub blob_id: String,
     size_bytes: u64,
-    class: super::WriteClass,
+    class: WriteClass,
 }
 
 impl BlobWrite {
@@ -87,13 +89,13 @@ impl BlobWrite {
         Self {
             blob_id,
             size_bytes,
-            class: super::WriteClass::BulkBlob,
+            class: WriteClass::BulkBlob,
         }
     }
 }
 
-impl super::ClassifiedWrite for BlobWrite {
-    fn write_class(&self) -> super::WriteClass {
+impl ClassifiedWrite for BlobWrite {
+    fn write_class(&self) -> WriteClass {
         self.class
     }
 

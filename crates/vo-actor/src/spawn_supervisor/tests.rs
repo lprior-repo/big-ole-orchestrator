@@ -13,8 +13,8 @@ use vo_types::InstanceId;
 use super::actor::{SpawnSupervisor, SpawnSupervisorHandle};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
 use super::{
-    Counter, CycleResult, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
-    SpawnSupervisorMetrics, WorkQueue,
+    Counter, CycleResult, ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase,
+    SpawnRecord, SpawnStorage, SpawnSupervisorMetrics, WorkQueue,
 };
 
 fn test_instance_id() -> InstanceId {
@@ -28,9 +28,9 @@ fn test_instance_id() -> InstanceId {
 
 #[test]
 fn spawn_supervisor_rejects_zero_health_check_interval() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::ZERO,
@@ -41,6 +41,7 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(
@@ -51,9 +52,9 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
 
 #[test]
 fn spawn_supervisor_rejects_zero_max_health_checks() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -64,6 +65,7 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(
@@ -74,9 +76,9 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
 
 #[test]
 fn spawn_supervisor_rejects_zero_initial_backoff() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -87,6 +89,7 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(
@@ -97,9 +100,9 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
 
 #[test]
 fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let result = SpawnSupervisor::new(
         Duration::from_millis(100),
@@ -110,6 +113,7 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(matches!(
@@ -124,9 +128,9 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
 
 #[test]
 fn spawn_supervisor_constructs_with_valid_config() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let supervisor = SpawnSupervisor::new(
         Duration::from_secs(10),
@@ -137,6 +141,7 @@ fn spawn_supervisor_constructs_with_valid_config() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     );
 
     assert!(supervisor.is_ok());
@@ -154,9 +159,9 @@ fn spawn_supervisor_constructs_with_valid_config() {
 
 #[test]
 fn spawn_supervisor_debug_format() {
-    let storage = MockStorage::default();
-    let pm = MockProcessManager::default();
-    let wq = MockWorkQueue::default();
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
 
     let supervisor = SpawnSupervisor::new(
         Duration::from_secs(10),
@@ -167,6 +172,7 @@ fn spawn_supervisor_debug_format() {
         Arc::new(storage),
         Arc::new(pm),
         Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
     )
     .unwrap();
 
@@ -271,19 +277,10 @@ impl WorkQueue for MockWorkQueue {
         _instance_id: InstanceId,
         _executable: PathBuf,
         _args: Vec<String>,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<(), SpawnSupervisorError> {
         Ok(())
     }
-    async fn enqueue_resume(
-        &self,
-        _instance_id: InstanceId,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn enqueue_resume(&self, _instance_id: InstanceId) -> Result<(), SpawnSupervisorError> {
         Ok(())
-    }
-    async fn is_instance_terminal(
-        &self,
-        _instance_id: &InstanceId,
-    ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-        Ok(false)
     }
 }

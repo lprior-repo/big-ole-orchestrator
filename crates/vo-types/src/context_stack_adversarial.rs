@@ -102,6 +102,7 @@ fn rq_lifecycle_cancel_from_all_non_terminal_states() {
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
         LifecycleState::WaitingForTimer,
+        LifecycleState::WaitingForSignal,
     ];
 
     for state in non_terminal_states {
@@ -129,6 +130,7 @@ fn rq_lifecycle_fail_from_eligible_states() {
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
         LifecycleState::WaitingForTimer,
+        LifecycleState::WaitingForSignal,
     ];
 
     for state in eligible_states {
@@ -226,6 +228,23 @@ fn rq_lifecycle_invalid_transitions_rejected() {
             LifecycleState::WaitingForTimer,
             TransitionEvent::WaitForTimer,
         ),
+        // WaitingForSignal can't do these
+        (
+            LifecycleState::WaitingForSignal,
+            TransitionEvent::ExecuteStep,
+        ),
+        (
+            LifecycleState::WaitingForSignal,
+            TransitionEvent::CompleteStep,
+        ),
+        (
+            LifecycleState::WaitingForSignal,
+            TransitionEvent::WaitForTimer,
+        ),
+        (
+            LifecycleState::WaitingForSignal,
+            TransitionEvent::TimerFired,
+        ),
     ];
 
     for (state, event) in invalid_cases {
@@ -297,6 +316,12 @@ fn rq_lifecycle_superstate_consistency() {
         crate::LifecycleSuperstate::Suspended
     );
 
+    // WaitingForSignal maps to Suspended
+    assert_eq!(
+        LifecycleState::WaitingForSignal.superstate(),
+        crate::LifecycleSuperstate::Suspended
+    );
+
     // Completed/Cancelled map to Terminal
     for state in [LifecycleState::Completed, LifecycleState::Cancelled] {
         assert_eq!(
@@ -328,6 +353,7 @@ fn rq_lifecycle_terminal_state_detection() {
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
         LifecycleState::WaitingForTimer,
+        LifecycleState::WaitingForSignal,
     ];
 
     for state in terminal_states {
@@ -372,18 +398,9 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
             LifecycleState::StepExecuting,
             vec![
                 TransitionEvent::WaitForTimer,
+                TransitionEvent::WaitForSignal,
                 TransitionEvent::YieldWithBlob,
                 TransitionEvent::CompleteStep,
-                TransitionEvent::PrepareEffect,
-                TransitionEvent::BeginCompensation,
-                TransitionEvent::Cancel,
-                TransitionEvent::Fail,
-            ],
-        ),
-        (
-            LifecycleState::PreparingEffect,
-            vec![
-                TransitionEvent::EffectPrepared,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -394,6 +411,14 @@ fn rq_lifecycle_get_valid_transitions_completeness() {
                 TransitionEvent::TimerFired,
                 TransitionEvent::TimerExpired,
                 TransitionEvent::Hibernate,
+                TransitionEvent::Cancel,
+                TransitionEvent::Fail,
+            ],
+        ),
+        (
+            LifecycleState::WaitingForSignal,
+            vec![
+                TransitionEvent::SignalReceived,
                 TransitionEvent::Cancel,
                 TransitionEvent::Fail,
             ],
@@ -457,8 +482,8 @@ fn rq_lifecycle_instance_resumed_only_from_failed() {
         LifecycleState::RunningDecision,
         LifecycleState::StepScheduled,
         LifecycleState::StepExecuting,
-        LifecycleState::PreparingEffect,
         LifecycleState::WaitingForTimer,
+        LifecycleState::WaitingForSignal,
         LifecycleState::PendingPublication,
         LifecycleState::Completed,
         LifecycleState::Cancelled,
@@ -856,6 +881,12 @@ fn rq_operational_status_consistency() {
     // WaitingForTimer should be Healthy (not Suspended - that's the superstate)
     assert_eq!(
         LifecycleState::WaitingForTimer.get_operational_status(),
+        OperationalStatus::Healthy
+    );
+
+    // WaitingForSignal should be Healthy (same as WaitingForTimer)
+    assert_eq!(
+        LifecycleState::WaitingForSignal.get_operational_status(),
         OperationalStatus::Healthy
     );
 

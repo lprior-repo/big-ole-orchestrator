@@ -56,8 +56,8 @@ mod admission_boundary {
         let expected = FenceToken::new(42).unwrap();
         let actual = FenceToken::new(99).unwrap();
         let reason = RejectionReason::FenceTokenMismatch {
-            expected: expected.clone(),
-            actual: actual.clone(),
+            expected,
+            actual,
         };
         let msg = reason.to_string();
         assert!(msg.contains("mismatch"));
@@ -166,10 +166,11 @@ mod circuit_breaker_boundary {
         let wf = vo_types::WorkflowName::parse("force-test").unwrap();
         state.set_status(wf.clone(), RegistrationStatus::Quarantined);
 
+        state.register_operator_token("test-operator-token".into());
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: true,
+            force: Some("test-operator-token".into()),
         };
 
         let result =
@@ -188,7 +189,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -210,7 +211,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf.clone(),
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -233,7 +234,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -254,7 +255,7 @@ mod circuit_breaker_boundary {
         let request = circuit_breaker::RegistrationRequest {
             workflow_name: wf,
             binary_hash: vo_types::BinaryHash::parse("abc12399").unwrap(),
-            force: false,
+            force: None,
         };
 
         let result =
@@ -764,7 +765,7 @@ mod replay_boundary {
     fn replay_error_payload_decode_failed_display() {
         let err = ReplayError::PayloadDecodeFailed {
             sequence: 10,
-            source: "invalid UTF-8".to_string(),
+            detail: "invalid UTF-8".to_string(),
         };
         let msg = err.to_string();
         assert!(msg.contains("decode failed"));
@@ -951,14 +952,14 @@ mod resource_quota_boundary {
 
 mod workflow_version_boundary {
     use crate::workflow_version::{WorkflowVersion, WorkflowVersionError};
-    use vo_types::{BinaryHash, TimestampMs, WorkflowName};
+    use vo_types::{BinaryHash, TimestampMs, VERSION_BASE_PATH, WorkflowName};
 
     #[test]
     fn short_hash_rejected() {
         let name = WorkflowName::parse("test-wf").unwrap();
         let hash = BinaryHash::parse("aabbccdd").unwrap();
         let ts = TimestampMs::now();
-        let result = WorkflowVersion::new(name, hash, ts);
+        let result = WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH);
         assert!(matches!(result, Err(WorkflowVersionError::HashTooShort)));
     }
 
@@ -967,7 +968,7 @@ mod workflow_version_boundary {
         let name = WorkflowName::parse("test-wf").unwrap();
         let hash = BinaryHash::parse(&"a".repeat(64)).unwrap();
         let ts = TimestampMs::now();
-        let result = WorkflowVersion::new(name, hash, ts);
+        let result = WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH);
         assert!(result.is_ok());
         let wv = result.unwrap();
         assert_eq!(wv.schema_version(), 1);
@@ -978,7 +979,7 @@ mod workflow_version_boundary {
         let name = WorkflowName::parse("test-wf").unwrap();
         let hash = BinaryHash::parse(&"b".repeat(128)).unwrap();
         let ts = TimestampMs::now();
-        let result = WorkflowVersion::new(name, hash, ts);
+        let result = WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH);
         assert!(result.is_ok());
     }
 
@@ -987,7 +988,7 @@ mod workflow_version_boundary {
         let name = WorkflowName::parse("my-wf").unwrap();
         let hash = BinaryHash::parse(&"c".repeat(64)).unwrap();
         let ts = TimestampMs::now();
-        let wv = WorkflowVersion::new(name, hash, ts).unwrap();
+        let wv = WorkflowVersion::new(name, hash, ts, VERSION_BASE_PATH).unwrap();
         let path = wv.binary_path();
         assert!(path.contains("my-wf"));
         assert!(path.contains(&"c".repeat(64)));
@@ -996,7 +997,7 @@ mod workflow_version_boundary {
 
 mod debounce_boundary {
     use crate::debounce::Error;
-    use std::time::Duration;
+    
 
     #[test]
     fn error_display_all_variants() {

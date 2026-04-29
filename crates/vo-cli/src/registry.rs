@@ -23,8 +23,8 @@ impl Default for HandlerRegistry {
         registry.register(Box::new(handlers::DoctorHandler));
         registry.register(Box::new(handlers::RebuildHandler));
         registry.register(Box::new(handlers::StatusHandler));
-        registry.register(Box::new(handlers::ServeHandler));
-        registry.register(Box::new(handlers::HistoryHandler));
+        registry.register(Box::new(handlers::WorkspaceHandler));
+        registry
     }
 }
 
@@ -58,6 +58,7 @@ fn command_key(command: &Command) -> Option<&'static str> {
         Command::Doctor { .. } => Some("doctor"),
         Command::Rebuild { .. } => Some("rebuild"),
         Command::Status { .. } => Some("status"),
+        Command::Workspace { .. } => Some("workspace"),
         Command::Hardline { .. } => Some("hardline"),
         Command::Serve { .. } => Some("serve"),
         Command::History { .. } => Some("history"),
@@ -69,7 +70,7 @@ mod handlers {
     use std::path::PathBuf;
     use std::pin::Pin;
 
-    use crate::cli::{Cli, CliError, Command};
+    use crate::cli::{Cli, CliError, Command, WorkspaceAction};
     use crate::handler::CommandHandler;
 
     pub struct PurgeHandler;
@@ -83,7 +84,11 @@ mod handlers {
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::Purge { ref instance, .. } = cli.command else {
+            let Command::Purge {
+                ref instance,
+                ref storage_path,
+            } = cli.command
+            else {
                 return Box::pin(async {
                     Err(CliError::Dispatch("not a purge command".to_string()))
                 });
@@ -197,16 +202,18 @@ mod handlers {
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
             let Command::Gc {
                 ref engine_url,
+                ref versions_dir,
                 dry_run,
             } = cli.command
             else {
                 return Box::pin(async { Err(CliError::Dispatch("not a gc command".to_string())) });
             };
             let engine_url = engine_url.clone();
+            let versions_dir = versions_dir.clone();
             Box::pin(async move {
                 let config = crate::commands::gc::GcConfig {
                     engine_url,
-                    versions_dir: PathBuf::from("/var/wtf/versions"),
+                    versions_dir,
                     dry_run,
                 };
                 crate::commands::gc::run_gc(&config).await?;
@@ -433,126 +440,56 @@ mod handlers {
         }
     }
 
-    pub struct HistoryHandler;
+    pub struct WorkspaceHandler;
 
-    impl CommandHandler for HistoryHandler {
+    impl CommandHandler for WorkspaceHandler {
         fn name(&self) -> &'static str {
-            "history"
+            "workspace"
         }
 
         fn execute(
             &self,
             cli: &Cli,
         ) -> Pin<Box<dyn Future<Output = Result<(), CliError>> + Send + '_>> {
-            let Command::History {
-                ref instance_id,
-                ref storage_path,
-                canonical,
-            } = cli.command
-            else {
+            let Command::Workspace { ref action } = cli.command else {
                 return Box::pin(async {
-                    Err(CliError::Dispatch("not a history command".to_string()))
+                    Err(CliError::Dispatch("not a workspace command".to_string()))
                 });
             };
-            let instance_id = instance_id.clone();
-            let storage_path = storage_path.clone();
-            let canonical = canonical;
-            Box::pin(async move {
-                let db = fjall::Database::builder(&storage_path)
-                    .open()
-                    .map_err(|e| CliError::Dispatch(format!("Failed to open storage: {e}")))?;
-
-                let instance: vo_types::InstanceId = vo_types::InstanceId::parse(&instance_id)
-                    .map_err(|e| CliError::Dispatch(format!("Invalid instance ID: {e}")))?;
-
-                let events: Vec<vo_types::EventEnvelope> =
-                    vo_storage::query::replay_events(&db, &instance)
-                        .collect::<Result<Vec<_>, _>>()
-                        .map_err(|e| CliError::Dispatch(format!("Failed to replay events: {e}")))?;
-
-                #[derive(serde::Serialize)]
-                struct OperatorProjectionEntry {
-                    sequence: u64,
-                    timestamp_ms: u64,
-                    event_type: String,
-                    causation_id: Option<String>,
+            let config = crate::commands::workspace::WorkspaceConfig::default();
+            match action {
+                WorkspaceAction::List => {
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::list_workspaces(config).await?;
+                        Ok(())
+                    })
                 }
-
-                #[derive(serde::Serialize)]
-                struct OperatorProjection {
-                    instance_id: String,
-                    event_count: usize,
-                    events: Vec<OperatorProjectionEntry>,
+                WorkspaceAction::Create { name } => {
+                    let name = name.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::create_workspace(config, name).await?;
+                        Ok(())
+                    })
                 }
-
-                #[derive(serde::Serialize)]
-                struct CanonicalViewEntry {
-                    sequence: u64,
-                    timestamp_ms: u64,
-                    schema_version: u8,
-                    payload: serde_json::Value,
-                    metadata: vo_types::events::EventMetadata,
+                WorkspaceAction::Delete { id } => {
+                    let id = id.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::delete_workspace(config, id).await?;
+                        Ok(())
+                    })
                 }
-
-                #[derive(serde::Serialize)]
-                struct CanonicalView {
-                    instance_id: String,
-                    event_count: usize,
-                    events: Vec<CanonicalViewEntry>,
+                WorkspaceAction::Show { id } => {
+                    let id = id.clone();
+                    let config = config.clone();
+                    Box::pin(async move {
+                        crate::commands::workspace::show_workspace(config, id).await?;
+                        Ok(())
+                    })
                 }
-
-                if canonical {
-                    let canonical_events: Vec<CanonicalViewEntry> = events
-                        .into_iter()
-                        .map(|e| CanonicalViewEntry {
-                            sequence: e.sequence,
-                            timestamp_ms: e.timestamp_ms,
-                            schema_version: e.schema_version,
-                            payload: e.payload,
-                            metadata: e.metadata,
-                        })
-                        .collect();
-
-                    let view = CanonicalView {
-                        instance_id: instance_id.clone(),
-                        event_count: canonical_events.len(),
-                        events: canonical_events,
-                    };
-                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
-                } else {
-                    let operator_events: Vec<OperatorProjectionEntry> = events
-                        .into_iter()
-                        .map(|e| {
-                            let event_type = e
-                                .payload
-                                .get("type")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("Unknown")
-                                .to_string();
-                            let causation_id = e
-                                .metadata
-                                .command_metadata
-                                .as_ref()
-                                .map(|m| m.causation_id.to_string());
-                            OperatorProjectionEntry {
-                                sequence: e.sequence,
-                                timestamp_ms: e.timestamp_ms,
-                                event_type,
-                                causation_id,
-                            }
-                        })
-                        .collect();
-
-                    let view = OperatorProjection {
-                        instance_id: instance_id.clone(),
-                        event_count: operator_events.len(),
-                        events: operator_events,
-                    };
-                    println!("{}", serde_json::to_string_pretty(&view).map_err(|e| CliError::Dispatch(format!("JSON serialization failed: {e}")))?);
-                }
-
-                Ok(())
-            })
+            }
         }
     }
 }
@@ -576,8 +513,7 @@ mod tests {
         assert!(names.contains(&"doctor"));
         assert!(names.contains(&"rebuild"));
         assert!(names.contains(&"status"));
-        assert!(names.contains(&"execute-node"));
-        assert!(names.contains(&"hardline"));
+        assert!(names.contains(&"workspace"));
     }
 
     #[test]
@@ -600,7 +536,6 @@ mod tests {
             command: Command::Purge {
                 instance: "test".to_string(),
                 storage_path: PathBuf::from(".vo/storage"),
-                dry_run: false,
             },
         };
         let handler = registry.get(&cli).expect("handler found");

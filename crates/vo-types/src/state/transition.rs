@@ -60,17 +60,17 @@ pub fn apply(
         }
         (LifecycleState::StepScheduled, TransitionEvent::ExecuteStep)
         | (LifecycleState::WaitingForTimer, TransitionEvent::TimerFired)
-        | (LifecycleState::PreparingEffect, TransitionEvent::EffectPrepared) => {
+        | (LifecycleState::WaitingForSignal, TransitionEvent::SignalReceived) => {
             Ok(LifecycleState::StepExecuting)
         }
         (LifecycleState::StepExecuting, TransitionEvent::WaitForTimer) => {
             Ok(LifecycleState::WaitingForTimer)
         }
+        (LifecycleState::StepExecuting, TransitionEvent::WaitForSignal) => {
+            Ok(LifecycleState::WaitingForSignal)
+        }
         (LifecycleState::StepExecuting, TransitionEvent::CompleteStep) => {
             Ok(LifecycleState::Completed)
-        }
-        (LifecycleState::StepExecuting, TransitionEvent::PrepareEffect) => {
-            Ok(LifecycleState::PreparingEffect)
         }
         (LifecycleState::WaitingForTimer, TransitionEvent::TimerExpired) => {
             Ok(LifecycleState::Failed)
@@ -82,12 +82,9 @@ pub fn apply(
             | LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect
             | LifecycleState::WaitingForTimer
-            | LifecycleState::PendingPublication
-            | LifecycleState::Hibernated
-            | LifecycleState::Compensating
-            | LifecycleState::Reconciling,
+            | LifecycleState::WaitingForSignal
+            | LifecycleState::PendingPublication,
             TransitionEvent::Cancel,
         ) => Ok(LifecycleState::Cancelled),
 
@@ -96,8 +93,8 @@ pub fn apply(
             LifecycleState::RunningDecision
             | LifecycleState::StepScheduled
             | LifecycleState::StepExecuting
-            | LifecycleState::PreparingEffect
             | LifecycleState::WaitingForTimer
+            | LifecycleState::WaitingForSignal
             | LifecycleState::PendingPublication,
             TransitionEvent::Fail,
         ) => Ok(LifecycleState::Failed),
@@ -220,22 +217,17 @@ mod verification {
     fn verify_lifecycle_transition_exhaustiveness() {
         let state_idx: u8 = kani::any();
         let event_idx: u8 = kani::any();
-        kani::assume(state_idx < 13);
-        kani::assume(event_idx < 23);
+        kani::assume(state_idx < 8);
+        kani::assume(event_idx < 10);
 
         let state = match state_idx {
             0 => LifecycleState::Pending,
             1 => LifecycleState::RunningDecision,
             2 => LifecycleState::StepScheduled,
             3 => LifecycleState::StepExecuting,
-            4 => LifecycleState::PreparingEffect,
-            5 => LifecycleState::WaitingForTimer,
-            6 => LifecycleState::PendingPublication,
-            7 => LifecycleState::Hibernated,
-            8 => LifecycleState::Compensating,
-            9 => LifecycleState::Reconciling,
-            10 => LifecycleState::Completed,
-            11 => LifecycleState::Failed,
+            4 => LifecycleState::WaitingForTimer,
+            5 => LifecycleState::Completed,
+            6 => LifecycleState::Failed,
             _ => LifecycleState::Cancelled,
         };
 
@@ -247,22 +239,9 @@ mod verification {
             4 => TransitionEvent::ExecuteStep,
             5 => TransitionEvent::WaitForTimer,
             6 => TransitionEvent::CompleteStep,
-            7 => TransitionEvent::YieldWithBlob,
-            8 => TransitionEvent::PrepareEffect,
-            9 => TransitionEvent::EffectPrepared,
-            10 => TransitionEvent::TimerFired,
-            11 => TransitionEvent::TimerExpired,
-            12 => TransitionEvent::ConfirmPublication,
-            13 => TransitionEvent::PublicationFailed,
-            14 => TransitionEvent::EmitOutputRef,
-            15 => TransitionEvent::InstanceResumed,
-            16 => TransitionEvent::Hibernate,
-            17 => TransitionEvent::WakeFromHibernation,
-            18 => TransitionEvent::BeginCompensation,
-            19 => TransitionEvent::CompensationCompleted,
-            20 => TransitionEvent::CompensationFailed,
-            21 => TransitionEvent::ReconciliationCompleted,
-            _ => TransitionEvent::ReconciliationFailed,
+            7 => TransitionEvent::TimerFired,
+            8 => TransitionEvent::TimerExpired,
+            _ => TransitionEvent::InstanceResumed,
         };
 
         let _ = apply(state, event);

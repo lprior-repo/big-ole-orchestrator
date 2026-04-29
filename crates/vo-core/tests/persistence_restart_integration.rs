@@ -57,7 +57,7 @@ fn quarantine_blocks_registration_after_restart_hydration() {
     let request = RegistrationRequest {
         workflow_name: wf.clone(),
         binary_hash: BinaryHash::parse("abcdef01").expect("valid hash"),
-        force: false,
+        force: None,
     };
 
     let result = evaluate_registration(&request, &config, &state, Instant::now());

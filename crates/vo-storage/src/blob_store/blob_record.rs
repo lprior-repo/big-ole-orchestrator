@@ -1,4 +1,4 @@
-//! Persisted blob metadata record.
+//! Persisted blob metadata record and encoding.
 
 use serde::{Deserialize, Serialize};
 use vo_types::BlobStatus;
@@ -140,6 +140,10 @@ impl BlobRecord {
         self.status.can_transition_to(target)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Calc Layer — Blob Record Encoding
+// ---------------------------------------------------------------------------
 
 /// Encode a `BlobRecord` to JSON bytes for storage.
 ///

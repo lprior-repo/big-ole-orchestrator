@@ -1,6 +1,10 @@
-use std::sync::Arc;
-
 use crate::codec::StorageError;
+use vo_types::InstanceId;
+use vo_types::TimerId;
+
+use super::types::{TimerKey, TimerRecord};
+
+pub type ScanResult = Vec<(Vec<u8>, Vec<u8>)>;
 
 use super::ScanResult;
 
@@ -13,139 +17,96 @@ pub trait Storage {
     fn scan(&self, start: &[u8], end: &[u8]) -> Result<ScanResult, StorageError>;
 }
 
-pub struct FjallTimerIndexStore {
-    partition: Arc<fjall::Keyspace>,
-}
-
-impl FjallTimerIndexStore {
-    pub fn open(db: &fjall::Database) -> Result<Self, StorageError> {
-        let partition = db
-            .keyspace(
-                TIMER_INDEX_PARTITION,
-                fjall::KeyspaceCreateOptions::default,
-            )
-            .map_err(|e| StorageError::Storage)?;
-        Ok(Self {
-            partition: Arc::new(partition),
-        })
+pub fn timer_set(
+    storage: &mut impl Storage,
+    instance_id: InstanceId,
+    timer_id: TimerId,
+    fire_at_ms: u64,
+    trigger_time_ms: u64,
+    duration_ms: u64,
+    now_ms: u64,
+) -> Result<(), StorageError> {
+    if fire_at_ms <= now_ms {
+        return Err(StorageError::InvalidArgument);
     }
-}
-
-impl Storage for FjallTimerIndexStore {
-    fn put(&mut self, key: &[u8], value: &[u8]) -> Result<(), StorageError> {
-        self.partition
-            .insert(key, value)
-            .map_err(|_| StorageError::Storage)?;
-        Ok(())
+    if duration_ms == 0 {
+        return Err(StorageError::InvalidArgument);
+    }
+    if fire_at_ms != trigger_time_ms.saturating_add(duration_ms) {
+        return Err(StorageError::InvalidArgument);
     }
 
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        match self.partition.get(key) {
-            Ok(Some(value)) => Ok(Some(value.to_vec())),
-            Ok(None) => Ok(None),
-            Err(_) => Err(StorageError::Storage),
+    let key = TimerKey::new(fire_at_ms, instance_id, timer_id)?;
+    let value = duration_ms.to_be_bytes();
+    storage.put(key.as_bytes(), &value)
+}
+
+pub fn timer_delete(
+    storage: &mut impl Storage,
+    instance_id: &InstanceId,
+    timer_id: TimerId,
+    fire_at_ms: u64,
+) -> Result<(), StorageError> {
+    let key = TimerKey::new(fire_at_ms, instance_id.clone(), timer_id)?;
+    storage.delete(key.as_bytes())
+}
+
+pub fn poll_expired_timers(
+    storage: &mut impl Storage,
+    instance_id: &InstanceId,
+    now_ms: u64,
+    max_timers: usize,
+) -> Result<Vec<TimerRecord>, StorageError> {
+    let start = [0u8; 40];
+    let end = {
+        let mut e = [0u8; 40];
+        e[0..8].copy_from_slice(&(now_ms.saturating_add(1)).to_be_bytes());
+        e
+    };
+
+    let pairs = storage.scan(&start, &end)?;
+
+    let mut claimed = Vec::with_capacity(max_timers);
+    let mut deleted = 0;
+
+    for (k, v) in pairs {
+        if deleted >= max_timers {
+            break;
         }
-    }
 
-    fn delete(&mut self, key: &[u8]) -> Result<(), StorageError> {
-        self.partition
-            .remove(key)
-            .map_err(|_| StorageError::Storage)?;
-        Ok(())
-    }
+        let key_bytes: [u8; 40] = match k.as_slice().try_into() {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let key = TimerKey(key_bytes);
 
-    fn scan(&self, start: &[u8], end: &[u8]) -> Result<ScanResult, StorageError> {
-        let mut results = ScanResult::new();
-        let iter = self.partition.iter();
-        for item in iter {
-            let (key_bytes, value_bytes) =
-                item.into_inner()
-                    .map_err(|_| StorageError::Storage)?;
-            let key_ref = key_bytes.as_ref();
-            if key_ref >= start && key_ref < end {
-                results.push((key_bytes.to_vec(), value_bytes.to_vec()));
-            }
+        if key.instance_id() != *instance_id {
+            continue;
         }
-        Ok(results)
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        let fire_at_ms = key.fire_at_ms();
+        if fire_at_ms > now_ms {
+            continue;
+        }
 
-    #[test]
-    fn fjall_timer_index_store_put_and_get() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let mut store = FjallTimerIndexStore::open(&db).unwrap();
+        let duration_bytes: [u8; 8] = match v.try_into() {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let duration_ms = u64::from_be_bytes(duration_bytes);
+        let trigger_time_ms = fire_at_ms.saturating_sub(duration_ms);
 
-        let key = b"test_key";
-        let value = b"test_value";
+        storage.delete(&k)?;
 
-        store.put(key, value).unwrap();
-
-        let retrieved = store.get(key).unwrap().unwrap();
-        assert_eq!(retrieved, value);
-    }
-
-    #[test]
-    fn fjall_timer_index_store_get_missing() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let store = FjallTimerIndexStore::open(&db).unwrap();
-
-        let result = store.get(b"nonexistent").unwrap();
-        assert!(result.is_none());
+        deleted += 1;
+        claimed.push(TimerRecord {
+            timer_id: key.timer_id(),
+            instance_id: key.instance_id(),
+            fire_at_ms,
+            trigger_time_ms,
+            duration_ms,
+        });
     }
 
-    #[test]
-    fn fjall_timer_index_store_delete() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let mut store = FjallTimerIndexStore::open(&db).unwrap();
-
-        let key = b"delete_key";
-        let value = b"delete_value";
-
-        store.put(key, value).unwrap();
-        assert!(store.get(key).unwrap().is_some());
-
-        store.delete(key).unwrap();
-        assert!(store.get(key).unwrap().is_none());
-    }
-
-    #[test]
-    fn fjall_timer_index_store_scan() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let mut store = FjallTimerIndexStore::open(&db).unwrap();
-
-        store.put(b"a_1", b"value1").unwrap();
-        store.put(b"a_2", b"value2").unwrap();
-        store.put(b"a_3", b"value3").unwrap();
-        store.put(b"b_1", b"value4").unwrap();
-
-        let results = store.scan(b"a_1", b"a_3").unwrap();
-        assert_eq!(results.len(), 2);
-        assert_eq!(&results[0].0, b"a_1");
-        assert_eq!(&results[1].0, b"a_2");
-    }
-
-    #[test]
-    fn fjall_timer_index_store_persists_across_restart() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = fjall::Database::builder(dir.path()).open().unwrap();
-        let mut store = FjallTimerIndexStore::open(&db).unwrap();
-
-        store.put(b"persist_key", b"persist_value").unwrap();
-        drop(store);
-        drop(db);
-
-        let db2 = fjall::Database::builder(dir.path()).open().unwrap();
-        let store2 = FjallTimerIndexStore::open(&db2).unwrap();
-
-        let retrieved = store2.get(b"persist_key").unwrap().unwrap();
-        assert_eq!(retrieved, b"persist_value");
-    }
+    Ok(claimed)
 }

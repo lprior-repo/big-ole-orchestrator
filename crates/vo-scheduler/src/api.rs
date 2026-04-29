@@ -1,7 +1,9 @@
 //! Scheduler API operations per ADR-047 §5.
 
 use crate::error::SchedulerError;
-use crate::types::{JobId, JobState, SchedulePolicy, ScheduledJob, SchedulerQueue, SerializedPayload};
+use crate::queue::SchedulerQueue;
+use crate::types::job::ScheduledJob;
+use crate::types::{JobId, JobState, SchedulePolicy};
 
 pub async fn schedule_job(
     queue: &mut SchedulerQueue,
@@ -23,12 +25,11 @@ pub async fn schedule_job(
     Ok(job_id)
 }
 
-pub async fn cancel_job(
-    queue: &mut SchedulerQueue,
-    job_id: JobId,
-) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
-    
+pub async fn cancel_job(queue: &mut SchedulerQueue, job_id: JobId) -> Result<(), SchedulerError> {
+    let state = queue
+        .get_state(&job_id)
+        .ok_or(SchedulerError::JobNotFound)?;
+
     match state {
         JobState::Scheduled | JobState::Pending | JobState::Running | JobState::Retrying => {
             queue.update_state(&job_id, JobState::Cancelled)?;
@@ -52,18 +53,20 @@ pub async fn update_job_schedule(
     job_id: JobId,
     new_schedule: SchedulePolicy,
 ) -> Result<(), SchedulerError> {
-    let state = queue.get_state(&job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
+    let state = queue
+        .get_state(&job_id)
+        .ok_or(SchedulerError::JobNotFound)?;
 
     match state {
-        JobState::Scheduled | JobState::Pending => {
+        JobState::Scheduled | JobState::Pending | JobState::Retrying => {
+            queue.update_schedule(&job_id, new_schedule.clone())?;
             if matches!(new_schedule, SchedulePolicy::Immediate) && state == JobState::Scheduled {
-                return Err(SchedulerError::InvalidTransition { from_state: state.to_string(), action: "update_schedule".to_string() });
+                queue.update_state(&job_id, JobState::Pending)?;
             }
-            queue.update_schedule(&job_id, new_schedule)?;
             Ok(())
         }
-        JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled | JobState::Retrying => {
-            Err(SchedulerError::InvalidTransition { from_state: state.to_string(), action: "update_schedule".to_string() })
+        JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled => {
+            Err(SchedulerError::InvalidTransition)
         }
     }
 }
@@ -71,10 +74,7 @@ pub async fn update_job_schedule(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{
-        priority::JobPriority,
-        JobKind, JobState, RetryPolicy, SchedulePolicy, SerializedPayload,
-    };
+    use crate::types::{JobKind, JobPriority, RetryPolicy, SchedulePolicy};
     use chrono::{Duration, Utc};
 
     fn make_test_job() -> ScheduledJob {
@@ -84,7 +84,8 @@ mod tests {
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
             RetryPolicy::default(),
             bytes::Bytes::from_static(b"test payload"),
-        ).unwrap()
+        )
+        .unwrap()
     }
 
     fn make_queue() -> SchedulerQueue {
@@ -117,7 +118,8 @@ mod tests {
             SchedulePolicy::Immediate,
             RetryPolicy::default(),
             bytes::Bytes::from_static(b""),
-        );
+        )
+        .unwrap();
         let job_id = schedule_job(&mut queue, job).await.unwrap();
         let state = get_job_status(&queue, job_id).await.unwrap();
         assert_eq!(state, crate::types::JobState::Pending);
@@ -172,7 +174,7 @@ mod tests {
         let mut queue = make_queue();
         let job = make_test_job();
         let job_id = schedule_job(&mut queue, job).await.unwrap();
-        let new_schedule = SchedulePolicy::After(Duration::hours(1));
+        let new_schedule = SchedulePolicy::After(std::time::Duration::from_secs(3600));
         let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
         assert!(result.is_ok());
     }
@@ -186,9 +188,10 @@ mod tests {
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
             RetryPolicy::default(),
             bytes::Bytes::from_static(b""),
-        );
+        )
+        .unwrap();
         let job_id = schedule_job(&mut queue, job).await.unwrap();
-        let new_schedule = SchedulePolicy::After(Duration::hours(2));
+        let new_schedule = SchedulePolicy::After(std::time::Duration::from_secs(7200));
         let result = update_job_schedule(&mut queue, job_id, new_schedule).await;
         assert!(result.is_ok());
     }
@@ -210,7 +213,54 @@ mod tests {
         let job = make_test_job();
         let job_id = schedule_job(&mut queue, job).await.unwrap();
         queue.update_state(&job_id, JobState::Running).unwrap();
-        let result = update_job_schedule(&mut queue, job_id, SchedulePolicy::At(Utc::now() + Duration::hours(1))).await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
+        let result = update_job_schedule(
+            &mut queue,
+            job_id,
+            SchedulePolicy::At(Utc::now() + Duration::hours(1)),
+        )
+        .await;
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+    }
+
+    #[tokio::test]
+    async fn given_job_scheduled_when_id_assigned_then_job_id_is_ulid() {
+        let mut queue = make_queue();
+        let job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::from_static(b"ulid-probe"),
+        )
+        .unwrap();
+
+        let id_at_creation = job.id;
+        assert!(
+            !id_at_creation.0.is_nil(),
+            "JobId must be a non-nil ULID at creation"
+        );
+
+        let returned_id = schedule_job(&mut queue, job).await.unwrap();
+        assert_eq!(
+            returned_id, id_at_creation,
+            "JobId must remain immutable through schedule_job"
+        );
+
+        let stored = queue.lookup(&returned_id).unwrap();
+        assert_eq!(
+            stored.id, id_at_creation,
+            "JobId must remain immutable after queue insertion"
+        );
+
+        let ulid_str = format!("{}", id_at_creation);
+        assert_eq!(
+            ulid_str.len(),
+            26,
+            "ULID string representation must be 26 characters"
+        );
+        assert!(
+            ulid_str.chars().all(|c| c.is_ascii_alphanumeric()),
+            "ULID must be valid Crockford Base32"
+        );
     }
 }

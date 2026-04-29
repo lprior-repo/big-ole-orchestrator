@@ -8,7 +8,7 @@ use vo_types::state::{self, LifecycleState, TransitionEvent};
 
 use crate::upcaster::UpcasterRegistry;
 
-use super::types::{ReplayError, ReplayResult};
+use super::types::{ErrorString, ReplayError, ReplayResult};
 
 /// Stateless, deterministic replay engine.
 ///
@@ -88,7 +88,7 @@ impl ReplayEngine {
             let payload = EventPayload::try_from_json(&event.payload).map_err(|e| {
                 ReplayError::PayloadDecodeFailed {
                     sequence: event.sequence,
-                    source: e.to_string(),
+                    source: ErrorString(e.to_string()),
                 }
             })?;
 
@@ -227,12 +227,14 @@ pub(super) fn payload_to_transition(
         EventPayload::StepCompleted { .. } => Ok(TransitionEvent::CompleteStep),
         EventPayload::StepFailed { .. } => Ok(TransitionEvent::Fail),
         EventPayload::TimerSet { .. } => Ok(TransitionEvent::WaitForTimer),
+        EventPayload::TimerScheduled { .. } => Ok(TransitionEvent::WaitForTimer),
         EventPayload::TimerFired { .. } => Ok(TransitionEvent::TimerFired),
         EventPayload::WorkflowCompleted { .. } => Ok(TransitionEvent::CompleteStep),
         EventPayload::WorkflowFailed { .. } => Ok(TransitionEvent::Fail),
         EventPayload::WorkflowQuarantined { .. } => Ok(TransitionEvent::Fail),
         EventPayload::WorkflowCancelled { .. } => Ok(TransitionEvent::Cancel),
         EventPayload::CancelRequested { .. } => Ok(TransitionEvent::Cancel),
+        EventPayload::SignalAwaiting { .. } => Ok(TransitionEvent::WaitForTimer),
         EventPayload::InstanceResumed { .. } => Ok(TransitionEvent::InstanceResumed),
         EventPayload::ContinuedAsNew { .. } => {
             // Handled as a no-op in the replay loop before calling this function.

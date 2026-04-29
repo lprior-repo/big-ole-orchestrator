@@ -170,6 +170,7 @@ impl std::fmt::Display for SimError {
 impl std::error::Error for SimError {}
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
 

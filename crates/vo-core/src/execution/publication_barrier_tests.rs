@@ -17,8 +17,9 @@ mod tests {
     // Helper: Build a simple NodeName for test contexts
     // ------------------------------------------------------------------------
 
+    #[allow(dead_code)]
     fn node(name: &str) -> vo_types::NodeName {
-        use vo_types::string_types::NodeName;
+        use vo_types::NodeName;
         NodeName::parse(name).expect("valid node name")
     }
 

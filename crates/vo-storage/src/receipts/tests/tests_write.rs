@@ -20,7 +20,7 @@ fn make_receipt(effect_id: &str) -> ExecutionReceipt {
         full_id,
         sample_instance_id().to_string(),
         EffectKind::HttpCall,
-        1713000000,
+        1_713_000_000,
         "Success".to_string(),
     )
     .unwrap()
@@ -50,7 +50,7 @@ fn fjall_store_receipt_with_failure_result() {
         format!("{id}::fx-fail-1"),
         id.to_string(),
         EffectKind::HttpCall,
-        1713000001,
+        1_713_000_001,
         "Failure".to_string(),
     )
     .unwrap();
@@ -70,7 +70,7 @@ fn fjall_store_receipt_without_payload() {
         format!("{id}::fx-nopayload"),
         id.to_string(),
         EffectKind::HttpCall,
-        1713000002,
+        1_713_000_002,
         "Success".to_string(),
     )
     .unwrap();
@@ -92,7 +92,7 @@ fn fjall_store_multiple_receipts_for_different_effects() {
             format!("{id}::fx-batch-{i}"),
             id.to_string(),
             EffectKind::HttpCall,
-            1713000000 + i as u64,
+            1_713_000_000 + i as u64,
             format!("Success-{i}"),
         )
         .unwrap();
@@ -102,6 +102,6 @@ fn fjall_store_multiple_receipts_for_different_effects() {
     for i in 0..5 {
         let eid = format!("{id}::fx-batch-{i}");
         let retrieved = store.get_receipt(&eid).unwrap().unwrap();
-        assert_eq!(retrieved.committed_at_ms(), 1713000000 + i as u64);
+        assert_eq!(retrieved.committed_at_ms(), 1_713_000_000 + i as u64);
     }
 }

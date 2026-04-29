@@ -268,6 +268,7 @@ fn test_dedupe_key_included_in_serialized_output() {
         input: serde_json::json!({"order_id": "ord_123"}),
         instance_id: Some("01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string()),
         dedupe_key: Some("dedupe-abc-123".to_string()),
+        workflow_binary_hash: None,
     };
 
     // When: Serialize to JSON
@@ -290,6 +291,7 @@ fn test_dedupe_key_excluded_when_none() {
         input: serde_json::json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: None,
+        workflow_binary_hash: None,
     };
 
     // When: Serialize to JSON

@@ -1,0 +1,66 @@
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+
+# Beads local runtime state
+.beads/backup/
+.beads/dolt/
+.beads/dolt-server.pid
+.beads/dolt-server.lock
+.beads/dolt-server.port
+.beads/dolt-server.log
+.beads/.local_version
+.beads/last-touched
+.beads/metadata.json
+.beads/.beads-credential-key
+
+# Beads pipeline artifacts (contract, test-plan, qa-report, etc.)
+.beads/*/
+
+# Rust
+/target
+Cargo.lock
+**/*.rs.bk
+
+# moon
+.moon/cache
+.moon/docker
+cov.json
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key
+.runtime/
+CLAUDE.local.md
+crates/vo-core/fuzz/target/
+
+# Dev tooling scripts (one-off fixers, probes, generators)
+*.py
+get_err_strings.rs
+red_queen_probe.rs
+run_test_print.rs
+
+# Mutation testing output
+mutants.out/
+mutants.out.old/
+
+# Test artifacts
+lcov.info
+test_out.txt
+nextest.out
+QA-REPORT-*.md
+test-suite-review*.md
+test-plan.md
+
+# Legacy Go code (superseded by Rust)
+go.mod
+go.sum
+/internal/
+
+# Analysis scratch directories
+restate_analysis/
+vel-u0e/
+
+# Decomposition/forge pipeline artifacts
+.decomposition/
+.forge/

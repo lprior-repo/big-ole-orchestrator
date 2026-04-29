@@ -4,73 +4,19 @@
 //! specifications when a binary is invoked with `--graph`. The Engine validates,
 //! hashes, and stores this spec as a workflow version.
 
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 pub use vo_types::NodeKind;
-use vo_types::{BufferPolicy, DedupeScope, GuaranteeClass, LineageScope, NodeName, RetryPolicy, SignalAddress, WorkflowName};
+use vo_types::{GuaranteeClass, NodeName, RetryPolicy, WorkflowName};
 
-/// Metadata for Signal and Wait nodes (ADR-009, ADR-042).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SignalNodeMeta {
-    pub address: SignalAddress,
-    #[serde(default)]
-    pub buffer_policy: BufferPolicy,
-    #[serde(default)]
-    pub lineage_scope: LineageScope,
-}
-
-impl SignalNodeMeta {
-    /// Create signal metadata with lineage-wide scope.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use vo_sdk::graph::SignalNodeMeta;
-    /// use vo_types::{SignalAddress, InstanceId, WaitKey, LineageScope};
-    ///
-    /// let addr = SignalAddress::lineage_wide(
-    ///     InstanceId::from_bytes([0u8; 16]),
-    ///     InstanceId::from_bytes([1u8; 16]),
-    ///     WaitKey::parse("my-signal").unwrap(),
-    /// );
-    /// let meta = SignalNodeMeta::lineage_wide(addr);
-    /// assert_eq!(meta.lineage_scope, LineageScope::LineageWide);
-    /// ```
-
-    pub fn lineage_wide(address: SignalAddress) -> Self {
-        Self {
-            address,
-            buffer_policy: BufferPolicy::default(),
-            lineage_scope: LineageScope::LineageWide,
-        }
-    }
-
-    /// Create signal metadata with epoch-local scope.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use vo_sdk::graph::SignalNodeMeta;
-    /// use vo_types::{SignalAddress, InstanceId, WaitKey, Epoch, LineageScope};
-    ///
-    /// let addr = SignalAddress::epoch_local(
-    ///     InstanceId::from_bytes([0u8; 16]),
-    ///     Epoch(0),
-    ///     InstanceId::from_bytes([1u8; 16]),
-    ///     WaitKey::parse("my-signal").unwrap(),
-    /// );
-    /// let meta = SignalNodeMeta::epoch_local(addr);
-    /// assert_eq!(meta.lineage_scope, LineageScope::EpochLocal);
-    /// ```
-    pub fn epoch_local(address: SignalAddress) -> Self {
-        Self {
-            address,
-            buffer_policy: BufferPolicy::default(),
-            lineage_scope: LineageScope::EpochLocal,
-        }
-    }
+/// Construct a default [`RetryPolicy`] with 3 attempts, 100ms base backoff, and 2.0 multiplier.
+#[must_use]
+pub fn default_retry_policy() -> RetryPolicy {
+    // unwrap is safe: 3 attempts, 100ms backoff, 2.0 multiplier are all valid
+    RetryPolicy::new(3, 100, 2.0).expect("valid default retry policy")
 }
 
 /// Marker returned when `--graph` flag is present.
@@ -84,6 +30,54 @@ pub enum GraphArgsError {
     UnrecognizedArgument { arg: String },
     #[error("no --graph flag found")]
     NoGraphFlag,
+}
+
+/// Parsed CLI arguments combining `--graph` and `--execute-node`.
+pub struct ParsedArgs {
+    pub graph: bool,
+    pub execute_node: Option<String>,
+}
+
+/// Parse CLI arguments for `--graph` and `--execute-node` flags.
+///
+/// # Errors
+///
+/// Returns `GraphArgsError::UnrecognizedArgument` when an unknown flag is used.
+pub fn parse_exec_args(args: &[String]) -> Result<ParsedArgs, GraphArgsError> {
+    let mut graph = false;
+    let mut execute_node: Option<String> = None;
+
+    let mut i = 1;
+    while i < args.len() {
+        let arg = &args[i];
+        if arg == "--graph" {
+            if graph {
+                return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
+            }
+            graph = true;
+        } else if arg == "--execute-node" {
+            i += 1;
+            if i >= args.len() {
+                return Err(GraphArgsError::UnrecognizedArgument {
+                    arg: "--execute-node".to_string(),
+                });
+            }
+            if execute_node.is_some() {
+                return Err(GraphArgsError::UnrecognizedArgument {
+                    arg: "--execute-node".to_string(),
+                });
+            }
+            execute_node = Some(args[i].clone());
+        } else if arg.starts_with('-') {
+            return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
+        }
+        i += 1;
+    }
+
+    Ok(ParsedArgs {
+        graph,
+        execute_node,
+    })
 }
 
 /// Parse CLI arguments for the `--graph` flag.
@@ -105,48 +99,23 @@ pub enum GraphArgsError {
 /// # Errors
 ///
 /// Returns `GraphArgsError::NoGraphFlag` when `--graph` is absent.
-/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph` or when `--graph` appears twice.
+/// Returns `GraphArgsError::UnrecognizedArgument` when extra positional args follow `--graph`.
 pub fn parse_graph_args(args: &[String]) -> Result<GraphArgs, GraphArgsError> {
-    let mut found_graph = false;
-    for arg in args.iter().skip(1) {
-        if arg == "--graph" {
-            if found_graph {
-                return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
-            }
-            found_graph = true;
-        } else if found_graph {
-            return Err(GraphArgsError::UnrecognizedArgument { arg: arg.clone() });
-        }
-    }
-    if found_graph {
+    let parsed = parse_exec_args(args)?;
+    if parsed.graph {
         Ok(GraphArgs)
     } else {
         Err(GraphArgsError::NoGraphFlag)
     }
 }
 
-/// Metadata for Signal/Wait nodes in a workflow graph.
-pub type SignalNodeMeta = SignalScope;
-use vo_types::signal::SignalScope;
-
 /// Specification of a single workflow node.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NodeSpec {
     pub name: NodeName,
     pub kind: NodeKind,
-    #[serde(default = "default_retry_policy")]
-    pub retry_policy: RetryPolicy,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub signal_meta: Option<SignalNodeMeta>,
-}
-
-pub fn default_retry_policy() -> RetryPolicy {
-    RetryPolicy {
-        max_attempts: 1,
-        backoff_ms: 0,
-        backoff_multiplier: 1.0,
-        max_backoff_ms: u64::MAX,
-    }
+    #[serde(default)]
+    pub retry_policy: Option<RetryPolicy>,
 }
 
 /// Specification of an edge between two workflow nodes.
@@ -154,6 +123,13 @@ pub fn default_retry_policy() -> RetryPolicy {
 pub struct EdgeSpec {
     pub from: NodeName,
     pub to: NodeName,
+}
+
+/// Metadata for signal/wait nodes (ADR-019).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignalNodeMeta {
+    pub signal_name: Option<String>,
+    pub timeout_ms: Option<u64>,
 }
 
 /// Validation errors for [`WorkflowSpec::validate`].
@@ -185,13 +161,7 @@ pub struct WorkflowSpec {
     pub nodes: Vec<NodeSpec>,
     pub edges: Vec<EdgeSpec>,
     #[serde(default)]
-    pub dedupe_scope: DedupeScope,
-    #[serde(default)]
     pub guarantee_class: GuaranteeClass,
-}
-
-fn default_dedupe_scope() -> DedupeScope {
-    DedupeScope::Unbounded
 }
 
 impl<'de> serde::Deserialize<'de> for WorkflowSpec {
@@ -201,16 +171,13 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             workflow_name: WorkflowName,
             nodes: Vec<NodeSpec>,
             edges: Vec<EdgeSpec>,
-            #[serde(default = "default_dedupe_scope")]
-            dedupe_scope: DedupeScope,
             #[serde(default)]
             guarantee_class: GuaranteeClass,
         }
 
         let raw: RawWorkflowSpec = RawWorkflowSpec::deserialize(deserializer)?;
 
-        let node_names: std::collections::HashSet<&str> =
-            raw.nodes.iter().map(|n| n.name.as_str()).collect();
+        let node_names: HashSet<&str> = raw.nodes.iter().map(|n| n.name.as_str()).collect();
 
         let mut seen_edges: std::collections::HashSet<(&str, &str)> =
             std::collections::HashSet::new();
@@ -242,7 +209,7 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             }
         }
 
-        let name_to_idx: std::collections::HashMap<&str, usize> = raw
+        let name_to_idx: HashMap<&str, usize> = raw
             .nodes
             .iter()
             .enumerate()
@@ -250,45 +217,43 @@ impl<'de> serde::Deserialize<'de> for WorkflowSpec {
             .collect();
 
         let n = raw.nodes.len();
-        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        let mut in_degree = vec![0u32; n];
         for edge in &raw.edges {
-            if let (Some(&from), Some(&to)) = (
+            if let (Some(&_from), Some(&to)) = (
                 name_to_idx.get(edge.from.as_str()),
                 name_to_idx.get(edge.to.as_str()),
             ) {
-                adj[from].push(to);
+                in_degree[to] += 1;
             }
         }
 
-        const WHITE: u8 = 0;
-        const GRAY: u8 = 1;
-        let mut colors = vec![WHITE; n];
-
-        fn has_cycle_from(node: usize, adj: &[Vec<usize>], colors: &mut [u8]) -> bool {
-            colors[node] = GRAY;
-            for &neighbor in &adj[node] {
-                if colors[neighbor] == GRAY {
-                    return true;
-                }
-                if colors[neighbor] == WHITE && has_cycle_from(neighbor, adj, colors) {
-                    return true;
+        let mut queue: VecDeque<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
+        let mut visited = 0usize;
+        while let Some(node) = queue.pop_front() {
+            visited += 1;
+            for edge in &raw.edges {
+                if let (Some(&from), Some(&to)) = (
+                    name_to_idx.get(edge.from.as_str()),
+                    name_to_idx.get(edge.to.as_str()),
+                ) {
+                    if from == node {
+                        in_degree[to] -= 1;
+                        if in_degree[to] == 0 {
+                            queue.push_back(to);
+                        }
+                    }
                 }
             }
-            colors[node] = 2;
-            false
         }
 
-        for i in 0..n {
-            if colors[i] == WHITE && has_cycle_from(i, &adj, &mut colors) {
-                return Err(serde::de::Error::custom("workflow contains a cycle"));
-            }
+        if visited != n {
+            return Err(serde::de::Error::custom("workflow contains a cycle"));
         }
 
         Ok(WorkflowSpec {
             workflow_name: raw.workflow_name,
             nodes: raw.nodes,
             edges: raw.edges,
-            dedupe_scope: raw.dedupe_scope,
             guarantee_class: raw.guarantee_class,
         })
     }
@@ -543,28 +508,51 @@ mod tests {
 
     #[test]
     fn validate_accepts_valid_spec() {
-        let test_spec = spec(
-            "test-workflow",
-            vec![
-                node("step_a", NodeKind::Pure),
-                node("step_b", NodeKind::ManagedEffect),
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test-workflow").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("step_b").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                    retry_policy: default_retry_policy(),
+                },
             ],
-            vec![edge("step_a", "step_b")],
-        );
-        assert!(test_spec.validate().is_ok());
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("step_b").unwrap(),
+            }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        assert!(spec.validate().is_ok());
     }
 
     #[test]
     fn validate_rejects_duplicate_node_names() {
-        let test_spec = spec(
-            "test",
-            vec![
-                node("step_a", NodeKind::Pure),
-                node("step_a", NodeKind::Pure),
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("step_a").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
             ],
-            vec![],
-        );
-        let err = test_spec.validate().unwrap_err();
+            edges: vec![],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        let err = spec.validate().unwrap_err();
         assert_eq!(
             err,
             ValidationError::DuplicateNodeName {
@@ -575,12 +563,21 @@ mod tests {
 
     #[test]
     fn validate_rejects_missing_edge_source() {
-        let test_spec = spec(
-            "test",
-            vec![node("step_a", NodeKind::Pure)],
-            vec![edge("ghost", "step_a")],
-        );
-        let err = test_spec.validate().unwrap_err();
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("ghost").unwrap(),
+                to: NodeName::parse("step_a").unwrap(),
+            }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        let err = spec.validate().unwrap_err();
         assert_eq!(
             err,
             ValidationError::MissingEdgeSource {
@@ -591,12 +588,21 @@ mod tests {
 
     #[test]
     fn validate_rejects_missing_edge_target() {
-        let test_spec = spec(
-            "test",
-            vec![node("step_a", NodeKind::Pure)],
-            vec![edge("step_a", "ghost")],
-        );
-        let err = test_spec.validate().unwrap_err();
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("ghost").unwrap(),
+            }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        let err = spec.validate().unwrap_err();
         assert_eq!(
             err,
             ValidationError::MissingEdgeTarget {
@@ -607,12 +613,21 @@ mod tests {
 
     #[test]
     fn validate_rejects_self_loop() {
-        let test_spec = spec(
-            "test",
-            vec![node("step_a", NodeKind::Pure)],
-            vec![edge("step_a", "step_a")],
-        );
-        let err = test_spec.validate().unwrap_err();
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("step_a").unwrap(),
+                kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+            }],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("step_a").unwrap(),
+                to: NodeName::parse("step_a").unwrap(),
+            }],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        let err = spec.validate().unwrap_err();
         assert_eq!(
             err,
             ValidationError::SelfLoop {
@@ -623,43 +638,98 @@ mod tests {
 
     #[test]
     fn validate_rejects_cycle() {
-        let test_spec = spec(
-            "test",
-            vec![
-                node("a", NodeKind::Pure),
-                node("b", NodeKind::Pure),
-                node("c", NodeKind::Pure),
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("a").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("b").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("c").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
             ],
-            vec![edge("a", "b"), edge("b", "c"), edge("c", "a")],
-        );
-        let err = test_spec.validate().unwrap_err();
+            edges: vec![
+                EdgeSpec {
+                    from: NodeName::parse("a").unwrap(),
+                    to: NodeName::parse("b").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("b").unwrap(),
+                    to: NodeName::parse("c").unwrap(),
+                },
+                EdgeSpec {
+                    from: NodeName::parse("c").unwrap(),
+                    to: NodeName::parse("a").unwrap(),
+                },
+            ],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        let err = spec.validate().unwrap_err();
         assert!(matches!(err, ValidationError::CycleDetected { .. }));
     }
 
     #[test]
     fn validate_accepts_diamond_dag() {
-        let test_spec = spec(
-            "test",
-            vec![
-                node("start", NodeKind::Pure),
-                node("left", NodeKind::Pure),
-                node("right", NodeKind::Pure),
-                node("end", NodeKind::Pure),
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("start").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("left").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("right").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("end").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
             ],
-            vec![
+            edges: vec![
                 edge("start", "left"),
                 edge("start", "right"),
                 edge("left", "end"),
                 edge("right", "end"),
             ],
-        );
-        assert!(test_spec.validate().is_ok());
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        assert!(spec.validate().is_ok());
     }
 
     #[test]
     fn validate_accepts_single_node_no_edges() {
-        let test_spec = spec("test", vec![node("solo", NodeKind::Pure)], vec![]);
-        assert!(test_spec.validate().is_ok());
+        let spec = WorkflowSpec {
+            workflow_name: WorkflowName::parse("test").unwrap(),
+            nodes: vec![NodeSpec {
+                name: NodeName::parse("solo").unwrap(),
+                kind: NodeKind::Pure,
+                retry_policy: default_retry_policy(),
+            }],
+            edges: vec![],
+            dedupe_scope: Default::default(),
+            guarantee_class: Default::default(),
+        };
+        assert!(spec.validate().is_ok());
     }
 
     #[test]
@@ -667,10 +737,21 @@ mod tests {
         let original = WorkflowSpec {
             workflow_name: WorkflowName::parse("checkout").unwrap(),
             nodes: vec![
-                node("validate", NodeKind::Pure),
-                node("charge", NodeKind::ManagedEffect),
+                NodeSpec {
+                    name: NodeName::parse("validate").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("charge").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                    retry_policy: default_retry_policy(),
+                },
             ],
-            edges: vec![edge("validate", "charge")],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("validate").unwrap(),
+                to: NodeName::parse("charge").unwrap(),
+            }],
             dedupe_scope: DedupeScope::Exact,
             guarantee_class: GuaranteeClass::ExactOnce,
         };
@@ -680,77 +761,124 @@ mod tests {
 
         let deserialized: WorkflowSpec =
             serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
-        assert_eq!(original, deserialized, "guarantee_class must round-trip through serialization");
+        assert_eq!(
+            original, deserialized,
+            "guarantee_class must round-trip through serialization"
+        );
+    }
+
+    #[test]
+    fn given_node_retry_policy_when_graph_emitted_then_policy_is_canonical() {
+        let retry = RetryPolicy {
+            max_attempts: 3,
+            backoff_ms: 100,
+            backoff_multiplier: 2.0,
+            max_backoff_ms: 5000,
+        };
+        let original = WorkflowSpec {
+            workflow_name: WorkflowName::parse("checkout").unwrap(),
+            nodes: vec![
+                NodeSpec {
+                    name: NodeName::parse("validate").unwrap(),
+                    kind: NodeKind::Pure,
+                    retry_policy: default_retry_policy(),
+                },
+                NodeSpec {
+                    name: NodeName::parse("charge").unwrap(),
+                    kind: NodeKind::ManagedEffect,
+                    retry_policy: retry,
+                },
+            ],
+            edges: vec![EdgeSpec {
+                from: NodeName::parse("validate").unwrap(),
+                to: NodeName::parse("charge").unwrap(),
+            }],
+            dedupe_scope: DedupeScope::Exact,
+            guarantee_class: GuaranteeClass::ExactOnce,
+        };
+
+        let json = serde_json::to_string(&original).expect("serialize WorkflowSpec");
+
+        assert!(
+            json.contains(r#""max_attempts":3"#),
+            "JSON must contain max_attempts from retry_policy"
+        );
+        assert!(
+            json.contains(r#""backoff_ms":100"#),
+            "JSON must contain backoff_ms from retry_policy"
+        );
+        assert!(
+            json.contains(r#""backoff_multiplier":2.0"#),
+            "JSON must contain backoff_multiplier from retry_policy"
+        );
+        assert!(
+            json.contains(r#""max_backoff_ms":5000"#),
+            "JSON must contain max_backoff_ms from retry_policy"
+        );
+
+        let deserialized: WorkflowSpec =
+            serde_json::from_str(&json).expect("deserialize WorkflowSpec from JSON");
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.max_attempts, 3,
+            "max_attempts must round-trip"
+        );
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.backoff_ms, 100,
+            "backoff_ms must round-trip"
+        );
+        assert_eq!(
+            deserialized.nodes[1].retry_policy.max_backoff_ms, 5000,
+            "max_backoff_ms must round-trip"
+        );
+        assert_eq!(
+            original, deserialized,
+            "full retry_policy must round-trip through serialization"
+        );
+
+        let json_bytes = original.to_json_bytes();
+        let from_bytes: WorkflowSpec =
+            serde_json::from_slice(&json_bytes).expect("deserialize from to_json_bytes output");
+        assert_eq!(
+            original, from_bytes,
+            "retry_policy preserved through to_json_bytes emission path"
+        );
     }
 }
 
-/// Emit the workflow spec as JSON to stdout and exit.
+/// Errors for node dispatch operations.
+#[derive(Debug, PartialEq, Error)]
+pub enum ExecuteError {
+    #[error("node not found: {0}")]
+    NodeNotFound(String),
+    #[error("node is not executable: {0}")]
+    NotExecutable(String),
+}
+
+/// Dispatch execution of a single named node from the workflow spec.
 ///
-/// This function is called when the binary is invoked with `--graph`.
-/// It serializes the `WorkflowSpec` to JSON, prints it to stdout,
-/// and exits with code 0.
-///
-/// # Example
-///
-/// ```
-/// use vo_sdk::graph::{emit_graph_if_requested, WorkflowSpec, NodeSpec, EdgeSpec, default_retry_policy};
-/// use vo_types::{NodeKind, WorkflowName, NodeName, DedupeScope, GuaranteeClass};
-///
-/// // Build a spec manually (typically via Workflow builder)
-/// let spec = WorkflowSpec {
-///     workflow_name: WorkflowName::parse("checkout").unwrap(),
-///     nodes: vec![
-///         NodeSpec {
-///             name: NodeName::parse("validate").unwrap(),
-///             kind: NodeKind::Pure,
-///             retry_policy: default_retry_policy(),
-///             signal_meta: None,
-///         },
-///         NodeSpec {
-///             name: NodeName::parse("charge").unwrap(),
-///             kind: NodeKind::ManagedEffect,
-///             retry_policy: default_retry_policy(),
-///             signal_meta: None,
-///         },
-///     ],
-///     edges: vec![EdgeSpec {
-///         from: NodeName::parse("validate").unwrap(),
-///         to: NodeName::parse("charge").unwrap(),
-///     }],
-///     dedupe_scope: DedupeScope::default(),
-///     guarantee_class: GuaranteeClass::default(),
-/// };
-///
-/// // Check args for --graph and emit if present
-/// let args = vec!["binary".to_string(), "--graph".to_string()];
-/// let result = emit_graph_if_requested(&args, &spec);
-/// // When --graph is present, result is Ok(()) and process exits with JSON printed
-/// // When --graph is absent, result is Ok(()) and execution continues
-/// assert!(result.is_ok());
-/// ```
+/// When `--execute-node <name>` is used, only the named node runs.
+/// All other nodes are skipped. The node receives its input from FD3
+/// and writes output to FD4 via the standard SDK I/O helpers.
 ///
 /// # Errors
 ///
-/// Returns `()` if `--graph` was not present. If `--graph` was present,
-/// this function always terminates the process.
-#[allow(clippy::result_unit_err)]
-pub fn emit_graph_if_requested(args: &[String], spec: &WorkflowSpec) -> Result<(), ()> {
-    match parse_graph_args(args) {
-        Ok(_graph_args) => {
-            if let Some(cycle) = spec.detect_cycle() {
-                eprintln!("error: cycle detected: {}", cycle);
-                std::process::exit(1);
-            }
-            let json = spec.to_json_bytes();
-            std::io::stdout()
-                .write_all(&json)
-                .expect("stdout write should not fail");
-            std::process::exit(0);
-        }
-        Err(GraphArgsError::NoGraphFlag) => Ok(()),
-        Err(e) => {
-            eprintln!("error: {e}");
-            Err(())
-        }
-    }
+/// Returns `ExecuteError::NodeNotFound` if the node does not exist in the spec.
+/// Returns `ExecuteError::NotExecutable` if the node is not a task-executable kind.
+pub fn find_executable_node<'a>(
+    spec: &'a WorkflowSpec,
+    node_name: &str,
+) -> Result<&'a NodeSpec, ExecuteError> {
+    spec.nodes
+        .iter()
+        .find(|n| n.name.as_str() == node_name)
+        .ok_or_else(|| ExecuteError::NodeNotFound(node_name.to_string()))
+}
+
+/// Check if a node is executable (not a signal/wait-only node).
+#[must_use]
+pub fn is_node_executable(node: &NodeSpec) -> bool {
+    matches!(
+        node.kind,
+        vo_types::NodeKind::Pure | vo_types::NodeKind::ManagedEffect | vo_types::NodeKind::Unsafe
+    )
 }

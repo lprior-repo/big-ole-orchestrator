@@ -150,7 +150,7 @@ fn circuit_breaker_allows_fresh_registration() {
     let req = RegistrationRequest {
         workflow_name: vo_types::WorkflowName::parse("wf-test").unwrap(),
         binary_hash: vo_types::BinaryHash::parse("aabbccdd").unwrap(),
-        force: false,
+        force: None,
     };
     let outcome = evaluate_registration(&req, &config, &state, Instant::now()).unwrap();
     assert_eq!(outcome, RegistrationOutcome::Allowed);
@@ -163,12 +163,13 @@ fn circuit_breaker_force_bypasses_quarantine() {
         vo_types::WorkflowName::parse("wf-q").unwrap(),
         RegistrationStatus::Quarantined,
     );
+    state.register_operator_token("test-operator-token".into());
     let config =
         CircuitBreakerConfig::new(Duration::from_secs(1), Duration::from_secs(60), 3).unwrap();
     let req = RegistrationRequest {
         workflow_name: vo_types::WorkflowName::parse("wf-q").unwrap(),
         binary_hash: vo_types::BinaryHash::parse("aabbccdd").unwrap(),
-        force: true,
+        force: Some("test-operator-token".into()),
     };
     let outcome = evaluate_registration(&req, &config, &state, Instant::now()).unwrap();
     assert_eq!(outcome, RegistrationOutcome::Allowed);

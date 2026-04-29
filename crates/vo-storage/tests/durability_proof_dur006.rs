@@ -64,7 +64,7 @@ fn dur_006_50_concurrent_writers_kill_restart_verify_zero_loss() {
                         .unwrap();
 
                     // Periodic persist to ensure some data hits disk
-                    if local_count % 100 == 0 {
+                    if local_count.is_multiple_of(100) {
                         let _ = db.persist(fjall::PersistMode::SyncAll);
                     }
                 }
@@ -99,7 +99,7 @@ fn dur_006_50_concurrent_writers_kill_restart_verify_zero_loss() {
         for i in 0..num_writers {
             let id = make_instance_id((i + 10) as u8);
             let id_bytes = id.to_bytes().unwrap();
-            total_recovered += ks.prefix(&id_bytes).count() as u64;
+            total_recovered += ks.prefix(id_bytes).count() as u64;
         }
 
         assert!(

@@ -10,12 +10,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use vo_actor::{OrchestratorMsg, TerminateError};
-use vo_core::circuit_breaker::{CircuitBreakerState, UnquarantineResult};
-use vo_storage::event_log::{append_event, AppendEventRequest};
-use vo_types::events::EventMetadata;
+use vo_core::circuit_breaker::{unquarantine, CircuitBreakerError, CircuitBreakerState};
 use vo_types::WorkflowName;
 
 use crate::handlers::helpers::split_path_id;
+use crate::handlers::{compensate_rejection, persist_lifecycle_event};
 use crate::types::ApiError;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -91,8 +90,8 @@ pub async fn terminate_workflow(
 
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::Terminate {
-                namespace: namespace.clone(),
+            |tx| OrchestratorMsg::CommitTerminate {
+                namespace,
                 instance_id,
                 reason,
                 reply: tx,
@@ -253,61 +252,47 @@ pub async fn unquarantine_workflow(
         }
     };
 
-    let operator = req.operator;
-
-    match vo_core::circuit_breaker::unquarantine(
-        &workflow_name,
-        &operator,
-        circuit_breaker.as_ref(),
-    ) {
-        Ok(UnquarantineResult {
-            workflow_name,
-            previous_status,
-            new_status,
-            failures_cleared,
-        }) => (
+    match unquarantine(&workflow_name, &req.operator, &circuit_breaker) {
+        Ok(result) => (
             StatusCode::OK,
-            Json(serde_json::json!({
-                "workflow_name": workflow_name.to_string(),
-                "previous_status": format!("{:?}", previous_status),
-                "new_status": format!("{:?}", new_status),
-                "failures_cleared": failures_cleared,
-            })),
+            Json(UnquarantineResponse {
+                workflow_name: result.workflow_name.to_string(),
+                previous_status: result.previous_status.to_string(),
+                new_status: result.new_status.to_string(),
+                failures_cleared: result.failures_cleared,
+            }),
         )
             .into_response(),
-        Err(e) => {
-            let (status, error_code, message) = match e {
-                vo_core::circuit_breaker::CircuitBreakerError::WorkflowNotFound {
-                    workflow_name,
-                } => (
-                    StatusCode::NOT_FOUND,
-                    "workflow_not_found",
-                    format!("workflow '{}' not found", workflow_name),
+        Err(CircuitBreakerError::WorkflowNotFound { workflow_name }) => (
+            StatusCode::NOT_FOUND,
+            Json(ApiError::new(
+                "workflow_not_found",
+                format!(
+                    "workflow '{}' not found in circuit breaker state",
+                    workflow_name
                 ),
-                vo_core::circuit_breaker::CircuitBreakerError::NotQuarantined {
-                    workflow_name,
-                    current_status,
-                } => (
-                    StatusCode::CONFLICT,
-                    "not_quarantined",
-                    format!(
-                        "workflow '{}' is not quarantined (current status: {:?})",
-                        workflow_name, current_status
-                    ),
+            )),
+        )
+            .into_response(),
+        Err(CircuitBreakerError::NotQuarantined {
+            workflow_name,
+            current_status,
+        }) => (
+            StatusCode::CONFLICT,
+            Json(ApiError::new(
+                "not_quarantined",
+                format!(
+                    "workflow '{}' is not quarantined (current status: {:?})",
+                    workflow_name, current_status
                 ),
-                vo_core::circuit_breaker::CircuitBreakerError::StorageError { reason } => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "storage_error",
-                    format!("storage error: {}", reason),
-                ),
-                _ => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "unquarantine_failed",
-                    e.to_string(),
-                ),
-            };
-            (status, Json(ApiError::new(error_code, message))).into_response()
-        }
+            )),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError::new("circuit_breaker_error", e.to_string())),
+        )
+            .into_response(),
     }
 }
 
@@ -366,8 +351,8 @@ pub async fn compensate_workflow(
 
     let call_result = master
         .call(
-            |tx| OrchestratorMsg::Compensate {
-                namespace: namespace.clone(),
+            |tx| OrchestratorMsg::CommitCompensate {
+                namespace,
                 instance_id,
                 reply: tx,
             },

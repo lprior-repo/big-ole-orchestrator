@@ -946,12 +946,12 @@ pub fn format_report(report: &DoctorReport) -> (String, String) {
     let mut stdout = String::new();
     let mut stderr = String::new();
     use std::fmt::Write;
-    writeln!(stdout, "Doctor Report: {}", report.project_dir.display()).unwrap();
-    writeln!(stdout).unwrap();
+    let _ = writeln!(stdout, "Doctor Report: {}", report.project_dir.display());
+    let _ = writeln!(stdout);
     for cat in &report.categories {
-        writeln!(stdout, "[{}]", cat.category).unwrap();
+        let _ = writeln!(stdout, "[{}]", cat.category);
         if cat.checks.is_empty() {
-            writeln!(stdout, "  (no checks)").unwrap();
+            let _ = writeln!(stdout, "  (no checks)");
             continue;
         }
         for check in &cat.checks {
@@ -962,22 +962,26 @@ pub fn format_report(report: &DoctorReport) -> (String, String) {
             };
             let line = format!("  {} {}: {}", icon, check.check, check.message);
             match check.severity {
-                Severity::Info => writeln!(stdout, "{line}").unwrap(),
-                Severity::Warn | Severity::Error => writeln!(stderr, "{line}").unwrap(),
+                Severity::Info => {
+                    let _ = writeln!(stdout, "{line}");
+                }
+                Severity::Warn | Severity::Error => {
+                    let _ = writeln!(stderr, "{line}");
+                }
             }
         }
-        writeln!(stdout).unwrap();
+        let _ = writeln!(stdout);
     }
     let ec = report.errors().count();
     let wc = report.warnings().count();
     if ec == 0 && wc == 0 {
-        writeln!(stdout, "All checks passed. Project is healthy.").unwrap();
+        let _ = writeln!(stdout, "All checks passed. Project is healthy.");
     } else {
         if ec > 0 {
-            writeln!(stderr, "{} error(s) found.", ec).unwrap();
+            let _ = writeln!(stderr, "{} error(s) found.", ec);
         }
         if wc > 0 {
-            writeln!(stderr, "{} warning(s) found.", wc).unwrap();
+            let _ = writeln!(stderr, "{} warning(s) found.", wc);
         }
     }
     (stdout, stderr)

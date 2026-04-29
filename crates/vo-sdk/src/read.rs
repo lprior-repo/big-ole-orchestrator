@@ -4,6 +4,7 @@ use std::io::Read;
 use std::os::unix::io::FromRawFd;
 
 use vo_types::{TaskInput, TaskInputEnvelope};
+use zeroize::Zeroizing;
 
 use crate::SdkError;
 
@@ -54,7 +55,7 @@ pub(crate) fn read_input_inner<R: Read>(
         return Err(SdkError::FdNotOpen);
     }
 
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)

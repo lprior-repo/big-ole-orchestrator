@@ -1,11 +1,7 @@
-//! Test Coverage: Version pinning enforcement for WorkflowSpec.
-//!
-//! bead_id: ve-jm7n
-//!
-//! Tests schema version validation at both vo-types and SDK layers.
+//! Section 3: Version pinning enforced
 
-use crate::WorkflowSpec;
-use vo_types::{NodeKind, NodeName};
+use crate::{DedupeScope, EdgeSpec, NodeSpec, WorkflowSpec};
+use vo_types::{NodeKind, NodeName, WorkflowName};
 
 #[test]
 fn vo_types_workflow_spec_accepts_current_version() {
@@ -57,11 +53,11 @@ fn vo_types_workflow_spec_round_trips_version() {
 #[test]
 fn sdk_workflow_spec_has_no_version_field() {
     let spec = WorkflowSpec {
-        workflow_name: vo_types::WorkflowName::parse("test").expect("valid"),
+        workflow_name: WorkflowName::parse("test").expect("valid"),
         nodes: vec![],
-        edges: vec![],    dedupe_scope: vo_types::DedupeScope::default(),
-    guarantee_class: vo_types::GuaranteeClass::default(),
-};
+        edges: vec![],
+        dedupe_scope: DedupeScope::default(),
+    };
     let json = serde_json::to_string(&spec).expect("serialize");
     assert!(
         !json.contains("version"),
@@ -72,21 +68,20 @@ fn sdk_workflow_spec_has_no_version_field() {
 #[test]
 fn sdk_workflow_spec_schema_is_stable_across_round_trips() {
     let spec = WorkflowSpec {
-        workflow_name: vo_types::WorkflowName::parse("stability-test").expect("valid"),
+        workflow_name: WorkflowName::parse("stability-test").expect("valid"),
         nodes: vec![
-            crate::NodeSpec {
-                name: vo_types::NodeName::parse("a").expect("valid"),
-                kind: NodeKind::Pure,    retry_policy: vo_types::RetryPolicy { max_attempts: 1, backoff_ms: 0, backoff_multiplier: 1.0, max_backoff_ms: u64::MAX },
-},
-            crate::NodeSpec {
-                name: vo_types::NodeName::parse("b").expect("valid"),
-                kind: NodeKind::ManagedEffect,    retry_policy: vo_types::RetryPolicy { max_attempts: 1, backoff_ms: 0, backoff_multiplier: 1.0, max_backoff_ms: u64::MAX },
-    signal_meta: None,
-},
+            NodeSpec {
+                name: NodeName::parse("a").expect("valid"),
+                kind: NodeKind::Pure,
+            },
+            NodeSpec {
+                name: NodeName::parse("b").expect("valid"),
+                kind: NodeKind::ManagedEffect,
+            },
         ],
-        edges: vec![crate::EdgeSpec {
-            from: vo_types::NodeName::parse("a").expect("valid"),
-            to: vo_types::NodeName::parse("b").expect("valid"),
+        edges: vec![EdgeSpec {
+            from: NodeName::parse("a").expect("valid"),
+            to: NodeName::parse("b").expect("valid"),
         }],
         dedupe_scope: vo_types::DedupeScope::default(),
         guarantee_class: vo_types::GuaranteeClass::default(),

@@ -4,10 +4,6 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 
-[features]
-default = []
-test-sim = []
-
 [dependencies]
 vo-common = { path = "../vo-common" }
 thiserror.workspace = true
@@ -17,10 +13,10 @@ dashmap = { workspace = true }
 chrono = { workspace = true }
 libc.workspace = true
 tracing.workspace = true
-sha2.workspace = true
+ulid = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
-vo-executor = { path = ".", features = ["test-sim"] }
 tokio.workspace = true
 proptest.workspace = true
 serde_json.workspace = true

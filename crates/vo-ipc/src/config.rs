@@ -1,6 +1,6 @@
 use crate::error::ConfigError;
-use libc::{close, fstat, open, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
-use std::ffi::{CString, OsString};
+use std::ffi::OsString;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,7 +27,11 @@ impl SubprocessConfig {
     {
         let p = path.as_ref();
         validate_timeout(timeout_ms)?;
-        let canonical_path = open_and_validate_program(p)?;
+        validate_program_path(p)?;
+
+        let canonical_path = p.canonicalize().map_err(|_| ConfigError::ProgramMissing {
+            path: p.to_path_buf(),
+        })?;
 
         Ok(Self {
             executable_path: canonical_path,
@@ -64,53 +68,31 @@ pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError>
     Ok(())
 }
 
-fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
-    let path_str = path.to_str().ok_or_else(|| ConfigError::ProgramMissing {
+pub(crate) fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
+    if !path.exists() {
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
+    }
+
+    let metadata = path.metadata().map_err(|_| ConfigError::ProgramMissing {
         path: path.to_path_buf(),
     })?;
 
-    let fd = unsafe { open(path_str.as_ptr().cast::<libc::c_char>(), O_NOFOLLOW | O_RDONLY) };
-    if fd < 0 {
+    if !metadata.is_file() {
         return Err(ConfigError::ProgramMissing {
             path: path.to_path_buf(),
         });
     }
 
-    let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
-    let fstat_result = unsafe { fstat(fd, &raw mut stat_buf) };
-    let close_result = unsafe { close(fd) };
-
-    if fstat_result < 0 {
-        return Err(ConfigError::ProgramMissing {
-            path: path.to_path_buf(),
-        });
-    }
-
-    if close_result < 0 {
-        return Err(ConfigError::ProgramMissing {
-            path: path.to_path_buf(),
-        });
-    }
-
-    if (stat_buf.st_mode & S_IFMT) != S_IFREG {
-        return Err(ConfigError::ProgramMissing {
-            path: path.to_path_buf(),
-        });
-    }
-
-    if stat_buf.st_mode & 0o111 == 0 {
+    let permissions = metadata.permissions();
+    if permissions.mode() & 0o111 == 0 {
         return Err(ConfigError::ProgramNotExecutable {
             path: path.to_path_buf(),
         });
     }
 
-    let canonical_path = path
-        .canonicalize()
-        .map_err(|_| ConfigError::ProgramMissing {
-            path: path.to_path_buf(),
-        })?;
-
-    Ok(canonical_path)
+    Ok(())
 }
 
 #[must_use]

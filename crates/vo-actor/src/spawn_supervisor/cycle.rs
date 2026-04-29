@@ -3,11 +3,11 @@
 //! Handles Phase 1 (spawn new processes), Phase 2 (health check existing spawns),
 //! and Phase 3 (respawn failed spawns).
 
-use vo_types::InstanceId;
-
-use super::pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
+use super::process::ProcessHandle;
+use super::pure::{calculate_backoff_delay, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
+use crate::semaphore::types::AdmissionDecision;
 
 impl Actor {
     /// Detects zombie processes among running spawns and reaps them.
@@ -160,10 +160,24 @@ impl Actor {
 
             let backoff_delay = Self::calc_backoff_delay(self, record.spawn_attempts);
 
+            // Gate spawn on global execution semaphore permit
+            let admission = self.execution_semaphore.acquire().await;
+            if let AdmissionDecision::Rejected { reason, .. } = admission {
+                self.metrics.spawns_failed.incr();
+                errors += 1;
+                tracing::warn!(
+                    instance_id = %record.instance_id,
+                    reason = ?reason,
+                    "Spawn rejected by execution semaphore"
+                );
+                continue;
+            }
+
             match self.spawn_process(&record).await {
                 Ok(process_handle) => {
                     let mut new_record = record.transition_to_health_check();
                     new_record.last_error = None;
+                    new_record.last_pid = Some(process_handle.pid);
 
                     if let Err(e) = self.storage.save_spawn_record(&new_record).await {
                         self.metrics.dispatch_errors.incr();
@@ -207,17 +221,19 @@ impl Actor {
                                 "Health check failed"
                             );
 
-                            if record.spawn_attempts < self.max_spawn_attempts {
-                                respawns += 1;
-                                self.metrics.respawns.incr();
+                            let mut failed_record = new_record.transition_to_failed();
+                            failed_record.last_error = Some(e.clone());
 
-                                tracing::info!(
+                            if let Err(save_err) =
+                                self.storage.save_spawn_record(&failed_record).await
+                            {
+                                self.metrics.dispatch_errors.incr();
+                                errors += 1;
+                                tracing::error!(
                                     instance_id = %record.instance_id,
-                                    backoff_ms = backoff_delay.as_millis(),
-                                    "Scheduling respawn with backoff"
+                                    error = %save_err,
+                                    "Failed to save failed spawn record"
                                 );
-
-                                tokio::time::sleep(backoff_delay).await;
                             }
                         }
                     }
@@ -251,11 +267,49 @@ impl Actor {
             spawns_processed += 1;
             health_checks += 1;
 
+            let pid = record.last_pid.unwrap_or(0);
+
+            if pid != 0 {
+                match self.process_manager.is_zombie(pid).await {
+                    Ok(true) => {
+                        self.metrics.zombies_detected.incr();
+                        tracing::warn!(
+                            instance_id = %record.instance_id,
+                            pid = pid,
+                            "Zombie process detected during health check phase"
+                        );
+                        let mut failed_record = record.transition_to_failed();
+                        failed_record.last_error = Some(SpawnSupervisorError::ZombieDetected {
+                            instance_id: record.instance_id.clone(),
+                            pid,
+                        });
+                        if let Err(e) = self.storage.save_spawn_record(&failed_record).await {
+                            self.metrics.dispatch_errors.incr();
+                            errors += 1;
+                            tracing::error!(
+                                instance_id = %record.instance_id,
+                                error = %e,
+                                "Failed to save zombie spawn record"
+                            );
+                        }
+                        continue;
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            instance_id = %record.instance_id,
+                            error = %e,
+                            "Failed to check zombie status during health check, proceeding with health check"
+                        );
+                    }
+                }
+            }
+
             match self
                 .perform_health_checks(
                     &record.instance_id,
-                    &super::traits::ProcessHandle {
-                        pid: 0,
+                    &ProcessHandle {
+                        pid,
                         executable: record.executable.clone(),
                         args: record.args.clone(),
                     },
@@ -286,6 +340,19 @@ impl Actor {
                         error = %e,
                         "Health check failed"
                     );
+
+                    let mut failed_record = record.transition_to_failed();
+                    failed_record.last_error = Some(e.clone());
+
+                    if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
+                        self.metrics.dispatch_errors.incr();
+                        errors += 1;
+                        tracing::error!(
+                            instance_id = %record.instance_id,
+                            error = %save_err,
+                            "Failed to save failed health check record"
+                        );
+                    }
                 }
             }
         }
@@ -298,6 +365,35 @@ impl Actor {
 
         for record in failed_records {
             spawns_processed += 1;
+
+            let pid = record.last_pid.or_else(|| {
+                record.last_error.as_ref().and_then(|e| match e {
+                    SpawnSupervisorError::ProcessExited { pid, .. } => Some(*pid),
+                    _ => None,
+                })
+            });
+
+            if let Some(pid) = pid {
+                match self.process_manager.is_zombie(pid).await {
+                    Ok(true) => {
+                        self.metrics.zombies_detected.incr();
+                        tracing::warn!(
+                            instance_id = %record.instance_id,
+                            pid = pid,
+                            "Zombie process detected, skipping respawn"
+                        );
+                        continue;
+                    }
+                    Ok(false) => {}
+                    Err(e) => {
+                        tracing::warn!(
+                            instance_id = %record.instance_id,
+                            error = %e,
+                            "Failed to check zombie status, proceeding with respawn logic"
+                        );
+                    }
+                }
+            }
 
             if should_respawn(&record, self.max_spawn_attempts) {
                 let backoff_delay = Self::calc_backoff_delay(self, record.spawn_attempts);
@@ -326,7 +422,7 @@ impl Actor {
                     .work_queue
                     .enqueue_spawn(
                         record.instance_id.clone(),
-                        record.executable.clone(),
+                        record.executable.to_string_lossy().into_owned(),
                         record.args.clone(),
                     )
                     .await
@@ -358,9 +454,9 @@ impl Actor {
     async fn spawn_process(
         &self,
         record: &SpawnRecord,
-    ) -> Result<super::traits::ProcessHandle, SpawnSupervisorError> {
+    ) -> Result<ProcessHandle, SpawnSupervisorError> {
         self.process_manager
-            .spawn_process(&record.executable, &record.args)
+            .spawn_process(record.executable.to_str().unwrap_or(""), &record.args)
             .await
     }
 

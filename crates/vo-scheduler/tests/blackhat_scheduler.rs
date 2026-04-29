@@ -163,3 +163,98 @@ fn remove_then_operate_is_error() {
     assert!(q.cancel(&id).is_err());
     assert!(q.update_state(&id, JobState::Running).is_err());
 }
+
+// ATTACK 10: update_job_schedule rejects Immediate on Scheduled state — should
+// be valid. A user scheduling a job for the future should be able to force it
+// to run immediately by changing schedule to Immediate. The api.rs guard at
+// line 59 falsely rejects this, preventing force-execution of future jobs.
+#[tokio::test]
+async fn update_schedule_immediate_on_scheduled_is_rejected_but_should_be_valid() {
+    use vo_scheduler::api::{schedule_job, update_job_schedule};
+
+    let mut q = SchedulerQueue::new(10);
+    let job = ScheduledJob::new(
+        JobKind::OneShot,
+        JobPriority::Normal,
+        future_due(),
+        RetryPolicy::default_policy(),
+        bytes::Bytes::from_static(b"force-run"),
+    );
+    let job_id = schedule_job(&mut q, job).await.unwrap();
+    assert_eq!(q.get_state(&job_id), Some(JobState::Scheduled));
+
+    let result = update_job_schedule(&mut q, job_id, SchedulePolicy::Immediate).await;
+    assert!(
+        result.is_err(),
+        "BUG CONFIRMED: update_job_schedule rejects Immediate on Scheduled, \
+         preventing force-execution of future jobs"
+    );
+}
+
+// ATTACK 11: update_job_schedule rejects Retrying state — a retrying job
+// may need its schedule adjusted (e.g., extend backoff delay). Retrying is
+// a non-terminal state and schedule updates should be allowed.
+#[tokio::test]
+async fn update_schedule_on_retrying_is_rejected_but_should_be_valid() {
+    use vo_scheduler::api::{schedule_job, update_job_schedule};
+
+    let mut q = SchedulerQueue::new(10);
+    let job = make_job(JobPriority::Normal, past_due());
+    let job_id = schedule_job(&mut q, job).await.unwrap();
+    q.update_state(&job_id, JobState::Running).unwrap();
+    q.update_state(&job_id, JobState::Failed).unwrap();
+    q.update_state(&job_id, JobState::Retrying).unwrap();
+
+    let result = update_job_schedule(
+        &mut q,
+        job_id,
+        SchedulePolicy::After(std::time::Duration::from_secs(60)),
+    )
+    .await;
+    assert!(
+        result.is_err(),
+        "BUG CONFIRMED: update_job_schedule rejects Retrying state, \
+         preventing backoff schedule adjustment during retries"
+    );
+}
+
+// ATTACK 12: update_job_schedule on Pending + Immediate should succeed but
+// the guard at line 59 only rejects Scheduled+Immediate — verify the
+// asymmetry doesn't mask a deeper state confusion.
+#[tokio::test]
+async fn update_schedule_immediate_on_pending_succeeds() {
+    use vo_scheduler::api::{schedule_job, update_job_schedule};
+
+    let mut q = SchedulerQueue::new(10);
+    let job = ScheduledJob::new(
+        JobKind::OneShot,
+        JobPriority::Normal,
+        past_due(),
+        RetryPolicy::default_policy(),
+        bytes::Bytes::from_static(b"past-due"),
+    );
+    let job_id = schedule_job(&mut q, job).await.unwrap();
+    assert_eq!(q.get_state(&job_id), Some(JobState::Pending));
+
+    let result = update_job_schedule(&mut q, job_id, SchedulePolicy::Immediate).await;
+    assert!(
+        result.is_ok(),
+        "Immediate on Pending should succeed — no guard should reject this"
+    );
+}
+
+// ATTACK 13: Double schedule update race — two consecutive update_schedule
+// calls on the same job must not corrupt heap state. The second update
+// replaces the first, and pop_due must reflect the latest schedule.
+#[test]
+fn double_schedule_update_no_heap_corruption() {
+    let mut q = SchedulerQueue::new(10);
+    let id = q.insert(make_job(JobPriority::Normal, past_due())).unwrap();
+    q.update_schedule(&id, future_due()).unwrap();
+    q.update_schedule(&id, past_due()).unwrap();
+    let popped = q.pop_due(Utc::now());
+    assert!(
+        popped.is_some(),
+        "Second schedule update must rebuild heap correctly — job should be poppable"
+    );
+}

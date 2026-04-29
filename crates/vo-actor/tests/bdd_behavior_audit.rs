@@ -18,8 +18,8 @@ use vo_actor::lifecycle::{
     ShutdownPropagator,
 };
 use vo_actor::message_router::{
-    ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata, MessageRouter, RouteError,
-    TimestampMs as RouterTimestampMs,
+    ActorDestination, ChannelId, DeadLetterQueue, DeadLetterReason, MessageMetadata,
+    MessageRouter, RouteError, TimestampMs as RouterTimestampMs,
 };
 use vo_actor::probe::{
     AggregatedStatus, BackoffConfig, ProbeConfig, ProbeId, ProbeRegistry, ProbeStatus,
@@ -517,7 +517,7 @@ mod bdd_message_router {
     fn given_router_when_register_channel_then_has_channel() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         assert!(router.has_channel(&ChannelId::new("ch-1")));
         assert_eq!(router.num_channels(), 1);
@@ -526,7 +526,7 @@ mod bdd_message_router {
     #[test]
     fn given_router_when_duplicate_channel_then_error() {
         let mut router = MessageRouter::with_default_config();
-        let dest = ActorDestination::new(42usize);
+        let dest = ActorDestination::test();
         router
             .register_channel(ChannelId::new("ch-1"), dest.clone())
             .unwrap();
@@ -540,7 +540,7 @@ mod bdd_message_router {
     fn given_router_when_unregister_then_removed() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         router.unregister_channel(&ChannelId::new("ch-1"));
         assert!(!router.has_channel(&ChannelId::new("ch-1")));
@@ -550,7 +550,7 @@ mod bdd_message_router {
     fn given_router_when_deactivate_then_not_active() {
         let mut router = MessageRouter::with_default_config();
         router
-            .register_channel(ChannelId::new("ch-1"), ActorDestination::new(42usize))
+            .register_channel(ChannelId::new("ch-1"), ActorDestination::test())
             .unwrap();
         router.deactivate_channel(&ChannelId::new("ch-1")).unwrap();
         assert!(!router.is_channel_active(&ChannelId::new("ch-1")));
@@ -579,7 +579,7 @@ mod bdd_message_router {
         let mut dlq = DeadLetterQueue::new(2);
         for i in 0..3 {
             dlq.enqueue(DeadLetterEntry {
-                channel_id: ChannelId::new(&format!("ch-{}", i)),
+                channel_id: ChannelId::new(format!("ch-{}", i)),
                 message: DeadLetterMessage::new(&format!("msg-{}", i)).unwrap(),
                 enqueued_at: RouterTimestampMs::now(),
                 reason: DeadLetterReason::ChannelNotFound,
@@ -908,7 +908,7 @@ mod bdd_spawn_supervisor {
     fn given_error_when_resumable_then_correct() {
         let id = make_id("01H5JYV4XHGSR2F8KZ9B000001");
         assert!(SpawnSupervisorError::SpawnFailed {
-            executable: PathBuf::from("c"),
+            command: "c".into(),
             error: "x".into()
         }
         .is_resumable());
@@ -1096,7 +1096,7 @@ mod bdd_reanimator {
     fn given_reanimator_error_when_fatal_then_correct() {
         assert!(ReanimatorError::CorruptKey("x".into()).is_fatal());
         assert!(ReanimatorError::AlreadyRunning.is_fatal());
-        assert!(ReanimatorError::ShutdownTimeout(Duration::from_secs(1)).is_fatal());
+        assert!(ReanimatorError::AlreadyShutdown.is_fatal());
         assert!(!ReanimatorError::StorageError("x".into()).is_fatal());
     }
 

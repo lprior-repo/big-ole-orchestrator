@@ -10,7 +10,6 @@ workspace = true
 proptest = []
 
 [dependencies]
-async-trait = { workspace = true }
 fjall = { workspace = true }
 memmap2 = { workspace = true }
 serde = { workspace = true }
@@ -27,10 +26,11 @@ aes = { workspace = true }
 aes-gcm = { workspace = true }
 rand = { workspace = true }
 generic-array = { workspace = true }
+async-trait = { workspace = true }
 ulid = { workspace = true }
 dashmap = { workspace = true }
-hex = "0.4"
 metrics = { workspace = true }
+zeroize = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -7,6 +7,10 @@
 //! This module defines the trait and pure encoding/decoding functions. Concrete Fjall
 //! implementations are provided separately.
 
+use crate::key_encoding::{
+    decode_dedupe_key as decode_dedupe_key_canonical,
+    encode_dedupe_key as encode_dedupe_key_canonical,
+};
 use vo_types::{DedupeKey, InstanceId};
 
 #[cfg(all(test, feature = "proptest"))]
@@ -202,25 +206,31 @@ pub enum DedupeStoreError {
 // Calc layer — key encoding/decoding
 // ---------------------------------------------------------------------------
 
-/// Encode a `DedupeKey` as UTF-8 bytes for use as a partition key.
+/// Encode a `DedupeKey` as `[idempotency_key_len_u16_be][idempotency_key_bytes]` (ADR-020).
+///
+/// Delegates to `key_encoding::encode_dedupe_key`.
 #[must_use]
 pub fn encode_dedupe_key(key: &DedupeKey) -> Vec<u8> {
-    key.as_str().as_bytes().to_vec()
+    encode_dedupe_key_canonical(key.as_str()).expect("dedupe key encoding should not fail")
 }
 
-/// Decode UTF-8 bytes into a `DedupeKey`.
+/// Decode length-prefixed bytes into a `DedupeKey` (ADR-020).
+///
+/// Delegates to `key_encoding::decode_dedupe_key`.
 ///
 /// # Errors
 ///
-/// Returns `DedupeStoreError::Codec` if bytes are not valid UTF-8 or if the
-/// resulting string is empty (empty keys are rejected by `DedupeKey::parse`).
+/// Returns `DedupeStoreError::Codec` if the bytes are malformed or the key is invalid.
 pub fn decode_dedupe_key(bytes: &[u8]) -> Result<DedupeKey, DedupeStoreError> {
-    let s = std::str::from_utf8(bytes).map_err(|e| DedupeStoreError::Codec {
-        reason: e.to_string(),
-    })?;
-    DedupeKey::parse(s).map_err(|e| DedupeStoreError::Codec {
-        reason: e.to_string(),
-    })
+    decode_dedupe_key_canonical(bytes)
+        .map_err(|e| DedupeStoreError::Codec {
+            reason: e.to_string(),
+        })
+        .and_then(|s| {
+            DedupeKey::parse(&s).map_err(|e| DedupeStoreError::Codec {
+                reason: e.to_string(),
+            })
+        })
 }
 
 // ---------------------------------------------------------------------------

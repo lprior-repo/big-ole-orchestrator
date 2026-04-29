@@ -25,6 +25,110 @@ use crate::{
     LockRelease, LockRequest, LockResponse, OwnerId,
 };
 
+#[derive(Debug)]
+pub struct RetryCircuitBreaker {
+    is_open: std::sync::atomic::AtomicBool,
+    consecutive_failures: AtomicU32,
+    last_failure_at: std::sync::Mutex<Option<Instant>>,
+    threshold: u32,
+}
+
+impl RetryCircuitBreaker {
+    pub fn new(threshold: u32) -> Self {
+        Self {
+            is_open: std::sync::atomic::AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            last_failure_at: std::sync::Mutex::new(None),
+            threshold,
+        }
+    }
+
+    pub fn without_circuit_breaker() -> Self {
+        Self {
+            is_open: std::sync::atomic::AtomicBool::new(false),
+            consecutive_failures: AtomicU32::new(0),
+            last_failure_at: std::sync::Mutex::new(None),
+            threshold: u32::MAX,
+        }
+    }
+
+    pub fn is_tripped(&self) -> bool {
+        self.is_open.load(Ordering::SeqCst)
+    }
+
+    pub fn failures(&self) -> u32 {
+        self.consecutive_failures.load(Ordering::SeqCst)
+    }
+
+    pub fn threshold(&self) -> u32 {
+        self.threshold
+    }
+
+    pub fn record_failure(&self) {
+        let count = self.consecutive_failures.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = Some(Instant::now());
+        }
+        if count >= self.threshold {
+            self.is_open.store(true, Ordering::SeqCst);
+        }
+    }
+
+    pub fn record_success(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+    }
+
+    pub fn should_allow_request(&self, recovery_timeout: Duration) -> bool {
+        if !self.is_open.load(Ordering::SeqCst) {
+            return true;
+        }
+        let Ok(guard) = self.last_failure_at.lock() else {
+            return false;
+        };
+        if let Some(last_failure) = *guard {
+            if last_failure.elapsed() >= recovery_timeout {
+                self.is_open.store(false, Ordering::SeqCst);
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn reset(&self) {
+        self.consecutive_failures.store(0, Ordering::SeqCst);
+        self.is_open.store(false, Ordering::SeqCst);
+        if let Ok(mut guard) = self.last_failure_at.lock() {
+            *guard = None;
+        }
+    }
+}
+
+impl Default for RetryCircuitBreaker {
+    fn default() -> Self {
+        Self::without_circuit_breaker()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetryError {
+    CircuitTripped,
+    MaxAttemptsExceeded,
+    Other(String),
+}
+
+impl std::fmt::Display for RetryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RetryError::CircuitTripped => write!(f, "retry circuit tripped"),
+            RetryError::MaxAttemptsExceeded => write!(f, "max retry attempts exceeded"),
+            RetryError::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for RetryError {}
+
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     pub initial_backoff_ms: u64,
@@ -66,6 +170,11 @@ impl RetryConfig {
 
     pub fn with_cb_recovery_timeout(mut self, timeout_ms: u64) -> Self {
         self.cb_recovery_timeout_ms = timeout_ms;
+        self
+    }
+
+    pub fn with_circuit_breaker(mut self, threshold: u32) -> Self {
+        self.cb_failure_threshold = threshold;
         self
     }
 
@@ -160,14 +269,27 @@ impl Default for RetryCircuitBreaker {
 }
 
 pub fn rand_jitter(range: f64) -> f64 {
-    use std::time::Instant;
-    let now = Instant::now();
-    let seed = now.elapsed().as_nanos() as u64;
-    let x = ((seed.wrapping_mul(1103515245)).wrapping_add(12345) % (1 << 31)) as f64;
-    let normalized = x / (1 << 31) as f64;
-    // Return value in range [-range, +range]
+    use std::hash::{Hash, Hasher};
+    use std::time::SystemTime;
+
+    let thread_id = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
+    };
+    let seed = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0)
+        ^ thread_id;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    seed.hash(&mut hasher);
+    let h = hasher.finish();
+    let normalized = (h % (1 << 30)) as f64 / (1 << 30) as f64;
     let jitter = (normalized * 2.0 - 1.0) * range;
-    // Clamp to ensure we're within bounds
     jitter.clamp(-range, range)
 }
 
@@ -182,7 +304,7 @@ impl<'a, T: LockManager> LockManagerRetryWrapper<'a, T> {
         Self {
             inner,
             config,
-            circuit: Arc::new(RetryCircuitBreaker::new()),
+            circuit: Arc::new(RetryCircuitBreaker::without_circuit_breaker()),
         }
     }
 }
@@ -250,6 +372,19 @@ impl<'a, T: LockManager + Send + Sync> LockManager for LockManagerRetryWrapper<'
                     )),
                 };
             }
+
+            if self.circuit.is_tripped() {
+                return LockResponse {
+                    request_id: response.request_id,
+                    lock_id: response.lock_id,
+                    owner: response.owner,
+                    granted: false,
+                    hold_token: None,
+                    expires_at: None,
+                    error: Some("retry circuit tripped".to_string()),
+                };
+            }
+
             let backoff = self.config.calculate_backoff(attempt);
             let with_jitter = self.config.calculate_jitter(backoff);
             sleep(with_jitter).await;
@@ -460,5 +595,138 @@ mod tests {
         assert_eq!(config.calculate_backoff(1), Duration::from_millis(100));
         assert_eq!(config.calculate_backoff(2), Duration::from_millis(150));
         assert_eq!(config.calculate_backoff(3), Duration::from_millis(150));
+    }
+
+    #[test]
+    fn test_retry_config_jitter_zero_factor_returns_base() {
+        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.0);
+        let base = Duration::from_millis(200);
+        let result = config.calculate_jitter(base);
+        assert_eq!(result, base);
+    }
+
+    #[test]
+    fn test_retry_config_jitter_with_positive_factor_stays_within_bounds() {
+        let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.1);
+        let base = Duration::from_millis(200);
+        let base_ms = base.as_millis() as u64;
+        let result = config.calculate_jitter(base);
+        let result_ms = result.as_millis() as u64;
+        let max_jitter = base_ms / 10;
+        let lower_bound = base_ms - max_jitter;
+        let upper_bound = base_ms + max_jitter;
+        assert!(
+            result_ms >= lower_bound && result_ms <= upper_bound,
+            "jitter result {} should be within [{}, {}]",
+            result_ms,
+            lower_bound,
+            upper_bound
+        );
+    }
+
+    #[test]
+    fn test_circuit_breaker_new_is_not_tripped() {
+        let cb = RetryCircuitBreaker::new(5);
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 0);
+    }
+
+    #[test]
+    fn test_circuit_breaker_trips_at_threshold() {
+        let mut cb = RetryCircuitBreaker::new(3);
+        cb.record_failure();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 1);
+        cb.record_failure();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 2);
+        cb.record_failure();
+        assert!(cb.is_tripped());
+        assert_eq!(cb.failures(), 3);
+    }
+
+    #[test]
+    fn test_circuit_breaker_resets_on_success() {
+        let mut cb = RetryCircuitBreaker::new(3);
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_success();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.failures(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_trips_after_threshold() {
+        let mock = MockLockManager::new(10);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(3);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert!(response.error.is_some());
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_allows_success_after_trip() {
+        let mock = MockLockManager::new(3);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(3);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_does_not_amplify_traffic() {
+        let mock = MockLockManager::new(100);
+        let config = RetryConfig::new(10, 2.0, 10).with_circuit_breaker(2);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(!response.granted);
+        assert_eq!(mock.attempt_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_circuit_breaker_without_config_preserves_behavior() {
+        let mock = MockLockManager::new(2);
+        let config = RetryConfig::new(10, 2.0, 5);
+        let wrapper = LockManagerRetryWrapper::new(&mock, config);
+        let request = LockRequest {
+            lock_id: LockId::new("test-lock"),
+            owner: OwnerId::new("owner1".to_string()),
+            mode: LockMode::Exclusive,
+            ttl_ms: 1000,
+            request_id: "req1".to_string(),
+        };
+        let response = wrapper.acquire(request).await;
+        assert!(response.granted);
+        assert_eq!(mock.attempt_count(), 3);
+    }
+
+    #[test]
+    fn test_circuit_breaker_disabled_by_default() {
+        let cb = RetryCircuitBreaker::default();
+        assert!(!cb.is_tripped());
+        assert_eq!(cb.threshold(), u32::MAX);
     }
 }

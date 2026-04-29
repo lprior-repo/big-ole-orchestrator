@@ -70,7 +70,7 @@ fn test_retry_config_jitter() {
     let base_ms = base.as_millis() as i64;
     let jitter_ms = with_jitter.as_millis() as i64;
     let diff = jitter_ms - base_ms;
-    let allowed_range = base_ms as i64 * 50 / 100; // ±50%
+    let allowed_range = base_ms * 50 / 100; // ±50%
     assert!(
         diff.abs() <= allowed_range,
         "Jitter too large: diff={}, allowed_range={}",
@@ -408,6 +408,370 @@ fn test_hash_ring_unique_nodes() {
 }
 
 //==============================================================================
+// REDQUEEN: HASH RING HOTSPOT TESTS (rq-024)
+//==============================================================================
+// EARS Requirements:
+// - Ubiquitous: THE SYSTEM SHALL maintain even distribution
+// - Event-Driven: When node added/removed, THE SYSTEM SHALL minimize redistribution
+// - Unwanted: If hotspot created, THE SYSTEM SHALL have uneven load
+
+/// Scenario: Distribution remains fair after adding a new node
+/// Expected: All nodes (including new one) have roughly even distribution
+/// EARS: Ubiquitous - maintain even distribution
+#[test]
+fn test_hash_ring_no_hotspot_after_add_node() {
+    let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 150 });
+
+    // Build initial ring with 3 nodes
+    for i in 0..3 {
+        ring.add_node(RingNode {
+            pool_id: PoolId::new(format!("node-{}", i)),
+            weight: 1,
+        });
+    }
+
+    // Measure initial distribution
+    let initial_distribution: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(initial_distribution.len(), 3, "Should have 3 nodes");
+    let initial_total: u32 = initial_distribution.values().sum();
+    let initial_expected = initial_total / 3;
+    let initial_variance_threshold = initial_expected / 2;
+
+    for (node, count) in &initial_distribution {
+        let diff = count.abs_diff(initial_expected);
+        assert!(
+            diff <= initial_variance_threshold,
+            "Initial distribution should be fair for {}: {} (expected ~{})",
+            node,
+            count,
+            initial_expected
+        );
+    }
+
+    // Add a 4th node
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-3"),
+        weight: 1,
+    });
+
+    // Measure distribution after adding node
+    let after_distribution: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(after_distribution.len(), 4, "Should have 4 nodes after add");
+
+    // Verify no hotspot was created (all nodes roughly 25% each)
+    let after_total: u32 = after_distribution.values().sum();
+    let after_expected = after_total / 4;
+    let after_variance_threshold = after_expected / 2;
+
+    for (node, count) in &after_distribution {
+        let diff = count.abs_diff(after_expected);
+        assert!(
+            diff <= after_variance_threshold,
+            "No hotspot after add: {} has {} (expected ~{})",
+            node,
+            count,
+            after_expected
+        );
+    }
+}
+
+/// Scenario: Distribution remains fair after removing a node
+/// Expected: Remaining nodes maintain roughly even distribution
+/// EARS: Ubiquitous - maintain even distribution
+#[test]
+fn test_hash_ring_no_hotspot_after_remove_node() {
+    let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 150 });
+
+    // Build initial ring with 4 nodes
+    for i in 0..4 {
+        ring.add_node(RingNode {
+            pool_id: PoolId::new(format!("node-{}", i)),
+            weight: 1,
+        });
+    }
+
+    // Measure initial distribution
+    let initial_distribution: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(initial_distribution.len(), 4, "Should have 4 nodes");
+
+    // Remove node-0
+    ring.remove_node(&PoolId::new("node-0"));
+
+    // Verify node count decreased
+    assert_eq!(ring.node_count(), 3, "Should have 3 nodes after remove");
+
+    // Measure distribution after removing node
+    let after_distribution: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(
+        after_distribution.len(),
+        3,
+        "Should have 3 nodes in distribution"
+    );
+
+    // Verify no hotspot was created (all remaining nodes roughly 33% each)
+    let after_total: u32 = after_distribution.values().sum();
+    let after_expected = after_total / 3;
+    let after_variance_threshold = after_expected / 2;
+
+    for (node, count) in &after_distribution {
+        let diff = count.abs_diff(after_expected);
+        assert!(
+            diff <= after_variance_threshold,
+            "No hotspot after remove: {} has {} (expected ~{})",
+            node,
+            count,
+            after_expected
+        );
+    }
+}
+
+/// Scenario: Redistribution is minimized when node is added
+/// Expected: Only ~1/(N+1) of keys remap to new node
+/// EARS: Event-Driven - minimize redistribution on add
+#[test]
+fn test_hash_ring_minimal_redistribution_on_add() {
+    let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 150 });
+
+    // Build ring with 4 nodes
+    for i in 0..4 {
+        ring.add_node(RingNode {
+            pool_id: PoolId::new(format!("node-{}", i)),
+            weight: 1,
+        });
+    }
+
+    // Record where each key maps before adding node
+    let before_keys: Vec<String> = (0..10000).map(|i| format!("key-{}", i)).collect();
+    let before_mapping: HashMap<String, PoolId> = before_keys
+        .iter()
+        .filter_map(|key| ring.get_node(key).map(|n| (key.clone(), n)))
+        .collect();
+
+    // Add 5th node
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-4"),
+        weight: 1,
+    });
+
+    // Count how many keys remapped
+    let remapped_count: usize = before_mapping
+        .iter()
+        .filter(|(key, old_node)| {
+            if let Some(new_node) = ring.get_node(key) {
+                new_node != *old_node
+            } else {
+                true
+            }
+        })
+        .count();
+
+    let remapped_pct = (remapped_count as f64 / 10000.0) * 100.0;
+
+    // For consistent hashing with virtual nodes, approximately 1/(N+1) = 1/5 = 20%
+    // of keys should remap. Allow up to 30% to account for hash randomness.
+    assert!(
+        remapped_pct <= 30.0,
+        "Redistribution should be minimal: {}% remapped (expected ~20%, max 30%)",
+        remapped_pct
+    );
+
+    // The new node should get roughly its fair share
+    let new_node_count: usize = before_mapping
+        .keys()
+        .filter(|key| ring.get_node(key).map(|n| n.to_string()) == Some("node-4".to_string()))
+        .count();
+
+    let new_node_pct = (new_node_count as f64 / 10000.0) * 100.0;
+
+    // New node should get roughly 20% (1/5) of traffic
+    assert!(
+        new_node_pct >= 15.0 && new_node_pct <= 30.0,
+        "New node should get fair share: {}% (expected ~20%)",
+        new_node_pct
+    );
+}
+
+/// Scenario: Redistribution is contained when node is removed
+/// Expected: Only keys mapped to removed node remap
+/// EARS: Event-Driven - minimize redistribution on remove
+#[test]
+fn test_hash_ring_minimal_redistribution_on_remove() {
+    let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 150 });
+
+    // Build ring with 4 nodes
+    for i in 0..4 {
+        ring.add_node(RingNode {
+            pool_id: PoolId::new(format!("node-{}", i)),
+            weight: 1,
+        });
+    }
+
+    // Record where each key maps before removing node
+    let before_keys: Vec<String> = (0..10000).map(|i| format!("key-{}", i)).collect();
+    let before_mapping: HashMap<String, PoolId> = before_keys
+        .iter()
+        .filter_map(|key| ring.get_node(key).map(|n| (key.clone(), n)))
+        .collect();
+
+    // Count how many keys were on node-0 before removal
+    let node_0_count_before = before_mapping
+        .values()
+        .filter(|n| n.to_string() == "node-0")
+        .count();
+
+    let node_0_pct_before = (node_0_count_before as f64 / 10000.0) * 100.0;
+
+    // Remove node-0
+    ring.remove_node(&PoolId::new("node-0"));
+
+    // Count how many keys remapped (only those that were on node-0)
+    let remapped_count: usize = before_mapping
+        .iter()
+        .filter(|(key, old_node)| {
+            if old_node.to_string() == "node-0" {
+                // Keys that were on removed node MUST remap
+                ring.get_node(key).is_some()
+            } else {
+                // Keys on other nodes should still be on same node
+                ring.get_node(key).map(|n| n == *old_node).unwrap_or(false)
+            }
+        })
+        .filter(|(key, old_node)| {
+            // Actually count the ones that changed
+            if let Some(new_node) = ring.get_node(key) {
+                new_node != *old_node
+            } else {
+                false
+            }
+        })
+        .count();
+
+    let remapped_pct = (remapped_count as f64 / 10000.0) * 100.0;
+
+    // Only keys from removed node should remap - roughly node_0_pct_before
+    // Allow small variance for hash distribution changes in remaining ring
+    assert!(
+        remapped_pct <= node_0_pct_before + 5.0,
+        "Redistribution should be contained: {}% remapped (expected ~{}% from removed node)",
+        remapped_pct,
+        node_0_pct_before
+    );
+
+    // Verify removed node is gone
+    assert_eq!(ring.node_count(), 3, "Should have 3 nodes after remove");
+}
+
+/// Scenario: Multiple add/remove cycles maintain fair distribution
+/// Expected: System remains stable through multiple topology changes
+/// EARS: Ubiquitous - maintain even distribution under dynamic conditions
+#[test]
+fn test_hash_ring_stable_under_churn() {
+    let mut ring = HashRing::new(HashRingConfig { virtual_nodes: 150 });
+
+    // Start with 2 nodes
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-a"),
+        weight: 1,
+    });
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-b"),
+        weight: 1,
+    });
+
+    // Add/remove cycle 1: Add C, Remove A
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-c"),
+        weight: 1,
+    });
+    ring.remove_node(&PoolId::new("node-a"));
+
+    // Verify fair distribution with B and C
+    let dist1: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(dist1.len(), 2, "Should have 2 nodes after cycle 1");
+    let total1: u32 = dist1.values().sum();
+    let expected1 = total1 / 2;
+    let threshold1 = expected1 / 2;
+
+    for (node, count) in &dist1 {
+        let diff = count.abs_diff(expected1);
+        assert!(
+            diff <= threshold1,
+            "Distribution should be fair after cycle 1 for {}: {} (expected ~{})",
+            node,
+            count,
+            expected1
+        );
+    }
+
+    // Add/remove cycle 2: Add D, Remove B
+    ring.add_node(RingNode {
+        pool_id: PoolId::new("node-d"),
+        weight: 1,
+    });
+    ring.remove_node(&PoolId::new("node-b"));
+
+    // Verify fair distribution with C and D
+    let dist2: HashMap<String, u32> = (0..10000)
+        .map(|i| format!("key-{}", i))
+        .filter_map(|key| ring.get_node(&key).map(|n| (n.to_string(), key)))
+        .fold(HashMap::new(), |mut acc, (node, _key)| {
+            *acc.entry(node).or_insert(0) += 1;
+            acc
+        });
+
+    assert_eq!(dist2.len(), 2, "Should have 2 nodes after cycle 2");
+    let total2: u32 = dist2.values().sum();
+    let expected2 = total2 / 2;
+    let threshold2 = expected2 / 2;
+
+    for (node, count) in &dist2 {
+        let diff = count.abs_diff(expected2);
+        assert!(
+            diff <= threshold2,
+            "Distribution should be fair after cycle 2 for {}: {} (expected ~{})",
+            node,
+            count,
+            expected2
+        );
+    }
+}
+
+//==============================================================================
 // LOCK MANAGER INTEGRATION TESTS
 //==============================================================================
 
@@ -494,7 +858,7 @@ fn test_lock_mode_transitions() {
 /// Edge cases: Boundary conditions
 #[test]
 fn test_health_check_stale_detection() {
-    use vo_types::integer_types::TimestampMs;
+    use vo_common::connection_pool::TimestampMs;
     use vo_worker::pool::health_check::{determine_health_check_result, HealthCheck};
 
     let hc = HealthCheck::new(5000);

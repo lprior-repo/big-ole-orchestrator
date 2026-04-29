@@ -17,7 +17,6 @@
 //! - Composability: Multiple rules can run concurrently without interference
 
 pub mod random;
-pub mod retry_policy;
 
 pub use mirror::check_mirror_test;
 pub use random::check_random_in_workflow;

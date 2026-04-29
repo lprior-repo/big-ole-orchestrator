@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)]
-//! Integration tests for check_and_insert and contains operations.
+//! Integration tests for `check_and_insert` and contains operations.
 
 use super::*;
 use std::collections::HashMap;

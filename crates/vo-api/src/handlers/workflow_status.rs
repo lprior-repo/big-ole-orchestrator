@@ -14,6 +14,7 @@ use vo_storage::event_log::replay_events_in_namespace;
 use vo_types::{InstanceId, RegistrationStatus, WorkflowName};
 
 use crate::handlers::helpers::{paradigm_to_str, phase_to_str, split_path_id};
+use crate::handlers::{status_response, terminal_status_response, workflow_status_response};
 use crate::types::{ApiError, V3StatusResponse};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -82,7 +83,7 @@ pub async fn get_workflow(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::GetStatus {
-                namespace: namespace.clone(),
+                namespace: query_namespace,
                 instance_id,
                 reply: tx,
             },
@@ -188,7 +189,6 @@ pub async fn list_workflows(
 #[tracing::instrument(skip_all)]
 pub async fn get_workflow_status(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
-    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Extension(event_db): Extension<Arc<fjall::Database>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
@@ -211,7 +211,7 @@ pub async fn get_workflow_status(
     let call_result = master
         .call(
             |tx| OrchestratorMsg::GetStatus {
-                namespace: namespace.clone(),
+                namespace: query_namespace,
                 instance_id,
                 reply: tx,
             },
@@ -254,12 +254,12 @@ pub async fn get_workflow_status(
                         .into_response()
                 },
                 |snapshot| {
-                    (StatusCode::OK, Json(workflow_status_response(&snapshot, &circuit_breaker))).into_response()
+                    (StatusCode::OK, Json(workflow_status_response(snapshot))).into_response()
                 },
             )
         }
         Ok(CallResult::Success(Some(snapshot))) => {
-            (StatusCode::OK, Json(workflow_status_response(&snapshot, &circuit_breaker))).into_response()
+            (StatusCode::OK, Json(workflow_status_response(snapshot))).into_response()
         }
     }
 }

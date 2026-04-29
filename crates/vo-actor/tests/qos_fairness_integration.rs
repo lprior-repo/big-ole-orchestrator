@@ -243,7 +243,7 @@ fn filter_timers_by_fairness_rejects_all_when_budget_exhausted() {
         TimerRecord::new(id1.clone(), ts_ms(101), None, ts_ms(51)),
     ];
 
-    let mut budget = FairnessBudget::with_limits(0, 100);
+    let budget = FairnessBudget::with_limits(0, 100);
 
     assert!(!budget.can_resume(&id1));
 

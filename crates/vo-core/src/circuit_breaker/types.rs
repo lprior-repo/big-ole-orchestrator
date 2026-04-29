@@ -100,12 +100,8 @@ pub struct RegistrationRequest {
 
     /// The hash of the binary being registered.
     pub binary_hash: BinaryHash,
-
-    /// True if the operator provided `--force`.
-    ///
-    /// When true, bypasses all registration guards including rate limiting,
-    /// quarantine, and deactivation checks.
-    pub force: bool,
+    /// Operator token for force registration (ADR-026). `Some(token)` if the operator provided `--force`.
+    pub force: Option<String>,
 }
 
 /// Result of the circuit breaker evaluation.
@@ -188,6 +184,8 @@ pub enum RegistrationOutcome {
     /// The workflow was manually deactivated by an operator. It may be
     /// reactivated by the operator.
     WorkflowDeactivated { workflow_name: WorkflowName },
+    /// Force registration attempted but operator token is invalid.
+    ForceUnauthorized,
 }
 
 /// Event emitted when a workflow is quarantined.

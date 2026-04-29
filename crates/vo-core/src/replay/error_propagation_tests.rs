@@ -8,8 +8,7 @@
 
 use crate::replay::engine::ReplayEngine;
 use crate::replay::projection::error::{
-    ProjectionError, ProjectionStateError, ProjectionVersionError,
-    ReplayError as ProjectionReplayError, StorageError,
+    ProjectionError, ProjectionStateError, ProjectionVersionError, StorageError,
 };
 use crate::replay::test_helpers::*;
 use crate::replay::types::ReplayError;

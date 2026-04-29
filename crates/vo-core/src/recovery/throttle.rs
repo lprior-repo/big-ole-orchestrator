@@ -163,7 +163,7 @@ impl RecoveryThrottle {
 mod tests {
     use super::super::OrphanProcess;
     use super::*;
-    use tokio::time::sleep;
+    
 
     fn make_test_item(id: &str) -> RecoveryItem {
         RecoveryItem {

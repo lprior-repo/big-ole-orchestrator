@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use vo_storage::checksum::{compute_checksum, verify_checksum, StreamingHasher};
 use vo_storage::codec::{decode_event_key, encode_event_key};
 use vo_types::{InstanceId, SequenceNumber};

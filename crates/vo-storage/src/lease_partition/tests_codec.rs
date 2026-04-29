@@ -33,24 +33,38 @@ fn parse_step_id(raw: &str) -> StepId {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn encode_lease_key_returns_exact_bytes_for_valid_ids() {
+fn encode_lease_key_returns_length_prefixed_bytes_for_valid_ids() {
     let result = encode_lease_key(&sample_instance_id(), &sample_step_id());
 
-    assert_eq!(result, b"01ARZ3NDEKTSV4RRFFQ69G5FAV::step-1".to_vec());
+    let expected_bytes = sample_instance_id().to_bytes().unwrap();
+    let step_id = sample_step_id();
+    let step_bytes = step_id.as_str().as_bytes();
+    let mut expected = Vec::new();
+    expected.extend_from_slice(&expected_bytes);
+    expected.extend(&(step_bytes.len() as u16).to_be_bytes());
+    expected.extend_from_slice(step_bytes);
+    assert_eq!(result, expected);
 }
 
 #[test]
 fn encode_lease_key_preserves_hyphen_and_underscore_in_step_id() {
     let result = encode_lease_key(&sample_instance_id(), &alternate_step_id());
 
-    assert_eq!(result, b"01ARZ3NDEKTSV4RRFFQ69G5FAV::step_a-1".to_vec());
+    let expected_bytes = sample_instance_id().to_bytes().unwrap();
+    let step_id = alternate_step_id();
+    let step_bytes = step_id.as_str().as_bytes();
+    let mut expected = Vec::new();
+    expected.extend_from_slice(&expected_bytes);
+    expected.extend(&(step_bytes.len() as u16).to_be_bytes());
+    expected.extend_from_slice(step_bytes);
+    assert_eq!(result, expected);
 }
 
 #[test]
-fn encode_lease_key_returns_exact_byte_length_for_known_ids() {
+fn encode_lease_key_returns_correct_byte_length_for_known_ids() {
     let result = encode_lease_key(&sample_instance_id(), &sample_step_id());
 
-    assert_eq!(result.len(), 34);
+    assert_eq!(result.len(), 16 + 2 + 6);
 }
 
 #[test]
@@ -64,9 +78,10 @@ fn decode_lease_key_returns_original_ids_when_input_was_encoded() {
 }
 
 #[test]
-fn decode_lease_key_returns_ids_when_given_exact_literal_key_bytes() {
+fn decode_lease_key_returns_ids_when_given_encoded_key_bytes() {
+    let encoded = encode_lease_key(&sample_instance_id(), &sample_step_id());
     assert_eq!(
-        decode_lease_key(b"01ARZ3NDEKTSV4RRFFQ69G5FAV::step-1"),
+        decode_lease_key(&encoded),
         Ok((sample_instance_id(), sample_step_id()))
     );
 }
@@ -86,34 +101,30 @@ fn invalid_step_reason(raw: &str) -> String {
 }
 
 #[test]
-fn decode_lease_key_returns_missing_delimiter_error_when_input_empty() {
-    assert_eq!(
-        decode_lease_key(b""),
-        Err(LeaseStoreError::Codec {
-            reason: "missing :: delimiter in lease key".to_string(),
-        })
+fn decode_lease_key_rejects_empty_input() {
+    assert!(
+        matches!(decode_lease_key(b""), Err(LeaseStoreError::Codec { .. })),
+        "empty input should be rejected"
     );
 }
 
 #[test]
-fn decode_lease_key_returns_codec_error_when_bytes_are_invalid_utf8() {
-    let input = [0xff];
-
-    assert_eq!(
-        decode_lease_key(&input),
-        Err(LeaseStoreError::Codec {
-            reason: "invalid utf-8 sequence of 1 bytes from index 0".to_string(),
-        })
+fn decode_lease_key_rejects_too_short_input() {
+    assert!(
+        matches!(
+            decode_lease_key(&[0u8; 17]),
+            Err(LeaseStoreError::Codec { .. })
+        ),
+        "input shorter than 18 bytes should be rejected"
     );
 }
 
 #[test]
-fn decode_lease_key_returns_missing_delimiter_error_when_delimiter_absent() {
-    assert_eq!(
-        decode_lease_key(b"01ARZ3NDEKTSV4RRFFQ69G5FAV-step-1"),
-        Err(LeaseStoreError::Codec {
-            reason: "missing :: delimiter in lease key".to_string(),
-        })
+fn decode_lease_key_accepts_binary_instance_id_bytes() {
+    let input = [0u8; 17];
+    assert!(
+        matches!(decode_lease_key(&input), Err(LeaseStoreError::Codec { .. })),
+        "binary data shorter than required should be rejected"
     );
 }
 
@@ -476,4 +487,82 @@ fn alternate_ids_are_parsed_for_cross_pair_tests() {
             "step_a-1".to_string(),
         )
     );
+}
+
+// ---------------------------------------------------------------------------
+// BDD: ADR-020 / ADR-029 — Encode lease keys without delimiter ambiguity
+// ---------------------------------------------------------------------------
+
+/// Given instance_id or step_id contains delimiter-like bytes
+/// When lease key is encoded
+/// Then the key round-trips without collision and no raw :: separator is used
+#[test]
+fn given_lease_key_components_with_delimiters_when_encoded_then_no_collision_occurs() {
+    // Given: multiple (instance_id, step_id) pairs with hyphenated "delimiter-like" content
+    let pairs = [
+        (
+            parse_instance_id("01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+            parse_step_id("step-1"),
+        ),
+        (
+            parse_instance_id("01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+            parse_step_id("step-2"),
+        ),
+        (
+            parse_instance_id("01H5JYV4XHGSR2F8KZ9BWNRFMA"),
+            parse_step_id("step-1"),
+        ),
+        (
+            parse_instance_id("01H5JYV4XHGSR2F8KZ9BWNRFMA"),
+            parse_step_id("step-2"),
+        ),
+        (
+            parse_instance_id("01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+            parse_step_id("step_a-1"),
+        ),
+        (
+            parse_instance_id("7ZZZZZZZZZZZZZZZZZZZZZZZZZ"),
+            parse_step_id("step---a__b"),
+        ),
+    ];
+
+    // When: encode all keys
+    let encoded_keys: Vec<Vec<u8>> = pairs
+        .iter()
+        .map(|(iid, sid)| encode_lease_key(iid, sid))
+        .collect();
+
+    // Then: no two keys are the same (no collisions)
+    for i in 0..encoded_keys.len() {
+        for j in (i + 1)..encoded_keys.len() {
+            assert_ne!(
+                encoded_keys[i], encoded_keys[j],
+                "collision between pair[{}] and pair[{}]",
+                i, j
+            );
+        }
+    }
+
+    // Then: every key round-trips correctly
+    for (idx, ((expected_iid, expected_sid), encoded)) in
+        pairs.iter().zip(encoded_keys.iter()).enumerate()
+    {
+        let (decoded_iid, decoded_sid) = decode_lease_key(encoded).unwrap();
+        assert_eq!(
+            decoded_iid, *expected_iid,
+            "round-trip instance_id mismatch at index {idx}"
+        );
+        assert_eq!(
+            decoded_sid, *expected_sid,
+            "round-trip step_id mismatch at index {idx}"
+        );
+    }
+
+    // Then: no encoded key contains the raw `::` separator bytes
+    for (idx, encoded) in encoded_keys.iter().enumerate() {
+        assert!(
+            !encoded.windows(2).any(|w| w == b"::"),
+            "encoded key at index {idx} contains raw :: separator bytes"
+        );
+    }
 }

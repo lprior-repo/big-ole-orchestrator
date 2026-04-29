@@ -3,6 +3,7 @@ pub(crate) use crate::signal_buffer::{
 };
 pub(crate) use crate::WaitKey;
 pub(crate) use vo_types::InstanceId;
+pub(crate) use vo_types::SignalName;
 pub(crate) use vo_types::{BufferPolicy, SignalDelivery};
 
 pub(crate) fn instance_id_a() -> InstanceId {
@@ -23,7 +24,7 @@ pub(crate) fn wait_key_notif() -> WaitKey {
 
 pub(crate) fn make_signal(signal_id: &str) -> BufferedSignal {
     BufferedSignal::new(
-        crate::SignalName::parse(signal_id).unwrap(),
+        signal_id.to_string(),
         crate::SignalPayload::empty(),
         vo_types::TimestampMs::now(),
     )

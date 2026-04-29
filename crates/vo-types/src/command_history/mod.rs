@@ -5,11 +5,9 @@
 //!
 //! # Architecture
 //!
-//! - [`CommandKind`] - classifies graph-modifying operations
-//! - [`CommandEnvelope`] - carries identity metadata for history entries
-//! - [`WorkflowSnapshot`] - captures complete workflow graph state
-//! - [`HistoryEntry`] - single entry in the command history
-//! - [`CommandHistory`] - the full undo/redo stack manager
+//! - [`types`] — constants, errors, ID types, and command classification enums
+//! - [`data`] — WorkflowSnapshot, ExtensionBatchMetadata, HistoryEntry structs
+//! - [`CommandHistory`] — the full undo/redo stack manager
 //!
 //! # Invariants
 //!
@@ -18,23 +16,18 @@
 //! - INV-003: redo_stack only Undone entries
 //! - INV-004 through INV-013: Various state transition and capacity constraints
 
-mod ids;
-mod query;
-mod selection;
-mod types;
+pub mod data;
+pub mod types;
 
-pub use ids::{BatchId, CommandId, SnapshotId};
+pub use data::{ExtensionBatchMetadata, HistoryEntry, WorkflowSnapshot};
 pub use types::{
-    CommandHistoryError, CommandKind, ExtensionApplyMode, ExtensionBatchMetadata, HistoryEntry,
-    HistoryEntryStatus, WorkflowSnapshot, MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH,
-    MAX_UNDO_STACK_DEPTH,
+    BatchId, CommandHistoryError, CommandKind, ExtensionApplyMode, HistoryEntryStatus, SnapshotId,
+    MAX_HISTORY_DEPTH, MAX_REDO_STACK_DEPTH, MAX_UNDO_STACK_DEPTH,
 };
 
-use serde::{Deserialize, Serialize};
+use crate::workflow::{DagNode, Edge};
 
-// ---------------------------------------------------------------------------
-// Command History
-// ---------------------------------------------------------------------------
+use self::types::CommandId;
 
 /// The full undo/redo stack for command history tracking.
 ///
@@ -43,7 +36,7 @@ use serde::{Deserialize, Serialize};
 /// - `entries.len() <= MAX_HISTORY_DEPTH`
 /// - `undo_stack.len() <= MAX_UNDO_STACK_DEPTH`
 /// - `redo_stack.len() <= MAX_REDO_STACK_DEPTH`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CommandHistory {
     entries: Vec<HistoryEntry>,
     undo_stack: Vec<CommandId>,
@@ -65,8 +58,71 @@ impl CommandHistory {
             entries: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
-            capacity: MAX_HISTORY_DEPTH,
+            capacity: types::MAX_HISTORY_DEPTH,
         }
+    }
+
+    /// Returns the maximum capacity of the history.
+    #[must_use]
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    /// Returns whether there are commands available to undo.
+    #[must_use]
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    /// Returns whether there are commands available to redo.
+    #[must_use]
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+
+    /// Returns all history entries.
+    #[must_use]
+    pub fn entries(&self) -> &[HistoryEntry] {
+        &self.entries
+    }
+
+    /// Returns a mutable reference to history entries.
+    ///
+    /// # Warning
+    ///
+    /// This bypasses internal invariants. Use with caution.
+    pub fn entries_mut(&mut self) -> &mut Vec<HistoryEntry> {
+        &mut self.entries
+    }
+
+    /// Returns the undo stack command IDs.
+    #[must_use]
+    pub fn undo_stack(&self) -> &[CommandId] {
+        &self.undo_stack
+    }
+
+    /// Returns a mutable reference to the undo stack.
+    ///
+    /// # Warning
+    ///
+    /// This bypasses internal invariants. Use with caution.
+    pub fn undo_stack_mut(&mut self) -> &mut Vec<CommandId> {
+        &mut self.undo_stack
+    }
+
+    /// Returns the redo stack command IDs.
+    #[must_use]
+    pub fn redo_stack(&self) -> &[CommandId] {
+        &self.redo_stack
+    }
+
+    /// Returns a mutable reference to the redo stack.
+    ///
+    /// # Warning
+    ///
+    /// This bypasses internal invariants. Use with caution.
+    pub fn redo_stack_mut(&mut self) -> &mut Vec<CommandId> {
+        &mut self.redo_stack
     }
 
     /// Save an undo point before executing a command.
@@ -97,7 +153,11 @@ impl CommandHistory {
         );
 
         if self.entries.len() >= self.capacity {
-            if let Some(oldest_idx) = self.find_oldest_committed_index() {
+            if let Some(oldest_idx) = self
+                .entries
+                .iter()
+                .position(|e| e.status == HistoryEntryStatus::Committed)
+            {
                 self.entries.remove(oldest_idx);
             }
         }
@@ -127,7 +187,13 @@ impl CommandHistory {
             .pop()
             .expect("undo_stack pop after empty check");
 
-        let entry = self.find_entry_mut(&command_id)?;
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|e| e.envelope.metadata.command_id.as_str() == command_id.as_str())
+            .ok_or_else(|| CommandHistoryError::EntryNotFound {
+                command_id: command_id.as_str().to_string(),
+            })?;
 
         if entry.snapshot_before.is_none() {
             return Err(CommandHistoryError::SnapshotNotFound {
@@ -204,7 +270,7 @@ impl CommandHistory {
         kind: CommandKind,
         before_snapshot: WorkflowSnapshot,
         after_snapshot: WorkflowSnapshot,
-        batch_metadata: Option<ExtensionBatchMetadata>,
+        batch_metadata: Option<self::data::ExtensionBatchMetadata>,
     ) -> Result<CommandId, CommandHistoryError> {
         let command_id = CommandId::new();
         let entry = HistoryEntry::new(
@@ -216,7 +282,11 @@ impl CommandHistory {
         );
 
         if self.entries.len() >= self.capacity {
-            if let Some(oldest_idx) = self.find_oldest_committed_index() {
+            if let Some(oldest_idx) = self
+                .entries
+                .iter()
+                .position(|e| e.status == HistoryEntryStatus::Committed)
+            {
                 self.entries.remove(oldest_idx);
             }
         }
@@ -232,8 +302,12 @@ impl CommandHistory {
 
 #[cfg(test)]
 mod tests {
+    use self::data::WorkflowSnapshot;
+    use self::types::{
+        BatchId, CommandHistoryError, CommandId, CommandKind, ExtensionApplyMode,
+        ExtensionBatchMetadata, HistoryEntryStatus, SnapshotId, MAX_HISTORY_DEPTH,
+    };
     use super::*;
-    use crate::workflow::DagNode;
 
     fn test_snapshot() -> WorkflowSnapshot {
         WorkflowSnapshot::new(
@@ -342,7 +416,7 @@ mod tests {
         let nodes = vec![DagNode {
             node_name: crate::NodeName::parse("a").unwrap(),
             retry_policy: crate::workflow::RetryPolicy::new(3, 1000, 2.0).unwrap(),
-               compensation_policy: None,
+            compensation_policy: None,
         }];
         let edges = vec![];
 

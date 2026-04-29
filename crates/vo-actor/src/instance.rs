@@ -88,6 +88,7 @@ impl InstanceActorSpawner {
         Self { registry }
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn spawn(
         &self,
         instance_id: InstanceId,
@@ -163,7 +164,7 @@ mod tests {
         let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
 
         assert!(
-            registry.lock().unwrap().is_active(&instance_id) == false,
+            !registry.lock().unwrap().is_active(&instance_id),
             "precondition: no actor should be active for instance"
         );
 

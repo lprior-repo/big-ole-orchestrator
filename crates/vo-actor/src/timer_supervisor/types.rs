@@ -1,53 +1,16 @@
 //! Timer supervisor types
 //!
 //! Contains all type definitions for the timer supervisor module.
+//!
+//! # Migration Note
+//! This module now re-exports TimerRecord from vo_common::ports which uses
+//! TimestampMs instead of raw u64. The local TimerRecord with dual-clock
+//! verification fields has been replaced per the unified TimerStorage design.
 
 use std::time::Duration;
 
 use vo_types::InstanceId;
-
-// =============================================================================
-// `TimerRecord` - Timer data including dual-clock verification fields
-// =============================================================================
-
-/// `TimerRecord` - Timer data including dual-clock verification fields
-///
-/// Per ADR-013, dual-clock verification uses two clocks:
-/// - Wall clock: `fire_at_ms` <= `now_ms`
-/// - Monotonic clock: `trigger_time_ms` + `duration_ms` <= `now_ms`
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TimerRecord {
-    /// Optional timer ID for multiple timers per instance.
-    pub timer_id: Option<vo_types::TimerId>,
-    /// The instance ID this timer belongs to.
-    pub instance_id: InstanceId,
-    /// When the timer should fire (Unix timestamp in milliseconds).
-    pub fire_at_ms: u64,
-    /// When the timer was scheduled/triggered (for dual-clock verification).
-    pub trigger_time_ms: u64,
-    /// Monotonic duration from `trigger_time_ms`.
-    pub duration_ms: u64,
-}
-
-impl TimerRecord {
-    /// Creates a new `TimerRecord`.
-    #[must_use]
-    pub fn new(
-        instance_id: InstanceId,
-        fire_at_ms: u64,
-        timer_id: Option<vo_types::TimerId>,
-        trigger_time_ms: u64,
-        duration_ms: u64,
-    ) -> Self {
-        Self {
-            timer_id,
-            instance_id,
-            fire_at_ms,
-            trigger_time_ms,
-            duration_ms,
-        }
-    }
-}
+pub use vo_common::ports::TimerRecord;
 
 // =============================================================================
 // `TimerSupervisorError` - All error variants for `TimerSupervisor`
@@ -74,6 +37,8 @@ pub enum TimerSupervisorError {
     ShutdownTimeout(Duration),
     #[error("Dispatch error: {0}")]
     DispatchError(String),
+    #[error("Storage adapter error: {0}")]
+    StorageAdapterError(String),
 }
 
 impl TimerSupervisorError {

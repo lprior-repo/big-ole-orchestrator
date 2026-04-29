@@ -6,14 +6,13 @@
 //! generation invalid defaults.
 
 use std::str::FromStr;
-use vo_frontend::ui::domain_types::{HttpMethod, NodeTemplateId};
+use vo_frontend::ui::domain_types::HttpMethod;
 use vo_frontend::ui::graph::{node_kind_to_category, Node, NodeId, Workflow};
-use vo_types::GuaranteeClass;
-use vo_frontend::ui::prototype_palette::{generate_skeleton, SketchNode};
 
 #[test]
 fn config_update_overwrites_existing_key() {
-    let mut node = Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure);
+    let mut node =
+        Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
     node.apply_config_update(&serde_json::json!({"port": 8080}));
     node.apply_config_update(&serde_json::json!({"port": -1}));
     assert_eq!(
@@ -24,7 +23,8 @@ fn config_update_overwrites_existing_key() {
 
 #[test]
 fn config_update_with_empty_object_is_noop() {
-    let mut node = Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure);
+    let mut node =
+        Node::new(NodeId::new(), "x".into(), vo_types::NodeKind::Pure).expect("valid name");
     let before = node.config.clone();
     node.apply_config_update(&serde_json::json!({}));
     assert_eq!(node.config, before, "empty object merge must be identity");
@@ -32,7 +32,7 @@ fn config_update_with_empty_object_is_noop() {
 
 #[test]
 fn workflow_name_with_null_bytes_roundtrips() {
-    let wf = Workflow::new("before\0after".into(), GuaranteeClass::BestEffort);
+    let wf = Workflow::new("before\0after".into(), vo_types::GuaranteeClass::BestEffort);
     let json = serde_json::to_string(&wf).unwrap();
     let recovered: Workflow = serde_json::from_str(&json).unwrap();
     assert!(
@@ -43,19 +43,18 @@ fn workflow_name_with_null_bytes_roundtrips() {
 
 #[test]
 fn workflow_name_with_emoji_does_not_panic() {
-    let mut wf = Workflow::new("🦀🔥💣".into(), GuaranteeClass::BestEffort);
-    wf.add_node(Node::new(
-        NodeId::new(),
-        "node".into(),
-        vo_types::NodeKind::Pure,
-    ));
+    let mut wf = Workflow::new("🦀🔥💣".into());
+    wf.add_node(
+        Node::new(NodeId::new(), "node".into(), vo_types::NodeKind::Pure).expect("valid name"),
+    );
     let json = serde_json::to_string(&wf).unwrap();
     let _: Workflow = serde_json::from_str(&json).unwrap();
 }
 
 #[test]
 fn badge_class_invariant_after_kind_flips() {
-    let mut node = Node::new(NodeId::new(), "mutant".into(), vo_types::NodeKind::Pure);
+    let mut node =
+        Node::new(NodeId::new(), "mutant".into(), vo_types::NodeKind::Pure).expect("valid name");
     let kinds = [
         vo_types::NodeKind::Pure,
         vo_types::NodeKind::ManagedEffect,

@@ -193,7 +193,7 @@ mod tests {
 
         let count = counter.load(Ordering::SeqCst);
         assert!(
-            count >= 3 && count <= 6,
+            (3..=6).contains(&count),
             "Expected ~5 sweeps in 100ms with 20ms interval, got {}",
             count
         );

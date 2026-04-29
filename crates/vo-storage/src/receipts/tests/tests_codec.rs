@@ -32,7 +32,7 @@ fn encode_decode_receipt_value_round_trip() {
         "inst-1::fx-val".to_string(),
         "stripe-conn".to_string(),
         EffectKind::HttpCall,
-        1713000000,
+        1_713_000_000,
         "Success".to_string(),
     )
     .unwrap();

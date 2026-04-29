@@ -1,4 +1,6 @@
-//! Pack file identifier and pack index entry types.
+//! Pack file index types and encoding.
+
+use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
@@ -31,8 +33,8 @@ impl PackFileId {
     }
 }
 
-impl std::fmt::Display for PackFileId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for PackFileId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -83,6 +85,10 @@ impl PackIndexEntry {
         self.size_bytes
     }
 }
+
+// ---------------------------------------------------------------------------
+// Calc Layer — Pack Index Entry Encoding
+// ---------------------------------------------------------------------------
 
 /// Encode a `PackIndexEntry` to JSON bytes for storage.
 ///

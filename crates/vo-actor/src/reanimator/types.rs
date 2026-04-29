@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use vo_types::{InstanceId, TimestampMs};
 
 use crate::reanimator::ReanimatorError;
@@ -31,7 +32,7 @@ impl Default for ReanimatorConfig {
 }
 
 /// Represents a timer record from storage.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TimerRecord {
     /// The instance ID this timer belongs to.
     pub instance_id: InstanceId,

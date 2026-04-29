@@ -11,7 +11,8 @@
 //!   - serde-integrity: malformed JSON, wrong types, extra fields
 //!   - version-pin-bypass: WorkflowSpec serialization bypassing Dag validation
 
-use crate::dag::{Dag, DagError};
+use crate::dag::{Dag, DagError, Workflow};
+use crate::graph::default_retry_policy;
 use crate::{EdgeSpec, NodeSpec, WorkflowSpec};
 use vo_types::{NodeKind, NodeName, WorkflowName};
 
@@ -672,32 +673,20 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
             NodeSpec {
                 name: NodeName::parse("node-a").expect("valid"),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("node-b").expect("valid"),
                 kind: NodeKind::ManagedEffect,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("node-a").expect("valid"),
             to: NodeName::parse("node-b").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -710,7 +699,7 @@ fn rq_workflow_spec_round_trip_preserves_all_fields() {
 // ===========================================================================
 
 #[test]
-fn rq_workflow_spec_accepts_cycle_via_serde() {
+fn rq_workflow_spec_rejects_cycle_via_serde() {
     let json = r#"{
         "workflow_name": "cycle_via_serde",
         "nodes": [
@@ -723,7 +712,18 @@ fn rq_workflow_spec_accepts_cycle_via_serde() {
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "serde rejects cycle: {:?}", result);
+    assert!(
+        result.is_err(),
+        "serde rejects cycle during deserialization: {:?}",
+        result
+    );
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("cycle"),
+        "error should mention cycle: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -732,8 +732,8 @@ fn rq_workflow_spec_serde_bypasses_dag_empty_validation() {
         workflow_name: WorkflowName::parse("empty_via_serde").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -761,7 +761,7 @@ fn rq_dag_build_rejects_self_loop_with_proper_error() {
 // ===========================================================================
 
 #[test]
-fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
+fn rq_workflow_spec_rejects_self_loop_edge_via_serde() {
     let json = r#"{
         "workflow_name": "self_loop",
         "nodes": [
@@ -773,11 +773,22 @@ fn rq_workflow_spec_accepts_self_loop_edge_via_serde() {
         ]
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(result.is_err(), "serde rejects self-loop: {:?}", result);
+    assert!(
+        result.is_err(),
+        "serde rejects self-loop during deserialization: {:?}",
+        result
+    );
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("self-loop"),
+        "error should mention self-loop: {}",
+        err_msg
+    );
 }
 
 #[test]
-fn rq_workflow_spec_accepts_duplicate_edges_via_serde() {
+fn rq_workflow_spec_rejects_duplicate_edges_via_serde() {
     let json = r#"{
         "workflow_name": "dup_edges",
         "nodes": [
@@ -791,9 +802,11 @@ fn rq_workflow_spec_accepts_duplicate_edges_via_serde() {
         "version": 1
     }"#;
     let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
-    assert!(result.is_ok(), "duplicate edges are accepted: {:?}", result);
-    let spec = result.unwrap();
-    assert_eq!(spec.edges.len(), 2);
+    assert!(
+        result.is_err(),
+        "duplicate edges are rejected: {:?}",
+        result
+    );
 }
 
 #[test]

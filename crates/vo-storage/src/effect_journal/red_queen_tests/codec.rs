@@ -41,7 +41,7 @@ fn red_queen_decode_effect_key_rejects_invalid_utf8() {
     );
     match result.unwrap_err() {
         EffectJournalError::Codec { .. } => {} // Expected
-        other => panic!("BUG: Wrong error variant for invalid UTF-8: {:?}", other),
+        other => panic!("BUG: Wrong error variant for invalid UTF-8: {other:?}"),
     }
 }
 
@@ -59,7 +59,7 @@ fn red_queen_decode_effect_key_rejects_empty_bytes() {
                 "BUG: Empty key error message doesn't mention 'empty'"
             );
         }
-        other => panic!("BUG: Wrong error variant for empty bytes: {:?}", other),
+        other => panic!("BUG: Wrong error variant for empty bytes: {other:?}"),
     }
 }
 
@@ -69,7 +69,7 @@ fn red_queen_encode_effect_key_produces_utf8() {
     let effect_id = EffectId::new(&id, "utf8-test").unwrap();
     let bytes = encode_effect_key(&effect_id);
     // Must be valid UTF-8
-    let s = String::from_utf8(bytes.clone()).expect("BUG: encode_effect_key produced non-UTF-8");
+    let s = String::from_utf8(bytes).expect("BUG: encode_effect_key produced non-UTF-8");
     assert_eq!(
         s,
         effect_id.as_str(),
@@ -109,6 +109,6 @@ fn red_queen_decode_effect_record_rejects_invalid_json() {
     );
     match result.unwrap_err() {
         EffectJournalError::Codec { .. } => {} // Expected
-        other => panic!("BUG: Wrong error variant for invalid JSON: {:?}", other),
+        other => panic!("BUG: Wrong error variant for invalid JSON: {other:?}"),
     }
 }

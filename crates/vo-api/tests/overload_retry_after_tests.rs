@@ -98,6 +98,7 @@ fn valid_start_request(dedupe_key: &str) -> V3StartRequest {
         input: json!({"order_id": "ord_123"}),
         instance_id: None,
         dedupe_key: Some(dedupe_key.to_string()),
+        workflow_binary_hash: None,
     }
 }
 

@@ -391,7 +391,7 @@ fn red_queen_concurrent_publish_different_content_no_dedup() {
 
     let final_count = *results.iter().max().unwrap();
     assert_eq!(
-        final_count, num_threads as usize,
+        final_count, num_threads,
         "BUG: Each unique content must be stored separately"
     );
 }

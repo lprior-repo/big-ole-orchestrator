@@ -493,8 +493,8 @@ proptest! {
         let is_stale_too_old = matches!(compat, ProjectionCompat::StaleTooOld { .. });
         let is_stale_zero = matches!(compat, ProjectionCompat::StaleZeroVersion);
 
-        let variant_count = is_fresh as u8 + is_needs_upcast as u8
-            + is_stale_too_old as u8 + is_stale_zero as u8;
+        let variant_count = u8::from(is_fresh) + u8::from(is_needs_upcast)
+            + u8::from(is_stale_too_old) + u8::from(is_stale_zero);
 
         prop_assert_eq!(variant_count, 1);
     }
@@ -525,7 +525,7 @@ proptest! {
         let compat_result = check_projection_compat(version, &window);
         let is_compat = is_projection_compatible(version, &window);
 
-        prop_assert_eq!(compat_result.map(|c| c.is_compatible()).unwrap_or(false), is_compat);
+        prop_assert_eq!(compat_result.is_ok_and(super::types::ProjectionCompat::is_compatible), is_compat);
     }
 
     #[test]

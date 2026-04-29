@@ -31,8 +31,7 @@ impl std::fmt::Display for CapacityError {
 
 impl std::error::Error for CapacityError {}
 
-#[allow(private_bounds)]
-trait Classifiable {
+pub(crate) trait Classifiable {
     fn write_class(&self) -> WriteClass;
 }
 
@@ -132,8 +131,7 @@ impl<T> QosRouter<T> {
         }
     }
 
-    #[allow(private_bounds)]
-    pub fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
+    pub(crate) fn enqueue(&mut self, item: T) -> Result<(), CapacityError>
     where
         T: Classifiable,
     {
@@ -351,8 +349,8 @@ mod tests {
         let projection_item = TestItem {
             class: WriteClass::OperatorProjection,
         };
-        assert!(router.enqueue(control_item.clone()).is_ok());
-        assert!(router.enqueue(projection_item.clone()).is_ok());
+        assert!(router.enqueue(control_item).is_ok());
+        assert!(router.enqueue(projection_item).is_ok());
         assert_eq!(router.depth(WriteClass::CriticalControlPlane), 1);
         assert_eq!(router.depth(WriteClass::OperatorProjection), 1);
         assert_eq!(router.depth(WriteClass::BulkBlob), 0);
@@ -365,7 +363,7 @@ mod tests {
             class: WriteClass::OperatorProjection,
         };
         router.enqueue(projection_item.clone()).unwrap();
-        let err = router.enqueue(projection_item.clone()).unwrap_err();
+        let err = router.enqueue(projection_item).unwrap_err();
         assert!(matches!(
             err,
             CapacityError::QueueFull {

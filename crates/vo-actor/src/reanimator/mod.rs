@@ -23,7 +23,7 @@ pub mod types;
 #[cfg(kani)]
 mod verification;
 
-pub use error::ReanimatorError;
+pub use error::{ReanimatorError, ReanimatorErrorClass};
 pub use loop_core::{ReanimatorHandle, ReanimatorLoop};
 pub use mock::{MockTimerStorage, MockWorkQueue};
 pub use traits::{PendingTimer, TimerStorage};

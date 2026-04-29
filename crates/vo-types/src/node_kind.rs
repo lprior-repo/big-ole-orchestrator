@@ -183,9 +183,9 @@ mod proptests {
             let variants = NodeKind::all_variants();
             prop_assert!(idx < variants.len(), "idx {} should be in range", idx);
             let variant = variants[idx];
-            let json = serde_json::to_string(variant).expect("serialize");
+            let json = serde_json::to_string(&variant).expect("serialize");
             let restored: NodeKind = serde_json::from_str(&json).expect("deserialize");
-            prop_assert_eq!(restored, *variant, "roundtrip failed for {:?}", variant);
+            prop_assert_eq!(restored, variant, "roundtrip failed for {:?}", variant);
         }
 
         #[test]
@@ -199,8 +199,11 @@ mod proptests {
                 2 => NodeKind::Wait,
                 3 => NodeKind::Signal,
                 4 => NodeKind::Unsafe,
-                5 => NodeKind::Router,
-                _ => return prop_assert!(false, "invalid variant index"),
+                _ => {
+                    return Err(proptest::test_runner::TestCaseError::Fail(
+                        "invalid variant index".into(),
+                    ))
+                }
             };
 
             let mut hasher1 = DefaultHasher::new();
@@ -220,8 +223,11 @@ mod proptests {
                 2 => NodeKind::Wait,
                 3 => NodeKind::Signal,
                 4 => NodeKind::Unsafe,
-                5 => NodeKind::Router,
-                _ => return prop_assert!(false, "invalid variant index"),
+                _ => {
+                    return Err(proptest::test_runner::TestCaseError::Fail(
+                        "invalid variant index".into(),
+                    ))
+                }
             };
             prop_assert_eq!(kind, kind, "equality should be reflexive");
         }

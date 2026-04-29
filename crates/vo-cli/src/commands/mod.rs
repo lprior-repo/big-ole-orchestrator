@@ -10,4 +10,4 @@ pub mod purge;
 pub mod rebuild;
 pub mod serve;
 pub mod status;
-pub mod workflow_history;
+pub mod workspace;

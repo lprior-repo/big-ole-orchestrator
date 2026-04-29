@@ -88,7 +88,12 @@ impl ThrashingTestHarness {
         self.simulated_health_checks.fetch_add(1, Ordering::SeqCst);
 
         if let Some(result) = self.health_check_results.pop_front() {
-            if matches!(result, HealthCheckResult::Stale | HealthCheckResult::Corrupted | HealthCheckResult::Timeout) {
+            if matches!(
+                result,
+                HealthCheckResult::Stale
+                    | HealthCheckResult::Corrupted
+                    | HealthCheckResult::Timeout
+            ) {
                 self.failed_health_checks.fetch_add(1, Ordering::SeqCst);
             }
             conn.status = ConnectionStatus::Closed;
@@ -117,7 +122,9 @@ impl ThrashingTestHarness {
         if active_connections < self.max_connections {
             let mut new_conn = self.create_connection();
             new_conn.status = ConnectionStatus::CheckedOut;
-            return AcquireResult::Available { connection: new_conn };
+            return AcquireResult::Available {
+                connection: new_conn,
+            };
         }
 
         AcquireResult::PoolExhausted {
@@ -155,7 +162,9 @@ impl ThrashingTestHarness {
 
     /// Get current churn rate (connections created/destroyed per operation)
     fn churn_rate(&self) -> f64 {
-        let ops = self.acquire_count.load(Ordering::SeqCst)
+        let ops = self
+            .acquire_count
+            .load(Ordering::SeqCst)
             .max(self.release_count.load(Ordering::SeqCst));
         if ops == 0 {
             return 0.0;
@@ -169,7 +178,11 @@ impl ThrashingTestHarness {
             pool_id: PoolId::new("redqueen-thrashing-test"),
             total_connections: self.connections.len() as u32,
             idle_connections: self.connections.iter().filter(|c| c.is_idle()).count() as u32,
-            checked_out_connections: self.connections.iter().filter(|c| c.is_checked_out()).count() as u32,
+            checked_out_connections: self
+                .connections
+                .iter()
+                .filter(|c| c.is_checked_out())
+                .count() as u32,
             pending_acquires: 0,
             total_acquires: self.acquire_count.load(Ordering::SeqCst) as u64,
             total_releases: self.release_count.load(Ordering::SeqCst) as u64,
@@ -216,7 +229,11 @@ mod tests {
 
         // Verify low churn
         let churn = harness.churn_rate();
-        assert!(churn < 0.1, "Churn rate should be low when connections are healthy: {}", churn);
+        assert!(
+            churn < 0.1,
+            "Churn rate should be low when connections are healthy: {}",
+            churn
+        );
     }
 
     #[tokio::test]
@@ -260,7 +277,11 @@ mod tests {
         let churn = harness.churn_rate();
         // With alternating healthy/unhealthy, we expect churn < 1.0 (not thrashing)
         // A thrashing pool would have churn >= 1.0 (destroying and recreating each time)
-        assert!(churn < 1.0, "Churn should be bounded even with unhealthy connections: {}", churn);
+        assert!(
+            churn < 1.0,
+            "Churn should be bounded even with unhealthy connections: {}",
+            churn
+        );
     }
 
     #[tokio::test]
@@ -306,9 +327,11 @@ mod tests {
         let churn_phase2 = harness.churn_rate();
 
         // Pool should stabilize (lower churn after health checks recover)
-        assert!(churn_phase2 < churn_phase1,
+        assert!(
+            churn_phase2 < churn_phase1,
             "Pool should stabilize after health checks recover: phase1={} phase2={}",
-            churn_phase1, churn_phase2
+            churn_phase1,
+            churn_phase2
         );
     }
 
@@ -351,15 +374,23 @@ mod tests {
         let stats = harness.get_stats();
 
         // INV-002: checked_out + idle + pending <= max_connections + max_pending_acquires
-        let actual_total = stats.checked_out_connections + stats.idle_connections + stats.pending_acquires;
+        let actual_total =
+            stats.checked_out_connections + stats.idle_connections + stats.pending_acquires;
         let max_total = config.max_connections + config.max_pending_acquires;
-        assert!(actual_total <= max_total,
-            "Connection count should be bounded: {} <= {}", actual_total, max_total
+        assert!(
+            actual_total <= max_total,
+            "Connection count should be bounded: {} <= {}",
+            actual_total,
+            max_total
         );
 
         // Churn should be bounded (< 1.0 means not thrashing)
         let churn = harness.churn_rate();
-        assert!(churn < 1.0, "Churn must be bounded to avoid thrashing: {}", churn);
+        assert!(
+            churn < 1.0,
+            "Churn must be bounded to avoid thrashing: {}",
+            churn
+        );
     }
 
     #[tokio::test]
@@ -394,8 +425,8 @@ mod tests {
                 // Check stats at halfway point
                 if i == 4 {
                     let stats = harness.get_stats();
-                    let failure_rate = stats.failed_health_checks as f64 /
-                        stats.total_health_checks as f64;
+                    let failure_rate =
+                        stats.failed_health_checks as f64 / stats.total_health_checks as f64;
                     // At 50% failure rate, circuit should be tripping
                     assert!(failure_rate >= 0.5);
                 }
@@ -404,7 +435,11 @@ mod tests {
 
         // Verify that total churn is still bounded
         let churn = harness.churn_rate();
-        assert!(churn < 1.0, "Circuit breaker should prevent unbounded churn: {}", churn);
+        assert!(
+            churn < 1.0,
+            "Circuit breaker should prevent unbounded churn: {}",
+            churn
+        );
     }
 
     #[tokio::test]
@@ -442,6 +477,9 @@ mod tests {
         }
 
         let stats = harness.get_stats();
-        assert!(stats.total_evictions > 0, "Unhealthy connections should be evicted");
+        assert!(
+            stats.total_evictions > 0,
+            "Unhealthy connections should be evicted"
+        );
     }
 }

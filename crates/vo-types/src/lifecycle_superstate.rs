@@ -118,25 +118,17 @@ mod tests {
     }
 
     #[test]
-    fn preparing_effect_maps_to_compensating() {
-        assert_eq!(
-            LifecycleState::PreparingEffect.superstate(),
-            LifecycleSuperstate::Compensating
-        );
-    }
-
-    #[test]
-    fn failed_maps_to_recovering() {
-        assert_eq!(
-            LifecycleState::Failed.superstate(),
-            LifecycleSuperstate::Recovering
-        );
-    }
-
-    #[test]
     fn waiting_for_timer_maps_to_suspended() {
         assert_eq!(
             LifecycleState::WaitingForTimer.superstate(),
+            LifecycleSuperstate::Suspended
+        );
+    }
+
+    #[test]
+    fn waiting_for_signal_maps_to_suspended() {
+        assert_eq!(
+            LifecycleState::WaitingForSignal.superstate(),
             LifecycleSuperstate::Suspended
         );
     }
@@ -236,19 +228,19 @@ mod tests {
     }
 
     #[test]
-    fn lifecycle_state_preparing_effect_round_trips_via_serde() {
-        let json = "\"preparing_effect\"";
+    fn lifecycle_state_waiting_for_timer_round_trips_via_serde() {
+        let json = "\"waiting_for_timer\"";
         let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
-        assert_eq!(parsed, LifecycleState::PreparingEffect);
+        assert_eq!(parsed, LifecycleState::WaitingForTimer);
         let roundtrip = serde_json::to_string(&parsed).expect("serialize");
         assert_eq!(roundtrip, json);
     }
 
     #[test]
-    fn lifecycle_state_waiting_for_timer_round_trips_via_serde() {
-        let json = "\"waiting_for_timer\"";
+    fn lifecycle_state_waiting_for_signal_round_trips_via_serde() {
+        let json = "\"waiting_for_signal\"";
         let parsed: LifecycleState = serde_json::from_str(json).expect("should deserialize");
-        assert_eq!(parsed, LifecycleState::WaitingForTimer);
+        assert_eq!(parsed, LifecycleState::WaitingForSignal);
         let roundtrip = serde_json::to_string(&parsed).expect("serialize");
         assert_eq!(roundtrip, json);
     }
@@ -321,8 +313,8 @@ mod tests {
             LifecycleState::RunningDecision,
             LifecycleState::StepScheduled,
             LifecycleState::StepExecuting,
-            LifecycleState::PreparingEffect,
             LifecycleState::WaitingForTimer,
+            LifecycleState::WaitingForSignal,
             LifecycleState::PendingPublication,
             LifecycleState::Hibernated,
             LifecycleState::Compensating,

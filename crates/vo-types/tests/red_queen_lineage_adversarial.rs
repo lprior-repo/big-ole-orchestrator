@@ -369,7 +369,7 @@ fn rq_multiple_rollovers_maintain_full_instance_chain() {
 
 #[test]
 fn rq_signal_address_lineage_id_immutable_across_rollover() {
-    // INVARIANT: SignalAddress.lineage_id never changes after construction.
+    // INVARIANT: SignalAddress.lineage_id() never changes after construction.
     // This is critical for correct routing - if lineage_id could change,
     // signals would be misrouted after rollover.
     let lineage_id = make_instance_id(b'L');

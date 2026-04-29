@@ -1,0 +1,13 @@
+[package]
+name = "vo-sdk-macros-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+vo-sdk-macros = { path = ".." }
+proc-macro2 = "1.0"

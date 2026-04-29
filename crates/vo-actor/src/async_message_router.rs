@@ -160,7 +160,7 @@ mod tests {
     }
 
     fn test_destination() -> ActorDestination {
-        ActorDestination::new(String::from("test-actor"))
+        ActorDestination::test()
     }
 
     #[tokio::test]
@@ -302,5 +302,126 @@ mod tests {
         let (result1, result2) = tokio::join!(handle1, handle2);
         assert!(result1.unwrap().is_ok());
         assert_eq!(result2.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn concurrent_registration_is_safe() {
+        let router = Arc::new(AsyncMessageRouter::with_default_config());
+        let channel_ids: Vec<ChannelId> = (0..10)
+            .map(|i| ChannelId::new(format!("channel-{}", i)))
+            .collect();
+        let destinations: Vec<ActorDestination> = (0..10)
+            .map(|i| ActorDestination::new(format!("actor-{}", i)))
+            .collect();
+
+        let mut handles = Vec::new();
+        for i in 0..10 {
+            let router_clone = router.clone();
+            let channel_id = channel_ids[i].clone();
+            let destination = destinations[i].clone();
+            handles.push(tokio::spawn(async move {
+                router_clone.register_channel(channel_id, destination).await
+            }));
+        }
+
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_ok(), "Concurrent registration should succeed");
+        }
+
+        assert_eq!(router.num_channels().await, 10);
+    }
+
+    #[tokio::test]
+    async fn concurrent_add_destination_maintains_consistency() {
+        let router = Arc::new(AsyncMessageRouter::with_default_config());
+        let channel_id = test_channel_id();
+
+        router
+            .register_channel(channel_id.clone(), test_destination())
+            .await
+            .unwrap();
+
+        let mut handles = Vec::new();
+        for i in 0..5 {
+            let router_clone = router.clone();
+            handles.push(tokio::spawn(async move {
+                router_clone
+                    .add_destination(&channel_id, test_destination())
+                    .await
+            }));
+        }
+
+        for handle in handles {
+            let result = handle.await.unwrap();
+            assert!(result.is_ok(), "Concurrent add_destination should succeed");
+        }
+
+        assert_eq!(router.total_destinations().await, 6);
+    }
+
+    #[tokio::test]
+    async fn concurrent_route_operations_are_safe() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let router = Arc::new(AsyncMessageRouter::with_default_config());
+        let channel_id = test_channel_id();
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        router
+            .register_channel(channel_id.clone(), test_destination())
+            .await
+            .unwrap();
+
+        let mut handles = Vec::new();
+        for i in 0..20 {
+            let router_clone = router.clone();
+            let counter_clone = counter.clone();
+            handles.push(tokio::spawn(async move {
+                let result = router_clone
+                    .route(&channel_id, format!("message-{}", i))
+                    .await;
+                if result.is_ok() {
+                    counter_clone.fetch_add(1, Ordering::SeqCst);
+                }
+            }));
+        }
+
+        for handle in handles {
+            let _ = handle.await;
+        }
+
+        assert_eq!(
+            counter.load(Ordering::SeqCst),
+            20,
+            "All 20 concurrent route operations should complete"
+        );
+    }
+
+    #[tokio::test]
+    async fn route_broadcast_reaches_all_destinations() {
+        let router = Arc::new(AsyncMessageRouter::with_default_config());
+        let channel_id = test_channel_id();
+
+        let dest1 = ActorDestination::new(String::from("actor-1"));
+        let dest2 = ActorDestination::new(String::from("actor-2"));
+        let dest3 = ActorDestination::new(String::from("actor-3"));
+
+        router
+            .register_channel(channel_id.clone(), dest1)
+            .await
+            .unwrap();
+        router.add_destination(&channel_id, dest2).await.unwrap();
+        router.add_destination(&channel_id, dest3).await.unwrap();
+
+        let result = router
+            .route_broadcast(&channel_id, "broadcast-message")
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "Broadcast should succeed with multiple destinations"
+        );
+        assert_eq!(router.total_destinations().await, 3);
     }
 }

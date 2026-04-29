@@ -42,7 +42,11 @@ fn make_request(wf: &str, hash: &str, force: bool) -> RegistrationRequest {
     RegistrationRequest {
         workflow_name: make_wf(wf),
         binary_hash: make_hash(hash),
-        force,
+        force: if force {
+            Some("test-operator-token".into())
+        } else {
+            None
+        },
     }
 }
 
@@ -243,17 +247,17 @@ fn bos02_namespace_quota_isolation_under_pressure() {
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_cpu(*ns, 50);
+        let result = enforcer.check_cpu(ns, 50);
         assert!(result.is_ok(), "CPU check should pass for {ns} at 50%");
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_memory(*ns, 500);
+        let result = enforcer.check_memory(ns, 500);
         assert!(result.is_ok(), "Memory check should pass for {ns} at 50%");
     }
 
     for ns in &namespaces {
-        let result = enforcer.check_disk(*ns, 2500);
+        let result = enforcer.check_disk(ns, 2500);
         assert!(result.is_ok(), "Disk check should pass for {ns} at 50%");
     }
 
@@ -262,7 +266,7 @@ fn bos02_namespace_quota_isolation_under_pressure() {
 
     for ns in &namespaces {
         if *ns != "payments" {
-            let result = enforcer.check_cpu(*ns, 50);
+            let result = enforcer.check_cpu(ns, 50);
             assert!(
                 result.is_ok(),
                 "{ns} should remain unaffected by payments overage"
@@ -668,9 +672,10 @@ fn bos05_composite_quota_and_breaker_interaction() {
     let force_request = RegistrationRequest {
         workflow_name: wf.clone(),
         binary_hash: make_hash("deadbeef"),
-        force: true,
+        force: Some("test-operator-token".into()),
     };
 
+    cb_state.register_operator_token("test-operator-token".into());
     let force_result = evaluate_registration(&force_request, &cb_config, &cb_state, t0);
     assert_eq!(
         force_result,
@@ -757,8 +762,8 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
 
     for ns in &namespaces {
         for level in 1..=5 {
-            let cpu_result = enforcer.check_cpu(*ns, level);
-            let mem_result = enforcer.check_memory(*ns, level * 10);
+            let cpu_result = enforcer.check_cpu(ns, level);
+            let mem_result = enforcer.check_memory(ns, level * 10);
 
             assert!(
                 cpu_result.is_ok(),
@@ -777,8 +782,8 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
 
     for ns in &namespaces {
         for level in 1..=5 {
-            let cpu_result = enforcer.check_cpu(*ns, level);
-            let mem_result = enforcer.check_memory(*ns, level * 10);
+            let cpu_result = enforcer.check_cpu(ns, level);
+            let mem_result = enforcer.check_memory(ns, level * 10);
 
             assert!(
                 cpu_result.is_ok(),
@@ -802,7 +807,7 @@ fn bos05_stress_multi_namespace_concurrent_operations() {
     );
 
     for ns in &namespaces[1..] {
-        let result = enforcer.check_cpu(*ns, 10);
+        let result = enforcer.check_cpu(ns, 10);
         assert!(
             result.is_ok(),
             "{} should not be affected by ns-a over-limit",

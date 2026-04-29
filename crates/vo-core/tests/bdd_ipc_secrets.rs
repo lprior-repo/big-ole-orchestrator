@@ -1,8 +1,7 @@
 //! BDD tests for IPC FD3/FD4 secret passing scenarios.
 
 use std::collections::BTreeMap;
-use vo_ipc::envelope::{Fd3Envelope, Fd4Envelope, TaskError, TaskResult};
-use vo_ipc::error::IpcError;
+use vo_ipc::envelope::{Fd3Envelope, Fd4Envelope, TaskResult};
 
 // Given/When/Then scenarios for secret passing over IPC channels.
 

@@ -57,9 +57,11 @@ impl FjallEventStore {
     }
 
     fn get_current_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
-        let id_bytes = instance_id.to_bytes().map_err(|_| EventStoreError::Storage {
-            reason: format!("cannot convert instance_id {instance_id} to bytes"),
-        })?;
+        let id_bytes = instance_id
+            .to_bytes()
+            .map_err(|_| EventStoreError::Storage {
+                reason: format!("cannot convert instance_id {instance_id} to bytes"),
+            })?;
 
         let mut max_seq: u64 = 0;
         let iter = self.partition.iter();
@@ -76,11 +78,12 @@ impl FjallEventStore {
                 continue;
             }
 
-            let seq_bytes: [u8; 8] = key_bytes[16..24]
-                .try_into()
-                .map_err(|_| EventStoreError::Storage {
-                    reason: "malformed event key (sequence bytes)".to_string(),
-                })?;
+            let seq_bytes: [u8; 8] =
+                key_bytes[16..24]
+                    .try_into()
+                    .map_err(|_| EventStoreError::Storage {
+                        reason: "malformed event key (sequence bytes)".to_string(),
+                    })?;
             let seq = u64::from_be_bytes(seq_bytes);
             if seq > max_seq {
                 max_seq = seq;
@@ -125,9 +128,11 @@ impl EventStore for FjallEventStore {
             }
         }
 
-        let id_bytes = instance_id.to_bytes().map_err(|_| EventStoreError::Storage {
-            reason: format!("cannot convert instance_id {instance_id} to bytes"),
-        })?;
+        let id_bytes = instance_id
+            .to_bytes()
+            .map_err(|_| EventStoreError::Storage {
+                reason: format!("cannot convert instance_id {instance_id} to bytes"),
+            })?;
         let stripe_idx = stripe_for_instance(&id_bytes);
         let _guard = self.stripes[stripe_idx].lock();
 
@@ -163,10 +168,7 @@ impl EventStore for FjallEventStore {
         Ok(final_sequence)
     }
 
-    async fn get_sequence(
-        &self,
-        instance_id: &InstanceId,
-    ) -> Result<u64, EventStoreError> {
+    async fn get_sequence(&self, instance_id: &InstanceId) -> Result<u64, EventStoreError> {
         self.get_current_sequence(instance_id)
     }
 }

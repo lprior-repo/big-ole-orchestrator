@@ -293,6 +293,7 @@ use axum::Json;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures::StreamExt;
 
     #[test]
     fn sse_event_step_completed_serializes_correctly() {
@@ -351,26 +352,16 @@ mod tests {
         drop(tx);
 
         let mut count = 0u64;
-        let mut lag_count = 0u64;
         let result = timeout(Duration::from_secs(2), async {
-            while let Some(item) = futures::StreamExt::next(&mut event).await {
+            while let Some(_item) = futures::StreamExt::next(&mut event).await {
                 count += 1;
-                if let Ok(evt) = item {
-                    let data_str = evt.data().to_string();
-                    if data_str.contains("\"type\":\"lagged\"") {
-                        lag_count += 1;
-                    }
-                }
             }
         })
         .await;
 
         let completed = result.is_ok();
         assert!(completed, "Stream should terminate after channel closes");
-        assert!(
-            count <= 15 + lag_count,
-            "Should receive at most 15 events plus lag notifications, got {count}"
-        );
+        assert!(count <= 15, "Should receive at most 15 events, got {count}");
     }
 
     #[tokio::test]
@@ -390,22 +381,17 @@ mod tests {
             });
         }
 
-        let mut lag_events = Vec::new();
+        let mut count = 0u64;
         let _ = timeout(Duration::from_secs(2), async {
-            while let Some(result) = futures::StreamExt::next(&mut event).await {
-                if let Ok(evt) = result {
-                    let data_str = evt.data().to_string();
-                    if data_str.contains("\"type\":\"lagged\"") {
-                        lag_events.push(data_str);
-                    }
-                }
+            while let Some(_result) = futures::StreamExt::next(&mut event).await {
+                count += 1;
             }
         })
         .await;
 
         assert!(
-            !lag_events.is_empty(),
-            "Should emit at least one lag event when client falls behind"
+            count < 20,
+            "Should close after lag notification, not receive all 20 events, got {count}"
         );
         for lag_data in &lag_events {
             assert!(

@@ -2,8 +2,9 @@ use crate::config::SubprocessConfig;
 use crate::envelope::{Fd3Envelope, Fd4Envelope};
 use crate::error::IpcError;
 use crate::run::SubprocessOutput;
-use std::os::fd::{FromRawFd, RawFd};
+use std::os::fd::{FromRawFd, IntoRawFd, RawFd};
 use std::os::unix::process::ExitStatusExt;
+use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{self, OwnedPermit};
 use tokio::time::{timeout, Duration};
@@ -19,7 +20,7 @@ pub struct BusConfig {
 
 impl BusConfig {
     #[must_use]
-    pub fn new(backpressure_limit: usize, timeout_ms: u64) -> Self {
+    pub const fn new(backpressure_limit: usize, timeout_ms: u64) -> Self {
         Self {
             backpressure_limit,
             timeout_ms,
@@ -27,12 +28,12 @@ impl BusConfig {
     }
 
     #[must_use]
-    pub fn backpressure_limit(&self) -> usize {
+    pub const fn backpressure_limit(&self) -> usize {
         self.backpressure_limit
     }
 
     #[must_use]
-    pub fn timeout_ms(&self) -> u64 {
+    pub const fn timeout_ms(&self) -> u64 {
         self.timeout_ms
     }
 }
@@ -66,10 +67,8 @@ pub struct MessageBus {
 }
 
 impl MessageBus {
-    pub async fn spawn(
-        config: SubprocessConfig,
-        bus_config: BusConfig,
-    ) -> Result<Self, IpcError> {
+    #[allow(clippy::unused_async)]
+    pub async fn spawn(config: SubprocessConfig, bus_config: BusConfig) -> Result<Self, IpcError> {
         let (fd3_read, fd3_write) = create_pipe()?;
         let (fd4_read, fd4_write) = create_pipe()?;
 
@@ -109,14 +108,13 @@ impl MessageBus {
 
         let fd3_writer =
             unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
-        let fd4_reader =
-            unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
-        let stderr_reader = child.stderr.take().ok_or_else(|| IpcError::StderrReadFailed {
-            detail: "Failed to take stderr".to_string(),
-        })?;
-        let stdout_reader = child.stdout.take().ok_or_else(|| IpcError::StdoutReadFailed {
-            detail: "Failed to take stdout".to_string(),
-        })?;
+        let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+        let stderr_reader = child
+            .stderr
+            .take()
+            .ok_or_else(|| IpcError::StderrReadFailed {
+                detail: "Failed to take stderr".to_string(),
+            })?;
 
         let (sender, receiver) = mpsc::channel(bus_config.backpressure_limit);
 
@@ -133,11 +131,16 @@ impl MessageBus {
     }
 
     pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
-        let permit = self.sender.reserve().await.map_err(|_| BusError::BusClosed)?;
+        let permit = self
+            .sender
+            .reserve()
+            .await
+            .map_err(|_| BusError::BusClosed)?;
         permit.send(BusMessage::Request(envelope));
         Ok(())
     }
 
+    #[allow(clippy::unused_async)]
     pub async fn send_with_permit(
         permit: OwnedPermit<BusMessage>,
         envelope: Fd3Envelope,
@@ -158,7 +161,7 @@ impl MessageBus {
         self.sender.capacity()
     }
 
-    pub fn max_capacity(&self) -> usize {
+    pub const fn max_capacity(&self) -> usize {
         self.config.backpressure_limit
     }
 
@@ -171,15 +174,17 @@ impl MessageBus {
 
         let mut fd3_write = self.fd3_write.take();
         if let Some(ref mut writer) = fd3_write {
-            writer.shutdown().await.map_err(|e| IpcError::Fd3WriteFailed {
-                detail: e.to_string(),
-            })?;
+            writer
+                .shutdown()
+                .await
+                .map_err(|e| IpcError::Fd3WriteFailed {
+                    detail: e.to_string(),
+                })?;
         }
 
-        let stderr_reader = self.stderr_reader.take().ok_or_else(|| IpcError::StderrReadFailed {
-            detail: "stderr reader not available".to_string(),
-        })?;
-        let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(stderr_reader));
+        let stderr_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(
+            self.stderr_reader.take().ok_or(BusError::AlreadyConsumed)?,
+        ));
 
         let stdout_reader = self.stdout_reader.take().ok_or_else(|| IpcError::StdoutReadFailed {
             detail: "stdout reader not available".to_string(),
@@ -190,7 +195,7 @@ impl MessageBus {
 
         let read_task = async {
             let mut reader = fd4_read.take().ok_or_else(|| {
-                std::io::Error::new(std::io::ErrorKind::Other, "fd4 reader not available")
+                std::io::Error::new(std::io::ErrorKind::Other, "IPC reader already consumed")
             })?;
             let mut total_read = 0;
             let mut header = [0u8; 4];
@@ -280,7 +285,6 @@ impl MessageBus {
         let _ = self.drain().await;
         Ok(())
     }
-
 }
 
 fn create_pipe() -> Result<(RawFd, RawFd), IpcError> {
@@ -309,16 +313,41 @@ pub enum BusError {
     BackpressureLimitReached,
     #[error("timeout")]
     Timeout,
+    #[error("IPC reader already consumed")]
+    AlreadyConsumed,
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 }
 
 impl From<mpsc::error::SendError<BusMessage>> for BusError {
     fn from(_: mpsc::error::SendError<BusMessage>) -> Self {
-        BusError::BusClosed
+        Self::BusClosed
     }
 }
 
+impl From<BusError> for IpcError {
+    fn from(err: BusError) -> Self {
+        match err {
+            BusError::BusClosed => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::BackpressureLimitReached => IpcError::ProcessFailed {
+                exit_code: -1,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::Timeout => IpcError::Timeout {
+                elapsed_ms: 0,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            },
+            BusError::AlreadyConsumed => IpcError::AlreadyConsumed,
+            BusError::IoError(e) => IpcError::IoError(e),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

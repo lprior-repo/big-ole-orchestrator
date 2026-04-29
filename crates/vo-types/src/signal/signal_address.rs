@@ -125,7 +125,7 @@ impl SignalAddress {
             LineageScope::LineageWide if self.epoch_id.is_some() => Err(
                 "SignalAddress invariant violated: LineageWide scope requires epoch_id to be None",
             ),
-            _ => Ok(()),
+            LineageScope::EpochLocal | LineageScope::LineageWide => Ok(()),
         }
     }
 }
@@ -167,7 +167,7 @@ impl fmt::Display for SignalAddress {
             self.instance_id.as_str(),
             self.wait_key.as_str(),
             match self.epoch_id {
-                Some(epoch) => format!("epoch={}", epoch.get()),
+                Some(epoch) => format!("epoch={}", epoch.value()),
                 None => "lineage-wide".to_string(),
             }
         )

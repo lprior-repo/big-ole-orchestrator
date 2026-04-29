@@ -52,7 +52,7 @@ mod tests {
         let p = OvercommitPolicy::AllowOvercommit;
         let p2 = p;
         assert_eq!(p, p2);
-        let p3 = p.clone();
+        let p3 = p;
         assert_eq!(p, p3);
         let mut h = std::collections::HashSet::new();
         h.insert(p);

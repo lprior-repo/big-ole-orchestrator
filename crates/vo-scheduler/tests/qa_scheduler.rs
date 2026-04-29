@@ -36,7 +36,7 @@ fn exponential_backoff_caps_at_max_delay() {
 
 #[test]
 fn can_retry_respects_max_attempts() {
-    let policy = RetryPolicy::default();
+    let policy = RetryPolicy::default_policy();
     assert!(policy.can_retry(0));
     assert!(policy.can_retry(2));
     assert!(!policy.can_retry(3));
@@ -48,7 +48,7 @@ fn immediate_job_starts_as_pending() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::Immediate,
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         vec![].into(),
     )
     .unwrap();
@@ -62,7 +62,7 @@ fn future_scheduled_job_starts_as_scheduled() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::At(future),
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         vec![].into(),
     )
     .unwrap();
@@ -75,12 +75,24 @@ fn cron_schedule_accepted_and_stored() {
         JobKind::Recurring,
         JobPriority::Background,
         SchedulePolicy::Cron("*/5 * * * *".into()),
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         vec![].into(),
     )
     .unwrap();
     assert!(matches!(job.schedule_policy, SchedulePolicy::Cron(ref s) if s == "*/5 * * * *"));
     assert_eq!(job.kind, JobKind::Recurring);
+}
+
+#[test]
+fn cron_invalid_expression_rejected() {
+    let result = ScheduledJob::new(
+        JobKind::Recurring,
+        JobPriority::Normal,
+        SchedulePolicy::Cron("invalid".to_string()),
+        RetryPolicy::default_policy(),
+        bytes::Bytes::new(),
+    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -102,7 +114,7 @@ fn retry_loop_cycles_through_retrying_state() {
         JobKind::OneShot,
         JobPriority::High,
         SchedulePolicy::Immediate,
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         vec![].into(),
     )
     .unwrap();
@@ -123,7 +135,7 @@ fn full_lifecycle_pending_to_completed() {
         JobKind::OneShot,
         JobPriority::Normal,
         SchedulePolicy::Immediate,
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         vec![].into(),
     )
     .unwrap();
@@ -142,7 +154,7 @@ fn make_job(
         JobKind::OneShot,
         priority,
         SchedulePolicy::At(due_at),
-        RetryPolicy::default(),
+        RetryPolicy::default_policy(),
         tag.as_bytes().to_vec().into(),
     )
     .unwrap();

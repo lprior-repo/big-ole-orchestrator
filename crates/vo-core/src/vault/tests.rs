@@ -61,7 +61,7 @@ mod tests {
         let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
         let err = CredentialError::VersionNotFound {
             credential_id: cred_id,
-            version_id: version_id,
+            version_id,
         };
         let msg = format!("{}", err);
         assert!(
@@ -102,7 +102,7 @@ mod tests {
         let version_id = CredentialVersionId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").unwrap();
         let err = CredentialError::CredentialExpired {
             credential_id: cred_id,
-            version_id: version_id,
+            version_id,
             expired_at: TimestampMs::new_unchecked(1000),
         };
         assert!(format!("{}", err).contains("expired at"));

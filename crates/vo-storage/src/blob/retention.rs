@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn retention_entry_decrement_ref_count_fails_at_zero() {
         let addr = ContentAddress::new(VALID_SHA256).unwrap();
-        let entry = RetentionEntry::new(addr.clone(), 0);
+        let entry = RetentionEntry::new(addr, 0);
         let result = entry.decrement_ref_count();
         assert!(matches!(
             result,
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn retention_entry_is_gc_eligible_when_zero() {
         let addr = ContentAddress::new(VALID_SHA256).unwrap();
-        let entry = RetentionEntry::new(addr.clone(), 0);
+        let entry = RetentionEntry::new(addr, 0);
         assert!(entry.is_gc_eligible());
     }
 

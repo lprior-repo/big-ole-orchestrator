@@ -1,31 +1,171 @@
 //! Type definitions for vo-common.
 
+use std::ops::Deref;
+
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-pub type InstanceId = String;
-pub type NamespaceId = String;
-pub type TimerId = String;
-pub type EventId = String;
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct InstanceId(String);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct TimestampMs(pub u64);
-
-impl TimestampMs {
-    #[must_use]
-    pub const fn new_unchecked(value: u64) -> Self {
-        Self(value)
+impl InstanceId {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
     }
-    #[must_use]
-    pub fn as_u64(self) -> u64 {
-        self.0
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
-    #[must_use]
-    pub fn now() -> Self {
-        let millis = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |d| d.as_millis());
-        Self(u64::try_from(millis).map_or(u64::MAX, |value| value))
+}
+
+impl Deref for InstanceId {
+    type Target = String;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<String> for InstanceId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for InstanceId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<InstanceId> for String {
+    fn from(id: InstanceId) -> Self {
+        id.0
+    }
+}
+
+impl AsRef<str> for InstanceId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<&str> for InstanceId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.as_str() == *other
+    }
+}
+
+impl PartialEq<InstanceId> for &str {
+    fn eq(&self, other: &InstanceId) -> bool {
+        *self == other.0.as_str()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NamespaceId(String);
+
+impl NamespaceId {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for NamespaceId {
+    type Target = String;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<String> for NamespaceId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for NamespaceId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<NamespaceId> for String {
+    fn from(ns: NamespaceId) -> Self {
+        ns.0
+    }
+}
+
+impl AsRef<str> for NamespaceId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<&str> for NamespaceId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.as_str() == *other
+    }
+}
+
+impl PartialEq<NamespaceId> for &str {
+    fn eq(&self, other: &NamespaceId) -> bool {
+        *self == other.0.as_str()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TimerId(String);
+
+impl TimerId {
+    pub fn new(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for TimerId {
+    type Target = String;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<String> for TimerId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for TimerId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<TimerId> for String {
+    fn from(t: TimerId) -> Self {
+        t.0
+    }
+}
+
+impl AsRef<str> for TimerId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl PartialEq<&str> for TimerId {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.as_str() == *other
+    }
+}
+
+impl PartialEq<TimerId> for &str {
+    fn eq(&self, other: &TimerId) -> bool {
+        *self == other.0.as_str()
     }
 }
 
@@ -35,22 +175,19 @@ mod tests {
 
     #[test]
     fn instance_id_behaves_as_string() {
-        let id: InstanceId = "test-instance-123".into();
-        assert_eq!(id.len(), 17);
+        let id = InstanceId::new("test-instance-123");
         assert_eq!(id.as_str(), "test-instance-123");
     }
 
     #[test]
     fn namespace_id_behaves_as_string() {
-        let ns: NamespaceId = "namespace-abc".into();
-        assert_eq!(ns.len(), 13);
+        let ns = NamespaceId::new("namespace-abc");
         assert_eq!(ns.as_str(), "namespace-abc");
     }
 
     #[test]
     fn timer_id_behaves_as_string() {
-        let timer: TimerId = "timer-xyz".into();
-        assert_eq!(timer.len(), 9);
+        let timer = TimerId::new("timer-xyz");
         assert_eq!(timer.as_str(), "timer-xyz");
     }
 
@@ -63,137 +200,13 @@ mod tests {
 
     #[test]
     fn instance_id_empty_string() {
-        let id: InstanceId = "".into();
-        assert_eq!(id.len(), 0);
+        let id = InstanceId::new("");
+        assert_eq!(id.as_str(), "");
     }
 
     #[test]
     fn instance_id_unicode() {
-        let id: InstanceId = "实例-123-🔱".into();
-        assert_eq!(id.len(), 15); // UTF-8 bytes: 6 + 1 + 3 + 1 + 4
+        let id = InstanceId::new("实例-123-🔱");
         assert_eq!(id.as_str(), "实例-123-🔱");
-    }
-
-    // ========================================================================
-    // TimestampMs Tests
-    // ========================================================================
-
-    mod timestamp_ms {
-        use super::*;
-
-        #[test]
-        fn timestamp_ms_new_unchecked() {
-            let ts = TimestampMs::new_unchecked(12345);
-            assert_eq!(ts.as_u64(), 12345);
-        }
-
-        #[test]
-        fn timestamp_ms_zero() {
-            let ts = TimestampMs::new_unchecked(0);
-            assert_eq!(ts.as_u64(), 0);
-        }
-
-        #[test]
-        fn timestamp_ms_max() {
-            let ts = TimestampMs::new_unchecked(u64::MAX);
-            assert_eq!(ts.as_u64(), u64::MAX);
-        }
-
-        #[test]
-        fn timestamp_ms_now_returns_reasonable_value() {
-            let before = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let ts = TimestampMs::now();
-            let after = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let ts_val = u64::try_from(ts.as_u64()).unwrap();
-            assert!(u64::try_from(before).unwrap() <= ts_val);
-            assert!(ts_val <= u64::try_from(after).unwrap());
-        }
-
-        #[test]
-        fn timestamp_ms_now_is_unique_or_increasing() {
-            let ts1 = TimestampMs::now();
-            let ts2 = TimestampMs::now();
-            assert!(ts1.as_u64() <= ts2.as_u64());
-        }
-
-        #[test]
-        fn timestamp_ms_clone_preserves_value() {
-            let ts = TimestampMs::new_unchecked(99999);
-            let cloned = ts.clone();
-            assert_eq!(ts.as_u64(), cloned.as_u64());
-        }
-
-        #[test]
-        fn timestamp_ms_debug_format() {
-            let ts = TimestampMs::new_unchecked(42);
-            let debug = format!("{:?}", ts);
-            assert!(debug.contains("42"));
-        }
-
-        #[test]
-        fn timestamp_ms_serde_roundtrip() {
-            let ts = TimestampMs::new_unchecked(123456789);
-            let json = serde_json::to_string(&ts).unwrap();
-            let deserialized: TimestampMs = serde_json::from_str(&json).unwrap();
-            assert_eq!(ts.as_u64(), deserialized.as_u64());
-        }
-
-        #[test]
-        fn timestamp_ms_ordering() {
-            let ts1 = TimestampMs::new_unchecked(100);
-            let ts2 = TimestampMs::new_unchecked(200);
-            let ts3 = TimestampMs::new_unchecked(100);
-
-            assert!(ts1 < ts2);
-            assert!(ts2 > ts1);
-            assert_eq!(ts1, ts3);
-            assert!(ts1 <= ts3);
-            assert!(ts1 >= ts3);
-        }
-
-        #[test]
-        fn timestamp_ms_boundary_values() {
-            let min = TimestampMs::new_unchecked(u64::MIN);
-            let max = TimestampMs::new_unchecked(u64::MAX);
-
-            assert_eq!(min.as_u64(), u64::MIN);
-            assert_eq!(max.as_u64(), u64::MAX);
-            assert!(min < max);
-        }
-
-        #[test]
-        fn timestamp_ms_ordering_total() {
-            let ts1 = TimestampMs::new_unchecked(100);
-            let ts2 = TimestampMs::new_unchecked(200);
-            let ts3 = TimestampMs::new_unchecked(300);
-
-            assert!(ts1 < ts2);
-            assert!(ts2 < ts3);
-            assert!(ts1 < ts3);
-
-            assert!(ts1 <= ts1);
-            assert!(ts1 >= ts1);
-            assert!(ts2 <= ts2);
-            assert!(ts2 >= ts2);
-        }
-
-        #[test]
-        fn timestamp_ms_as_u64_exact_value() {
-            let ts = TimestampMs::new_unchecked(12345678901234);
-            assert_eq!(ts.as_u64(), 12345678901234);
-        }
-
-        #[test]
-        fn timestamp_ms_neq_different_values() {
-            let ts1 = TimestampMs::new_unchecked(100);
-            let ts2 = TimestampMs::new_unchecked(200);
-            assert_ne!(ts1, ts2);
-        }
     }
 }

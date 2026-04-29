@@ -218,14 +218,11 @@ fn parse_version_output_kind() {
 }
 
 #[test]
-fn parse_no_args_returns_help_on_missing() {
+fn parse_no_args_returns_missing_subcommand() {
     let result = interpret_cli_from(vec!["vo"]);
     assert!(result.is_err());
     let err = result.unwrap_err();
-    assert_eq!(
-        err.kind(),
-        clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
-    );
+    assert_eq!(err.kind(), clap::error::ErrorKind::MissingSubcommand);
 }
 
 // ============================================================
@@ -1193,95 +1190,6 @@ async fn e2e_check_symlink_fails() {
     let cli = interpret_cli_from(vec!["vo", "check", link.to_str().expect("path")]).expect("parse");
     let result = vo_cli::dispatch(cli).await;
     assert!(result.is_err());
-}
-
-// ============================================================
-// Middleware / Dispatcher
-// ============================================================
-
-#[test]
-fn command_context_stores_command() {
-    use vo_cli::CommandContext;
-
-    let ctx = CommandContext::new("check");
-    assert_eq!(ctx.command_name, "check");
-}
-
-#[test]
-fn command_context_metadata() {
-    use vo_cli::CommandContext;
-
-    let ctx = CommandContext::new("check");
-    ctx.set_metadata("key", "value");
-    assert_eq!(ctx.get_metadata("key"), Some("value".to_string()));
-}
-
-#[test]
-fn create_dispatcher_returns_two_middlewares() {
-    let d = vo_cli::create_dispatcher();
-    let _ = d;
-}
-
-#[test]
-fn logging_middleware_has_name() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::LoggingMiddleware::new();
-    assert_eq!(m.name(), "logging");
-}
-
-#[test]
-fn metrics_middleware_has_name() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::MetricsMiddleware::new();
-    assert_eq!(m.name(), "metrics");
-}
-
-#[tokio::test]
-async fn logging_middleware_before_ok() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    assert!(m.before(&ctx).await.is_ok());
-}
-
-#[tokio::test]
-async fn logging_middleware_after_ok_result() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    m.after(&ctx, &Ok(())).await;
-}
-
-#[tokio::test]
-async fn logging_middleware_after_err_result() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::LoggingMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    m.after(&ctx, &Err(CliError::Dispatch("fail".into()))).await;
-}
-
-#[tokio::test]
-async fn metrics_middleware_before_ok() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    assert!(m.before(&ctx).await.is_ok());
-}
-
-#[tokio::test]
-async fn metrics_middleware_after_ok() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    m.after(&ctx, &Ok(())).await;
-}
-
-#[tokio::test]
-async fn metrics_middleware_after_err() {
-    use vo_cli::middleware::Middleware;
-    let m = vo_cli::middleware::MetricsMiddleware::new();
-    let ctx = vo_cli::CommandContext::new("check");
-    m.after(&ctx, &Err(CliError::Dispatch("fail".into()))).await;
 }
 
 // ============================================================

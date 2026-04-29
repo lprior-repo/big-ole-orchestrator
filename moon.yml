@@ -35,6 +35,13 @@ tasks:
     options:
       runInCI: true
 
+  process-boundary-gate:
+    command: 'cargo test -p vo-executor --test execution_boundary_tests --test adr_contract_tests'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
   purge-gate:
     command: 'cargo run --example seed_purge'
     toolchains:

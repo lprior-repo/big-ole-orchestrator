@@ -31,15 +31,18 @@ impl ScheduledJob {
         retry_policy: RetryPolicy,
         payload: SerializedPayload,
     ) -> Result<Self, SchedulerError> {
-        if let SchedulePolicy::Cron(ref expr) = schedule_policy {
-            SchedulePolicy::validate_cron(expr)?;
+        if let SchedulePolicy::Cron { ref expression } = schedule_policy {
+            SchedulePolicy::validate_cron(expression)?;
         }
         let now = Utc::now();
         let due_at = match &schedule_policy {
             SchedulePolicy::At(t) => *t,
-            SchedulePolicy::After(d) => now + chrono::Duration::from_std(*d).unwrap_or_default(),
+            SchedulePolicy::After(d) => {
+                now + chrono::Duration::from_std(*d)
+                    .map_err(|e| SchedulerError::DurationOverflow(e.to_string()))?
+            }
             SchedulePolicy::Immediate => now,
-            SchedulePolicy::Cron(_) => now,
+            SchedulePolicy::Cron { expression: _ } => now,
         };
         let state = if due_at <= now {
             JobState::Pending
@@ -60,6 +63,26 @@ impl ScheduledJob {
             created_at: now,
             updated_at: now,
         })
+    }
+
+    pub fn transition_to_retrying(
+        &mut self,
+        error: impl Into<String>,
+    ) -> Result<(), SchedulerError> {
+        if self.state != JobState::Running {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        let next_attempt = self.attempt_count + 1;
+        if !self.retry_policy.can_retry(next_attempt) {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        self.attempt_count = next_attempt;
+        self.state = JobState::Retrying;
+        let backoff = self.retry_policy.compute_backoff(self.attempt_count);
+        self.due_at = Utc::now() + chrono::Duration::from_std(backoff).unwrap_or_default();
+        self.last_error = Some(error.into());
+        self.updated_at = Utc::now();
+        Ok(())
     }
 
     pub fn transition(&mut self, new_state: JobState) -> Result<(), SchedulerError> {
@@ -84,6 +107,22 @@ impl ScheduledJob {
             });
         }
         self.state = new_state;
+        self.updated_at = Utc::now();
+        Ok(())
+    }
+
+    pub fn apply_retryable_failure(&mut self, error: String) -> Result<(), SchedulerError> {
+        if self.state != JobState::Running && self.state != JobState::Failed {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        if !self.retry_policy.can_retry(self.attempt_count) {
+            return Err(SchedulerError::InvalidTransition);
+        }
+        self.attempt_count += 1;
+        self.state = JobState::Retrying;
+        let backoff = self.retry_policy.compute_backoff(self.attempt_count);
+        self.due_at = Utc::now() + chrono::Duration::from_std(backoff).unwrap_or_default();
+        self.last_error = Some(error);
         self.updated_at = Utc::now();
         Ok(())
     }

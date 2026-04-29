@@ -159,92 +159,25 @@ impl LeaseEntry {
 /// Partition name for the lease store.
 pub const LEASE_PARTITION: &str = "leases";
 
-/// Encode a lease key as `<iid_len_le><iid_bytes><sid_len_le><sid_bytes>`.
+/// Encode a lease key as `[instance_id(16)][step_id_len_u16_be][step_id_bytes]` (ADR-020).
 ///
-/// Uses 4-byte little-endian length prefixes for both components, avoiding
-/// delimiter ambiguity when `instance_id` or `step_id` contain `::` bytes.
+/// Delegates to `key_encoding::encode_lease_key`.
 #[must_use]
 pub fn encode_lease_key(instance_id: &InstanceId, step_id: &StepId) -> Vec<u8> {
-    let iid_bytes = instance_id.to_string().into_bytes();
-    let sid_bytes = step_id.to_string().into_bytes();
-    let iid_len = u32::to_le_bytes(iid_bytes.len() as u32);
-    let sid_len = u32::to_le_bytes(sid_bytes.len() as u32);
-    [
-        iid_len.as_slice(),
-        iid_bytes.as_slice(),
-        sid_len.as_slice(),
-        sid_bytes.as_slice(),
-    ]
-    .concat()
+    crate::key_encoding::encode_lease_key(instance_id, step_id)
 }
 
-/// Decode length-prefixed bytes into an `instance_id` and `step_id`.
+/// Decode binary lease key into `(InstanceId, StepId)` (ADR-020).
 ///
-/// Expects format: 4-byte u32 LE `iid_len`, `iid_len` bytes, 4-byte u32 LE `sid_len`, `sid_len` bytes.
+/// Delegates to `key_encoding::decode_lease_key`.
 ///
 /// # Errors
 ///
-/// Returns `LeaseStoreError::Codec` if there are insufficient bytes for the length prefixes
-/// or the component lengths exceed available data.
+/// Returns `LeaseStoreError::Codec` if the key is malformed or values cannot be parsed.
 pub fn decode_lease_key(bytes: &[u8]) -> Result<(InstanceId, StepId), LeaseStoreError> {
-    if bytes.len() < 4 {
-        return Err(LeaseStoreError::Codec {
-            reason: "insufficient bytes for iid length prefix".to_string(),
-        });
-    }
-    let (iid_len_bytes, rest) = bytes.split_at(4);
-    let iid_len =
-        u32::from_le_bytes(
-            iid_len_bytes
-                .try_into()
-                .map_err(|_| LeaseStoreError::Codec {
-                    reason: "failed to read iid length prefix".to_string(),
-                })?,
-        ) as usize;
-
-    if rest.len() < iid_len {
-        return Err(LeaseStoreError::Codec {
-            reason: format!("insufficient bytes for iid data (need {iid_len})"),
-        });
-    }
-    let (iid_bytes, rest) = rest.split_at(iid_len);
-    let iid_str = String::from_utf8(iid_bytes.to_vec()).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("iid data is not valid UTF-8: {e}"),
-    })?;
-
-    if rest.len() < 4 {
-        return Err(LeaseStoreError::Codec {
-            reason: "insufficient bytes for sid length prefix".to_string(),
-        });
-    }
-    let (sid_len_bytes, sid_bytes) = rest.split_at(4);
-    let sid_len =
-        u32::from_le_bytes(
-            sid_len_bytes
-                .try_into()
-                .map_err(|_| LeaseStoreError::Codec {
-                    reason: "failed to read sid length prefix".to_string(),
-                })?,
-        ) as usize;
-
-    if sid_bytes.len() < sid_len {
-        return Err(LeaseStoreError::Codec {
-            reason: format!("insufficient bytes for step_id data (need {sid_len})"),
-        });
-    }
-    let (step_id_bytes, _extra) = sid_bytes.split_at(sid_len);
-    let step_id_str =
-        String::from_utf8(step_id_bytes.to_vec()).map_err(|e| LeaseStoreError::Codec {
-            reason: format!("step_id data is not valid UTF-8: {e}"),
-        })?;
-
-    let instance_id = InstanceId::parse(&iid_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid instance_id: {e}"),
-    })?;
-    let step_id = StepId::parse(&step_id_str).map_err(|e| LeaseStoreError::Codec {
-        reason: format!("invalid step_id: {e}"),
-    })?;
-    Ok((instance_id, step_id))
+    crate::key_encoding::decode_lease_key(bytes).map_err(|e| LeaseStoreError::Codec {
+        reason: e.to_string(),
+    })
 }
 
 // ---------------------------------------------------------------------------

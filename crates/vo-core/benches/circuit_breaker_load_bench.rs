@@ -1,4 +1,5 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
+use std::hint::black_box;
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::Instant;
@@ -54,7 +55,7 @@ fn bench_concurrent_registration(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     let now = Instant::now();
                                     match evaluate_registration(&req, &config, &state, now).unwrap()
@@ -109,7 +110,7 @@ fn bench_concurrent_rate_limited(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     let now = Instant::now();
                                     match evaluate_registration(&req, &config, &state, now).unwrap()
@@ -216,7 +217,7 @@ fn bench_mixed_registration_and_failure(c: &mut Criterion) {
                                     let req = RegistrationRequest {
                                         workflow_name: wf,
                                         binary_hash: hash,
-                                        force: false,
+                                        force: None,
                                     };
                                     if matches!(
                                         evaluate_registration(&req, &config, &state, now).unwrap(),

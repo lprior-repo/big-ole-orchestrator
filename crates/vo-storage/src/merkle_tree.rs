@@ -55,9 +55,11 @@ impl MerkleTree {
         levels.push(leaf_nodes);
 
         while levels.last().is_some_and(|level| level.len() > 1) {
-            #[allow(clippy::unwrap_used)]
-            let parent_level = pair_and_hash(levels.last().unwrap());
-            levels.push(parent_level);
+            let last = levels.last().filter(|l| l.len() > 1);
+            if let Some(current) = last {
+                let parent_level = pair_and_hash(current);
+                levels.push(parent_level);
+            }
         }
 
         let root_hash = levels

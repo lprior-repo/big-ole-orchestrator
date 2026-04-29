@@ -202,7 +202,7 @@ fn given_lease_key_uses_string_delimiter_then_prefix_scans_may_collide() {
     assert_ne!(key_a, key_b);
 
     // AND: The encoded key contains the `::` delimiter bytes
-    let key_str = String::from_utf8(key_a.clone()).unwrap();
+    let key_str = String::from_utf8(key_a).unwrap();
     assert!(
         key_str.contains("::"),
         "lease key must contain :: delimiter"
@@ -327,7 +327,7 @@ fn given_u64_values_when_big_endian_encoded_then_lexicographic_order_matches_num
         256,
         65535,
         65536,
-        u32::MAX as u64,
+        u64::from(u32::MAX),
         u64::MAX,
     ];
 
@@ -509,7 +509,7 @@ fn given_effect_key_without_0xff_marker_when_decoded_then_rejected() {
     let event_key = encode_event_key(&id, seq); // 24 bytes, no marker
 
     // WHEN: Treated as an effect key (appending wrong marker)
-    let mut fake_effect = event_key.clone();
+    let mut fake_effect = event_key;
     fake_effect.push(0x00); // wrong marker byte
 
     // THEN: Rejected
@@ -750,7 +750,7 @@ fn given_partition_lease_key_uses_delimiter_then_not_binary_framed() {
 
     // WHEN: Encoded via the production lease partition encoder
     let encoded = partition_encode_lease_key(&id, &step);
-    let key_str = String::from_utf8(encoded.clone()).unwrap();
+    let key_str = String::from_utf8(encoded).unwrap();
 
     // THEN: The key uses `::` string delimiter, not length-prefix framing
     // NOTE: ADR-020 compliance gap — uses string delimiter instead of

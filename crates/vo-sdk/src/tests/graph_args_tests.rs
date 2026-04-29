@@ -1,7 +1,8 @@
 //! Tests for graph_args module (--graph CLI argument handling per ADR-004, ADR-009).
 
 use crate::graph::{
-    parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind, NodeSpec, WorkflowSpec,
+    default_retry_policy, parse_graph_args, EdgeSpec, GraphArgs, GraphArgsError, NodeKind,
+    NodeSpec, WorkflowSpec,
 };
 use vo_types::{NodeName, WorkflowName};
 
@@ -41,13 +42,7 @@ fn node_spec_serializes_to_snake_case_json() {
     let node = NodeSpec {
         name: NodeName::parse("validate_cart").expect("valid name"),
         kind: NodeKind::Pure,
-        retry_policy: vo_types::RetryPolicy {
-            max_attempts: 1,
-            backoff_ms: 0,
-            backoff_multiplier: 1.0,
-            max_backoff_ms: u64::MAX,
-        },
-        signal_meta: None,
+        retry_policy: default_retry_policy(),
     };
     let json = serde_json::to_string(&node).expect("serialize");
     assert!(
@@ -68,32 +63,20 @@ fn graph_workflow_spec_round_trips_via_serde() {
             NodeSpec {
                 name: NodeName::parse("validate").expect("valid"),
                 kind: NodeKind::Pure,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
             NodeSpec {
                 name: NodeName::parse("charge").expect("valid"),
                 kind: NodeKind::ManagedEffect,
-                retry_policy: vo_types::RetryPolicy {
-                    max_attempts: 1,
-                    backoff_ms: 0,
-                    backoff_multiplier: 1.0,
-                    max_backoff_ms: u64::MAX,
-                },
-                signal_meta: None,
+                retry_policy: default_retry_policy(),
             },
         ],
         edges: vec![EdgeSpec {
             from: NodeName::parse("validate").expect("valid"),
             to: NodeName::parse("charge").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string_pretty(&spec).expect("serialize");
     let restored: crate::graph::WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -193,13 +176,7 @@ fn node_spec_all_kinds_serialize() {
         let node = NodeSpec {
             name: NodeName::parse("test-node").expect("valid"),
             kind,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         };
         let json = serde_json::to_string(&node).expect("serialize");
         let restored: NodeSpec = serde_json::from_str(&json).expect("deserialize");
@@ -214,20 +191,14 @@ fn workflow_spec_to_json_bytes_produces_valid_json() {
         nodes: vec![NodeSpec {
             name: NodeName::parse("step-a").expect("valid"),
             kind: NodeKind::Pure,
-            retry_policy: vo_types::RetryPolicy {
-                max_attempts: 1,
-                backoff_ms: 0,
-                backoff_multiplier: 1.0,
-                max_backoff_ms: u64::MAX,
-            },
-            signal_meta: None,
+            retry_policy: default_retry_policy(),
         }],
         edges: vec![EdgeSpec {
             from: NodeName::parse("step-a").expect("valid"),
             to: NodeName::parse("step-a").expect("valid"),
         }],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let bytes = spec.to_json_bytes();
     let parsed: serde_json::Value =
@@ -243,8 +214,8 @@ fn workflow_spec_with_empty_nodes_and_edges() {
         workflow_name: WorkflowName::parse("empty").expect("valid"),
         nodes: vec![],
         edges: vec![],
-        dedupe_scope: vo_types::DedupeScope::default(),
-        guarantee_class: vo_types::GuaranteeClass::default(),
+        dedupe_scope: Default::default(),
+        guarantee_class: Default::default(),
     };
     let json = serde_json::to_string(&spec).expect("serialize");
     let restored: WorkflowSpec = serde_json::from_str(&json).expect("deserialize");
@@ -261,5 +232,84 @@ fn parse_graph_args_unrecognized_arg_display_shows_arg() {
         err.to_string().contains("something"),
         "display should contain the arg: {}",
         err
+    );
+}
+
+#[test]
+fn workflow_spec_deserialize_valid_spec_succeeds() {
+    let json = r#"{
+        "workflow_name": "valid_workflow",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "managed_effect"},
+            {"name": "c", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "b"},
+            {"from": "b", "to": "c"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_ok(),
+        "valid spec should deserialize: {:?}",
+        result
+    );
+    let spec = result.unwrap();
+    assert_eq!(spec.workflow_name.as_str(), "valid_workflow");
+    assert_eq!(spec.nodes.len(), 3);
+    assert_eq!(spec.edges.len(), 2);
+}
+
+#[test]
+fn workflow_spec_deserialize_rejects_self_cycle() {
+    let json = r#"{
+        "workflow_name": "self_cycle",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "a"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "self-cycle should be rejected: {:?}",
+        result
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("self-loop"),
+        "error should mention self-loop: {}",
+        err_msg
+    );
+}
+
+#[test]
+fn workflow_spec_deserialize_rejects_mutual_dependency() {
+    let json = r#"{
+        "workflow_name": "mutual_dep",
+        "nodes": [
+            {"name": "a", "kind": "pure"},
+            {"name": "b", "kind": "pure"}
+        ],
+        "edges": [
+            {"from": "a", "to": "b"},
+            {"from": "b", "to": "a"}
+        ]
+    }"#;
+    let result: Result<WorkflowSpec, _> = serde_json::from_str(json);
+    assert!(
+        result.is_err(),
+        "mutual dependency should be rejected: {:?}",
+        result
+    );
+    let err_msg = result.unwrap_err().to_string();
+    assert!(
+        err_msg.contains("cycle"),
+        "error should mention cycle: {}",
+        err_msg
     );
 }

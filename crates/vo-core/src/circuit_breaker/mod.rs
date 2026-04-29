@@ -394,8 +394,12 @@ pub fn evaluate_registration(
     state: &CircuitBreakerState,
     now: Instant,
 ) -> Result<RegistrationOutcome, CircuitBreakerError> {
-    // POST-005: Force flag bypasses ALL registration guards
-    if request.force {
+    // POST-005 / ADR-026: Force registration with operator token bypasses ALL guards.
+    // If a token is provided but not registered, return ForceUnauthorized.
+    if let Some(ref token) = request.force {
+        if !state.operator_tokens.contains_key(token) {
+            return Ok(RegistrationOutcome::ForceUnauthorized);
+        }
         // Update rate limiter even on forced registration (POST-005, B-09)
         state.set_rate_limit(request.workflow_name.clone(), update_rate_limit(now));
         return Ok(RegistrationOutcome::Allowed);

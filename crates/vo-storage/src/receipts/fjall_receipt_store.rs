@@ -226,7 +226,7 @@ mod tests {
         let (_dir, db) = create_test_db();
         let store = FjallReceiptStore::open(&db).unwrap();
         let receipt = ExecutionReceipt::new(
-            "".to_string(),
+            String::new(),
             "inst-1".to_string(),
             EffectKind::HttpCall,
             1000,

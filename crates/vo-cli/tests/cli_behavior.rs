@@ -16,13 +16,13 @@ fn exit_code_clap_unknown_error_is_2() {
 }
 
 #[test]
-fn exit_code_display_help_on_missing_is_0() {
+fn exit_code_display_help_on_missing_is_2() {
     let mut cmd = clap::Command::new("vo");
     let err = cmd.error(
         clap::error::ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand,
         "help",
     );
-    assert_eq!(map_error_to_exit_code(&CliError::Clap(err)), 0);
+    assert_eq!(map_error_to_exit_code(&CliError::Clap(err)), 2);
 }
 
 #[test]

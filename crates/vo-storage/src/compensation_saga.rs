@@ -319,7 +319,7 @@ impl CompensationManifest {
             #[allow(clippy::unnecessary_map_or)]
             let all_deps_emitted = dependents
                 .get(effect_id)
-                .map_or(true, |deps| deps.iter().all(|d| emitted.contains(d)));
+                .is_none_or(|deps| deps.iter().all(|d| emitted.contains(d)));
 
             if all_deps_emitted {
                 result.push((*effect_id).clone());

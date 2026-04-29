@@ -1,5 +1,7 @@
 //! Event payload types and parsing.
 
+use std::str::FromStr;
+
 use crate::events::error::Error;
 use crate::events::MAX_SUPPORTED_VERSION;
 use crate::payload_parser::{
@@ -7,44 +9,31 @@ use crate::payload_parser::{
 };
 use crate::WorkflowVersionHash;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum StepOutput {
-    Null,
-    Inline(serde_json::Value),
+/// Represents the kind of effect sink for an effect-prepared event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SinkKind {
+    BlobWrite,
+    TimerWrite,
+    SignalWrite,
 }
 
-impl StepOutput {
-    #[must_use]
-    pub fn is_null(&self) -> bool {
-        matches!(self, Self::Null)
-    }
+impl FromStr for SinkKind {
+    type Err = Error;
 
-    #[must_use]
-    pub fn as_json(&self) -> &serde_json::Value {
-        match self {
-            Self::Null => &serde_json::Value::Null,
-            Self::Inline(v) => v,
-        }
-    }
-
-    #[must_use]
-    pub fn into_json(self) -> serde_json::Value {
-        match self {
-            Self::Null => serde_json::Value::Null,
-            Self::Inline(v) => v,
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "BlobWrite" => Ok(SinkKind::BlobWrite),
+            "TimerWrite" => Ok(SinkKind::TimerWrite),
+            "SignalWrite" => Ok(SinkKind::SignalWrite),
+            other => Err(Error::InvalidPayloadField(format!(
+                "unknown sink kind: {other}"
+            ))),
         }
     }
 }
 
-impl From<serde_json::Value> for StepOutput {
-    fn from(value: serde_json::Value) -> Self {
-        if value.is_null() {
-            Self::Null
-        } else {
-            Self::Inline(value)
-        }
-    }
-}
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+pub struct RoutingProjection {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
@@ -85,7 +74,7 @@ pub enum EventPayload {
         completed_at_ms: u64,
         attempt: u32,
         fence: u64,
-        routing_projection: Option<RoutingProjection>,
+        routing_projection: serde_json::Value,
         output_ref: Option<String>,
         output_hash: Option<String>,
         output: StepOutput,
@@ -101,7 +90,7 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        sink_kind: String,
+        sink_kind: SinkKind,
         payload_hash: String,
         fence: u64,
     },
@@ -109,13 +98,19 @@ pub enum EventPayload {
         workflow_id: String,
         step_id: String,
         effect_id: String,
-        external_receipt: ExternalReceipt,
+        external_receipt: serde_json::Value,
         fence: u64,
     },
     TimerSet {
         workflow_id: String,
         timer_id: String,
         fire_at_ms: u64,
+    },
+    TimerScheduled {
+        workflow_id: String,
+        timer_id: String,
+        fire_at_ms: u64,
+        instance_id: String,
     },
     TimerFired {
         workflow_id: String,
@@ -125,6 +120,12 @@ pub enum EventPayload {
     CancelRequested {
         workflow_id: String,
         requested_by: String,
+    },
+    SignalAwaiting {
+        workflow_id: String,
+        signal_name: String,
+        instance_id: String,
+        awaited_at_ms: u64,
     },
     InstanceResumed {
         workflow_id: String,
@@ -213,13 +214,10 @@ impl EventPayload {
                 #[allow(clippy::cast_possible_truncation)]
                 attempt: require_u64(obj, "attempt")? as u32,
                 fence: require_u64(obj, "fence")?,
-                routing_projection: match obj.get("routing_projection") {
-                    None | Some(serde_json::Value::Null) => None,
-                    Some(v) => serde_json::from_value::<RoutingProjection>(v.clone())
-                        .ok()
-                        .map(Some)
-                        .unwrap_or(None),
-                },
+                routing_projection: obj
+                    .get("routing_projection")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
                 output_ref: optional_string(obj, "output_ref"),
                 output_hash: optional_string(obj, "output_hash"),
                 output: obj
@@ -240,7 +238,7 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                sink_kind: require_string(obj, "sink_kind")?,
+                sink_kind: SinkKind::from_str(&require_string(obj, "sink_kind")?)?,
                 payload_hash: require_string(obj, "payload_hash")?,
                 fence: require_u64(obj, "fence")?,
             }),
@@ -248,22 +246,22 @@ impl EventPayload {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 step_id: require_string(obj, "step_id")?,
                 effect_id: require_string(obj, "effect_id")?,
-                external_receipt: {
-                    let receipt_json =
-                        obj.get("external_receipt")
-                            .ok_or(Error::InvalidPayloadField(
-                                "missing required field: external_receipt".to_string(),
-                            ))?;
-                    serde_json::from_value(receipt_json.clone()).map_err(|e| {
-                        Error::InvalidPayloadField(format!("invalid external_receipt: {}", e))
-                    })?
-                },
+                external_receipt: obj
+                    .get("external_receipt")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null),
                 fence: require_u64(obj, "fence")?,
             }),
             "TimerSet" => Ok(EventPayload::TimerSet {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 timer_id: require_string(obj, "timer_id")?,
                 fire_at_ms: require_u64(obj, "fire_at_ms")?,
+            }),
+            "TimerScheduled" => Ok(EventPayload::TimerScheduled {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                timer_id: require_string(obj, "timer_id")?,
+                fire_at_ms: require_u64(obj, "fire_at_ms")?,
+                instance_id: require_string(obj, "instance_id")?,
             }),
             "TimerFired" => Ok(EventPayload::TimerFired {
                 workflow_id: require_string_field(obj, "workflow_id")?,
@@ -273,6 +271,12 @@ impl EventPayload {
             "CancelRequested" => Ok(EventPayload::CancelRequested {
                 workflow_id: require_string_field(obj, "workflow_id")?,
                 requested_by: require_string(obj, "requested_by")?,
+            }),
+            "SignalAwaiting" => Ok(EventPayload::SignalAwaiting {
+                workflow_id: require_string_field(obj, "workflow_id")?,
+                signal_name: require_string(obj, "signal_name")?,
+                instance_id: require_string(obj, "instance_id")?,
+                awaited_at_ms: require_u64(obj, "awaited_at_ms")?,
             }),
             "InstanceResumed" => Ok(EventPayload::InstanceResumed {
                 workflow_id: require_string_field(obj, "workflow_id")?,

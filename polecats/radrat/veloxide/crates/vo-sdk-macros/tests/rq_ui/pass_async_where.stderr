@@ -1,0 +1,13 @@
+error: generic functions are not supported: task functions must be concrete
+ --> tests/rq_ui/pass_async_where.rs:3:1
+  |
+3 | #[task]
+  | ^^^^^^^
+  |
+  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0601]: `main` function not found in crate `$CRATE`
+ --> tests/rq_ui/pass_async_where.rs:8:2
+  |
+8 | }
+  |  ^ consider adding a `main` function to `$DIR/tests/rq_ui/pass_async_where.rs`

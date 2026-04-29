@@ -1,4 +1,4 @@
-//! Red Queen tests — EffectId construction and shape.
+//! Red Queen tests — `EffectId` construction and shape.
 
 #![allow(clippy::unwrap_used)]
 #![allow(clippy::expect_used)]
@@ -81,8 +81,7 @@ fn red_queen_effectid_try_from_preserves_any_nonempty_string() {
         let result = EffectId::try_from(s.to_string());
         assert!(
             result.is_ok(),
-            "BUG: EffectId::try_from rejected valid string: {}",
-            s
+            "BUG: EffectId::try_from rejected valid string: {s}"
         );
         assert_eq!(result.unwrap().as_str(), s);
     }

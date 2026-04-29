@@ -1,5 +1,7 @@
-#![allow(clippy::expect_used)]
-
+#[cfg(test)]
+mod attempt_number_tests;
+#[cfg(test)]
+mod binary_hash_tests;
 mod binomial_heap;
 mod edge_tracking;
 #[cfg(test)]
@@ -7,7 +9,6 @@ mod blackhat_encryption_credentials_tests;
 mod blob;
 #[cfg(test)]
 mod blob_tests;
-mod btree;
 pub mod cartesian_tree;
 mod clique_tree;
 mod command_envelope;
@@ -26,6 +27,8 @@ pub mod discovery;
 mod dual_representation;
 #[cfg(test)]
 mod dual_representation_tests;
+#[cfg(test)]
+mod duration_ms_tests;
 pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
@@ -35,23 +38,45 @@ mod encryption_tests;
 mod errors;
 #[cfg(test)]
 mod euler_tour_tree;
+#[cfg(test)]
+mod event_version_tests;
 pub mod events;
+#[cfg(test)]
+mod fence_token_tests;
+#[cfg(test)]
+mod fire_at_ms_tests;
+#[cfg(test)]
+mod idempotency_key_tests;
 mod identity;
+#[cfg(test)]
+mod instance_id_tests;
 mod instance_status;
 pub mod integer_types;
 #[cfg(test)]
-mod integer_types_tests;
+mod integer_types_kani_proofs;
+#[cfg(test)]
+mod integer_types_proptests;
+#[cfg(test)]
+mod integer_types_serde_tests;
+#[cfg(test)]
+mod integer_types_try_from_tests;
 mod lifecycle_superstate;
 mod lineage;
 mod link_cut_tree;
 mod macros;
+#[cfg(test)]
+mod max_attempts_tests;
 pub mod next_step_selection;
 mod node_kind;
+#[cfg(test)]
+mod node_name_tests;
 mod non_empty_vec;
 mod octree;
 mod pairing_heap;
 mod payload_parser;
 mod plugin;
+#[cfg(all(test, feature = "proptest"))]
+mod proptest_domain_types;
 #[cfg(feature = "proptest")]
 mod proptest_generators;
 #[cfg(feature = "proptest")]
@@ -63,23 +88,35 @@ mod recovery_contract;
 mod registration_status;
 mod rope;
 pub mod search;
-pub mod signal;
-pub mod skew_heap;
-mod spqr_tree;
-pub mod state;
-pub mod string_types;
 #[cfg(test)]
-mod string_types_tests;
+mod sequence_number_tests;
+pub mod signal;
+pub mod state;
+#[cfg(test)]
+mod step_id_tests;
+mod string_types;
+#[cfg(test)]
+mod string_types_contract_tests;
+#[cfg(test)]
+mod string_types_proptests;
+#[cfg(test)]
+mod string_types_serde_tests;
 mod task_failure_kind;
 mod task_input;
-pub mod timer_id;
+#[cfg(test)]
+mod timeout_ms_tests;
+#[cfg(test)]
+mod timer_id_tests;
+#[cfg(test)]
+mod timestamp_ms_tests;
 mod topology;
 mod tx_coordinator;
 mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
-pub mod workload_class;
+#[cfg(test)]
+mod workflow_name_tests;
 pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
@@ -87,7 +124,6 @@ pub use blob::{
     BlobFailureAction, BlobGCPolicy, BlobRef, BlobStatus, OutputPolicy, OutputRef,
     INLINED_MAX_BYTES,
 };
-pub use btree::{BTree, BTreeError, BTreeNode};
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
@@ -122,7 +158,7 @@ pub use dual_representation::{
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
+    EffectTransitionError, EffectTransitionEvent,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
@@ -153,22 +189,15 @@ pub use recovery_contract::{
 };
 pub use registration_status::RegistrationStatus;
 pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
-pub use search::{
-    Bm25Scorer, InvertedIndex, Posting, PostingList, Query, QueryParser, Scorer, SearchEngine,
-    SearchError, SearchResult, TfIdfScorer,
-};
+pub use vo_ds::btree::{BTree, BTreeError};
+pub use vo_ds::node::BTreeNode;
+
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
 };
-pub use skew_heap::{SkewHeap, SkewHeapError, SkewNode};
-pub use spqr_tree::{
-    Block, Component, CutNode, SPQRDecomposition, SPQREdge, SPQRNode, SPQRNodeType, SpqrError,
-    StaticGraph,
-};
 pub use task_failure_kind::TaskFailureKind;
 pub use task_input::{TaskInput, TaskInputEnvelope};
-pub use timer_id::TimerIdGenerator;
 pub use topology::{LeaseKey, NodeId};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
@@ -215,5 +244,11 @@ mod red_queen_tests;
 mod schema_version_tests;
 #[cfg(test)]
 mod serde_tests;
+#[cfg(test)]
+mod tests_bdd_dag_connectivity;
+#[cfg(test)]
+mod tests_bdd_dag_cycle_validation;
+#[cfg(test)]
+mod tests_bdd_dag_merge_point;
 #[cfg(test)]
 mod workflow_tests;

@@ -1,6 +1,8 @@
 #![allow(clippy::unwrap_used)]
 
 use vo_types::InstanceId;
+pub use vo_types::TimestampMs;
+pub use vo_types::{BinaryHash, NodeName};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LifecycleState {
@@ -72,30 +74,6 @@ pub struct SecretId(pub String);
 impl SecretId {
     pub fn new(id: impl Into<String>) -> Self {
         Self(id.into())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct BinaryHash(pub String);
-
-impl BinaryHash {
-    pub fn new(hash: impl Into<String>) -> Self {
-        Self(hash.into())
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TimestampMs(pub i64);
-
-impl TimestampMs {
-    #[allow(clippy::unwrap_used)]
-    pub fn now() -> Self {
-        Self(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
-        )
     }
 }
 
@@ -316,33 +294,6 @@ impl AcceptResumeError {
             self,
             Self::LockAcquisitionFailed { .. } | Self::StorageError { .. }
         )
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct NodeName(pub String);
-
-impl NodeName {
-    pub fn new(name: impl Into<String>) -> Self {
-        Self(name.into())
-    }
-
-    pub fn parse(name: &str) -> Option<Self> {
-        if name.is_empty() {
-            None
-        } else {
-            Some(Self(name.to_string()))
-        }
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl From<vo_types::NodeName> for NodeName {
-    fn from(value: vo_types::NodeName) -> Self {
-        Self(value.as_str().to_string())
     }
 }
 

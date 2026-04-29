@@ -14,7 +14,7 @@ impl Default for GcConfig {
     fn default() -> Self {
         Self {
             engine_url: "http://localhost:3000".to_string(),
-            versions_dir: PathBuf::from("/var/wtf/versions"),
+            versions_dir: PathBuf::from(".vo/versions"),
             dry_run: false,
         }
     }
@@ -56,7 +56,10 @@ fn is_hex_64(s: &str) -> bool {
 }
 
 fn extract_hash_from_path(path: &Path) -> Option<String> {
-    path.file_name().and_then(|n| n.to_str()).map(String::from)
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .filter(|s| s.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(String::from)
 }
 
 fn is_safe_default_context() -> bool {
@@ -241,7 +244,7 @@ pub fn compute_binary_hash(path: &Path) -> Result<String, GcError> {
         source: e,
     })?;
 
-    let mut hasher = sha2::Sha256::new(); // requires Digest trait in scope
+    let mut hasher = sha2::Sha256::new();
     let mut buffer = [0u8; 8192];
 
     loop {

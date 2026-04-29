@@ -40,7 +40,7 @@ fn spawn_supervisor_error_no_unclassified_variants() {
         (
             "SpawnFailed",
             SpawnSupervisorError::SpawnFailed {
-                executable: PathBuf::from("cmd"),
+                command: "cmd".into(),
                 error: "err".into(),
             },
         ),
@@ -160,33 +160,6 @@ fn already_shutdown_is_classified() {
 }
 
 #[test]
-fn reanimator_storage_init_failed_is_classified() {
-    let error = ReanimatorError::StorageInitFailed("db failed".into());
-    assert!(
-        error.is_transient() || error.is_fatal(),
-        "StorageInitFailed must be classified as either transient or fatal"
-    );
-}
-
-#[test]
-fn reanimator_task_spawn_failed_is_classified() {
-    let error = ReanimatorError::TaskSpawnFailed("spawn failed".into());
-    assert!(
-        error.is_transient() || error.is_fatal(),
-        "TaskSpawnFailed must be classified as either transient or fatal"
-    );
-}
-
-#[test]
-fn reanimator_shutdown_timeout_is_classified() {
-    let error = ReanimatorError::ShutdownTimeout(Duration::from_secs(5));
-    assert!(
-        error.is_transient() || error.is_fatal(),
-        "ShutdownTimeout must be classified as either transient or fatal"
-    );
-}
-
-#[test]
 fn reanimator_error_transient_never_fatal_exhaustive() {
     let instance_id = test_instance_id();
     let all_variants = vec![
@@ -197,10 +170,7 @@ fn reanimator_error_transient_never_fatal_exhaustive() {
         ReanimatorError::BudgetExceeded("test".into()),
         ReanimatorError::EnqueueFailed("test".into()),
         ReanimatorError::AlreadyRunning,
-        ReanimatorError::StorageInitFailed("test".into()),
-        ReanimatorError::TaskSpawnFailed("test".into()),
         ReanimatorError::AlreadyShutdown,
-        ReanimatorError::ShutdownTimeout(Duration::from_secs(5)),
     ];
 
     for error in &all_variants {
@@ -286,7 +256,7 @@ fn spawn_supervisor_error_display_with_empty_strings() {
         SpawnSupervisorError::AtomicityViolation(String::new()),
         SpawnSupervisorError::DispatchError(String::new()),
         SpawnSupervisorError::SpawnFailed {
-            executable: PathBuf::new(),
+            command: String::new(),
             error: String::new(),
         },
         SpawnSupervisorError::HealthCheckFailed {

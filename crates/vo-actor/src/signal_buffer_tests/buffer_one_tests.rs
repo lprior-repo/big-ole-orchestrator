@@ -14,10 +14,10 @@ mod signal_buffer_one_tests {
         );
         assert_eq!(result, BufferResult::Buffered);
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             1
         );
-        assert!(buffer.has_buffered_signals(&instance_id_a(), &wait_key_approval()));
+        assert!(buffer.has_buffered_signals(&instance_id_a(), wait_key_approval()));
     }
 
     #[test]
@@ -31,7 +31,7 @@ mod signal_buffer_one_tests {
         );
         assert_eq!(first, BufferResult::Buffered);
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             1
         );
         let second = buffer.buffer_signal(
@@ -42,13 +42,11 @@ mod signal_buffer_one_tests {
         );
         assert_eq!(second, BufferResult::Rejected);
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             1
         );
         assert_eq!(
-            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0]
-                .signal_id
-                .as_str(),
+            buffer.peek_all(&instance_id_a(), &wait_key_approval())[0].signal_id,
             "sig-first"
         );
     }
@@ -82,11 +80,11 @@ mod signal_buffer_one_tests {
             make_signal("sig-pop"),
             BufferPolicy::BufferOne,
         );
-        let popped = buffer.pop_buffered(&instance_id_a(), &wait_key_approval());
+        let popped = buffer.pop_buffered(&instance_id_a(), wait_key_approval());
         assert!(popped.is_some());
-        assert_eq!(popped.unwrap().signal_id.as_str(), "sig-pop");
+        assert_eq!(popped.unwrap().signal_id, "sig-pop");
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             0
         );
     }
@@ -95,7 +93,7 @@ mod signal_buffer_one_tests {
     fn buffer_one_pop_none_for_unknown_key() {
         let mut buffer = SignalBuffer::with_default_config();
         assert!(buffer
-            .pop_buffered(&instance_id_a(), &wait_key_approval())
+            .pop_buffered(&instance_id_a(), wait_key_approval())
             .is_none());
     }
 
@@ -108,9 +106,9 @@ mod signal_buffer_one_tests {
             make_signal("sig-clear"),
             BufferPolicy::BufferOne,
         );
-        buffer.clear(&instance_id_a(), &wait_key_approval());
+        buffer.clear(&instance_id_a(), wait_key_approval());
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             0
         );
     }
@@ -124,7 +122,7 @@ mod signal_buffer_one_tests {
             make_signal("sig-original"),
             BufferPolicy::BufferOne,
         );
-        let _ = buffer.pop_buffered(&instance_id_a(), &wait_key_approval());
+        let _ = buffer.pop_buffered(&instance_id_a(), wait_key_approval());
         let result = buffer.buffer_signal(
             instance_id_a(),
             wait_key_approval(),
@@ -133,7 +131,7 @@ mod signal_buffer_one_tests {
         );
         assert_eq!(result, BufferResult::Buffered);
         assert_eq!(
-            buffer.buffered_count(&instance_id_a(), &wait_key_approval()),
+            buffer.buffered_count(&instance_id_a(), wait_key_approval()),
             1
         );
     }

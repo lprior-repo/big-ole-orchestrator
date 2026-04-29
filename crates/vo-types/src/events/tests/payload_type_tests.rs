@@ -1,4 +1,4 @@
-use crate::events::payload::{EventPayload, StepOutput};
+use crate::events::payload::{EventPayload, SinkKind};
 use crate::WorkflowVersionHash;
 
 #[test]
@@ -98,7 +98,7 @@ fn payload_try_from_json_returns_step_completed_when_type_is_step_completed() {
             completed_at_ms: 1000,
             attempt: 1,
             fence: 42,
-            routing_projection: Some(RoutingProjection::default()),
+            routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
             output: StepOutput::Null
@@ -231,7 +231,7 @@ fn payload_all_variants_round_trip_via_serde() {
             completed_at_ms: 2000,
             attempt: 1,
             fence: 42,
-            routing_projection: Some(RoutingProjection::default()),
+            routing_projection: serde_json::json!({}),
             output_ref: None,
             output_hash: None,
             output: StepOutput::Inline(serde_json::json!({"result": "ok"})),
@@ -247,7 +247,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             effect_id: "effect-1".to_string(),
-            sink_kind: "blob".to_string(),
+            sink_kind: SinkKind::BlobWrite,
             payload_hash: "hash123".to_string(),
             fence: 42,
         },
@@ -255,13 +255,7 @@ fn payload_all_variants_round_trip_via_serde() {
             workflow_id: "wf-123".to_string(),
             step_id: "step-1".to_string(),
             effect_id: "effect-1".to_string(),
-            external_receipt: ExternalReceipt::new(
-                "test-connector".to_string(),
-                "1.0.0".to_string(),
-                crate::EffectKind::HttpCall,
-                serde_json::Value::Null,
-            )
-            .unwrap(),
+            external_receipt: serde_json::json!({}),
             fence: 42,
         },
         EventPayload::TimerSet {
@@ -395,7 +389,7 @@ fn payload_all_variants_round_trip_via_serde() {
                     "completed_at_ms": completed_at_ms,
                     "attempt": attempt,
                     "fence": fence,
-                    "routing_projection": routing_projection.as_ref().map(|rp| serde_json::to_value(rp).unwrap_or(serde_json::Value::Null)).unwrap_or(serde_json::Value::Null),
+                    "routing_projection": routing_projection,
                     "output_ref": output_ref,
                     "output_hash": output_hash,
                     "output": output.as_json().clone(),

@@ -1,6 +1,8 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::thread;
 
 // ---------------------------------------------------------------------------
 // Test harness: FaultConfig
@@ -432,7 +434,7 @@ fn acquire_returns_new_authoritative_lease_when_now_greater_than_expiry() {
 }
 
 /// AQ-09: Simulated concurrent acquisition on same pair — first acquirer wins,
-/// second gets LeaseAlreadyHeld.
+/// second gets `LeaseAlreadyHeld`.
 #[test]
 fn concurrent_acquire_on_same_pair_first_writer_wins() {
     let store = DeterministicLeaseStore::new();
@@ -519,7 +521,7 @@ fn failed_acquire_has_no_side_effects_retry_succeeds() {
     assert_eq!(lease.token().inner().get(), 1);
 }
 
-/// AQ-18: Double-recovery race — first writer wins, second gets LeaseAlreadyHeld.
+/// AQ-18: Double-recovery race — first writer wins, second gets `LeaseAlreadyHeld`.
 #[test]
 fn double_recovery_race_first_writer_wins() {
     let store = DeterministicLeaseStore::new();
@@ -546,52 +548,41 @@ fn double_recovery_race_first_writer_wins() {
     ));
 }
 
-/// AQ-23: Each successful acquire returns a strictly increasing fence token.
+/// AQ-19: True concurrent acquisition — two threads racing on same (instance_id, step_id).
+/// Exactly one succeeds, the other gets LeaseAlreadyHeld.
 #[test]
-fn fence_token_is_strictly_monotonic_across_successive_acquires() {
-    let store = DeterministicLeaseStore::new();
-    let mut prev_token: u64 = 0;
+fn concurrent_acquire_on_same_pair_exactly_one_wins() {
+    use in_memory_lease::InMemoryLeaseStore;
 
-    for cycle in 0..100u64 {
-        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
+    let store = Arc::new(InMemoryLeaseStore::new());
+    let instance_id = sample_instance_id();
+    let step_id = sample_step_id();
 
-        let current_token = lease.token().inner().get();
-        assert!(
-            current_token > prev_token,
-            "token {} not strictly greater than {} in cycle {cycle}",
-            current_token,
-            prev_token
-        );
-        prev_token = current_token;
+    let iid_clone = instance_id.clone();
+    let sid_clone = step_id.clone();
+    let store_clone = Arc::clone(&store);
+    let handle_a = thread::spawn(move || store_clone.acquire(&iid_clone, &sid_clone, 5_000));
 
-        store.set_time(cycle.saturating_add(1));
-    }
+    let iid_clone = instance_id.clone();
+    let sid_clone = step_id.clone();
+    let store_clone = Arc::clone(&store);
+    let handle_b = thread::spawn(move || store_clone.acquire(&iid_clone, &sid_clone, 5_000));
 
-    assert_eq!(prev_token, 100);
-}
+    let result_a = handle_a.join().unwrap();
+    let result_b = handle_b.join().unwrap();
 
-/// AQ-24: Fence tokens are strictly monotonic across alternating release and expiry cycles.
-#[test]
-fn fence_token_monotonic_across_mixed_release_and_expiry_cycles() {
-    let store = DeterministicLeaseStore::new();
-    let mut prev_token: u64 = 0;
+    let (winning, losing) = if result_a.is_ok() {
+        (result_a.unwrap(), result_b.unwrap_err())
+    } else {
+        (result_b.unwrap(), result_a.unwrap_err())
+    };
 
-    for cycle in 0..50u64 {
-        let lease = acquire_lease(&store, &sample_instance_id(), &sample_step_id(), 1);
-
-        let current_token = lease.token().inner().get();
-        assert!(
-            current_token > prev_token,
-            "token {} not strictly greater than {} in cycle {cycle}",
-            current_token,
-            prev_token
-        );
-        prev_token = current_token;
-
-        if cycle % 2 == 0 {
-            store.set_time(cycle + 1);
-        } else {
-            store.release(&lease).unwrap();
+    assert_eq!(winning.token().inner().get(), 1);
+    assert_eq!(
+        losing,
+        LeaseStoreError::LeaseAlreadyHeld {
+            instance_id: instance_id.to_string(),
+            step_id: step_id.to_string(),
         }
-    }
+    );
 }

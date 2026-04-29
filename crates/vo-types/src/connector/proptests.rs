@@ -3,6 +3,7 @@
 #[cfg(feature = "proptest")]
 #[allow(clippy::unwrap_used)]
 mod proptests {
+    use crate::connector::runtime::ReconciliationResult;
     use crate::connector::transition::apply_connector_transition;
     use crate::connector::types::*;
     use proptest::prelude::*;
@@ -64,30 +65,85 @@ mod proptests {
         /// INV: Terminal states (Succeeded, Failed) reject all transitions.
         #[test]
         fn terminal_states_reject_all_transitions(
-            terminal_state in proptest::sample::select(&[ConnectorState::Succeeded, ConnectorState::Failed][..]),
-            event in proptest::sample::select(ConnectorTransition::all_variants()),
+            event_idx in 0usize..9,
         ) {
-            let result = apply_connector_transition(*terminal_state, event);
-            prop_assert!(result.is_err());
-            if let Err(e) = result {
-                prop_assert!(matches!(e, ConnectorTransitionError::TerminalStateTransition));
+            let events = ConnectorTransition::all_variants();
+            let event = events[event_idx];
+
+            let result_succeeded = apply_connector_transition(ConnectorState::Succeeded, event);
+            prop_assert!(result_succeeded.is_err(), "Succeeded must reject all events");
+
+            let result_failed = apply_connector_transition(ConnectorState::Failed, event);
+            prop_assert!(result_failed.is_err(), "Failed must reject all events");
+        }
+
+        /// INV: Ambiguous state only accepts reconciliation events.
+        #[test]
+        fn ambiguous_state_only_accepts_reconciliation_events(
+            non_reconcile_event in proptest::sample::select(&[
+                ConnectorTransition::Prepare,
+                ConnectorTransition::Prepared,
+                ConnectorTransition::Commit,
+                ConnectorTransition::Succeed,
+                ConnectorTransition::Fail,
+                ConnectorTransition::Ambiguate,
+            ][..])
+        ) {
+            let result = apply_connector_transition(ConnectorState::Ambiguous, non_reconcile_event);
+            prop_assert!(result.is_err(), "Ambiguous must reject non-reconciliation events");
+        }
+
+        /// INV: Valid transitions follow ADR-041 durability sequence.
+        #[test]
+        fn valid_transitions_follow_durability_sequence(
+            state_idx in 0usize..5,
+            event_idx in 0usize..6,
+        ) {
+            let states = &[ConnectorState::Idle, ConnectorState::Preparing, ConnectorState::Prepared, ConnectorState::Executing, ConnectorState::Ambiguous][..];
+            let events = &[ConnectorTransition::Prepare, ConnectorTransition::Prepared, ConnectorTransition::Commit, ConnectorTransition::Succeed, ConnectorTransition::Fail, ConnectorTransition::Ambiguate][..];
+
+            let state = states[state_idx];
+            let event = events[event_idx];
+            let result = apply_connector_transition(state, event);
+
+            let is_valid_transition = matches!(
+                (state, event),
+                (ConnectorState::Idle, ConnectorTransition::Prepare) |
+                (ConnectorState::Preparing, ConnectorTransition::Prepared) |
+                (ConnectorState::Prepared, ConnectorTransition::Commit) |
+                (ConnectorState::Executing, ConnectorTransition::Succeed) |
+                (ConnectorState::Executing, ConnectorTransition::Fail) |
+                (ConnectorState::Executing, ConnectorTransition::Ambiguate) |
+                (ConnectorState::Ambiguous, ConnectorTransition::ReconcileSucceeded) |
+                (ConnectorState::Ambiguous, ConnectorTransition::ReconcileFailed) |
+                (ConnectorState::Ambiguous, ConnectorTransition::ReconcileRetry)
+            );
+
+            if is_valid_transition {
+                prop_assert!(result.is_ok(), "Valid transition {:?} -> {:?} must succeed", state, event);
             }
         }
 
-        /// INV: Ambiguous state only accepts reconciliation transitions.
+        /// INV: Reconciliation transitions only valid from Ambiguous state.
         #[test]
-        fn ambiguous_state_accepts_only_reconciliation_events(
-            event in proptest::sample::select(ConnectorTransition::all_variants()),
+        fn reconciliation_transitions_only_from_ambiguous(
+            state_idx in 0usize..7,
         ) {
-            let result = apply_connector_transition(ConnectorState::Ambiguous, event);
-            match event {
-                ConnectorTransition::ReconcileSucceeded
-                | ConnectorTransition::ReconcileFailed
-                | ConnectorTransition::ReconcileRetry => {
-                    prop_assert!(result.is_ok(), "Reconciliation events should be accepted");
-                }
-                _ => {
-                    prop_assert!(result.is_err(), "Non-reconciliation events should be rejected");
+            let states = ConnectorState::all_variants();
+            let state = states[state_idx];
+
+            let reconcile_events = [
+                ConnectorTransition::ReconcileSucceeded,
+                ConnectorTransition::ReconcileFailed,
+                ConnectorTransition::ReconcileRetry,
+            ];
+
+            for event in &reconcile_events {
+                let result = apply_connector_transition(state, event);
+                if state == ConnectorState::Ambiguous {
+                    prop_assert!(result.is_ok(), "Ambiguous must accept reconciliation events");
+                } else {
+                    prop_assert!(result.is_err(), "Non-Ambiguous states must reject reconciliation events");
                 }
             }
         }

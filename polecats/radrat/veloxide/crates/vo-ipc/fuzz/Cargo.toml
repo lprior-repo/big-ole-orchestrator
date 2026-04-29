@@ -1,0 +1,10 @@
+[package]
+name = "vo-ipc-fuzz"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+libfuzzer-sys = "0.4"
+vo-ipc = { path = ".." }
+serde_json = { workspace = true }

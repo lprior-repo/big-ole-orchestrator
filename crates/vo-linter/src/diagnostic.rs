@@ -1,26 +1,22 @@
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LintCode {
-    L002,
-    L003,
-    L004,
-    L005,
-    L006,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Severity {
+pub enum LintSeverity {
     Warning,
     Error,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LintCode {
+    L002,
+    L003,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
-    code: LintCode,
-    message: String,
-    suggestion: Option<String>,
-    severity: Severity,
-    field: Option<String>,
-    suggested_bound: Option<String>,
+    pub code: LintCode,
+    pub message: String,
+    pub suggestion: Option<String>,
+    pub severity: LintSeverity,
+    pub span: Option<(usize, usize)>,
 }
 
 impl Diagnostic {
@@ -30,9 +26,8 @@ impl Diagnostic {
             code,
             message: message.into(),
             suggestion: None,
-            severity: Severity::Warning,
-            field: None,
-            suggested_bound: None,
+            severity: LintSeverity::Warning,
+            span: None,
         }
     }
 
@@ -43,20 +38,14 @@ impl Diagnostic {
     }
 
     #[must_use]
-    pub fn with_severity(mut self, severity: Severity) -> Self {
+    pub fn with_severity(mut self, severity: LintSeverity) -> Self {
         self.severity = severity;
         self
     }
 
     #[must_use]
-    pub fn with_field(mut self, field: impl Into<String>) -> Self {
-        self.field = Some(field.into());
-        self
-    }
-
-    #[must_use]
-    pub fn with_suggested_bound(mut self, bound: impl Into<String>) -> Self {
-        self.suggested_bound = Some(bound.into());
+    pub fn with_span(mut self, start: usize, end: usize) -> Self {
+        self.span = Some((start, end));
         self
     }
 
@@ -73,21 +62,6 @@ impl Diagnostic {
     #[must_use]
     pub const fn code(&self) -> &LintCode {
         &self.code
-    }
-
-    #[must_use]
-    pub const fn severity(&self) -> Severity {
-        self.severity
-    }
-
-    #[must_use]
-    pub fn field(&self) -> Option<&str> {
-        self.field.as_deref()
-    }
-
-    #[must_use]
-    pub fn suggested_bound(&self) -> Option<&str> {
-        self.suggested_bound.as_deref()
     }
 }
 

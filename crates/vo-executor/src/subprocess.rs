@@ -118,29 +118,40 @@ pub fn pin_binary(original_path: &str) -> Result<PinnedBinary, SubprocessError> 
     })
 }
 
-/// Resolve a binary path: if already pinned, return as-is; otherwise pin it.
+/// Validates that an executable path is safe to execute.
 ///
-/// This allows callers to pass either an original path or an already-pinned
-/// versioned path transparently.
-pub fn resolve_binary_path(path: &str) -> Result<PinnedBinary, SubprocessError> {
-    if path.starts_with(VERSION_BASE_PATH) && std::path::Path::new(path).exists() {
-        // Already pinned - reconstruct pin info from path
-        // Extract hash from path: VERSION_BASE_PATH/<hash>/<binary_name>
-        let hash = path
-            .strip_prefix(VERSION_BASE_PATH)
-            .unwrap_or("")
-            .split('/')
-            .next()
-            .unwrap_or("")
-            .to_string();
-        Ok(PinnedBinary {
-            original_path: path.to_string(),
-            sha256_hex: hash,
-            versioned_path: path.to_string(),
-        })
-    } else {
-        pin_binary(path)
+/// # Errors
+///
+/// Returns `SubprocessError` if:
+/// - Path is not absolute
+/// - File does not exist
+/// - File is world-writable (security risk)
+fn validate_executable(path: &str) -> Result<(), SubprocessError> {
+    // Check if path is absolute
+    if !std::path::Path::new(path).is_absolute() {
+        return Err(SubprocessError::ExecutableNotAbsolute(path.to_string()));
     }
+
+    // Check if file exists
+    let metadata = std::fs::metadata(path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            SubprocessError::ExecutableNotFound(path.to_string())
+        } else {
+            SubprocessError::ExecutableValidationFailed(format!("failed to stat {}: {e}", path))
+        }
+    })?;
+
+    // Check if world-writable (security risk)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = metadata.permissions().mode();
+        if mode & 0o002 != 0 {
+            return Err(SubprocessError::ExecutableWorldWritable(path.to_string()));
+        }
+    }
+
+    Ok(())
 }
 
 /// Validates that a binary path exists, is a file (not a directory),
@@ -197,10 +208,12 @@ impl SubprocessConfig {
         argv: Vec<String>,
         timeout_ms: u64,
         fd3_payload: Vec<u8>,
-    ) -> Result<Self, SubprocessError> {
-        let canonical = validate_binary_path(&executable_path)?;
-        Ok(Self {
-            executable_path: canonical,
+    ) -> Self {
+        if let Err(e) = validate_executable(&executable_path) {
+            panic!("Executable validation failed: {}", e);
+        }
+        Self {
+            executable_path,
             argv,
             timeout_ms,
             fd3_payload,
@@ -231,6 +244,8 @@ impl SubprocessConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessOutput {
     pub fd4_bytes: Vec<u8>,
+    pub stderr_bytes: Vec<u8>,
+    pub stderr_truncated: bool,
     pub exit_code: Option<i32>,
 }
 
@@ -250,37 +265,32 @@ pub enum SubprocessError {
     ProcessFailed { exit_code: i32 },
     #[error("bounded buffer exceeded: max={max}, tried to read={tried}")]
     BoundedBufferExceeded { max: usize, tried: usize },
-    #[error("input payload exceeds limit: {actual} bytes > {max} bytes (MAX_STEP_INPUT_BYTES)")]
-    InputPayloadTooLarge { actual: usize, max: usize },
-    #[error("binary hash mismatch: expected={expected}, actual={actual}")]
-    BinaryHashMismatch { expected: String, actual: String },
+    #[error("executable path is not absolute: {0}")]
+    ExecutableNotAbsolute(String),
+    #[error("executable does not exist: {0}")]
+    ExecutableNotFound(String),
+    #[error("executable is world-writable: {0}")]
+    ExecutableWorldWritable(String),
+    #[error("executable validation failed: {0}")]
+    ExecutableValidationFailed(String),
     #[error("binary versioning failed: {0}")]
     BinaryVersioningFailed(String),
-    #[error("binary not found: {0}")]
-    BinaryNotFound(String),
-    #[error("binary is not executable: {0}")]
-    BinaryNotExecutable(String),
-    #[error("binary is a directory, not a file: {0}")]
-    BinaryIsDirectory(String),
+    #[error("input payload too large: {actual} bytes (max {max})")]
+    InputPayloadTooLarge { actual: usize, max: usize },
 }
 
-struct PipePair {
-    read_fd: RawFd,
-    write_fd: RawFd,
-}
+const MAX_STDERR_BYTES: usize = 1_048_576;
+const STDERR_TRUNCATION_MARKER: &[u8] = b"\n[... TRUNCATED AT 1MB ...]";
 
-fn create_pipe() -> Result<PipePair, SubprocessError> {
+fn create_pipe() -> Result<(RawFd, RawFd), SubprocessError> {
     let mut fds = [0; 2];
-    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC) };
+    let res = unsafe { libc::pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC | libc::O_NONBLOCK) };
     if res != 0 {
         return Err(SubprocessError::PipeSetupFailed(
             std::io::Error::last_os_error().to_string(),
         ));
     }
-    Ok(PipePair {
-        read_fd: fds[0],
-        write_fd: fds[1],
-    })
+    Ok((fds[0], fds[1]))
 }
 
 /// Runs a subprocess with ADR-018 compliant async pipe handling.
@@ -294,20 +304,28 @@ fn create_pipe() -> Result<PipePair, SubprocessError> {
 /// - Subprocess times out
 #[tracing::instrument(skip(config))]
 pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput, SubprocessError> {
-    let PipePair { read_fd: fd3_read, write_fd: fd3_write } = create_pipe()?;
-    let PipePair { read_fd: fd4_read, write_fd: fd4_write } = create_pipe()?;
+    let fd3_pipe = create_pipe()?;
+    let fd4_pipe = create_pipe()?;
+
+    if config.fd3_payload.len() > MAX_STEP_INPUT_BYTES {
+        return Err(SubprocessError::InputPayloadTooLarge {
+            actual: config.fd3_payload.len(),
+            max: MAX_STEP_INPUT_BYTES,
+        });
+    }
+
+    let (fd3_read, fd3_write) = fd3_pipe;
+    let (fd4_read, fd4_write) = fd4_pipe;
+
+    let fd3_read_raw = fd3_read;
+    let fd4_write_raw = fd4_write;
 
     let mut command = Command::new(&config.executable_path);
     command.args(&config.argv);
     command.env_clear();
     command.stdin(std::process::Stdio::null());
     command.stdout(std::process::Stdio::null());
-    command.stderr(std::process::Stdio::null());
-
-    let fd3_read = fd3_pipe.read_fd;
-    let fd3_write = fd3_pipe.write_fd;
-    let fd4_read = fd4_pipe.read_fd;
-    let fd4_write = fd4_pipe.write_fd;
+    command.stderr(std::process::Stdio::piped());
 
     unsafe {
         command.pre_exec(move || {
@@ -317,10 +335,10 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
             if libc::setpgid(0, 0) != 0 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd3_read, 3) == -1 {
+            if libc::dup2(fd3_read_raw, 3) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::dup2(fd4_write, 4) == -1 {
+            if libc::dup2(fd4_write_raw, 4) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
@@ -337,16 +355,17 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         .spawn()
         .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
 
-    unsafe {
-        libc::close(fd3_read);
-        libc::close(fd4_write);
-    }
-
     let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
     let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
 
+    let stderr_reader = child.stderr.take().ok_or_else(|| {
+        SubprocessError::PipeSetupFailed("Failed to take stderr pipe".to_string())
+    })?;
+
     let timeout_ms = config.timeout_ms();
     let fd3_payload = config.fd3_payload;
+
+    let stderr_handle = tokio::spawn(read_bounded_stderr(stderr_reader));
 
     let res = timeout(Duration::from_millis(timeout_ms), async {
         let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
@@ -355,12 +374,16 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     })
     .await;
 
+    let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+
     match res {
         Ok((Ok(output), exit_status)) => match exit_status {
             Ok(status) => {
                 if let Some(exit_code) = status.code() {
                     Ok(SubprocessOutput {
                         fd4_bytes: output,
+                        stderr_bytes: stderr_capture.0,
+                        stderr_truncated: stderr_capture.1,
                         exit_code: Some(exit_code),
                     })
                 } else {
@@ -486,32 +509,62 @@ async fn read_bounded_fd4(reader: &mut tokio::fs::File) -> Result<Vec<u8>, Subpr
     Ok(bytes)
 }
 
+async fn read_bounded_stderr<R>(mut reader: R) -> (Vec<u8>, bool)
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut bytes = Vec::with_capacity(4096);
+    let mut buf = [0u8; 4096];
+    let mut truncated = false;
+
+    loop {
+        match reader.read(&mut buf).await {
+            Ok(0) => break,
+            Ok(n) => {
+                let available = MAX_STDERR_BYTES.saturating_sub(bytes.len());
+                let to_copy = n.min(available);
+                bytes.extend_from_slice(&buf[..to_copy]);
+                if to_copy < n {
+                    truncated = true;
+                }
+            }
+            Err(_) => break,
+        }
+    }
+
+    if truncated && !bytes.ends_with(STDERR_TRUNCATION_MARKER) {
+        bytes.extend_from_slice(STDERR_TRUNCATION_MARKER);
+    }
+
+    (bytes, truncated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_bounded_buffer_constant() {
-        assert_eq!(BOUNDED_BUFFER_SIZE, 65536);
+        assert_eq!(BOUNDED_READ_BUFFER_SIZE, 65536);
     }
 
     #[tokio::test]
     async fn test_create_pipe_sets_cloexec() {
-        let PipePair { read_fd: r, write_fd: w } = create_pipe().unwrap();
+        let pipe = create_pipe().unwrap();
         unsafe {
-            let flags = libc::fcntl(r, libc::F_GETFD);
+            let flags = libc::fcntl(pipe.read_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "read end should have FD_CLOEXEC"
             );
-            let flags = libc::fcntl(w, libc::F_GETFD);
+            let flags = libc::fcntl(pipe.write_fd, libc::F_GETFD);
             assert!(
                 flags & libc::FD_CLOEXEC != 0,
                 "write end should have FD_CLOEXEC"
             );
-            libc::close(r);
-            libc::close(w);
+            libc::close(pipe.read_fd);
+            libc::close(pipe.write_fd);
         }
     }
 
@@ -545,7 +598,7 @@ mod tests {
     #[test]
     fn test_adr_018_kernel_buffer_size() {
         assert_eq!(
-            BOUNDED_BUFFER_SIZE, 65536,
+            BOUNDED_READ_BUFFER_SIZE, 65536,
             "Bounded buffer must match kernel pipe buffer size (64KB) to prevent deadlocks"
         );
     }
@@ -561,7 +614,7 @@ mod tests {
         );
 
         assert!(
-            BOUNDED_BUFFER_SIZE <= KERNEL_PIPE_BUFFER,
+            BOUNDED_READ_BUFFER_SIZE <= KERNEL_PIPE_BUFFER,
             "Bounded read size must not exceed kernel buffer to prevent blocking"
         );
     }
@@ -599,159 +652,42 @@ mod tests {
         assert_eq!(total_read, large_payload_size);
     }
 
-    #[test]
-    fn test_validate_binary_path_nonexistent() {
-        let result = validate_binary_path("/nonexistent/binary/path");
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryNotFound(path) => {
-                assert_eq!(path, "/nonexistent/binary/path");
-            }
-            other => panic!("expected BinaryNotFound, got {:?}", other),
-        }
+    #[tokio::test]
+    async fn test_read_bounded_stderr_small_input() {
+        let data = b"hello stderr\n";
+        let cursor = std::io::Cursor::new(data);
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert_eq!(bytes, b"hello stderr\n");
+        assert!(!truncated);
+    }
+
+    #[tokio::test]
+    async fn test_read_bounded_stderr_empty() {
+        let cursor = std::io::Cursor::new(b"");
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert!(bytes.is_empty());
+        assert!(!truncated);
+    }
+
+    #[tokio::test]
+    async fn test_read_bounded_stderr_truncation() {
+        let large: Vec<u8> = vec![b'x'; MAX_STDERR_BYTES + 100];
+        let cursor = std::io::Cursor::new(large);
+        let (bytes, truncated) = read_bounded_stderr(cursor).await;
+        assert!(truncated);
+        assert!(bytes.len() <= MAX_STDERR_BYTES + STDERR_TRUNCATION_MARKER.len());
+        assert!(bytes.ends_with(STDERR_TRUNCATION_MARKER));
     }
 
     #[test]
-    fn test_validate_binary_path_non_executable() {
-        let dir = tempfile::tempdir().unwrap();
-        let file_path = dir.path().join("not_exec.txt");
-        std::fs::write(&file_path, "not executable").unwrap();
-        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
-        perms.set_mode(0o644);
-        std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = validate_binary_path(file_path.to_str().unwrap());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryNotExecutable(path) => {
-                assert_eq!(path, file_path.to_str().unwrap());
-            }
-            other => panic!("expected BinaryNotExecutable, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_validate_binary_path_directory() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = validate_binary_path(dir.path().to_str().unwrap());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryIsDirectory(path) => {
-                assert_eq!(path, dir.path().to_str().unwrap());
-            }
-            other => panic!("expected BinaryIsDirectory, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_validate_binary_path_executable_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let file_path = dir.path().join("executable");
-        std::fs::write(&file_path, "#!/bin/sh\necho hello\n").unwrap();
-        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = validate_binary_path(file_path.to_str().unwrap());
-        assert!(result.is_ok());
-        let canonical = result.unwrap();
-        assert_eq!(canonical, file_path.canonicalize().unwrap().to_string_lossy().to_string());
-    }
-
-    #[test]
-    fn test_validate_binary_path_valid_bin_true() {
-        let result = validate_binary_path("/bin/true");
-        assert!(result.is_ok());
-        let canonical = result.unwrap();
-        assert!(canonical.ends_with("true"));
-        assert!(std::path::Path::new(&canonical).exists());
-    }
-
-    #[test]
-    fn test_subprocess_config_rejects_nonexistent_binary() {
-        let result = SubprocessConfig::new(
-            "/nonexistent/binary".to_string(),
-            vec!["nonexistent".to_string()],
-            5000,
-            vec![],
-        );
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryNotFound(_) => {}
-            other => panic!("expected BinaryNotFound, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_subprocess_config_rejects_non_executable() {
-        let dir = tempfile::tempdir().unwrap();
-        let file_path = dir.path().join("not_exec.txt");
-        std::fs::write(&file_path, "not executable").unwrap();
-        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
-        perms.set_mode(0o644);
-        std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = SubprocessConfig::new(
-            file_path.to_str().unwrap().to_string(),
-            vec!["not_exec".to_string()],
-            5000,
-            vec![],
-        );
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryNotExecutable(_) => {}
-            other => panic!("expected BinaryNotExecutable, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_subprocess_config_rejects_directory() {
-        let dir = tempfile::tempdir().unwrap();
-        let result = SubprocessConfig::new(
-            dir.path().to_str().unwrap().to_string(),
-            vec![],
-            5000,
-            vec![],
-        );
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            SubprocessError::BinaryIsDirectory(_) => {}
-            other => panic!("expected BinaryIsDirectory, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn test_subprocess_config_accepts_valid_binary() {
-        let result = SubprocessConfig::new(
-            "/bin/true".to_string(),
-            vec!["true".to_string()],
-            5000,
-            vec![1, 2, 3],
-        );
-        assert!(result.is_ok());
-        let config = result.unwrap();
-        assert!(config.executable_path().ends_with("true"));
-        assert_eq!(config.timeout_ms(), 5000);
-        assert_eq!(config.fd3_payload(), &[1, 2, 3]);
-    }
-
-    #[test]
-    fn test_subprocess_config_canonicalizes_path() {
-        let dir = tempfile::tempdir().unwrap();
-        let file_path = dir.path().join("canonicalize_test");
-        std::fs::write(&file_path, "#!/bin/sh\necho ok\n").unwrap();
-        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = SubprocessConfig::new(
-            file_path.to_str().unwrap().to_string(),
-            vec!["canonicalize_test".to_string()],
-            5000,
-            vec![],
-        );
-        assert!(result.is_ok());
-        let config = result.unwrap();
-        assert!(config.executable_path().starts_with('/'));
-        assert_eq!(
-            config.executable_path(),
-            file_path.canonicalize().unwrap().to_string_lossy().to_string()
-        );
+    fn test_subprocess_output_has_stderr_fields() {
+        let output = SubprocessOutput {
+            fd4_bytes: vec![1, 2, 3],
+            stderr_bytes: b"error msg".to_vec(),
+            stderr_truncated: false,
+            exit_code: Some(0),
+        };
+        assert_eq!(output.stderr_bytes, b"error msg");
+        assert!(!output.stderr_truncated);
     }
 }

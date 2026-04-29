@@ -6,8 +6,7 @@
 
 use axum::{
     extract::Extension,
-    middleware,
-    response::Html,
+    http::StatusCode,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -18,8 +17,7 @@ use tower_http::{cors::CorsLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
-use crate::middleware::{ApiKeyState, api_key_auth, request_logging};
-use crate::handlers::webhook::WebhookState;
+use crate::handlers::{wtf_ui, wtf_ui_asset};
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -123,8 +121,7 @@ pub fn create_router(state: AppState) -> Router {
         )
         .layer(Extension(state.master.as_ref().clone()))
         .layer(Extension(state.dedupe_store.clone()))
-        .layer(Extension(state.query.db.clone()))
-        .layer(auth_layer.clone());
+        .layer(Extension(state.query.db.clone()));
 
     // Events endpoint -- uses Extension<ActorRef<OrchestratorMsg>>
     let event_routes = Router::new()
@@ -140,7 +137,9 @@ pub fn create_router(state: AppState) -> Router {
         .layer(Extension(state.query.db.clone()))
         .layer(auth_layer.clone());
 
-    let ui_routes = Router::new().route("/wtf/ui", get(wtf_ui));
+    let ui_routes = Router::new()
+        .route("/wtf/ui", get(wtf_ui))
+        .route("/wtf/ui/{*path}", get(wtf_ui_asset));
 
     // Health check endpoint -- public, no auth required
     let health_routes = Router::new().route("/health", get(health));
@@ -173,30 +172,12 @@ pub fn create_router(state: AppState) -> Router {
         .merge(ws_routes)
         .merge(webhook_routes)
         .merge(ui_routes)
-        .layer(middleware::from_fn(request_logging))
-        .layer(TimeoutLayer::new(Duration::from_secs(30)))
+        .layer(TimeoutLayer::with_status_code(
+            StatusCode::REQUEST_TIMEOUT,
+            Duration::from_secs(30),
+        ))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
-}
-
-async fn wtf_ui() -> Html<&'static str> {
-    Html(
-        r#"<!doctype html>
-<html>
-<head><title>Veloxide WTF UI</title></head>
-<body>
-<h1>Veloxide WTF UI</h1>
-<p>Dioxus app shell route is ready.</p>
-</body>
-</html>"#,
-    )
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "service": "veloxide"
-    }))
 }
 
 #[cfg(test)]
@@ -252,10 +233,9 @@ mod tests {
         let workspace_index = Arc::new(std::sync::RwLock::new(
             vo_types::workspace::WorkspaceIndex::new(),
         ));
-        let query_state = QueryState {
-            db: db_handle.clone(),
-            workspace_index,
-        };
+        let search_engine = Arc::new(std::sync::RwLock::new(vo_types::search::SearchEngine::new()));
+
+        let query_state = QueryState::new(db_handle.clone(), workspace_index, search_engine);
 
         let (master_ref, _handle) =
             ractor::Actor::spawn(Some("test-orchestrator".to_string()), DummyOrchestrator, ())

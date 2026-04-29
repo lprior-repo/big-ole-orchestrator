@@ -91,9 +91,9 @@ impl Arbitrary for ArbitrarySpawnSupervisorError {
             any::<String>().prop_map(|s| ArbitrarySpawnSupervisorError(
                 SpawnSupervisorError::DispatchError(s)
             )),
-            (any::<String>(), any::<String>()).prop_map(|(command, error)| {
+            (any::<String>(), any::<String>()).prop_map(|(executable, error)| {
                 ArbitrarySpawnSupervisorError(SpawnSupervisorError::SpawnFailed {
-                    executable: command.into(),
+                    executable: PathBuf::from(executable),
                     error,
                 })
             }),

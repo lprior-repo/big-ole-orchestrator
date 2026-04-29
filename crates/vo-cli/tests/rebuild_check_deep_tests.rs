@@ -455,11 +455,11 @@ fn check_constants_correct() {
 fn check_error_partial_eq_io_never_equal() {
     let e1 = CheckError::Io {
         path: PathBuf::from("/a"),
-        source: std::io::Error::new(std::io::ErrorKind::Other, "x"),
+        source: std::io::Error::other("x"),
     };
     let e2 = CheckError::Io {
         path: PathBuf::from("/a"),
-        source: std::io::Error::new(std::io::ErrorKind::Other, "x"),
+        source: std::io::Error::other("x"),
     };
     assert_ne!(e1, e2);
 }

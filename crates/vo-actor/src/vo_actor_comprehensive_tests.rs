@@ -14,7 +14,7 @@ use crate::probe::{
     ProbeResult, ProbeStatus,
 };
 use crate::reanimator::mock::{MockTimerStorage, MockWorkQueue};
-use crate::reanimator::traits::TimerStorage;
+use crate::reanimator::traits::{TimerStorage, WorkQueue as ReanimatorWorkQueue};
 use crate::reanimator::types::{FairnessBudget, TimerRecord};
 use crate::spawn_supervisor::{
     calculate_backoff_delay, is_zombie_state, should_respawn, CycleResult, ProcessHandle,

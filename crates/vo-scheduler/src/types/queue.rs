@@ -3,6 +3,7 @@ use std::collections::{BinaryHeap, HashMap};
 use chrono::{DateTime, Utc};
 
 use crate::error::SchedulerError;
+use crate::metrics;
 use crate::types::job::ScheduledJob;
 use crate::types::{JobId, JobPriority, JobState, SchedulePolicy};
 
@@ -15,9 +16,8 @@ struct QueueEntry {
 
 impl Ord for QueueEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other
-            .priority
-            .cmp(&self.priority)
+        self.priority
+            .cmp(&other.priority)
             .then_with(|| other.due_at.cmp(&self.due_at))
     }
 }
@@ -56,6 +56,8 @@ impl SchedulerQueue {
         };
         self.heap.push(entry);
         self.jobs.insert(job_id, job);
+        metrics::jobs_scheduled_total();
+        metrics::set_queue_depth(self.jobs.len());
         Ok(job_id)
     }
 
@@ -65,7 +67,8 @@ impl SchedulerQueue {
             .remove(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() });
         self.heap.retain(|entry| &entry.job_id != job_id);
-        Ok(job?)
+        metrics::set_queue_depth(self.jobs.len());
+        Ok(job)
     }
 
     pub fn lookup(&self, job_id: &JobId) -> Result<&ScheduledJob, SchedulerError> {
@@ -74,10 +77,6 @@ impl SchedulerQueue {
 
     pub fn lookup_mut(&mut self, job_id: &JobId) -> Result<&mut ScheduledJob, SchedulerError> {
         self.jobs.get_mut(job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })
-    }
-
-    pub fn get_state(&self, job_id: &JobId) -> Option<JobState> {
-        self.jobs.get(job_id).map(|j| j.state)
     }
 
     pub fn update_state(
@@ -90,6 +89,13 @@ impl SchedulerQueue {
             .get_mut(job_id)
             .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         job.transition(new_state)?;
+        match new_state {
+            JobState::Completed => metrics::jobs_completed_total(),
+            JobState::Failed => metrics::jobs_failed_total(),
+            JobState::Cancelled => metrics::jobs_cancelled_total(),
+            JobState::Retrying => metrics::jobs_retried_total(),
+            _ => {}
+        }
         Ok(())
     }
 
@@ -112,7 +118,7 @@ impl SchedulerQueue {
                 job.due_at = Utc::now() + chrono::Duration::from_std(d).unwrap_or_default()
             }
             SchedulePolicy::Immediate => job.due_at = Utc::now(),
-            SchedulePolicy::Cron(_) => job.due_at = Utc::now(),
+            SchedulePolicy::Cron { expression: _ } => job.due_at = Utc::now(),
         }
         self.rebuild_heap_entry(job_id);
         Ok(())
@@ -126,71 +132,21 @@ impl SchedulerQueue {
         self.jobs.is_empty()
     }
 
-    pub fn list_by_state(&self, state: JobState) -> Vec<&ScheduledJob> {
-        self.jobs
-            .values()
-            .filter(|job| job.state == state)
-            .collect()
-    }
-
-    pub fn list_by_states(&self, states: &[JobState]) -> Vec<&ScheduledJob> {
-        self.jobs
-            .values()
-            .filter(|job| states.contains(&job.state))
-            .collect()
-    }
-
     pub fn pop_due(&mut self, now: DateTime<Utc>) -> Option<ScheduledJob> {
-        while let Some(entry) = self.heap.pop() {
-            let job_id = entry.job_id;
-            if let Some(job) = self.jobs.get(&job_id) {
-                if job.state == JobState::Cancelled {
-                    continue;
-                }
+        loop {
+            let entry = self.heap.peek()?.clone();
+            if entry.due_at > now {
+                return None;
+            }
+            self.heap.pop();
+            if let Some(job) = self.jobs.get(&entry.job_id) {
                 if job.due_at <= now {
-                    let job = self.jobs.remove(&job_id)?;
-                    return Some(job);
+                    let job_clone = job.clone();
+                    self.jobs.remove(&entry.job_id);
+                    return Some(job_clone);
                 }
-                let entry = QueueEntry {
-                    priority: job.priority,
-                    due_at: job.due_at,
-                    job_id,
-                };
-                self.heap.push(entry);
-                break;
             }
         }
-        None
-    }
-
-    pub fn peek(&self, now: DateTime<Utc>) -> Option<&ScheduledJob> {
-        self.heap
-            .iter()
-            .filter_map(|entry| {
-                let job = self.jobs.get(&entry.job_id)?;
-                if job.state.is_terminal() || job.due_at > now {
-                    None
-                } else {
-                    Some((entry, job))
-                }
-            })
-            .max_by(|a, b| a.0.cmp(b.0))
-            .map(|(_, job)| job)
-    }
-
-    pub fn peek_next(&self) -> Option<&ScheduledJob> {
-        self.heap
-            .iter()
-            .filter_map(|entry| {
-                let job = self.jobs.get(&entry.job_id)?;
-                if job.state.is_terminal() {
-                    None
-                } else {
-                    Some((entry, job))
-                }
-            })
-            .max_by(|a, b| a.0.cmp(b.0))
-            .map(|(_, job)| job)
     }
 
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {
@@ -198,7 +154,41 @@ impl SchedulerQueue {
         if matches!(job.state, JobState::Completed | JobState::Failed) {
             return Err(SchedulerError::InvalidTransition { from_state: job.state.to_string(), action: "cancel".to_string() });
         }
-        self.update_state(job_id, JobState::Cancelled)
+        let job_mut = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        job_mut.transition(JobState::Cancelled)
+    }
+
+    pub fn retry_transition(
+        &mut self,
+        job_id: &JobId,
+        error: String,
+    ) -> Result<(), SchedulerError> {
+        let job = self
+            .jobs
+            .get_mut(job_id)
+            .ok_or(SchedulerError::JobNotFound)?;
+        job.apply_retryable_failure(error)?;
+        let updated_due_at = job.due_at;
+        let _ = job;
+        self.rebuild_heap_entry_with_due(job_id, updated_due_at);
+        Ok(())
+    }
+
+    fn rebuild_heap_entry_with_due(&mut self, job_id: &JobId, due_at: DateTime<Utc>) {
+        self.heap.retain(|entry| &entry.job_id != job_id);
+        let job = match self.jobs.get(job_id) {
+            Some(j) => j,
+            None => return,
+        };
+        let entry = QueueEntry {
+            priority: job.priority,
+            due_at,
+            job_id: *job_id,
+        };
+        self.heap.push(entry);
     }
 
     fn rebuild_heap_entry(&mut self, job_id: &JobId) {

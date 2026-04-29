@@ -1,0 +1,46 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+tasks:
+  check:
+    command: 'cargo check --workspace'
+    toolchains:
+      - rust
+
+  fmt:
+    command: 'cargo fmt --all --check'
+    toolchains:
+      - rust
+
+  lint-src:
+    command: 'cargo clippy --workspace --lib --bins --examples -- -D warnings -W clippy::all'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
+  test:
+    command: 'cargo test --workspace'
+    toolchains:
+      - rust
+
+  build:
+    command: 'cargo build --workspace'
+    toolchains:
+      - rust
+
+  key-encoding-gate:
+    command: 'cargo test -p vo-storage key_encoding -- --test-threads=1'
+    toolchains:
+      - rust
+    options:
+      runInCI: true
+
+  purge-gate:
+    command: 'cargo run --example seed_purge'
+    toolchains:
+      - rust
+
+  ci:
+    command: 'moon run :check :test :lint-src :key-encoding-gate :purge-gate'
+    options:
+      runInCI: true

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -37,14 +38,22 @@ impl std::str::FromStr for WriteClass {
     }
 }
 
+pub fn class_label(class: WriteClass) -> &'static str {
+    match class {
+        WriteClass::CriticalControlPlane => "critical_control_plane",
+        WriteClass::OperatorProjection => "operator_projection",
+        WriteClass::BulkBlob => "bulk_blob",
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct WriteBudget {
     critical_limit: u64,
     projection_limit: u64,
     blob_limit: u64,
-    critical_used: std::cell::RefCell<u64>,
-    projection_used: std::cell::RefCell<u64>,
-    blob_used: std::cell::RefCell<u64>,
+    critical_used: RefCell<u64>,
+    projection_used: RefCell<u64>,
+    blob_used: RefCell<u64>,
 }
 
 impl WriteBudget {
@@ -54,21 +63,21 @@ impl WriteBudget {
             critical_limit,
             projection_limit,
             blob_limit,
-            critical_used: std::cell::RefCell::new(0),
-            projection_used: std::cell::RefCell::new(0),
-            blob_used: std::cell::RefCell::new(0),
+            critical_used: RefCell::new(0),
+            projection_used: RefCell::new(0),
+            blob_used: RefCell::new(0),
         }
     }
 
     #[must_use]
     pub fn remaining(&self, class: WriteClass) -> u64 {
         match class {
-            WriteClass::CriticalControlPlane => {
-                self.critical_limit.saturating_sub(*self.critical_used.borrow())
-            }
-            WriteClass::OperatorProjection => {
-                self.projection_limit.saturating_sub(*self.projection_used.borrow())
-            }
+            WriteClass::CriticalControlPlane => self
+                .critical_limit
+                .saturating_sub(*self.critical_used.borrow()),
+            WriteClass::OperatorProjection => self
+                .projection_limit
+                .saturating_sub(*self.projection_used.borrow()),
             WriteClass::BulkBlob => self.blob_limit.saturating_sub(*self.blob_used.borrow()),
         }
     }

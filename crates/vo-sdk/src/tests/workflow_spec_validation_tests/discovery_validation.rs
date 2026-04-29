@@ -1,9 +1,6 @@
-//! Test Coverage: Discovery validation — version compatibility, schema evolution, upgrade paths.
-//!
-//! bead_id: ve-jm7n
+//! Section 4: Discovery validation — version compatibility, upgrade paths
 
 use crate::WorkflowSpec;
-use vo_types::NodeName;
 
 #[test]
 fn schema_version_zero_is_accepted_for_backward_compat() {

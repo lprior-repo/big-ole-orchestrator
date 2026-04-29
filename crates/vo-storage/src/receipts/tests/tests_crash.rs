@@ -17,7 +17,7 @@ fn make_receipt(effect_id: &str) -> ExecutionReceipt {
         effect_id.to_string(),
         sample_instance_id().to_string(),
         EffectKind::HttpCall,
-        1713000000,
+        1_713_000_000,
         "Success".to_string(),
     )
     .unwrap()
@@ -44,7 +44,7 @@ fn fjall_receipt_survives_database_reopen() {
     let retrieved = store.get_receipt(&eid).expect("get after reopen").unwrap();
 
     assert_eq!(retrieved.effect_id(), eid);
-    assert_eq!(retrieved.committed_at_ms(), 1713000000);
+    assert_eq!(retrieved.committed_at_ms(), 1_713_000_000);
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn fjall_receipt_idempotency_survives_database_reopen() {
     let eid = make_effect_id("fx-crash-dup");
     let retrieved = store.get_receipt(&eid).expect("get after reopen").unwrap();
 
-    assert_eq!(retrieved.committed_at_ms(), 1713000000);
+    assert_eq!(retrieved.committed_at_ms(), 1_713_000_000);
     assert_eq!(retrieved.connector_result(), "Success");
 }
 
@@ -100,7 +100,7 @@ fn fjall_multiple_receipts_survive_database_reopen() {
                 make_effect_id(intent),
                 sample_instance_id().to_string(),
                 EffectKind::HttpCall,
-                1713000000 + i as u64,
+                1_713_000_000 + i as u64,
                 "Success".to_string(),
             )
             .unwrap();
@@ -118,7 +118,7 @@ fn fjall_multiple_receipts_survive_database_reopen() {
         let retrieved = store.get_receipt(&eid).expect("get after reopen").unwrap();
         assert_eq!(
             retrieved.committed_at_ms(),
-            1713000000 + i as u64,
+            1_713_000_000 + i as u64,
             "receipt for {intent} must survive crash"
         );
     }

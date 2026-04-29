@@ -33,6 +33,8 @@ pub struct SpawnRecord {
     pub spawn_attempts: u32,
     /// Last error encountered.
     pub last_error: Option<SpawnSupervisorError>,
+    /// PID of the most recently spawned process.
+    pub last_pid: Option<u32>,
 }
 
 impl SpawnRecord {
@@ -53,6 +55,7 @@ impl SpawnRecord {
             health_checks: 0,
             spawn_attempts: 1,
             last_error: None,
+            last_pid: None,
         }
     }
 
@@ -83,6 +86,15 @@ impl SpawnRecord {
         }
     }
 
+    /// Transition to failed phase.
+    #[must_use]
+    pub fn transition_to_failed(&self) -> Self {
+        Self {
+            spawn_phase: SpawnPhase::Failed,
+            ..self.clone()
+        }
+    }
+
     /// Create a new spawn record after respawn.
     #[must_use]
     pub fn respawn(&self, new_spawn_id: Option<vo_types::SpawnId>) -> Self {
@@ -95,6 +107,7 @@ impl SpawnRecord {
             health_checks: 0,
             spawn_attempts: self.spawn_attempts.saturating_add(1),
             last_error: None,
+            last_pid: None,
         }
     }
 }

@@ -112,17 +112,12 @@ impl TimerStorage for MockTimerStorage {
         }
 
         let timers = self.timers.lock().await;
-        let mut seen = HashSet::new();
-        let mut due: Vec<TimerRecord> = Vec::new();
-
-        for t in timers.iter() {
-            if t.fire_at_ms <= to_timestamp {
-                let key = (t.instance_id.clone(), t.fire_at_ms, t.timer_id.clone());
-                if seen.insert(key) && due.len() < max_results as usize {
-                    due.push(t.clone());
-                }
-            }
-        }
+        let due: Vec<TimerRecord> = timers
+            .iter()
+            .filter(|t| t.fire_at_ms <= to_timestamp)
+            .take(max_results as usize)
+            .cloned()
+            .collect();
 
         Ok(due)
     }
@@ -142,19 +137,7 @@ impl TimerStorage for MockTimerStorage {
             .push((instance_id.clone(), fire_at_ms));
 
         let mut timers = self.timers.lock().await;
-        if let Some(pos) = timers
-            .iter()
-            .position(|t| t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms)
-        {
-            if let Some(removed_timer) = timers.remove(pos) {
-                // Track the deleted timer with its timer_id for proper deduplication
-                self.deleted_timers.lock().await.insert((
-                    removed_timer.instance_id.clone(),
-                    removed_timer.fire_at_ms,
-                    removed_timer.timer_id.clone(),
-                ));
-            }
-        }
+        timers.retain(|t| !(t.instance_id == *instance_id && t.fire_at_ms == fire_at_ms));
 
         Ok(())
     }
@@ -254,7 +237,7 @@ impl TimerStorage for MockTimerStorage {
     async fn complete_timer_processing(
         &self,
         instance_id: &InstanceId,
-        _fire_at_ms: TimestampMs,
+        fire_at_ms: TimestampMs,
     ) -> Result<(), ReanimatorError> {
         if *self.should_fail.lock().await {
             return Err(ReanimatorError::StorageError("Mock failure".to_string()));

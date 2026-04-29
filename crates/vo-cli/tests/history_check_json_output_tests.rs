@@ -4,12 +4,10 @@ use std::path::Path;
 use tempfile::NamedTempFile;
 use vo_cli::cli::{interpret_cli_from, Command};
 use vo_cli::commands::check::{
-    detect_elf_architecture, validate_binary_header, validate_workflow_spec, BinaryFormat, ElfMachine,
-    CheckError,
+    detect_elf_architecture, validate_binary_header, validate_workflow_spec, BinaryFormat,
+    CheckError, ElfMachine,
 };
-use vo_cli::commands::history::{
-    undo_command, redo_command, UndoResult, RedoResult,
-};
+use vo_cli::commands::history::{redo_command, undo_command, RedoResult, UndoResult};
 use vo_cli::commands::workflow_history::WorkflowHistoryEntry;
 
 fn write_json(json: &[u8]) -> NamedTempFile {
@@ -238,8 +236,7 @@ fn validate_binary_header_invalid_magic() {
         .suffix(".bin")
         .tempfile()
         .expect("create temp file");
-    f.write_all(b"ABCD")
-        .expect("write invalid magic");
+    f.write_all(b"ABCD").expect("write invalid magic");
     f.flush().expect("flush");
 
     let result = validate_binary_header(f.path());
@@ -256,8 +253,7 @@ fn validate_binary_header_file_too_small() {
         .suffix(".bin")
         .tempfile()
         .expect("create temp file");
-    f.write_all(b"ABC")
-        .expect("write only 3 bytes");
+    f.write_all(b"ABC").expect("write only 3 bytes");
     f.flush().expect("flush");
 
     let result = validate_binary_header(f.path());
@@ -284,8 +280,10 @@ fn detect_elf_architecture_valid_elf_returns_some() {
         .suffix(".elf")
         .tempfile()
         .expect("create temp file");
-    f.write_all(b"\x7FELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x3E\x00")
-        .expect("write ELF header");
+    f.write_all(
+        b"\x7FELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x3E\x00",
+    )
+    .expect("write ELF header");
     f.flush().expect("flush");
 
     let result = detect_elf_architecture(f.path()).expect("detect architecture");
@@ -298,8 +296,7 @@ fn detect_elf_architecture_non_elf_returns_error() {
         .suffix(".bin")
         .tempfile()
         .expect("create temp file");
-    f.write_all(b"NOT_ELF")
-        .expect("write non-ELF");
+    f.write_all(b"NOT_ELF").expect("write non-ELF");
     f.flush().expect("flush");
 
     let result = detect_elf_architecture(f.path());
@@ -340,7 +337,11 @@ fn workflow_spec_dependency_chain() {
     }"#;
     let f = write_json(json.as_bytes());
     let result = validate_workflow_spec(f.path());
-    assert!(result.is_ok(), "Dependency chain should be valid: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Dependency chain should be valid: {:?}",
+        result
+    );
 }
 
 #[test]
@@ -436,7 +437,11 @@ fn workflow_spec_with_conditional_dependencies() {
     }"#;
     let f = write_json(json.as_bytes());
     let result = validate_workflow_spec(f.path());
-    assert!(result.is_ok(), "Conditional dependencies should be valid: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Conditional dependencies should be valid: {:?}",
+        result
+    );
 }
 
 #[test]
@@ -488,9 +493,18 @@ fn workflow_history_entry_skips_none_fields_in_output() {
     let json = serde_json::to_string(&entry).expect("serialize");
     let parsed: serde_json::Value = serde_json::from_str(&json).expect("parse JSON");
 
-    assert!(parsed.get("step_id").is_none(), "None fields should be skipped");
-    assert!(parsed.get("error").is_none(), "None fields should be skipped");
-    assert!(parsed.get("output").is_none(), "None fields should be skipped");
+    assert!(
+        parsed.get("step_id").is_none(),
+        "None fields should be skipped"
+    );
+    assert!(
+        parsed.get("error").is_none(),
+        "None fields should be skipped"
+    );
+    assert!(
+        parsed.get("output").is_none(),
+        "None fields should be skipped"
+    );
 }
 
 #[test]
@@ -526,10 +540,7 @@ fn elf_machine_display_name() {
 
 #[test]
 fn binary_format_display_name() {
-    assert_eq!(
-        BinaryFormat::Elf.display_name(),
-        "valid ELF binary"
-    );
+    assert_eq!(BinaryFormat::Elf.display_name(), "valid ELF binary");
     assert_eq!(
         BinaryFormat::MachO64LittleEndian.display_name(),
         "valid Mach-O 64-bit binary"

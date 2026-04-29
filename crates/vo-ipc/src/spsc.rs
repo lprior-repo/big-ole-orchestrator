@@ -4,6 +4,7 @@ use std::sync::atomic::{fence, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use thiserror::Error;
+const _CACHE_LINE: usize = 64;
 
 pub struct SpscQueue<T> {
     buffer: *mut MaybeUninit<T>,
@@ -12,6 +13,13 @@ pub struct SpscQueue<T> {
     tail: AtomicUsize,
 }
 
+// SAFETY: SpscQueue is accessed through &self by both Sender (producer) and
+// Receiver (consumer) on separate threads. The producer exclusively writes
+// `head` and the consumer exclusively writes `tail`; each reads the other's
+// counter with Acquire ordering to synchronize access to the shared buffer.
+// `T: Send` ensures values transferred via the buffer are safe to send
+// between threads. No interior mutability on T is exposed — values move
+// from producer to consumer via MaybeUninit slots.
 unsafe impl<T: Send> Send for SpscQueue<T> {}
 unsafe impl<T: Send> Sync for SpscQueue<T> {}
 
@@ -52,6 +60,9 @@ impl<T> SpscQueue<T> {
     }
 
     const fn mask(&self, idx: usize) -> usize {
+        // cap is always a power of two (guaranteed by `new`), so cap-1 is a
+        // bitmask that maps any idx into [0, cap). This ensures pointer
+        // arithmetic via buffer.add(mask(idx)) is always in-bounds.
         idx & (self.cap - 1)
     }
 
@@ -65,6 +76,12 @@ impl<T> SpscQueue<T> {
             return Err(SpscError::Full);
         }
 
+        // SAFETY: `mask(head)` returns a value in [0, cap) because cap is a
+        // power of two (see mask()). The caller verified head - tail < cap
+        // (queue not full), so this slot is not concurrently being read by the
+        // consumer. The write to the slot is followed by a Release fence
+        // before head is advanced, ensuring the consumer sees the written
+        // value when it loads head with Acquire.
         let slot = unsafe { &mut *self.buffer.add(self.mask(head)) };
         slot.write(msg);
         fence(Ordering::Release);
@@ -82,6 +99,11 @@ impl<T> SpscQueue<T> {
             return Err(SpscError::Empty);
         }
 
+        // SAFETY: `mask(tail)` returns a value in [0, cap). The caller
+        // verified head != tail (queue not empty), so this slot contains a
+        // value previously written by the producer. The producer's Release
+        // fence (before storing head) synchronizes with our Acquire load of
+        // head, so assume_init_read observes a fully initialized value.
         let slot = unsafe { &mut *self.buffer.add(self.mask(tail)) };
         let msg = unsafe { slot.assume_init_read() };
         fence(Ordering::Release);
@@ -108,11 +130,16 @@ impl<T> Sender<T> {
     /// # Errors
     /// Returns `SpscError::Full` if the queue is full.
     pub fn send(&self, msg: T) -> Result<(), SpscError> {
+        // SAFETY: self.queue points to an SpscQueue kept alive by the Arc
+        // from sender(). The Arc is never dropped while Sender/Receiver
+        // exist because they hold cloned Arcs (via Arc::as_ptr, the Arc's
+        // refcount is incremented before sender() returns the pair).
         unsafe { (*self.queue).send(msg) }
     }
 
     #[must_use]
     pub fn is_full(&self) -> bool {
+        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
         let q = unsafe { &*self.queue };
         let head = q.head.load(Ordering::Relaxed);
         let tail = q.tail.load(Ordering::Acquire);
@@ -124,11 +151,13 @@ impl<T> Receiver<T> {
     /// # Errors
     /// Returns `SpscError::Empty` if the queue is empty.
     pub fn recv(&self) -> Result<T, SpscError> {
+        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
         unsafe { (*self.queue).recv() }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
+        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
         let q = unsafe { &*self.queue };
         q.head.load(Ordering::Acquire) == q.tail.load(Ordering::Relaxed)
     }
@@ -140,10 +169,16 @@ impl<T> Drop for SpscQueue<T> {
         let head = self.head.load(Ordering::Relaxed);
         let mut idx = tail;
         while idx != head {
+            // SAFETY: mask(idx) is in [0, cap). Each iteration advances idx
+            // through the same indices that send() used to write values,
+            // so each slot was previously initialized by the producer.
             let slot = unsafe { &mut *self.buffer.add(self.mask(idx)) };
             unsafe { slot.assume_init_drop() };
             idx = idx.wrapping_add(1);
         }
+        // SAFETY: buffer was allocated via Box::into_raw with exactly cap
+        // elements. Reconstructing the slice from the same pointer and length
+        // and dropping it reclaims the original allocation.
         drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(self.buffer, self.cap)) });
     }
 }
@@ -198,7 +233,7 @@ mod tests {
     #[test]
     fn spsc_queue_full_error() {
         let queue = Arc::new(SpscQueue::<i32>::new(2));
-        let (tx, _rx) = queue.sender();
+        let (tx, rx) = queue.sender();
 
         tx.send(1).unwrap();
         tx.send(2).unwrap();

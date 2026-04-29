@@ -15,6 +15,7 @@ use std::os::unix::io::FromRawFd;
 
 use serde_json::Value;
 use vo_types::TaskInputEnvelope;
+use zeroize::Zeroizing;
 
 use crate::SdkError;
 use crate::TaskFailureKind;
@@ -92,10 +93,15 @@ pub(crate) fn write_success_inner<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
-    if bytes.len() > MAX_OUTPUT_SIZE {
+    let len = bytes.len();
+    if len > MAX_OUTPUT_SIZE {
         return Err(SdkError::WriteError);
     }
 
+    let len_u32 = len as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -117,27 +123,24 @@ pub fn write_success_inner_with_state<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
-    if bytes.len() > MAX_OUTPUT_SIZE {
+    let len = bytes.len();
+    if len > MAX_OUTPUT_SIZE {
         return Err(SdkError::WriteError);
     }
 
+    let len_u32 = len as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
 /// Write a failure result to FD4.
 ///
-/// This function may only be called once per process lifetime due to the
-/// single-write guard. Subsequent calls return [`SdkError::AlreadyWritten`].
-///
-/// # Example (in a task binary)
-///
-/// ```ignore
-/// use vo_sdk::{write_failure, TaskFailureKind};
-///
-/// // On error during node execution:
-/// write_failure(TaskFailureKind::User, "invalid input: missing field 'amount'")
-///     .expect("failed to write failure");
-/// ```
+/// # Message Size Limit
+/// The message is limited to 1024 **bytes**, not characters. A 4-byte UTF-8 character
+/// (e.g., a Chinese character) counts as 4 bytes toward this limit. An ASCII character
+/// counts as 1 byte. For example, `"中文中文中文"` is 10 characters but 20 bytes.
 ///
 /// # Errors
 ///
@@ -162,7 +165,6 @@ pub(crate) fn write_failure_inner<W: Write>(
     kind: TaskFailureKind,
     message: &str,
 ) -> Result<(), SdkError> {
-    // Message limit is enforced in bytes (see crate-level docs).
     if message.len() > MAX_MESSAGE_BYTES {
         return Err(SdkError::InvalidInput);
     }
@@ -174,6 +176,10 @@ pub(crate) fn write_failure_inner<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
+    let len_u32 = bytes.len() as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -190,7 +196,6 @@ pub fn write_failure_inner_with_state<W: Write>(
     }
     *is_written = true;
 
-    // Message limit is enforced in bytes (see crate-level docs).
     if message.len() > MAX_MESSAGE_BYTES {
         return Err(SdkError::InvalidInput);
     }
@@ -202,6 +207,10 @@ pub fn write_failure_inner_with_state<W: Write>(
     })
     .map_err(|_| SdkError::WriteError)?;
 
+    let len_u32 = bytes.len() as u32;
+    writer
+        .write_all(&len_u32.to_be_bytes())
+        .map_err(|_| SdkError::WriteError)?;
     writer.write_all(&bytes).map_err(|_| SdkError::WriteError)
 }
 
@@ -267,7 +276,7 @@ pub fn read_input() -> Result<TaskInput, SdkError> {
 }
 
 pub(crate) fn read_input_inner<R: Read>(reader: &mut R) -> Result<TaskInput, SdkError> {
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
@@ -297,7 +306,7 @@ pub fn read_input_inner_with_state<R: Read>(
     }
     *is_read = true;
 
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
@@ -334,7 +343,7 @@ pub fn read_input_inner_with_atomic_guard<R: Read>(
         return Err(SdkError::FdNotOpen);
     }
 
-    let mut buf = Vec::new();
+    let mut buf = Zeroizing::new(Vec::new());
     let len = reader
         .take((MAX_INPUT_SIZE + 1) as u64)
         .read_to_end(&mut buf)
@@ -351,33 +360,30 @@ pub fn read_input_inner_with_atomic_guard<R: Read>(
 }
 
 // ============================================================================
+// Secret Access (ADR-014: In-Memory Secret Vault)
+// ============================================================================
+
+/// Read a secret from the FD3 payload by key.
+///
+/// This is a convenience wrapper around `read_input()` that directly returns
+/// the secret value for the given key. Secrets are never passed as environment
+/// variables — they travel only through the in-memory FD3 pipe (ADR-014).
+///
+/// # Errors
+/// Returns `SdkError` if FD3 is not open, already read, input is invalid,
+/// or the key is not present in the secrets map.
+pub fn secret(key: &str) -> Result<String, SdkError> {
+    let input = read_input()?;
+    input.secret(key).cloned().ok_or(SdkError::InvalidInput)
+}
+
+// ============================================================================
 // Helper Functions
 // ============================================================================
 
 fn is_fd_valid(fd: std::os::unix::io::RawFd) -> bool {
     let borrowed = unsafe { std::os::unix::io::BorrowedFd::borrow_raw(fd) };
     borrowed.try_clone_to_owned().is_ok()
-}
-
-/// Retrieve a secret by key from a deserialized [`TaskInput`].
-///
-/// Per ADR-014, secrets are injected as part of the JSON payload over FD3,
-/// never as environment variables. This function provides O(1) lookup into
-/// the in-memory secret map.
-///
-/// # Example
-///
-/// ```ignore
-/// // When reading input that contains secrets:
-/// let input = vo_sdk::read_input()?;
-/// if let Some(stripe_key) = vo_sdk::secret(&input, "STRIPE_KEY") {
-///     // Use the secret
-/// }
-/// ```
-///
-/// Note: [`read_input`] must be called first to populate the task input.
-pub fn secret<'a>(input: &'a vo_types::TaskInput, _key: &str) -> Option<&'a str> {
-    input.secret(_key)
 }
 
 /// Parse and validate a JSON buffer into a `TaskInput`.
