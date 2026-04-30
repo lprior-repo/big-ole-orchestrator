@@ -1,7 +1,14 @@
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::time::Duration;
+
+use tokio::fs::File;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::time::timeout;
 
 use crate::IpcError;
+
+const READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) struct FdGuard(RawFd);
 
@@ -104,4 +111,81 @@ impl Default for PipeGuard {
 
 pub(crate) fn create_pipe() -> Result<PipeGuard, IpcError> {
     PipeGuard::new()
+}
+
+pub(crate) struct PipeRead {
+    file: File,
+}
+
+impl PipeRead {
+    pub fn from_fd_guard(fd_guard: FdGuard) -> Self {
+        let file = unsafe { File::from_raw_fd(fd_guard.into_raw_fd()) };
+        Self { file }
+    }
+
+    pub async fn read_frame(&mut self) -> Result<Vec<u8>, IpcError> {
+        let read_future = async {
+            let mut header = [0u8; 4];
+            self.file.read_exact(&mut header).await.map_err(|e| {
+                IpcError::Fd4ReadFailed {
+                    detail: e.to_string(),
+                }
+            })?;
+            let len = u32::from_be_bytes(header);
+            let mut payload = vec![0u8; len as usize];
+            self.file.read_exact(&mut payload).await.map_err(|e| {
+                IpcError::Fd4ReadFailed {
+                    detail: e.to_string(),
+                }
+            })?;
+            Ok(payload)
+        };
+
+        match timeout(READ_TIMEOUT, read_future).await {
+            Ok(Ok(payload)) => Ok(payload),
+            Ok(Err(e)) => Err(e),
+            Err(_) => Err(IpcError::Timeout {
+                elapsed_ms: READ_TIMEOUT.as_millis() as u64,
+                stdout_bytes: vec![],
+                stdout_truncated: false,
+                stderr_bytes: vec![],
+                stderr_truncated: false,
+            }),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn read_frame_times_out_when_writer_blocks() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        drop(write_fd);
+
+        let result = reader.read_frame().await;
+        assert!(matches!(result, Err(IpcError::Timeout { elapsed_ms: 5000, .. })));
+    }
+
+    #[tokio::test]
+    async fn read_frame_returns_data_when_writer_sends_frame() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        let write_file = unsafe { std::fs::File::from_raw_fd(write_fd.into_raw_fd()) };
+        let mut writer = File::from_std(write_file);
+
+        let payload = b"hello world".to_vec();
+        let len_bytes = (payload.len() as u32).to_be_bytes();
+        writer.write_all(&len_bytes).await.unwrap();
+        writer.write_all(&payload).await.unwrap();
+        drop(writer);
+
+        let result = reader.read_frame().await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), payload);
+    }
 }
