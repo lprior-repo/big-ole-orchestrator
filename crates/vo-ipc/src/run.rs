@@ -210,15 +210,15 @@ pub async fn run_subprocess_with_handshake(
         detail: e.to_string(),
     })?;
 
-    let _ = fd3_read;
+       let _ = fd3_read;
     let _ = fd4_write;
 
     let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
-    let fd3_writer = tokio::fs::File::from_std(fd3_writer);
+    let mut fd3_writer = tokio::fs::File::from_std(fd3_writer);
     let fd4_reader = unsafe { std::fs::File::from_raw_fd(fd4_read) };
-    let fd4_reader = tokio::fs::File::from_std(fd4_reader);
+    let mut fd4_reader = tokio::fs::File::from_std(fd4_reader);
 
-    let handshake_res = perform_version_handshake(fd3_writer, fd4_reader).await;
+    let handshake_res = perform_version_handshake(&mut fd3_writer, &mut fd4_reader).await;
 
     let stderr_reader = child
         .stderr
@@ -322,14 +322,14 @@ pub async fn run_subprocess_with_handshake(
 }
 
 async fn perform_version_handshake(
-    mut fd3_writer: tokio::fs::File,
-    mut fd4_reader: tokio::fs::File,
+    fd3_writer: &mut tokio::fs::File,
+    mut fd4_reader: &mut tokio::fs::File,
 ) -> Result<u8, IpcError> {
     let handshake = VersionHandshake {
         version: CURRENT_IPC_VERSION,
     };
 
-    let mut json_bytes = serde_json::to_vec(&handshake)
+    let json_bytes = serde_json::to_vec(&handshake)
         .map_err(|e| IpcError::InvalidJson(e.to_string()))?;
 
     let len = u32::try_from(json_bytes.len()).map_err(|_| {
@@ -351,7 +351,6 @@ async fn perform_version_handshake(
         .flush()
         .await
         .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
-    drop(fd3_writer);
 
     let read_timeout = tokio::time::timeout(
         std::time::Duration::from_millis(HANDSHAKE_TIMEOUT_MS),
@@ -362,7 +361,7 @@ async fn perform_version_handshake(
     let peer_version = match read_timeout {
         Ok(Ok(v)) => v,
         Ok(Err(e)) => return Err(e),
-        Err(()) => return Err(IpcError::HandshakeTimeout),
+        Err(_) => return Err(IpcError::HandshakeTimeout),
     };
 
     let negotiation = envelope::VersionNegotiation::new();

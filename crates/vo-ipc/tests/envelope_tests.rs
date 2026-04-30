@@ -418,6 +418,25 @@ fn write_envelope_fails_when_payload_exceeds_limit() {
 }
 
 #[test]
+fn write_envelope_fails_with_10mb_payload() {
+    let large_input = vec![b'x'; 10 * 1024 * 1024];
+    let env = Fd3Envelope {
+        version: 1,
+        instance_id: "i".into(),
+        node_id: "n".into(),
+        input: serde_json::json!(large_input),
+        secrets: BTreeMap::new(),
+        metadata: BTreeMap::new(),
+    };
+    let mut buffer = Vec::new();
+    let result = write_envelope(&mut buffer, &env);
+    match result {
+        Err(IpcError::PayloadTooLarge(size)) => assert!(size > 0, "PayloadTooLarge should contain actual size"),
+        other => panic!("Expected PayloadTooLarge, got {:?}", other),
+    }
+}
+
+#[test]
 fn engine_receive_envelope_succeeds_on_identity_match() {
     let env = Fd4Envelope {
         version: 1,
