@@ -28,6 +28,7 @@ parking_lot = { workspace = true }
 metrics = { workspace = true }
 proptest = { workspace = true, optional = true }
 dashmap = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 vo-core.workspace = true

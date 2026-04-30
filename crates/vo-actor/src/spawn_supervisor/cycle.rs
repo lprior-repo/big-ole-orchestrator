@@ -8,6 +8,7 @@ use super::pure::{calculate_backoff_delay, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
 use crate::semaphore::types::AdmissionDecision;
+use rand::Rng;
 
 impl Actor {
     /// Detects zombie processes among running spawns and reaps them.
@@ -460,15 +461,21 @@ impl Actor {
             .await
     }
 
-    /// Calculates backoff delay using exponential backoff.
+    /// Calculates backoff delay using exponential backoff with jitter.
     ///
-    /// Formula: `initial_backoff * backoff_multiplier^(attempt - 1)`
+    /// Formula: `initial_backoff * backoff_multiplier^(attempt - 1)` + jitter
+    /// Jitter range: `[0, base_delay * jitter_factor]`
     fn calc_backoff_delay(&self, attempt: u32) -> std::time::Duration {
         let delay_ms = calculate_backoff_delay(
             self.initial_backoff.as_millis() as u64,
             self.backoff_multiplier,
             attempt,
         );
-        std::time::Duration::from_millis(delay_ms)
+
+        let jitter_range = (delay_ms as f64 * self.jitter_factor) as u64;
+        let jitter = rand::thread_rng().gen_range(0..=jitter_range);
+        let jittered_delay_ms = delay_ms.saturating_add(jitter);
+
+        std::time::Duration::from_millis(jittered_delay_ms)
     }
 }

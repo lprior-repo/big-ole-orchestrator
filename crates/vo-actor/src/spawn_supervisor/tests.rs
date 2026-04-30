@@ -37,6 +37,7 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
         3,
         Duration::from_millis(100),
         2.0,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -61,6 +62,7 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
         0,
         Duration::from_millis(100),
         2.0,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -85,6 +87,7 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
         3,
         Duration::ZERO,
         2.0,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -109,6 +112,7 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
         3,
         Duration::from_millis(100),
         0.5,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -119,6 +123,56 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
     assert!(matches!(
         result,
         Err(SpawnSupervisorError::InvalidConfig(_))
+    ));
+}
+
+#[test]
+fn spawn_supervisor_rejects_zero_jitter_factor() {
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
+
+    let result = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(100),
+        2.0,
+        0.0,
+        5,
+        Arc::new(storage),
+        Arc::new(pm),
+        Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
+    );
+
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(msg)) if msg.contains("jitter_factor")
+    ));
+}
+
+#[test]
+fn spawn_supervisor_rejects_jitter_factor_greater_than_one() {
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
+
+    let result = SpawnSupervisor::new(
+        Duration::from_millis(100),
+        3,
+        Duration::from_millis(100),
+        2.0,
+        1.1,
+        5,
+        Arc::new(storage),
+        Arc::new(pm),
+        Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
+    );
+
+    assert!(matches!(
+        result,
+        Err(SpawnSupervisorError::InvalidConfig(msg)) if msg.contains("jitter_factor")
     ));
 }
 
@@ -137,6 +191,7 @@ fn spawn_supervisor_constructs_with_valid_config() {
         3,
         Duration::from_millis(100),
         2.0,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -150,6 +205,7 @@ fn spawn_supervisor_constructs_with_valid_config() {
     assert_eq!(supervisor.max_health_checks, 3);
     assert_eq!(supervisor.initial_backoff, Duration::from_millis(100));
     assert_eq!(supervisor.backoff_multiplier, 2.0);
+    assert_eq!(supervisor.jitter_factor, 0.5);
     assert_eq!(supervisor.max_spawn_attempts, 5);
 }
 
@@ -168,6 +224,7 @@ fn spawn_supervisor_debug_format() {
         3,
         Duration::from_millis(100),
         2.0,
+        0.5,
         5,
         Arc::new(storage),
         Arc::new(pm),
@@ -180,6 +237,7 @@ fn spawn_supervisor_debug_format() {
     assert!(debug_str.contains("SpawnSupervisor"));
     assert!(debug_str.contains("health_check_interval"));
     assert!(debug_str.contains("max_health_checks"));
+    assert!(debug_str.contains("jitter_factor"));
 }
 
 // =============================================================================

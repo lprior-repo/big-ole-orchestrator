@@ -8,7 +8,7 @@ use tokio::task::JoinHandle;
 use tokio::time::{interval, MissedTickBehavior};
 
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
-use super::{ProcessManager, WorkQueue};
+use super::{calculate_backoff_delay, ProcessManager, WorkQueue};
 use super::{SpawnStorage, SpawnSupervisorMetrics};
 use crate::semaphore::ExecutionSemaphore;
 
@@ -26,6 +26,8 @@ pub struct SpawnSupervisor {
     pub initial_backoff: Duration,
     /// Backoff multiplier for exponential backoff.
     pub backoff_multiplier: f64,
+    /// Jitter factor for backoff randomization (0.0 < jitter_factor <= 1.0).
+    pub jitter_factor: f64,
     /// Maximum respawn attempts.
     pub max_spawn_attempts: u32,
     /// Storage for spawn records.
@@ -47,6 +49,7 @@ impl std::fmt::Debug for SpawnSupervisor {
             .field("max_health_checks", &self.max_health_checks)
             .field("initial_backoff", &self.initial_backoff)
             .field("backoff_multiplier", &self.backoff_multiplier)
+            .field("jitter_factor", &self.jitter_factor)
             .field("max_spawn_attempts", &self.max_spawn_attempts)
             .field("execution_semaphore", &self.execution_semaphore)
             .finish_non_exhaustive()
@@ -64,6 +67,7 @@ impl SpawnSupervisor {
         max_health_checks: u32,
         initial_backoff: Duration,
         backoff_multiplier: f64,
+        jitter_factor: f64,
         max_spawn_attempts: u32,
         storage: Arc<dyn SpawnStorage>,
         process_manager: Arc<dyn ProcessManager>,
@@ -94,11 +98,18 @@ impl SpawnSupervisor {
             ));
         }
 
+        if jitter_factor <= 0.0 || jitter_factor > 1.0 {
+            return Err(SpawnSupervisorError::InvalidConfig(
+                "jitter_factor must be in (0.0, 1.0]".to_string(),
+            ));
+        }
+
         Ok(Self {
             health_check_interval,
             max_health_checks,
             initial_backoff,
             backoff_multiplier,
+            jitter_factor,
             max_spawn_attempts,
             storage,
             process_manager,
