@@ -161,6 +161,6 @@ mod tests {
             .add_edge("a", "b")
             .add_edge("a", "c");
         let adj = graph.adjacency_list();
-        assert_eq!(adj.get("a").map(|v| v.as_slice()), Some(&["b".to_string(), "c".to_string()]));
+        assert_eq!(adj.get("a").map(|v| v.as_slice()), Some(&["b".to_string(), "c".to_string()][..]));
     }
 }

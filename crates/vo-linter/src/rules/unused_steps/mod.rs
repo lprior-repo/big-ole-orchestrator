@@ -11,7 +11,7 @@ mod detector;
 mod graph;
 mod rule;
 
-pub use detector::check_unused_steps;
+pub use detector::{check_unused_steps, check_unused_steps_ast};
 pub use graph::{DagGraph, Edge, Step};
 pub use rule::UnusedStepsRule;
 

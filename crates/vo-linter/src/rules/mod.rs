@@ -19,10 +19,12 @@
 pub mod mirror;
 pub mod random;
 pub mod retry_policy;
+pub mod unused_steps;
 
 pub use mirror::check_mirror_types_in_api_test;
 pub use random::check_random_in_workflow;
 pub use retry_policy::check_retry_policy_bounds;
+pub use unused_steps::{check_unused_steps_ast, UnusedStepsRule};
 
 /// Trait for all linting rules.
 ///
@@ -58,6 +60,7 @@ impl RuleRegistry {
         let mut registry = Self { rules: Vec::new() };
         registry.add_rule(random::RandomRule);
         registry.add_rule(mirror::MirrorRule);
+        registry.add_rule(unused_steps::UnusedStepsRule);
         registry
     }
 

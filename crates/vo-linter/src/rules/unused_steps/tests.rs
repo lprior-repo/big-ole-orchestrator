@@ -7,7 +7,7 @@
 
 use crate::diagnostic::LintSeverity;
 
-use super::super::LintCode;
+use crate::LintCode;
 use super::graph::{DagGraph, Step};
 use super::check_unused_steps;
 
