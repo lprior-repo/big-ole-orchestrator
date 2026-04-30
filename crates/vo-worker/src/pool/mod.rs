@@ -14,7 +14,9 @@ pub use circuit_breaker::CircuitBreaker;
 pub use config::{PoolConfig, PoolConfigError};
 pub use hash_ring::{HashRing, HashRingConfig, RingNode};
 pub use health_check::{determine_health_check_result, HealthCheck, HealthCheckFuture};
-pub use pool::{ConnectionPool, NatsConnectionWrapper};
+pub use pool::{
+    ConnectionPool, DemandSignal, NatsConnectionWrapper, PoolScaler, ScaleResult,
+};
 
 use vo_common::connection_pool::{
     AcquireResult, CircuitBreakerState, ConnectionId, ConnectionPoolError, ConnectionStatus,
@@ -22,7 +24,7 @@ use vo_common::connection_pool::{
     PoolStats, PooledConnection, ReleaseResult, WaitHandle,
 };
 
-use vo_types::TimestampMs;
+use vo_common::types::TimestampMs;
 
 pub use vo_common::connection_pool::HealthCheckResult;
 
