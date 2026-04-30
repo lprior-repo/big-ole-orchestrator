@@ -20,6 +20,8 @@ pub use executor::{
     CancellationReason, EffectContext, EffectId, ExecutionOutcome, ManagedEffectError,
     ManagedEffectExecutor, ManagedEffectTask,
 };
+pub mod heartbeat;
+pub use heartbeat::{CheckResult, WorkerHeartbeat, WorkerId, WorkerState};
 pub mod lock_storage;
 pub mod lock_supervisor;
 pub mod pool;
