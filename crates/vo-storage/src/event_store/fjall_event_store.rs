@@ -5,6 +5,7 @@
 //! independent instances to proceed in parallel.
 //!
 //! Key format: `[instance_id(16)][sequence_u64_be(8)]` = 24 bytes.
+//! Hot spot mitigation: optional XOR-based key scrambling via `HotSpotProvider`.
 
 use std::sync::Arc;
 
@@ -13,7 +14,8 @@ use parking_lot::Mutex;
 use vo_types::events::EventEnvelope;
 use vo_types::InstanceId;
 
-use super::{EventStore, EventStoreError};
+use super::{EventStore, EventStoreError, FjallEventStoreOptions};
+use crate::hot_spot::{HotSpotProvider, HotSpotDetector};
 use crate::partitions::EVENTS_PARTITION;
 
 const NUM_STRIPES: usize = 64;
@@ -28,6 +30,7 @@ pub struct FjallEventStore {
     db: Arc<fjall::Database>,
     partition: Arc<fjall::Keyspace>,
     stripes: Vec<Mutex<()>>,
+    hot_spot: Option<Arc<dyn HotSpotProvider>>,
 }
 
 impl std::fmt::Debug for FjallEventStore {
@@ -43,16 +46,36 @@ impl FjallEventStore {
     ///
     /// Returns `EventStoreError::Storage` if the events partition cannot be opened.
     pub fn open(db: &fjall::Database) -> Result<Self, EventStoreError> {
+        Self::open_with_options(db, FjallEventStoreOptions::default())
+    }
+
+    /// Opens a new event store with optional hot spot detection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `EventStoreError::Storage` if the events partition cannot be opened.
+    pub fn open_with_options(
+        db: &fjall::Database,
+        options: FjallEventStoreOptions,
+    ) -> Result<Self, EventStoreError> {
         let partition = db
             .keyspace(EVENTS_PARTITION, fjall::KeyspaceCreateOptions::default)
             .map_err(|e| EventStoreError::Storage {
                 reason: format!("failed to open events partition: {e}"),
             })?;
         let stripes = (0..NUM_STRIPES).map(|_| Mutex::new(())).collect();
+
+        let hot_spot = options
+            .hot_spot_config
+            .map(|config| -> Arc<dyn HotSpotProvider> {
+                Arc::new(HotSpotDetector::new(config))
+            });
+
         Ok(Self {
             db: Arc::new(db.clone()),
             partition: Arc::new(partition),
             stripes,
+            hot_spot,
         })
     }
 
@@ -147,11 +170,23 @@ impl EventStore for FjallEventStore {
             });
         }
 
+        // Hot spot detection: record append and check if instance is hot
+        let is_hot = if let Some(ref detector) = self.hot_spot {
+            detector.record_append(instance_id)
+        } else {
+            false
+        };
+
         let mut batch = self.db.batch();
         for event in &events {
             let seq_bytes = event.sequence.to_be_bytes();
             let mut key = Vec::with_capacity(24);
-            key.extend_from_slice(&id_bytes);
+            if is_hot {
+                let scrambled = crate::hot_spot::scramble_instance_id(instance_id);
+                key.extend_from_slice(&scrambled);
+            } else {
+                key.extend_from_slice(&id_bytes);
+            }
             key.extend_from_slice(&seq_bytes);
 
             let value = serde_json::to_vec(event).map_err(|e| EventStoreError::Storage {

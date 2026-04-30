@@ -89,6 +89,7 @@ pub mod timer_index;
 mod timer_index_tests;
 pub mod workflow_version_partition;
 pub mod api_key_partition;
+pub mod hot_spot;
 
 use serde::Serialize;
 use std::collections::HashMap;

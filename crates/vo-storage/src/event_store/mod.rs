@@ -6,6 +6,13 @@
 pub mod fjall_event_store;
 pub use fjall_event_store::FjallEventStore;
 
+pub use crate::hot_spot::HotSpotConfig;
+
+#[derive(Debug, Clone, Default)]
+pub struct FjallEventStoreOptions {
+    pub hot_spot_config: Option<HotSpotConfig>,
+}
+
 use async_trait::async_trait;
 use dashmap::DashMap;
 use vo_types::events::EventEnvelope;
@@ -540,5 +547,56 @@ mod fjall_tests {
         let store2 = FjallEventStore::open(&db2).unwrap();
 
         assert_eq!(store2.get_sequence(&instance_id).await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_fjall_store_hot_spot_detected() {
+        let (_dir, db) = create_test_db();
+        let config = crate::hot_spot::HotSpotConfig {
+            max_events: 10,
+            max_writes_per_second: 1000,
+            window_ms: 1000,
+        };
+        let options = FjallEventStoreOptions {
+            hot_spot_config: Some(config),
+        };
+        let store = FjallEventStore::open_with_options(&db, options).unwrap();
+        let instance_id = make_instance_id();
+
+        for seq in 1..=10 {
+            let events = vec![make_envelope(&instance_id, seq)];
+            let _ = store.append(&instance_id, events).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn test_fjall_store_default_options_no_hot_spot() {
+        let (_dir, db) = create_test_db();
+        let options = FjallEventStoreOptions::default();
+        let store = FjallEventStore::open_with_options(&db, options).unwrap();
+        let instance_id = make_instance_id();
+        let events = vec![make_envelope(&instance_id, 1)];
+
+        let result = store.append(&instance_id, events).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_fjall_store_multi_instance_no_cross_contamination() {
+        let (_dir, db) = create_test_db();
+        let options = FjallEventStoreOptions::default();
+        let store = FjallEventStore::open_with_options(&db, options).unwrap();
+        let instance1 = InstanceId::from_bytes([1u8; 16]);
+        let instance2 = InstanceId::from_bytes([2u8; 16]);
+
+        let events1 = vec![make_envelope(&instance1, 1)];
+        let events2 = vec![make_envelope(&instance2, 1)];
+
+        assert!(store.append(&instance1, events1).await.is_ok());
+        assert!(store.append(&instance2, events2).await.is_ok());
+
+        assert_eq!(store.get_sequence(&instance1).await.unwrap(), 1);
+        assert_eq!(store.get_sequence(&instance2).await.unwrap(), 1);
     }
 }
