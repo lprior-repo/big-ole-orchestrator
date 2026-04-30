@@ -436,6 +436,102 @@ fn execution_layers_single_node() {
 // DependencyGraphResolver: cycle handling
 // ============================================================================
 
+// DGR-CYCLE-1: resolve() returns Err(CycleDetected) for cyclic dependencies
+// bead: vel-4fmm — resolve() should detect cycles and return the cycle path
+#[test]
+fn resolve_returns_err_cycle_detected_for_cyclic_graph() {
+    use crate::WorkflowDefinitionError;
+
+    // a -> b -> c -> a (cycle)
+    let workflow = make_workflow(
+        "cyclic",
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+            ("c".to_string(), "a".to_string(), EdgeCondition::Always),
+        ],
+    );
+
+    let result = DependencyGraphResolver::resolve(&workflow, &NodeName("a".into()));
+    match result {
+        Err(WorkflowDefinitionError::CycleDetected { cycle_nodes }) => {
+            assert!(
+                cycle_nodes.contains(&NodeName("a".into())),
+                "Cycle should contain node 'a'"
+            );
+            assert!(
+                cycle_nodes.contains(&NodeName("b".into())),
+                "Cycle should contain node 'b'"
+            );
+            assert!(
+                cycle_nodes.contains(&NodeName("c".into())),
+                "Cycle should contain node 'c'"
+            );
+        }
+        other => panic!(
+            "Expected Err(CycleDetected{{cycle_nodes}}), got {:?}",
+            other
+        ),
+    }
+}
+
+// DGR-CYCLE-2: resolve() returns Err for self-loop cycle
+#[test]
+fn resolve_returns_err_cycle_detected_for_self_loop() {
+    use crate::WorkflowDefinitionError;
+
+    // a -> a (self-loop)
+    let workflow = make_workflow(
+        "self-loop",
+        vec![("a".to_string(), 1, 0, 1.0)],
+        vec![("a".to_string(), "a".to_string(), EdgeCondition::Always)],
+    );
+
+    let result = DependencyGraphResolver::resolve(&workflow, &NodeName("a".into()));
+    match result {
+        Err(WorkflowDefinitionError::CycleDetected { cycle_nodes }) => {
+            assert!(
+                cycle_nodes.contains(&NodeName("a".into())),
+                "Self-loop cycle should contain node 'a'"
+            );
+        }
+        other => panic!(
+            "Expected Err(CycleDetected{{cycle_nodes}}), got {:?}",
+            other
+        ),
+    }
+}
+
+// DGR-CYCLE-3: resolve() returns Ok for acyclic graph
+#[test]
+fn resolve_returns_ok_for_acyclic_graph() {
+    // a -> b -> c (linear chain, no cycle)
+    let workflow = make_workflow(
+        "acyclic",
+        vec![
+            ("a".to_string(), 1, 0, 1.0),
+            ("b".to_string(), 1, 0, 1.0),
+            ("c".to_string(), 1, 0, 1.0),
+        ],
+        vec![
+            ("a".to_string(), "b".to_string(), EdgeCondition::Always),
+            ("b".to_string(), "c".to_string(), EdgeCondition::Always),
+        ],
+    );
+
+    let result = DependencyGraphResolver::resolve(&workflow, &NodeName("c".into()));
+    assert!(
+        result.is_ok(),
+        "Acyclic graph should return Ok, got {:?}",
+        result
+    );
+}
+
 // DGR-19: Resolver operates on validated acyclic graphs
 // Note: WorkflowDefinition::parse rejects cycles, so the resolver
 // never encounters cyclic graphs. This test documents that invariant.
