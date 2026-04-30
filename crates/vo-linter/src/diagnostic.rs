@@ -17,6 +17,7 @@ pub enum LintCode {
     L005,
     L006,
     L007,
+    L008,
 }
 
 #[derive(Debug, Clone, PartialEq)]

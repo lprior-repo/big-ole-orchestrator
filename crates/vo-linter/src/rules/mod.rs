@@ -16,12 +16,14 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
+pub mod cycles;
 pub mod imports;
 pub mod mirror;
 pub mod random;
 pub mod retry_policy;
 pub mod unused_steps;
 
+pub use cycles::{check_cycles, CycleDetector, CycleError};
 pub use imports::{check_unused_imports, UnusedImportRule};
 pub use mirror::check_mirror_types_in_api_test;
 pub use random::check_random_in_workflow;
