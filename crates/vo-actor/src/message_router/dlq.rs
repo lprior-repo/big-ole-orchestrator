@@ -19,7 +19,6 @@ pub struct DeadLetterMessage {
 }
 
 impl DeadLetterMessage {
-    #[allow(dead_code)]
     pub fn new<T: serde::Serialize>(payload: &T) -> Result<Self, String> {
         let payload_bytes = serde_json::to_vec(payload)
             .map_err(|e| format!("failed to serialize payload: {}", e))?;
@@ -30,7 +29,6 @@ impl DeadLetterMessage {
         })
     }
 
-    #[allow(dead_code)]
     pub fn deserialize<T: serde::de::DeserializeOwned>(&self) -> Result<T, String> {
         if self.type_name != std::any::type_name::<T>() {
             return Err(format!(
@@ -87,7 +85,6 @@ impl DeadLetterQueue {
         self.enqueue(entry);
     }
 
-    #[allow(dead_code)]
     pub fn dequeue(&mut self) -> Option<DeadLetterEntry> {
         if self.entries.is_empty() {
             None
@@ -113,5 +110,99 @@ impl DeadLetterQueue {
     #[must_use]
     pub fn entries(&self) -> &[DeadLetterEntry] {
         &self.entries
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dead_letter_message_new_and_deserialize_roundtrip() {
+        #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+        struct TestPayload {
+            value: String,
+            count: u32,
+        }
+
+        let original = TestPayload {
+            value: "hello".to_string(),
+            count: 42,
+        };
+
+        let message = DeadLetterMessage::new(&original).expect("should serialize");
+        assert_eq!(message.type_name(), std::any::type_name::<TestPayload>());
+
+        let deserialized: TestPayload = message.deserialize().expect("should deserialize");
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn dead_letter_message_deserialize_type_mismatch() {
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        struct TypeA { a: u32 }
+
+        #[derive(Debug, serde::Serialize, serde::Deserialize)]
+        struct TypeB { b: String }
+
+        let message = DeadLetterMessage::new(&TypeA { a: 1 }).expect("should serialize");
+
+        let result: Result<TypeB, _> = message.deserialize();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("type mismatch"));
+    }
+
+    #[test]
+    fn dead_letter_queue_dequeue_returns_oldest() {
+        let mut queue = DeadLetterQueue::new(3);
+        let channel_id = ChannelId::new("test-channel");
+
+        for i in 0..3 {
+            let msg = DeadLetterMessage::new(&i).expect("serialize");
+            let entry = DeadLetterEntry {
+                channel_id: channel_id.clone(),
+                message: msg,
+                enqueued_at: TimestampMs::now(),
+                reason: DeadLetterReason::ChannelNotFound,
+            };
+            queue.enqueue(entry);
+        }
+
+        let first = queue.dequeue().expect("should have entries");
+        let deserialized: u32 = first.message.deserialize().expect("should deserialize");
+        assert_eq!(deserialized, 0);
+
+        assert_eq!(queue.len(), 2);
+    }
+
+    #[test]
+    fn dead_letter_queue_dequeue_empty_returns_none() {
+        let mut queue = DeadLetterQueue::new(10);
+        assert!(queue.dequeue().is_none());
+    }
+
+    #[test]
+    fn dead_letter_queue_fifo_ordering() {
+        let mut queue = DeadLetterQueue::new(5);
+        let channel_id = ChannelId::new("fifo-test");
+
+        for i in 0..5 {
+            let msg = DeadLetterMessage::new(&i).expect("serialize");
+            let entry = DeadLetterEntry {
+                channel_id: channel_id.clone(),
+                message: msg,
+                enqueued_at: TimestampMs::now(),
+                reason: DeadLetterReason::DeliveryTimeout,
+            };
+            queue.enqueue(entry);
+        }
+
+        for expected in 0..5 {
+            let entry = queue.dequeue().expect("entry should exist");
+            let value: u32 = entry.message.deserialize().expect("deserialize");
+            assert_eq!(value, expected);
+        }
+
+        assert!(queue.dequeue().is_none());
     }
 }
