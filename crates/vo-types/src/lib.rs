@@ -111,6 +111,7 @@ mod timer_id_tests;
 mod timestamp_ms_tests;
 mod topology;
 mod tx_coordinator;
+pub mod saga_coordinator;
 mod types;
 #[cfg(test)]
 mod types_tests;
@@ -200,6 +201,10 @@ pub use signal::{
 pub use task_failure_kind::TaskFailureKind;
 pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use topology::{LeaseKey, NodeId};
+pub use saga_coordinator::{
+    apply_saga_transition, SagaRecord, SagaState, SagaStep, SagaStepStatus, SagaTransition,
+    SagaTransitionError,
+};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
