@@ -25,7 +25,7 @@ durability guarantees.
 | **ADR-039** | Hierarchical Lifecycle State Machine | `bdd_compensating_completion_rejection.rs` | INV-039-001 through INV-039-005 | tw-xxx | 4+ | ✓ COVERED |
 | **ADR-040** | Canonical Blob Durability and Publication | _(see note)_ | INV-040-001 through INV-040-003 | tw-xxx | 0 | ✗ GAP |
 | **ADR-041** | Managed Connector Runtime Contract | `connector_runtime_contract_tests.rs` (vo-worker) | INV-041-001 through INV-041-006 | tw-xxx | 20+ | ✓ COVERED |
-| **ADR-042** | Signal Matching and Wake-Up Semantics | _(see note)_ | INV-042-001 through INV-042-004 | tw-xxx | 0 | ✗ GAP |
+| **ADR-042** | Signal Matching and Wake-Up Semantics | `vo-types/adr042_signal_wakeup_bdd.rs`, `vo-core/lineage_signals.rs` | INV-042-001 through INV-042-004 | tw-xxx | 15+ | ✓ COVERED |
 | **ADR-043** | Exact-Once Verification Strategy | `proptest_replay.rs` | INV-043-001 through INV-043-007 | tw-xxx | 8+ | ✓ COVERED |
 
 ---
@@ -106,8 +106,14 @@ durability guarantees.
   - INV-041-004: Durable receipts for audit
 
 ### ADR-042: Signal Matching and Wake-Up Semantics
-- **Status**: ✗ NO DIRECT BDD COVERAGE
-- **Gap**: Needs BDD scenario for lineage-aware signal routing and wait-state matching
+- **Status**: ✓ COVERED
+- **Test File**: `vo-types/tests/adr042_signal_wakeup_bdd.rs` (unit tests), `vo-core/tests/lineage_signals.rs` (integration tests)
+- **Tests**: 15+ BDD scenarios covering lineage-aware signal routing, wait-state matching, epoch-local vs lineage-wide routing, and rollover semantics
+- **Invariant Coverage**:
+  - INV-042-001: Signal routing based on lineage scope
+  - INV-042-002: Wait state matching to signal patterns
+  - INV-042-003: Signal delivered to correct lineage OR queued
+  - INV-042-004: Signal never delivered to mismatched lineage
 
 ### ADR-043: Exact-Once Verification Strategy
 - **Test File**: `crates/vo-core/tests/proptest_replay.rs`
@@ -126,7 +132,7 @@ durability guarantees.
 | HIGH | ADR-029 | Needs BDD for stale fence rejection at DbWriterActor |
 | HIGH | ADR-035 | Needs BDD for upcast chain changes and old event replay |
 | HIGH | ADR-040 | Needs BDD for output_ref publication after blob durability |
-| HIGH | ADR-042 | Needs BDD for lineage-aware signal routing and wait-state matching |
+| MEDIUM | ADR-042 | Covered by vo-types adr042_signal_wakeup_bdd.rs + vo-core lineage_signals.rs |
 
 ---
 
@@ -151,6 +157,10 @@ cargo test -p vo-core bdd_compensating_completion_rejection
 
 # Run ADR-041 connector contract tests
 cargo test -p vo-worker connector_runtime_contract
+
+# Run ADR-042 signal matching tests
+cargo test -p vo-types --test adr042_signal_wakeup_bdd
+cargo test -p vo-core lineage_signals
 
 # Run all red-queen adversarial tests (covers multiple ADRs)
 cargo test -p vo-core red_queen_adversarial

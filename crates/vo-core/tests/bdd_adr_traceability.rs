@@ -43,7 +43,7 @@ const SAFETY_ADRS: &[(&str, &str)] = &[
     ("039", "ADR-039 Hierarchical Lifecycle State Machine — covered by vo-types/tests_bdd_lifecycle.rs"),
     ("040", "ADR-040 Canonical Blob Durability and Publication — covered by vo-storage event_summary_commit tests"),
     ("041", "ADR-041 Managed Connector Runtime Contract — covered by vo-types/connector/tests.rs"),
-    ("042", "ADR-042 Signal Matching and Wake-Up Semantics — covered by vo-actor timer_wakeup_bdd.rs"),
+    ("042", "ADR-042 Signal Matching and Wake-Up Semantics — covered by vo-types adr042_signal_wakeup_bdd.rs + vo-core lineage_signals.rs"),
     ("043", "ADR-043 Exact-Once Verification Strategy — covered by vo-core red_queen_adversarial tests"),
 ];
 
@@ -105,7 +105,7 @@ fn get_bdd_test_crates(adr_id: &str) -> Vec<&'static str> {
         "039" => vec!["vo-types tests_bdd_lifecycle.rs"],
         "040" => vec!["vo-storage event_summary_commit.rs publication barrier tests"],
         "041" => vec!["vo-types connector/tests.rs"],
-        "042" => vec!["vo-actor timer_wakeup_bdd.rs"],
+        "042" => vec!["vo-types adr042_signal_wakeup_bdd.rs", "vo-core lineage_signals.rs"],
         "043" => vec!["vo-core red_queen_adversarial.rs", "vo-core admission_red_queen_qa.rs"],
         _ => vec![],
     }
@@ -145,7 +145,8 @@ fn get_proof_commands(adr_id: &str) -> Vec<&'static str> {
             "cargo test -p vo-types connector",
         ],
         "042" => vec![
-            "cargo test -p vo-actor timer_wakeup_bdd",
+            "cargo test -p vo-types --test adr042_signal_wakeup_bdd",
+            "cargo test -p vo-core lineage_signals",
         ],
         "043" => vec![
             "cargo test -p vo-core red_queen_adversarial",
