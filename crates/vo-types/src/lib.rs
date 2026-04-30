@@ -134,7 +134,8 @@ pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
 pub use causation_chain::{
     advance_chain, validate_chain_depths, CausationArchival, CausationChainError, CausationDepth,
     ChainAdvanceResult, CollapsedLink, DEFAULT_MAX_CAUSATION_DEPTH,
-    is_broken_chain_reference, extract_broken_chain_original, BrokenChainLink,
+    is_broken_chain_reference, extract_broken_chain_original, validate_causation_reference,
+    BrokenChainLink,
 };
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{

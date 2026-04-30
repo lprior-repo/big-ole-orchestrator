@@ -298,6 +298,47 @@ pub fn extract_broken_chain_original(reference: &str) -> Option<&str> {
     }
 }
 
+/// Validates a causation reference and creates a BrokenChainLink if the reference is broken.
+///
+/// A broken reference occurs when:
+/// - The causation_id uses the `unknown:` prefix (unrecoverable reference)
+/// - The causation_id uses the `archived:` prefix (references a collapsed archival segment)
+///
+/// For references that are not placeholders (i.e., normal causation_ids),
+/// this function returns `Ok(())` - the caller is responsible for validating
+/// that the referenced command actually exists in the event store.
+///
+/// # Arguments
+///
+/// * `causation_id` - The causation_id string to validate
+/// * `referencing_command` - The command_id of the command that has this causation_id
+/// * `instance_id` - The instance this command belongs to
+///
+/// # Returns
+///
+/// * `Ok(BrokenChainLink)` if the reference is a known broken placeholder
+/// * `Err(CausationChainError::ReferenceNotFound)` if the reference format indicates a broken chain
+pub fn validate_causation_reference(
+    causation_id: &str,
+    referencing_command: &str,
+    instance_id: &str,
+) -> Result<BrokenChainLink, CausationChainError> {
+    if is_broken_chain_reference(causation_id) {
+        let broken = BrokenChainLink::new(referencing_command, causation_id, instance_id);
+        if causation_id.starts_with("unknown:") {
+            Ok(broken)
+        } else if causation_id.starts_with("archived:") {
+            Ok(broken)
+        } else {
+            Err(CausationChainError::ReferenceNotFound {
+                reference: causation_id.to_string(),
+            })
+        }
+    } else {
+        Ok(BrokenChainLink::new(referencing_command, causation_id, instance_id))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -443,5 +484,61 @@ mod tests {
             extract_broken_chain_original("cmd-abc"),
             None
         );
+    }
+
+    #[test]
+    fn validate_causation_reference_unknown_prefix_returns_broken_link() {
+        let result = validate_causation_reference(
+            "unknown:cmd-missing",
+            "cmd-current",
+            "inst-1",
+        );
+        assert!(result.is_ok());
+        let broken = result.unwrap();
+        assert_eq!(broken.referencing_command, "cmd-current");
+        assert_eq!(broken.broken_reference, "unknown:cmd-missing");
+        assert_eq!(broken.instance_id, "inst-1");
+    }
+
+    #[test]
+    fn validate_causation_reference_archived_prefix_returns_broken_link() {
+        let result = validate_causation_reference(
+            "archived:seg-abc123",
+            "cmd-current",
+            "inst-2",
+        );
+        assert!(result.is_ok());
+        let broken = result.unwrap();
+        assert_eq!(broken.referencing_command, "cmd-current");
+        assert_eq!(broken.broken_reference, "archived:seg-abc123");
+        assert_eq!(broken.instance_id, "inst-2");
+    }
+
+    #[test]
+    fn validate_causation_reference_normal_reference_returns_ok() {
+        let result = validate_causation_reference(
+            "cmd-parent-event",
+            "cmd-current",
+            "inst-3",
+        );
+        assert!(result.is_ok());
+        let broken = result.unwrap();
+        assert_eq!(broken.referencing_command, "cmd-current");
+        assert_eq!(broken.broken_reference, "cmd-parent-event");
+        assert_eq!(broken.instance_id, "inst-3");
+    }
+
+    #[test]
+    fn validate_causation_reference_external_root_returns_ok() {
+        let result = validate_causation_reference(
+            "external-root",
+            "cmd-trigger",
+            "inst-4",
+        );
+        assert!(result.is_ok());
+        let broken = result.unwrap();
+        assert_eq!(broken.referencing_command, "cmd-trigger");
+        assert_eq!(broken.broken_reference, "external-root");
+        assert_eq!(broken.instance_id, "inst-4");
     }
 }
