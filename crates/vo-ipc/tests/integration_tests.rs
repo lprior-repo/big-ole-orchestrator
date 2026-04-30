@@ -6,7 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
-use vo_ipc::{run_subprocess, IpcError, SubprocessConfig, MAX_STDERR_BYTES, TRUNCATION_MARKER};
+use vo_ipc::{run_subprocess, run_subprocess_with_handshake, IpcError, SubprocessConfig, MAX_STDERR_BYTES, TRUNCATION_MARKER};
 
 fn fixture_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_fixture_driver"))
@@ -352,4 +352,14 @@ async fn env_snapshot_fixture_returns_valid_json() {
     fs::write(&snapshot_path, b"{}").unwrap();
     let map = read_map(&snapshot_path);
     assert!(map.is_empty());
+}
+
+#[tokio::test]
+async fn handshake_timeout_when_subprocess_never_responds() {
+    let config = SubprocessConfig::new(fixture_binary(), 10_000, b"handshake-no-response".to_vec()).unwrap();
+    let result = run_subprocess_with_handshake(config).await;
+    match result {
+        Err(IpcError::HandshakeTimeout) => {}
+        other => panic!("expected HandshakeTimeout, got {:?}", other),
+    }
 }

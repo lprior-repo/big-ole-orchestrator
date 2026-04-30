@@ -40,6 +40,7 @@ fn main() {
         "grandchild-hold" => command_grandchild_hold(&args),
         "hold-open" => command_hold_open(&args),
         "close-fd3" => command_close_fd3(),
+        "handshake-no-response" => command_handshake_no_response(),
         _ => {}
     }
 }
@@ -259,6 +260,14 @@ fn command_hold_open(args: &[String]) {
 fn command_close_fd3() {
     drop(close_fd3());
     write_fd4_envelope(b"closed-fd3");
+}
+
+fn command_handshake_no_response() {
+    let _payload = read_fd3_frame();
+    std::sync::mpsc::channel::<()>()
+        .1
+        .recv_timeout(std::time::Duration::from_secs(60))
+        .unwrap_or_default();
 }
 
 fn read_fd3_frame() -> Vec<u8> {
