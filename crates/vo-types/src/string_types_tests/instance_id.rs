@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::ParseError;
 use crate::*;
 
@@ -145,5 +147,49 @@ fn instance_id_to_bytes_returns_error_when_ulid_invalid() {
     assert!(matches!(
         id.to_bytes(),
         Err(ParseError::InvalidFormat { .. })
+    ));
+}
+
+#[test]
+fn instance_id_from_str_roundtrip_via_display() {
+    let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
+    let s = format!("{id}");
+    let parsed = InstanceId::from_str(&s).expect("should parse back successfully");
+    assert_eq!(parsed, id);
+}
+
+#[test]
+fn instance_id_from_str_empty_string_returns_err() {
+    let result = InstanceId::from_str("");
+    assert!(matches!(
+        result,
+        Err(ParseError::Empty { type_name } ) if type_name == "InstanceId"
+    ));
+}
+
+#[test]
+fn instance_id_from_str_wrong_length_returns_err() {
+    let result = InstanceId::from_str("01H5JYV4XH");
+    assert!(matches!(
+        result,
+        Err(ParseError::InvalidFormat { type_name, .. }) if type_name == "InstanceId"
+    ));
+}
+
+#[test]
+fn instance_id_from_str_invalid_chars_returns_err() {
+    let result = InstanceId::from_str("01H5JYV4XHGSR2F8KZ9BWNRFM@");
+    assert!(matches!(
+        result,
+        Err(ParseError::InvalidFormat { type_name, .. }) if type_name == "InstanceId"
+    ));
+}
+
+#[test]
+fn instance_id_from_str_malformed_ulid_returns_err() {
+    let result = InstanceId::from_str("00000000000000000000000000");
+    assert!(matches!(
+        result,
+        Err(ParseError::InvalidFormat { type_name, .. }) if type_name == "InstanceId"
     ));
 }

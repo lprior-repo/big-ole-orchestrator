@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 
 use crate::string_newtype;
@@ -91,6 +93,13 @@ impl InstanceId {
     }
 }
 string_newtype!(InstanceId);
+
+impl FromStr for InstanceId {
+    type Err = ParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::parse(s)
+    }
+}
 
 impl WorkflowName {
     /// Parse a `WorkflowName` from a string.
