@@ -7,14 +7,17 @@ use std::os::unix::process::ExitStatusExt;
 use std::path::Path;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc::{self, OwnedPermit};
+use tokio::sync::watch;
 use tokio::time::{timeout, Duration};
 
 const DEFAULT_BACKPRESSURE_LIMIT: usize = 64;
 const BUS_TIMEOUT_MS: u64 = 5000;
+const DEFAULT_BACKPRESSURE_THRESHOLD: f32 = 0.80;
 
 #[derive(Debug, Clone)]
 pub struct BusConfig {
     backpressure_limit: usize,
+    backpressure_threshold: f32,
     timeout_ms: u64,
 }
 
@@ -23,13 +26,25 @@ impl BusConfig {
     pub const fn new(backpressure_limit: usize, timeout_ms: u64) -> Self {
         Self {
             backpressure_limit,
+            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             timeout_ms,
         }
     }
 
     #[must_use]
+    pub const fn with_backpressure_threshold(mut self, threshold: f32) -> Self {
+        self.backpressure_threshold = threshold;
+        self
+    }
+
+    #[must_use]
     pub const fn backpressure_limit(&self) -> usize {
         self.backpressure_limit
+    }
+
+    #[must_use]
+    pub const fn backpressure_threshold(&self) -> f32 {
+        self.backpressure_threshold
     }
 
     #[must_use]
@@ -42,6 +57,7 @@ impl Default for BusConfig {
     fn default() -> Self {
         Self {
             backpressure_limit: DEFAULT_BACKPRESSURE_LIMIT,
+            backpressure_threshold: DEFAULT_BACKPRESSURE_THRESHOLD,
             timeout_ms: BUS_TIMEOUT_MS,
         }
     }
@@ -64,6 +80,8 @@ pub struct MessageBus {
     receiver: mpsc::Receiver<BusMessage>,
     stderr_reader: Option<tokio::process::ChildStderr>,
     stdout_reader: Option<tokio::process::ChildStdout>,
+    backpressure_tx: watch::Sender<bool>,
+    backpressure_rx: watch::Receiver<bool>,
 }
 
 impl MessageBus {
@@ -117,6 +135,7 @@ impl MessageBus {
             })?;
 
         let (sender, receiver) = mpsc::channel(bus_config.backpressure_limit);
+        let (backpressure_tx, backpressure_rx) = watch::channel(false);
 
         Ok(Self {
             child,
@@ -126,11 +145,14 @@ impl MessageBus {
             sender,
             receiver,
             stderr_reader: Some(stderr_reader),
-            stdout_reader: Some(stdout_reader),
+            stdout_reader: None,
+            backpressure_tx,
+            backpressure_rx,
         })
     }
 
-    pub async fn send(&self, envelope: Fd3Envelope) -> Result<(), BusError> {
+    pub async fn send(&mut self, envelope: Fd3Envelope) -> Result<(), BusError> {
+        self.update_backpressure();
         let permit = self
             .sender
             .reserve()
@@ -144,9 +166,38 @@ impl MessageBus {
     pub async fn send_with_permit(
         permit: OwnedPermit<BusMessage>,
         envelope: Fd3Envelope,
+        backpressure_rx: &mut watch::Receiver<bool>,
     ) -> Result<(), BusError> {
+        if *backpressure_rx.borrow() {
+            let timeout_duration = Duration::from_secs(30);
+            let result = timeout(timeout_duration, async {
+                while *backpressure_rx.borrow() {
+                    if backpressure_rx.changed().await.is_err() {
+                        return;
+                    }
+                }
+            })
+            .await;
+
+            if result.is_err() || *backpressure_rx.borrow() {
+                return Err(BusError::BackpressureTimeout);
+            }
+        }
         permit.send(BusMessage::Request(envelope));
         Ok(())
+    }
+
+    fn update_backpressure(&self) {
+        let capacity_ratio = self.sender.capacity() as f32 / self.max_capacity() as f32;
+        let should_backpressure = capacity_ratio > (1.0 - self.config.backpressure_threshold);
+        if should_backpressure != *self.backpressure_rx.borrow() {
+            let _ = self.backpressure_tx.send(should_backpressure);
+        }
+    }
+
+    #[must_use]
+    pub fn backpressure_rx(&self) -> watch::Receiver<bool> {
+        self.backpressure_rx.clone()
     }
 
     pub async fn recv(&mut self) -> Result<BusMessage, BusError> {
@@ -311,6 +362,8 @@ pub enum BusError {
     BusClosed,
     #[error("backpressure limit reached")]
     BackpressureLimitReached,
+    #[error("backpressure timeout: child process fell behind")]
+    BackpressureTimeout,
     #[error("timeout")]
     Timeout,
     #[error("IPC reader already consumed")]
@@ -330,16 +383,23 @@ impl From<BusError> for IpcError {
         match err {
             BusError::BusClosed => IpcError::ProcessFailed {
                 exit_code: -1,
+                stdout_bytes: vec![],
+                stdout_truncated: false,
                 stderr_bytes: vec![],
                 stderr_truncated: false,
             },
             BusError::BackpressureLimitReached => IpcError::ProcessFailed {
                 exit_code: -1,
+                stdout_bytes: vec![],
+                stdout_truncated: false,
                 stderr_bytes: vec![],
                 stderr_truncated: false,
             },
+            BusError::BackpressureTimeout => IpcError::BackpressureTimeout { wait_seconds: 30 },
             BusError::Timeout => IpcError::Timeout {
                 elapsed_ms: 0,
+                stdout_bytes: vec![],
+                stdout_truncated: false,
                 stderr_bytes: vec![],
                 stderr_truncated: false,
             },

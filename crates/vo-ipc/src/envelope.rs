@@ -3,6 +3,12 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
+use tokio::io::{AsyncWrite, AsyncWriteExt};
+use tokio::sync::watch;
+use tokio::time::{timeout, Duration};
+
+const CHUNK_SIZE: usize = 65536;
+const BACKPRESSURE_TIMEOUT_SECS: u64 = 30;
 
 pub const MAX_PAYLOAD_SIZE: u32 = 10_485_760;
 
@@ -110,6 +116,64 @@ pub fn write_envelope<T: Serialize>(writer: &mut impl Write, envelope: &T) -> Re
 
     writer.write_all(&len_u32.to_be_bytes())?;
     writer.write_all(&payload)?;
+    Ok(())
+}
+
+pub struct BackpressureWriter<W> {
+    writer: W,
+    pressure_rx: watch::Receiver<bool>,
+}
+
+impl<W: AsyncWrite + Unpin> BackpressureWriter<W> {
+    pub fn new(writer: W, pressure_rx: watch::Receiver<bool>) -> Self {
+        Self { writer, pressure_rx }
+    }
+
+    pub async fn write_all(&mut self, payload: &[u8]) -> Result<(), IpcError> {
+        backpressure_write(&mut self.writer, payload, &mut self.pressure_rx.clone()).await
+    }
+}
+
+async fn backpressure_write(
+    writer: &mut (impl AsyncWrite + Unpin),
+    payload: &[u8],
+    pressure_rx: &mut watch::Receiver<bool>,
+) -> Result<(), IpcError> {
+    let mut offset = 0;
+    let timeout_duration = Duration::from_secs(BACKPRESSURE_TIMEOUT_SECS);
+
+    while offset < payload.len() {
+        if *pressure_rx.borrow() {
+            let start_wait = std::time::Instant::now();
+            let result = timeout(timeout_duration, async {
+                while *pressure_rx.borrow() {
+                    if pressure_rx.changed().await.is_err() {
+                        return;
+                    }
+                }
+            })
+            .await;
+
+            if result.is_err() || *pressure_rx.borrow() {
+                let elapsed = start_wait.elapsed().as_secs();
+                return Err(IpcError::BackpressureTimeout {
+                    wait_seconds: elapsed.max(1),
+                });
+            }
+        }
+
+        let chunk_end = (offset + CHUNK_SIZE).min(payload.len());
+        let chunk = &payload[offset..chunk_end];
+
+        writer.write_all(chunk).await.map_err(|e| IpcError::IoError(e))?;
+
+        offset = chunk_end;
+
+        if offset < payload.len() {
+            tokio::task::yield_now().await;
+        }
+    }
+
     Ok(())
 }
 

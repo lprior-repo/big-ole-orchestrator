@@ -47,6 +47,8 @@ pub enum IpcError {
         stderr_bytes: Vec<u8>,
         stderr_truncated: bool,
     },
+    #[error("backpressure timeout: child process fell behind by {wait_seconds}s")]
+    BackpressureTimeout { wait_seconds: u64 },
     #[error("Payload too large: {0} bytes")]
     PayloadTooLarge(u32),
     #[error("input exceeds cap: {size} bytes (max {cap})")]
