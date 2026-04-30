@@ -1,5 +1,7 @@
 //! Managed-effect execution error types (ADR-030).
 
+use crate::connector::Retryable;
+
 /// Errors produced by the managed-effect execution path.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ManagedEffectError {
@@ -31,6 +33,18 @@ pub enum ManagedEffectError {
 impl ManagedEffectError {
     #[must_use]
     pub fn is_retryable(&self) -> bool {
+        matches!(
+            self,
+            Self::CommitFailed(_)
+                | Self::ReconciliationFailed(_)
+                | Self::HandlerPanic(_)
+                | Self::Timeout(_)
+        )
+    }
+}
+
+impl Retryable for ManagedEffectError {
+    fn is_retryable(&self) -> bool {
         matches!(
             self,
             Self::CommitFailed(_)

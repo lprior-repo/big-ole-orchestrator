@@ -7,7 +7,7 @@ mod sql;
 mod trait_def;
 mod types;
 
-pub use error::ConnectorError;
+pub use error::{ConnectorError, Retryable};
 pub use http::HttpConnector;
 pub use registry::ConnectorRegistry;
 pub use sql::SqlConnector;
