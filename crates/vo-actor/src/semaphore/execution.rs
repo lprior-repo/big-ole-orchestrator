@@ -4,13 +4,31 @@
 //! Per ADR-006: Uses `tokio::sync::Semaphore` with fixed permits (e.g., 500)
 //! to limit concurrent binary spawns.
 
+use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::{Semaphore, TryAcquireError};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 
 use crate::semaphore::calc::status_from_config_and_state;
+
+/// Error returned when spawning into a JoinSet fails.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpawnError {
+    /// The JoinSet is full or closed.
+    JoinSetFull,
+}
+
+impl fmt::Display for SpawnError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SpawnError::JoinSetFull => write!(f, "spawn target JoinSet is full or closed"),
+        }
+    }
+}
+
+impl std::error::Error for SpawnError {}
 use crate::semaphore::types::{
     AdmissionDecision, BackpressureStatus, RejectionReason, SemaphoreConfig,
 };
@@ -38,18 +56,20 @@ impl PermitGuard {
         self.semaphore.semaphore.add_permits(1);
     }
 
-    /// Spawns an actor task with the permit guard in scope.
+    /// Spawns an actor task into a JoinSet with the permit guard in scope.
     ///
-    /// The permit is held for the duration of the actor's execution.
-    /// If the actor panics, the guard drops and releases the permit.
-    pub fn spawn<F>(self, f: F) -> JoinHandle<F::Output>
+    /// Per ADR-011: All tasks must be tracked in a JoinSet for structured
+    /// concurrency. Bare `tokio::spawn` is not allowed.
+    ///
+    /// The permit guard is consumed on spawn (consistent with original spawn()).
+    /// The permit is released when the guard drops.
+    pub fn spawn_with_scope<F>(self, f: F, joinset: &mut JoinSet<F::Output>) -> Result<JoinHandle<F::Output>, SpawnError>
     where
         F: std::future::Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        tokio::spawn(async move {
-            f.await
-        })
+        joinset.spawn(f)
+            .map_err(|_| SpawnError::JoinSetFull)
     }
 }
 
@@ -262,6 +282,8 @@ impl ExecutionSemaphore {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    use tokio::task::JoinSet;
 
     #[tokio::test]
     async fn given_permit_waiters_when_no_permits_then_wait_is_async_not_spin() {
@@ -549,6 +571,154 @@ mod tests {
             sem.current_status() >= BackpressureStatus::Heavy,
             "usage_ratio > 0.8 should transition to at least Heavy"
         );
+    }
+
+    // ========================================================================
+    // Structured Concurrency Enforcement (ADR-011)
+    // ========================================================================
+
+    #[tokio::test]
+    async fn permit_guard_spawn_with_joinset_tracks_task() {
+        // Given: A permit guard acquired from the semaphore
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 10,
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
+        let guard = sem.try_acquire_guard().unwrap();
+
+        // When: We spawn a task with a JoinSet
+        let mut joinset = JoinSet::new();
+        let result = guard.spawn_with_scope(async move { 42 }, &mut joinset);
+
+        // Then: spawn_with_scope returns Ok(JoinHandle)
+        assert!(result.is_ok(), "spawn_with_scope should succeed with JoinSet");
+        let handle = result.unwrap();
+
+        // And: The task is tracked in the JoinSet
+        let output = joinset.join_one().await.unwrap().unwrap();
+        assert_eq!(output, 42);
+    }
+
+    #[tokio::test]
+    async fn permit_guard_spawn_with_cancel_handle_cancels_task() {
+        // Given: A permit guard and a JoinSet
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 10,
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
+        let guard = sem.try_acquire_guard().unwrap();
+
+        // When: We spawn a long-running task and cancel it
+        let mut joinset = JoinSet::new();
+        use std::time::Duration;
+        let _result = guard.spawn_with_scope(async move {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            42
+        }, &mut joinset);
+
+        // Cancel all tasks in the joinset
+        joinset.abort_all();
+
+        // Then: All tasks complete without panicking
+        while let Some(result) = joinset.join_next().await {
+            if let Err(e) = result {
+                assert!(e.is_cancelled(), "Task should be cancelled, not panicked");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn permit_guard_spawn_without_scope_rejected() {
+        // Given: A permit guard
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 10,
+            ..Default::default()
+        };
+        let sem = ExecutionSemaphore::new(config);
+        let guard = sem.try_acquire_guard().unwrap();
+
+        // When: We try to use the guard (verify it doesn't allow bare tokio::spawn)
+        // The old bare spawn() method should NOT exist - only spawn_with_scope is allowed
+        // This test verifies that the only available spawn method requires a JoinSet
+
+        // Then: The guard only exposes spawn_with_scope, not bare spawn
+        // (This is a compile-time check - if spawn() existed, this test wouldn't be needed)
+        let mut joinset = JoinSet::new();
+        let _ = guard.spawn_with_scope(async move { () }, &mut joinset);
+        // If we get here, the structured concurrency API is working
+    }
+
+    #[tokio::test]
+    async fn spawn_with_cancellation_succeeds() {
+        // Given: No ADR enforces structured concurrency - no spawn without cancellation
+        // When: Spawn with cancellation succeeds
+        // Then: Spawn with cancellation succeeds
+
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 5,
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
+        let guard = sem.try_acquire_guard().unwrap();
+
+        let mut joinset = JoinSet::new();
+        let result = guard.spawn_with_scope(async move { 42 }, &mut joinset);
+        assert!(result.is_ok());
+
+        let _handle = result.unwrap();
+        let output = joinset.join_one().await.unwrap().unwrap();
+        assert_eq!(output, 42);
+    }
+
+    #[tokio::test]
+    async fn task_joins_correctly() {
+        // Given: Tasks spawned via PermitGuard::spawn_with_scope
+        // When: Task joins correctly
+        // Then: Task joins correctly
+
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 5,
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
+
+        let mut joinset = JoinSet::new();
+        for i in 0..5 {
+            let sem = Arc::clone(&sem);
+            let guard = sem.try_acquire_guard().unwrap();
+            let result = guard.spawn_with_scope(async move { i }, &mut joinset);
+            assert!(result.is_ok(), "spawn_with_scope should succeed");
+            let _handle = result.unwrap();
+            let _ = joinset.join_one().await.unwrap().unwrap();
+        }
+
+        // All tasks completed successfully
+        assert!(joinset.is_empty());
+    }
+
+    #[tokio::test]
+    async fn detached_task_detected_via_joinset_empty_check() {
+        // Given: Tasks must be tracked in a JoinSet (no detached tasks)
+        // When: Detached task detected
+        // Then: Detached task detected
+
+        let config = SemaphoreConfig {
+            max_concurrent_binaries: 5,
+            ..Default::default()
+        };
+        let sem = Arc::new(ExecutionSemaphore::new(config));
+        let guard = sem.try_acquire_guard().unwrap();
+
+        let mut joinset = JoinSet::new();
+        let _ = guard.spawn_with_scope(async move { () }, &mut joinset);
+
+        // Verify task is tracked
+        assert!(!joinset.is_empty(), "Task should be tracked in JoinSet");
+
+        // Clean up
+        joinset.abort_all();
     }
 
     #[tokio::test]

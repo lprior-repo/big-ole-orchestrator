@@ -6,8 +6,6 @@ use super::types::{TimerKey, TimerRecord};
 
 pub type ScanResult = Vec<(Vec<u8>, Vec<u8>)>;
 
-use super::ScanResult;
-
 pub const TIMER_INDEX_PARTITION: &str = "timer_index";
 
 pub trait Storage {

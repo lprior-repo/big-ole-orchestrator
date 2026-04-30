@@ -66,7 +66,6 @@ pub mod scheduler;
 pub mod segment_tree;
 pub mod shedding;
 pub mod snapshot_compat;
-pub mod storage_watchdog;
 pub mod upcaster;
 pub mod validation;
 pub mod vault;

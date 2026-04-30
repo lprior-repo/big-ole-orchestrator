@@ -13,8 +13,7 @@ use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use tokio::sync::broadcast;
 
-use self::eviction::{self, LruEntry};
-use self::page;
+use eviction::LruEntry;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MmapCacheError {

@@ -51,9 +51,6 @@ impl From<fjall::Error> for StorageError {
     }
 }
 
-/// Current supported event key format version.
-pub const EVENT_KEY_VERSION: u8 = 0;
-
 /// Total length of a versioned event key: version(1) + `length_prefix(2)` + `instance_id(16)` + sequence(8) = 27 bytes.
 pub const EVENT_KEY_LEN: usize = 27;
 
