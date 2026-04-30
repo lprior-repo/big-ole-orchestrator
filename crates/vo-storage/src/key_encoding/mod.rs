@@ -21,14 +21,14 @@ mod storage_contract_tests;
 #[cfg(test)]
 mod tests;
 
-// TEMPORARILY DISABLED - broken test files (pre-existing API mismatch)
-// #[cfg(test)]
-// mod proptests;
+#[cfg(test)]
+mod proptests;
 
 #[cfg(test)]
 mod red_queen_adversarial;
-// #[cfg(test)]
-// mod red_queen_tests;
+
+#[cfg(test)]
+mod red_queen_tests;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum KeyEncodingError {
