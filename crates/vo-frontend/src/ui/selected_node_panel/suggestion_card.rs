@@ -3,11 +3,9 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use dioxus::prelude::*;
-use crate::flow_extender::{
-    apply_extension, preview_extension, ExtensionPriority, FlowExtension,
-};
+use crate::flow_extender::{apply_extension, preview_extension, ExtensionPriority, FlowExtension};
 use crate::ui::graph::Workflow;
+use dioxus::prelude::*;
 
 use super::types::{
     push_timeline, record_suggestion_decision, remember_extension_snapshot, ExtensionApplyMode,

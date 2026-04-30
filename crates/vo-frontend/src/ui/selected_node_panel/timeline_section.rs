@@ -3,9 +3,9 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use dioxus::prelude::*;
 use crate::flow_extender::ExtensionPatchPreview;
 use crate::ui::graph::Workflow;
+use dioxus::prelude::*;
 
 use super::types::{
     event_appearance, mode_label, push_timeline, snapshot_by_id, ExtensionBatchSnapshot,

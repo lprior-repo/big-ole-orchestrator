@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use crate::errors::ExecuteNodeError;
 use crate::types::StepResult;
 use vo_ipc::envelope::{Fd3Envelope, Fd4Envelope, TaskResult};
-use vo_ipc::{run_subprocess, SubprocessConfig as IpcSubprocessConfig, IpcError};
+use vo_ipc::{run_subprocess, IpcError, SubprocessConfig as IpcSubprocessConfig};
 use vo_types::NodeKind;
 
 /// Result of dispatching a node execution.
@@ -48,7 +48,17 @@ pub async fn dispatch_node(
 ) -> Result<NodeDispatchResult, ExecuteNodeError> {
     match kind {
         NodeKind::Pure | NodeKind::Unsafe | NodeKind::ManagedEffect => {
-            dispatch_subprocess(kind, executable_path, timeout_ms, instance_id, node_id, input, secrets, metadata).await
+            dispatch_subprocess(
+                kind,
+                executable_path,
+                timeout_ms,
+                instance_id,
+                node_id,
+                input,
+                secrets,
+                metadata,
+            )
+            .await
         }
         NodeKind::Wait => Ok(NodeDispatchResult {
             step_result: StepResult::Success {
@@ -86,14 +96,15 @@ async fn dispatch_subprocess(
         metadata,
     };
 
-    let fd3_payload =
-        serde_json::to_vec(&fd3).map_err(|e| ExecuteNodeError::DispatchIpc {
-            detail: format!("fd3 serialize: {e}"),
-        })?;
+    let fd3_payload = serde_json::to_vec(&fd3).map_err(|e| ExecuteNodeError::DispatchIpc {
+        detail: format!("fd3 serialize: {e}"),
+    })?;
 
-    let ipc_config = IpcSubprocessConfig::new(executable_path, timeout_ms, fd3_payload)
-        .map_err(|e| ExecuteNodeError::DispatchIpc {
-            detail: format!("config: {e}"),
+    let ipc_config =
+        IpcSubprocessConfig::new(executable_path, timeout_ms, fd3_payload).map_err(|e| {
+            ExecuteNodeError::DispatchIpc {
+                detail: format!("config: {e}"),
+            }
         })?;
 
     let output = run_subprocess(ipc_config).await.map_err(|e| match e {
@@ -146,26 +157,30 @@ fn interpret_result(
                 connector_id: intent.connector_id.clone(),
             })
         }
-        (TaskResult::Failure { error }, NodeKind::ManagedEffect) => {
-            Ok(StepResult::Failure {
-                output: error.message.clone(),
+        (TaskResult::Failure { error }, NodeKind::ManagedEffect) => Ok(StepResult::Failure {
+            output: error.message.clone(),
+        }),
+        (TaskResult::EffectIntent { .. }, NodeKind::Pure) => {
+            Err(ExecuteNodeError::DispatchMismatch {
+                node_kind: "pure".to_string(),
+                expected: "success_or_failure".to_string(),
+                got: "effect_intent".to_string(),
             })
         }
-        (TaskResult::EffectIntent { .. }, NodeKind::Pure) => Err(ExecuteNodeError::DispatchMismatch {
-            node_kind: "pure".to_string(),
-            expected: "success_or_failure".to_string(),
-            got: "effect_intent".to_string(),
-        }),
-        (TaskResult::EffectIntent { .. }, NodeKind::Unsafe) => Err(ExecuteNodeError::DispatchMismatch {
-            node_kind: "unsafe".to_string(),
-            expected: "success_or_failure".to_string(),
-            got: "effect_intent".to_string(),
-        }),
-        (TaskResult::Success { .. }, NodeKind::ManagedEffect) => Err(ExecuteNodeError::DispatchMismatch {
-            node_kind: "managed_effect".to_string(),
-            expected: "effect_intent_or_failure".to_string(),
-            got: "success".to_string(),
-        }),
+        (TaskResult::EffectIntent { .. }, NodeKind::Unsafe) => {
+            Err(ExecuteNodeError::DispatchMismatch {
+                node_kind: "unsafe".to_string(),
+                expected: "success_or_failure".to_string(),
+                got: "effect_intent".to_string(),
+            })
+        }
+        (TaskResult::Success { .. }, NodeKind::ManagedEffect) => {
+            Err(ExecuteNodeError::DispatchMismatch {
+                node_kind: "managed_effect".to_string(),
+                expected: "effect_intent_or_failure".to_string(),
+                got: "success".to_string(),
+            })
+        }
         (_, NodeKind::Wait | NodeKind::Signal) => Err(ExecuteNodeError::DispatchMismatch {
             node_kind: match kind {
                 NodeKind::Wait => "wait".to_string(),
@@ -229,7 +244,12 @@ mod tests {
     fn interpret_pure_success() {
         let env = test_fd4_success();
         let result = interpret_result(NodeKind::Pure, &env).unwrap();
-        assert_eq!(result, StepResult::Success { output: "\"ok\"".to_string() });
+        assert_eq!(
+            result,
+            StepResult::Success {
+                output: "\"ok\"".to_string()
+            }
+        );
     }
 
     #[test]
@@ -258,7 +278,11 @@ mod tests {
         let env = test_fd4_effect_intent();
         let result = interpret_result(NodeKind::ManagedEffect, &env).unwrap();
         match result {
-            StepResult::EffectIntent { effect_kind, connector_id, .. } => {
+            StepResult::EffectIntent {
+                effect_kind,
+                connector_id,
+                ..
+            } => {
                 assert_eq!(effect_kind, "http_call");
                 assert_eq!(connector_id, "stripe");
             }
@@ -277,21 +301,30 @@ mod tests {
     fn interpret_pure_rejects_effect_intent() {
         let env = test_fd4_effect_intent();
         let result = interpret_result(NodeKind::Pure, &env);
-        assert!(matches!(result, Err(ExecuteNodeError::DispatchMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::DispatchMismatch { .. })
+        ));
     }
 
     #[test]
     fn interpret_unsafe_rejects_effect_intent() {
         let env = test_fd4_effect_intent();
         let result = interpret_result(NodeKind::Unsafe, &env);
-        assert!(matches!(result, Err(ExecuteNodeError::DispatchMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::DispatchMismatch { .. })
+        ));
     }
 
     #[test]
     fn interpret_managed_effect_rejects_success() {
         let env = test_fd4_success();
         let result = interpret_result(NodeKind::ManagedEffect, &env);
-        assert!(matches!(result, Err(ExecuteNodeError::DispatchMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ExecuteNodeError::DispatchMismatch { .. })
+        ));
     }
 
     #[tokio::test]
@@ -308,9 +341,12 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(result.step_result, StepResult::Success {
-            output: "wait_deferred".to_string()
-        });
+        assert_eq!(
+            result.step_result,
+            StepResult::Success {
+                output: "wait_deferred".to_string()
+            }
+        );
     }
 
     #[tokio::test]
@@ -327,9 +363,12 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(result.step_result, StepResult::Success {
-            output: "signal_emitted".to_string()
-        });
+        assert_eq!(
+            result.step_result,
+            StepResult::Success {
+                output: "signal_emitted".to_string()
+            }
+        );
     }
 
     #[test]

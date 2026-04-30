@@ -1,20 +1,18 @@
 #![cfg(feature = "proptest")]
 
-use crate::{
-    CompensationPolicy, ConnectorResult, ConnectorState, ConnectorTransition, EffectIntent, EffectKind,
-    EventEnvelope, ExternalReceipt, IdempotencyKey, InstanceId, NodeName, ReconcileAction,
-    SpawnId, StepId, StepOutcome, TimerId, WorkflowName, BinaryHash, EffectRecord,
-};
-use crate::events::{EventMetadata, RoutingProjection};
 use crate::events::payload::EventPayload;
+use crate::events::{EventMetadata, RoutingProjection};
 use crate::workflow::{DagNode, Edge, EdgeCondition, RetryPolicy};
+use crate::{
+    BinaryHash, CompensationPolicy, ConnectorResult, ConnectorState, ConnectorTransition,
+    EffectIntent, EffectKind, EffectRecord, EventEnvelope, ExternalReceipt, IdempotencyKey,
+    InstanceId, NodeName, ReconcileAction, SpawnId, StepId, StepOutcome, TimerId, WorkflowName,
+};
 use proptest::prelude::*;
 
 fn valid_ulid() -> impl Strategy<Value = String> {
     use ulid::Ulid;
-    any::<[u8; 16]>().prop_map(|bytes| {
-        Ulid::from_bytes(bytes).to_string()
-    })
+    any::<[u8; 16]>().prop_map(|bytes| Ulid::from_bytes(bytes).to_string())
 }
 
 fn valid_workflow_name() -> impl Strategy<Value = String> {

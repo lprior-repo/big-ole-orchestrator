@@ -128,8 +128,14 @@ impl EdgeTraversalLog {
     }
 
     /// Record a traversal of an edge with a known outcome.
-    pub fn record_with_outcome(&mut self, source: NodeName, target: NodeName, outcome: StepOutcome) {
-        self.records.push(TraversedEdge::new(source, target, Some(outcome)));
+    pub fn record_with_outcome(
+        &mut self,
+        source: NodeName,
+        target: NodeName,
+        outcome: StepOutcome,
+    ) {
+        self.records
+            .push(TraversedEdge::new(source, target, Some(outcome)));
     }
 
     /// Record an unconditional traversal (always traversed).
@@ -148,11 +154,7 @@ impl EdgeTraversalLog {
 
     /// Get the most recent traversal outcome for a specific edge (source -> target).
     #[must_use]
-    pub fn latest_outcome(
-        &self,
-        source: &NodeName,
-        target: &NodeName,
-    ) -> Option<StepOutcome> {
+    pub fn latest_outcome(&self, source: &NodeName, target: &NodeName) -> Option<StepOutcome> {
         self.records
             .iter()
             .rev()
@@ -397,8 +399,7 @@ mod tests {
             NodeName("c".into()),
             StepOutcome::Success,
         );
-        let source =
-            select_fan_in_source(&NodeName("c".into()), &log).map(|s| s.to_string());
+        let source = select_fan_in_source(&NodeName("c".into()), &log).map(|s| s.to_string());
         assert_eq!(source, Some("a".to_string()));
     }
 
@@ -417,8 +418,7 @@ mod tests {
             NodeName("c".into()),
             StepOutcome::Success,
         );
-        let source =
-            select_fan_in_source(&NodeName("c".into()), &log).map(|s| s.to_string());
+        let source = select_fan_in_source(&NodeName("c".into()), &log).map(|s| s.to_string());
         assert_eq!(source, Some("b".to_string()));
     }
 

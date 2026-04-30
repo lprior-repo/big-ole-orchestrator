@@ -99,17 +99,32 @@ impl ApiError {
         match self.error.as_str() {
             "not_found" | "workflow_not_found" | "instance_not_found" => 404,
             "already_exists" | "duplicate_ingress" | "conflict" => 409,
-            "invalid_namespace" | "invalid_instance_id" | "invalid_workflow_type"
-            | "invalid_input" | "invalid_dedupe_key" | "invalid_paradigm"
-            | "missing_dedupe_key" | "unknown_status_variant" => 400,
+            "invalid_namespace"
+            | "invalid_instance_id"
+            | "invalid_workflow_type"
+            | "invalid_input"
+            | "invalid_dedupe_key"
+            | "invalid_paradigm"
+            | "missing_dedupe_key"
+            | "unknown_status_variant" => 400,
             "workflow_quarantined" | "workflow_deactivated" | "forbidden" => 403,
-            "budget_exhausted" | "writer_pressure_shed" | "workflow_cap_exceeded"
+            "budget_exhausted"
+            | "writer_pressure_shed"
+            | "workflow_cap_exceeded"
             | "too_many_requests" => 429,
             "global_concurrency_limit" | "at_capacity" | "service_unavailable" => 503,
-            "internal_error" | "event_persist_failed" | "actor_unavailable"
-            | "actor_timeout" | "actor_error" | "spawn_failed" | "event_replay_failed"
-            | "dedupe_storage_error" | "terminate_failed" | "compensation_failed"
-            | "ghost_instance" | "invalid_config" => 500,
+            "internal_error"
+            | "event_persist_failed"
+            | "actor_unavailable"
+            | "actor_timeout"
+            | "actor_error"
+            | "spawn_failed"
+            | "event_replay_failed"
+            | "dedupe_storage_error"
+            | "terminate_failed"
+            | "compensation_failed"
+            | "ghost_instance"
+            | "invalid_config" => 500,
             _ => 500,
         }
     }

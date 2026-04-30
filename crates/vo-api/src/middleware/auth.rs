@@ -1,14 +1,14 @@
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 use axum::{
     body::Body,
     extract::State,
     http::Request,
+    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
-    http::StatusCode,
-};
-use argon2::{
-    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
-    password_hash::{rand_core::OsRng, SaltString},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -106,13 +106,9 @@ impl IntoResponse for AuthError {
             AuthError::MissingCredentials => {
                 (StatusCode::UNAUTHORIZED, "missing credentials".to_string())
             }
-            AuthError::InvalidApiKey => {
-                (StatusCode::UNAUTHORIZED, "invalid api key".to_string())
-            }
+            AuthError::InvalidApiKey => (StatusCode::UNAUTHORIZED, "invalid api key".to_string()),
             AuthError::InvalidToken(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            AuthError::ExpiredToken => {
-                (StatusCode::UNAUTHORIZED, "token expired".to_string())
-            }
+            AuthError::ExpiredToken => (StatusCode::UNAUTHORIZED, "token expired".to_string()),
         };
         let body = serde_json::json!({
             "error": message,
@@ -135,13 +131,13 @@ pub async fn auth_middleware(
     let auth_header = request.headers().get("Authorization").cloned();
 
     if let Some(key) = api_key {
-        let key_str = key
-            .to_str()
-            .map_err(|_| AuthError::InvalidApiKey)?;
+        let key_str = key.to_str().map_err(|_| AuthError::InvalidApiKey)?;
         let argon2 = Argon2::default();
         if config.api_keys.iter().any(|stored_hash| {
             if let Ok(parsed_hash) = PasswordHash::new(stored_hash) {
-                argon2.verify_password(key_str.as_bytes(), &parsed_hash).is_ok()
+                argon2
+                    .verify_password(key_str.as_bytes(), &parsed_hash)
+                    .is_ok()
             } else {
                 false
             }
@@ -152,9 +148,7 @@ pub async fn auth_middleware(
     }
 
     if let Some(auth) = auth_header {
-        let auth_str = auth
-            .to_str()
-            .map_err(|_| AuthError::MissingCredentials)?;
+        let auth_str = auth.to_str().map_err(|_| AuthError::MissingCredentials)?;
         if let Some(token) = auth_str.strip_prefix("Bearer ") {
             return validate_jwt(token, &config, request, next).await;
         }
@@ -225,9 +219,11 @@ mod tests {
         let argon2 = Argon2::default();
         for stored_hash in config.api_keys.iter() {
             let parsed_hash = PasswordHash::new(stored_hash).expect("valid argon2 hash");
-            assert!(argon2.verify_password(b"key1", &parsed_hash).is_ok()
-                || argon2.verify_password(b"key2", &parsed_hash).is_ok()
-                || argon2.verify_password(b"key3", &parsed_hash).is_ok());
+            assert!(
+                argon2.verify_password(b"key1", &parsed_hash).is_ok()
+                    || argon2.verify_password(b"key2", &parsed_hash).is_ok()
+                    || argon2.verify_password(b"key3", &parsed_hash).is_ok()
+            );
         }
         assert!(config.enabled);
         std::env::remove_var("VO_API_KEYS");

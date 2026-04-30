@@ -24,10 +24,7 @@ fn test_transition_table_invalid_transition() {
         .build();
 
     let result = table.apply(LifecycleState::Pending, TransitionEvent::StepScheduled);
-    assert_eq!(
-        result,
-        Err(CompilerTransitionError::InvalidTransition)
-    );
+    assert_eq!(result, Err(CompilerTransitionError::InvalidTransition));
 }
 
 #[test]
@@ -68,10 +65,7 @@ fn test_guard_never_rejects() {
         .build();
 
     let result = table.apply(LifecycleState::Pending, TransitionEvent::AssignToNode);
-    assert_eq!(
-        result,
-        Err(CompilerTransitionError::GuardRejected)
-    );
+    assert_eq!(result, Err(CompilerTransitionError::GuardRejected));
 }
 
 #[test]

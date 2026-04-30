@@ -72,12 +72,9 @@ pub fn check_unused_steps(graph: &DagGraph) -> Vec<Diagnostic> {
     unused
         .into_iter()
         .map(|name| {
-            Diagnostic::new(
-                LintCode::L004,
-                format!("unused step: `{name}`"),
-            )
-            .with_suggestion("Remove unused step or add edge from a reachable step")
-            .with_severity(crate::diagnostic::LintSeverity::Warning)
+            Diagnostic::new(LintCode::L004, format!("unused step: `{name}`"))
+                .with_suggestion("Remove unused step or add edge from a reachable step")
+                .with_severity(crate::diagnostic::LintSeverity::Warning)
         })
         .collect()
 }
@@ -115,10 +112,7 @@ impl<'ast> Visit<'ast> for WorkflowDetector {
 }
 
 impl WorkflowDetector {
-    fn extract_graph_from_workflow(
-        &self,
-        node: &syn::ExprStruct,
-    ) -> Option<DagGraph> {
+    fn extract_graph_from_workflow(&self, node: &syn::ExprStruct) -> Option<DagGraph> {
         let mut steps: Vec<Step> = Vec::new();
         let mut edges: Vec<Edge> = Vec::new();
         let mut nodes_field: Option<&syn::Expr> = None;
@@ -161,9 +155,7 @@ impl WorkflowDetector {
         if let syn::Expr::Array(arr) = expr {
             for elem in &arr.elems {
                 if let syn::Expr::Struct(node_struct) = elem {
-                    if node_struct.path.is_ident("DagNode")
-                        || node_struct.path.is_ident("Step")
-                    {
+                    if node_struct.path.is_ident("DagNode") || node_struct.path.is_ident("Step") {
                         if let Some(step) = self.extract_step_from_struct(node_struct) {
                             steps.push(step);
                         }
@@ -180,9 +172,7 @@ impl WorkflowDetector {
         let mut is_entry = false;
 
         for field in &node_struct.fields {
-            if member_is(&field.member, "node_name")
-                || member_is(&field.member, "name")
-            {
+            if member_is(&field.member, "node_name") || member_is(&field.member, "name") {
                 if let Some(n) = self.extract_string_from_expr(&field.expr) {
                     name = Some(n);
                 }
@@ -222,16 +212,12 @@ impl WorkflowDetector {
         let mut to: Option<String> = None;
 
         for field in &node_struct.fields {
-            if member_is(&field.member, "source_node")
-                || member_is(&field.member, "from")
-            {
+            if member_is(&field.member, "source_node") || member_is(&field.member, "from") {
                 if let Some(n) = self.extract_string_from_expr(&field.expr) {
                     from = Some(n);
                 }
             }
-            if member_is(&field.member, "target_node")
-                || member_is(&field.member, "to")
-            {
+            if member_is(&field.member, "target_node") || member_is(&field.member, "to") {
                 if let Some(n) = self.extract_string_from_expr(&field.expr) {
                     to = Some(n);
                 }

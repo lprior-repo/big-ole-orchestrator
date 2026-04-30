@@ -3,14 +3,18 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use vo_frontend::ui::edges::graph_types::{Connection, ExecutionState, Node, NodeId, PortName, WorkflowNode};
+use uuid::Uuid;
+use vo_frontend::ui::edges::graph_types::{
+    Connection, ExecutionState, Node, NodeId, PortName, WorkflowNode,
+};
 use vo_frontend::ui::edges::layout::{
     calculate_parallel_offset, create_smooth_step_path, find_parallel_branches,
     resolve_edge_anchors, resolve_edge_anchors_with_parallel,
 };
-use vo_frontend::ui::edges::types::{sanitize_bend_input_edge, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH};
+use vo_frontend::ui::edges::types::{
+    sanitize_bend_input_edge, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH,
+};
 use vo_frontend::ui::parallel_group_overlay::{AggregateStatus, BoundingBox, ParallelGroup};
-use uuid::Uuid;
 
 fn build_node(id: NodeId, x: f32, y: f32) -> Node {
     let mut node = Node::from_workflow_node(
@@ -112,7 +116,10 @@ fn create_smooth_step_path_bend_clamped_to_min() {
 
 #[test]
 fn create_smooth_step_path_ignores_nan_x() {
-    let from = vo_frontend::ui::edges::types::Position { x: f32::NAN, y: 50.0 };
+    let from = vo_frontend::ui::edges::types::Position {
+        x: f32::NAN,
+        y: 50.0,
+    };
     let to = vo_frontend::ui::edges::types::Position { x: 100.0, y: 50.0 };
     let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
     assert!(path.contains("L"));
@@ -121,7 +128,10 @@ fn create_smooth_step_path_ignores_nan_x() {
 
 #[test]
 fn create_smooth_step_path_ignores_nan_y() {
-    let from = vo_frontend::ui::edges::types::Position { x: 0.0, y: f32::NAN };
+    let from = vo_frontend::ui::edges::types::Position {
+        x: 0.0,
+        y: f32::NAN,
+    };
     let to = vo_frontend::ui::edges::types::Position { x: 100.0, y: 50.0 };
     let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
     assert!(path.contains("L"));
@@ -130,7 +140,10 @@ fn create_smooth_step_path_ignores_nan_y() {
 
 #[test]
 fn create_smooth_step_path_ignores_infinite_x() {
-    let from = vo_frontend::ui::edges::types::Position { x: f32::INFINITY, y: 50.0 };
+    let from = vo_frontend::ui::edges::types::Position {
+        x: f32::INFINITY,
+        y: 50.0,
+    };
     let to = vo_frontend::ui::edges::types::Position { x: 100.0, y: 50.0 };
     let (path, _) = create_smooth_step_path(from, to, 0.0);
     assert!(path.contains("L"));
@@ -138,7 +151,10 @@ fn create_smooth_step_path_ignores_infinite_x() {
 
 #[test]
 fn create_smooth_step_path_ignores_infinite_y() {
-    let from = vo_frontend::ui::edges::types::Position { x: 0.0, y: f32::INFINITY };
+    let from = vo_frontend::ui::edges::types::Position {
+        x: 0.0,
+        y: f32::INFINITY,
+    };
     let to = vo_frontend::ui::edges::types::Position { x: 100.0, y: 50.0 };
     let (path, _) = create_smooth_step_path(from, to, 0.0);
     assert!(path.contains("L"));
@@ -530,7 +546,12 @@ fn resolve_edge_anchors_with_parallel_ignores_unrelated_groups() {
     let target_a = build_node(target_a_id, 300.0, 100.0);
     let target_b = build_node(target_b_id, 300.0, 200.0);
     let unrelated_source = build_parallel_node(unrelated_source_id, 100.0, 400.0);
-    let nodes = vec![source.clone(), target_a.clone(), target_b.clone(), unrelated_source];
+    let nodes = vec![
+        source.clone(),
+        target_a.clone(),
+        target_b.clone(),
+        unrelated_source,
+    ];
     let conn_a = build_connection(Uuid::new_v4(), source_id, target_a_id);
     let conn_b = build_connection(Uuid::new_v4(), source_id, target_b_id);
     let connections = vec![conn_a.clone(), conn_b.clone()];
@@ -596,7 +617,8 @@ fn parallel_group_aggregate_status_all_variants() {
 
 #[test]
 fn workflow_node_is_parallel_method() {
-    let parallel_node = WorkflowNode::Parallel(crate::ui::edges::graph_types::ParallelConfig::default());
+    let parallel_node =
+        WorkflowNode::Parallel(crate::ui::edges::graph_types::ParallelConfig::default());
     let run_node = WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default());
     assert!(parallel_node.is_parallel());
     assert!(!run_node.is_parallel());

@@ -4,9 +4,9 @@
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
 
+use crate::ui::graph::{NodeId, Workflow};
 use crate::ui::panel_types::{chevron_rotation_class, CollapseState, PayloadShape};
 use dioxus::prelude::*;
-use crate::ui::graph::{NodeId, Workflow};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq)]

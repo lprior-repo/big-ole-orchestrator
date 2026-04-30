@@ -4,9 +4,10 @@ use crate::string_types::{
     BinaryHash, IdempotencyKey, InstanceId, NodeName, SpawnId, StepId, TimerId, WorkflowName,
 };
 use crate::{
-    CompensationPolicy, ConnectorResult, ConnectorState, ConnectorTransition, ConnectorTransitionError,
-    DagNode, Edge, EdgeCondition, EffectIntent, EffectKind, EffectTransitionEvent, NonEmptyVec,
-    ParseError, ReconcileAction, RetryPolicy, StepOutcome, WorkflowDefinition,
+    CompensationPolicy, ConnectorResult, ConnectorState, ConnectorTransition,
+    ConnectorTransitionError, DagNode, Edge, EdgeCondition, EffectIntent, EffectKind,
+    EffectTransitionEvent, NonEmptyVec, ParseError, ReconcileAction, RetryPolicy, StepOutcome,
+    WorkflowDefinition,
 };
 use proptest::prelude::*;
 use std::num::NonZeroU64;
@@ -63,15 +64,13 @@ impl Arbitrary for BinaryHash {
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
         let byte_len = 4u32..128u32;
-        byte_len.prop_map(|len| {
-            let hex_len = (len * 2) as usize;
-            let s: String = "0123456789abcdef"
-                .chars()
-                .cycle()
-                .take(hex_len)
-                .collect();
-            BinaryHash::parse(&s).expect("valid hex in range")
-        }).boxed()
+        byte_len
+            .prop_map(|len| {
+                let hex_len = (len * 2) as usize;
+                let s: String = "0123456789abcdef".chars().cycle().take(hex_len).collect();
+                BinaryHash::parse(&s).expect("valid hex in range")
+            })
+            .boxed()
     }
 }
 
@@ -80,7 +79,8 @@ impl Arbitrary for TimerId {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-        "\\S{1,256}".prop_map(|s| TimerId::parse(&s).expect("valid TimerId"))
+        "\\S{1,256}"
+            .prop_map(|s| TimerId::parse(&s).expect("valid TimerId"))
             .boxed()
     }
 }
@@ -168,7 +168,8 @@ impl Arbitrary for ConnectorTransitionError {
         prop::sample::select(vec![
             ConnectorTransitionError::TerminalStateTransition,
             ConnectorTransitionError::InvalidTransition,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 
@@ -190,7 +191,8 @@ impl Arbitrary for EdgeCondition {
             EdgeCondition::Always,
             EdgeCondition::OnSuccess,
             EdgeCondition::OnFailure,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 
@@ -199,11 +201,23 @@ impl Arbitrary for RetryPolicy {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-        (1u8..=255u8, 0u64..=u64::MAX, 1.0f64..=10.0f64, 0u64..=u64::MAX)
-            .prop_map(|(max_attempts, backoff_ms, backoff_multiplier, max_backoff_ms)| {
-                RetryPolicy::with_max_backoff(max_attempts, backoff_ms, backoff_multiplier, max_backoff_ms)
+        (
+            1u8..=255u8,
+            0u64..=u64::MAX,
+            1.0f64..=10.0f64,
+            0u64..=u64::MAX,
+        )
+            .prop_map(
+                |(max_attempts, backoff_ms, backoff_multiplier, max_backoff_ms)| {
+                    RetryPolicy::with_max_backoff(
+                        max_attempts,
+                        backoff_ms,
+                        backoff_multiplier,
+                        max_backoff_ms,
+                    )
                     .expect("valid retry policy")
-            })
+                },
+            )
             .boxed()
     }
 }
@@ -285,7 +299,8 @@ impl Arbitrary for EffectIntent {
             EffectIntent::Prepared,
             EffectIntent::Committed,
             EffectIntent::RolledBack,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 
@@ -298,7 +313,8 @@ impl Arbitrary for EffectKind {
             EffectKind::HttpCall,
             EffectKind::SqlQuery,
             EffectKind::BlobWrite,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 
@@ -311,7 +327,8 @@ impl Arbitrary for CompensationPolicy {
             CompensationPolicy::None,
             CompensationPolicy::Manual,
             CompensationPolicy::Automatic,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 
@@ -323,7 +340,8 @@ impl Arbitrary for EffectTransitionEvent {
         prop::sample::select(vec![
             EffectTransitionEvent::Commit,
             EffectTransitionEvent::Rollback,
-        ]).boxed()
+        ])
+        .boxed()
     }
 }
 

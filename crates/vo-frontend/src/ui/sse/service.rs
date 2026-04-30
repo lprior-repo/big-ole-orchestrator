@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::EventSource;
 
-use super::types::{SseConnectionStatus, WorkflowSseEvent, WorkflowEventLog};
+use super::types::{SseConnectionStatus, WorkflowEventLog, WorkflowSseEvent};
 
 // ── SSE Service ──────────────────────────────────────────────────────────────
 
@@ -141,18 +141,11 @@ impl SseService {
 
                 if let Some(event_target) = self.event_source.as_ref() {
                     if let Some(target) = event_target.dyn_ref::<web_sys::EventTarget>() {
-                        let _ = target.add_event_listener_with_callback(
-                            "open",
-                            on_open_handler(),
-                        );
-                        let _ = target.add_event_listener_with_callback(
-                            "message",
-                            on_message_handler(),
-                        );
-                        let _ = target.add_event_listener_with_callback(
-                            "error",
-                            on_error_handler(),
-                        );
+                        let _ = target.add_event_listener_with_callback("open", on_open_handler());
+                        let _ = target
+                            .add_event_listener_with_callback("message", on_message_handler());
+                        let _ =
+                            target.add_event_listener_with_callback("error", on_error_handler());
                     }
                 }
 
@@ -182,9 +175,7 @@ impl SseService {
         if self.config.max_reconnect_attempts > 0
             && self.reconnect_attempts >= self.config.max_reconnect_attempts
         {
-            self.status = SseConnectionStatus::Error(
-                "Max reconnect attempts reached".to_string(),
-            );
+            self.status = SseConnectionStatus::Error("Max reconnect attempts reached".to_string());
             return;
         }
 
@@ -293,10 +284,7 @@ mod tests {
             instance_id: "ns/abc123".to_string(),
             ..Default::default()
         };
-        assert_eq!(
-            config.sse_url(),
-            "http://localhost:3000/watch/ns/abc123"
-        );
+        assert_eq!(config.sse_url(), "http://localhost:3000/watch/ns/abc123");
     }
 
     #[test]

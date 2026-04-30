@@ -146,27 +146,56 @@ pub fn parse_task_opts(attr: &TokenStream) -> Result<TaskOpts, Error> {
                             if let proc_macro2::TokenTree::Literal(lit) = &value_token {
                                 let lit_str = lit.to_string();
                                 let value: syn::Expr = syn::parse2(quote::quote!(#lit).into())
-                                    .map_err(|_| Error::InvalidAttributeValue(ident_str.clone(), format!("invalid literal: {}", lit_str)))?;
+                                    .map_err(|_| {
+                                        Error::InvalidAttributeValue(
+                                            ident_str.clone(),
+                                            format!("invalid literal: {}", lit_str),
+                                        )
+                                    })?;
                                 match ident_str.as_str() {
                                     "retries" => {
-                                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = value {
-                                            let val = lit_int.base10_parse::<i64>()
-                                                .map_err(|_| Error::InvalidAttributeValue("retries".to_string(), "expected integer".to_string()))?;
+                                        if let syn::Expr::Lit(syn::ExprLit {
+                                            lit: syn::Lit::Int(lit_int),
+                                            ..
+                                        }) = value
+                                        {
+                                            let val =
+                                                lit_int.base10_parse::<i64>().map_err(|_| {
+                                                    Error::InvalidAttributeValue(
+                                                        "retries".to_string(),
+                                                        "expected integer".to_string(),
+                                                    )
+                                                })?;
                                             if val < 0 {
                                                 return Err(Error::NegativeRetries(val));
                                             }
                                             opts.retries = Some(val as u32);
                                         } else {
-                                            return Err(Error::InvalidAttributeValue("retries".to_string(), "expected integer".to_string()));
+                                            return Err(Error::InvalidAttributeValue(
+                                                "retries".to_string(),
+                                                "expected integer".to_string(),
+                                            ));
                                         }
                                     }
                                     "timeout" => {
-                                        if let syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(lit_int), .. }) = value {
-                                            let val = lit_int.base10_parse::<u64>()
-                                                .map_err(|_| Error::InvalidAttributeValue("timeout".to_string(), "expected integer".to_string()))?;
+                                        if let syn::Expr::Lit(syn::ExprLit {
+                                            lit: syn::Lit::Int(lit_int),
+                                            ..
+                                        }) = value
+                                        {
+                                            let val =
+                                                lit_int.base10_parse::<u64>().map_err(|_| {
+                                                    Error::InvalidAttributeValue(
+                                                        "timeout".to_string(),
+                                                        "expected integer".to_string(),
+                                                    )
+                                                })?;
                                             opts.timeout = Some(val);
                                         } else {
-                                            return Err(Error::InvalidAttributeValue("timeout".to_string(), "expected integer".to_string()));
+                                            return Err(Error::InvalidAttributeValue(
+                                                "timeout".to_string(),
+                                                "expected integer".to_string(),
+                                            ));
                                         }
                                     }
                                     _ => return Err(Error::UnknownAttribute(ident_str)),
@@ -792,28 +821,52 @@ mod tests {
     fn parse_task_attrs_accepts_retries() {
         let attr = quote! { retries = 3 };
         let result = parse_task_attrs(&attr).unwrap();
-        assert_eq!(result, TaskAttrs { retries: Some(3), timeout: None });
+        assert_eq!(
+            result,
+            TaskAttrs {
+                retries: Some(3),
+                timeout: None
+            }
+        );
     }
 
     #[test]
     fn parse_task_attrs_accepts_timeout() {
         let attr = quote! { timeout = 30 };
         let result = parse_task_attrs(&attr).unwrap();
-        assert_eq!(result, TaskAttrs { retries: None, timeout: Some(30) });
+        assert_eq!(
+            result,
+            TaskAttrs {
+                retries: None,
+                timeout: Some(30)
+            }
+        );
     }
 
     #[test]
     fn parse_task_attrs_accepts_combined_retries_and_timeout() {
         let attr = quote! { retries = 3, timeout = 30 };
         let result = parse_task_attrs(&attr).unwrap();
-        assert_eq!(result, TaskAttrs { retries: Some(3), timeout: Some(30) });
+        assert_eq!(
+            result,
+            TaskAttrs {
+                retries: Some(3),
+                timeout: Some(30)
+            }
+        );
     }
 
     #[test]
     fn parse_task_attrs_accepts_timeout_then_retries() {
         let attr = quote! { timeout = 60, retries = 5 };
         let result = parse_task_attrs(&attr).unwrap();
-        assert_eq!(result, TaskAttrs { retries: Some(5), timeout: Some(60) });
+        assert_eq!(
+            result,
+            TaskAttrs {
+                retries: Some(5),
+                timeout: Some(60)
+            }
+        );
     }
 
     #[test]

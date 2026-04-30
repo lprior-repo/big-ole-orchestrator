@@ -237,9 +237,12 @@ impl MessageBus {
             self.stderr_reader.take().ok_or(BusError::AlreadyConsumed)?,
         ));
 
-        let stdout_reader = self.stdout_reader.take().ok_or_else(|| IpcError::StdoutReadFailed {
-            detail: "stdout reader not available".to_string(),
-        })?;
+        let stdout_reader =
+            self.stdout_reader
+                .take()
+                .ok_or_else(|| IpcError::StdoutReadFailed {
+                    detail: "stdout reader not available".to_string(),
+                })?;
         let stdout_task = tokio::task::spawn(crate::stderr::read_bounded_stderr(stdout_reader));
 
         let mut fd4_read = self.fd4_read.take();

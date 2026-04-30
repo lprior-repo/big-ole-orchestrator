@@ -271,7 +271,9 @@ pub async fn start_workflow(
             StatusCode::GONE,
             Json(ApiError::new(
                 "ghost_instance",
-                format!("instance {id} has been reaped by zombie detection and cannot be restarted"),
+                format!(
+                    "instance {id} has been reaped by zombie detection and cannot be restarted"
+                ),
             )),
         )
             .into_response(),

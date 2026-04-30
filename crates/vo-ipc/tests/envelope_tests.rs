@@ -249,12 +249,18 @@ fn fd3_envelope_roundtrip_with_newlines_and_unicode() {
         }),
         secrets: {
             let mut m = BTreeMap::new();
-            m.insert("key_with_newlines".to_string(), "value\nwith\nnewlines".to_string());
+            m.insert(
+                "key_with_newlines".to_string(),
+                "value\nwith\nnewlines".to_string(),
+            );
             m
         },
         metadata: {
             let mut m = BTreeMap::new();
-            m.insert("trailing_newline".to_string(), "ends_with_newline\n".to_string());
+            m.insert(
+                "trailing_newline".to_string(),
+                "ends_with_newline\n".to_string(),
+            );
             m.insert("chinese_key".to_string(), "值".to_string());
             m
         },
@@ -431,7 +437,9 @@ fn write_envelope_fails_with_10mb_payload() {
     let mut buffer = Vec::new();
     let result = write_envelope(&mut buffer, &env);
     match result {
-        Err(IpcError::PayloadTooLarge(size)) => assert!(size > 0, "PayloadTooLarge should contain actual size"),
+        Err(IpcError::PayloadTooLarge(size)) => {
+            assert!(size > 0, "PayloadTooLarge should contain actual size")
+        }
         other => panic!("Expected PayloadTooLarge, got {:?}", other),
     }
 }
@@ -523,7 +531,10 @@ fn read_envelope_handles_partial_header_reads() {
     let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
     match result {
         Ok(got) => assert_eq!(env, got),
-        Err(e) => panic!("Expected Ok (buffer was {} bytes), got {:?}", original_len, e),
+        Err(e) => panic!(
+            "Expected Ok (buffer was {} bytes), got {:?}",
+            original_len, e
+        ),
     }
 }
 

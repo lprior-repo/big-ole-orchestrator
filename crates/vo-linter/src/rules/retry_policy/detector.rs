@@ -111,7 +111,9 @@ mod tests {
     fn check_retry_policy_bounds_multiple_warnings() {
         let diags = check_retry_policy_bounds(100, 120_000, 20.0, 3_600_001);
         assert_eq!(diags.len(), 4);
-        assert!(diags.iter().all(|d| d.severity() == Severity::Warning || d.code() == &LintCode::L006));
+        assert!(diags
+            .iter()
+            .all(|d| d.severity() == Severity::Warning || d.code() == &LintCode::L006));
     }
 
     #[test]

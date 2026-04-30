@@ -7,7 +7,10 @@ use vo_types::state::InstanceState;
 
 #[test]
 fn instance_state_serializes_and_deserializes_across_hibernate() {
-    let original = InstanceState { counter: 42, binary_hash: None };
+    let original = InstanceState {
+        counter: 42,
+        binary_hash: None,
+    };
 
     // Simulate hibernate: serialize state to bytes
     let state_bytes = serde_json::to_vec(&original).unwrap();
@@ -24,7 +27,10 @@ fn instance_state_serializes_and_deserializes_across_hibernate() {
 
 #[test]
 fn instance_state_with_large_counter_survives_round_trip() {
-    let original = InstanceState { counter: u64::MAX, binary_hash: None };
+    let original = InstanceState {
+        counter: u64::MAX,
+        binary_hash: None,
+    };
 
     let state_bytes = serde_json::to_vec(&original).unwrap();
     let restored: InstanceState = serde_json::from_slice(&state_bytes).unwrap();
@@ -34,7 +40,10 @@ fn instance_state_with_large_counter_survives_round_trip() {
 
 #[test]
 fn instance_state_json_format_is_stable_for_hibernate() {
-    let state = InstanceState { counter: 99, binary_hash: None };
+    let state = InstanceState {
+        counter: 99,
+        binary_hash: None,
+    };
     let json = serde_json::to_string(&state).unwrap();
     assert_eq!(json, r#"{"counter":99}"#);
 

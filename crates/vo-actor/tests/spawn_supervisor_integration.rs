@@ -237,7 +237,10 @@ impl WorkQueue for MockWorkQueue {
         Ok(())
     }
 
-    async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn enqueue_resume(
+        &self,
+        instance_id: InstanceId,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if *self.should_fail.lock().unwrap() {
             return Err("Queue full".into());
         }

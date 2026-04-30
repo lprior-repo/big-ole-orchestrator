@@ -63,8 +63,9 @@ impl WorkflowSseEvent {
     #[must_use]
     pub fn node_name(&self) -> Option<&str> {
         match self {
-            Self::StepCompleted { node_name, .. }
-            | Self::StepFailed { node_name, .. } => Some(node_name),
+            Self::StepCompleted { node_name, .. } | Self::StepFailed { node_name, .. } => {
+                Some(node_name)
+            }
             Self::TimerFired { .. }
             | Self::SignalReceived { .. }
             | Self::PhaseChanged { .. }
@@ -215,7 +216,11 @@ impl WorkflowEventLog {
     /// Returns all events in the log.
     #[must_use]
     pub fn events(&self) -> &[WorkflowSseEvent] {
-        &self.events.iter().map(|e| e.event.clone()).collect::<Vec<_>>()[..]
+        &self
+            .events
+            .iter()
+            .map(|e| e.event.clone())
+            .collect::<Vec<_>>()[..]
     }
 
     /// Returns the last event, if any.
@@ -442,7 +447,10 @@ mod tests {
             sequence: 2,
         });
         match log.last_event().unwrap() {
-            WorkflowSseEvent::StepCompleted { node_name, sequence } => {
+            WorkflowSseEvent::StepCompleted {
+                node_name,
+                sequence,
+            } => {
                 assert_eq!(node_name, "b");
                 assert_eq!(*sequence, 2);
             }
@@ -479,14 +487,8 @@ mod tests {
 
     #[test]
     fn workflow_instance_state_label() {
-        assert_eq!(
-            WorkflowInstanceState::Completed.label(),
-            "completed"
-        );
-        assert_eq!(
-            WorkflowInstanceState::Failed.label(),
-            "failed"
-        );
+        assert_eq!(WorkflowInstanceState::Completed.label(), "completed");
+        assert_eq!(WorkflowInstanceState::Failed.label(), "failed");
         assert_eq!(
             WorkflowInstanceState::Phase("executing".to_string()).label(),
             "phase:executing"

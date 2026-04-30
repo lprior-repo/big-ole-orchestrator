@@ -9,8 +9,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::integer_types::{FenceToken, SequenceNumber, TimestampMs};
-use crate::state::LifecycleState;
 use crate::state::LeaseRecord;
+use crate::state::LifecycleState;
 use crate::string_types::InstanceId;
 
 // ============================================================================
@@ -396,9 +396,7 @@ impl ResolutionResult {
     #[must_use]
     pub fn satisfies_inv_006(&self) -> bool {
         match self {
-            ResolutionResult::Resolved { winner, .. } => {
-                !matches!(winner, ConflictWinner::Neither)
-            }
+            ResolutionResult::Resolved { winner, .. } => !matches!(winner, ConflictWinner::Neither),
             ResolutionResult::Unresolvable { .. } => true,
             ResolutionResult::Deferred { .. } => true,
         }

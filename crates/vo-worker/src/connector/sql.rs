@@ -106,13 +106,19 @@ impl SqlConnector {
     /// This is a convenience method for testing and debugging.
     #[must_use]
     pub fn is_committed(&self, effect_id: &str) -> bool {
-        self.committed_effects.lock().unwrap_or_else(|e| e.into_inner()).contains(effect_id)
+        self.committed_effects
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .contains(effect_id)
     }
 
     /// Get the number of committed effects.
     #[must_use]
     pub fn committed_count(&self) -> usize {
-        self.committed_effects.lock().unwrap_or_else(|e| e.into_inner()).len()
+        self.committed_effects
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 }
 
@@ -166,7 +172,10 @@ impl Connector for SqlConnector {
             ));
         }
 
-        let mut committed = self.committed_effects.lock().unwrap_or_else(|e| e.into_inner());
+        let mut committed = self
+            .committed_effects
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         // Unique constraint: if effect_id already exists, return Ambiguous
         if committed.contains(&prepared.effect_id) {
@@ -182,7 +191,10 @@ impl Connector for SqlConnector {
     }
 
     async fn reconcile(&self, effect_id: &str) -> Result<ReconcileOutcome, ConnectorError> {
-        let committed = self.committed_effects.lock().unwrap_or_else(|e| e.into_inner());
+        let committed = self
+            .committed_effects
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         if committed.contains(effect_id) {
             Ok(ReconcileOutcome::Committed {
@@ -204,7 +216,10 @@ impl Connector for SqlConnector {
             .unwrap_or("ROLLBACK");
 
         let unique_key = format!("{}:{}", compensation_effect_id, fence);
-        let mut committed = self.committed_effects.lock().unwrap_or_else(|e| e.into_inner());
+        let mut committed = self
+            .committed_effects
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         if committed.contains(&unique_key) {
             return Ok(CommitOutcome::Ambiguous);

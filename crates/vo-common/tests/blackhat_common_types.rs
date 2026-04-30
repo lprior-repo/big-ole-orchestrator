@@ -9,10 +9,10 @@ mod deser_attacks {
 
     #[test]
     fn reject_missing_fields() {
-        assert!(
-            serde_json::from_value::<WorkflowEvent>(json!({"type": "TimerFired", "timer_id": "x"}))
-                .is_err()
-        );
+        assert!(serde_json::from_value::<WorkflowEvent>(
+            json!({"type": "TimerFired", "timer_id": "x"})
+        )
+        .is_err());
     }
 
     #[test]
@@ -31,7 +31,8 @@ mod deser_attacks {
     #[test]
     fn reject_unknown_variant() {
         assert!(
-            serde_json::from_value::<WorkflowEvent>(json!({"type": "UnknownVariant", "x": 1})).is_err()
+            serde_json::from_value::<WorkflowEvent>(json!({"type": "UnknownVariant", "x": 1}))
+                .is_err()
         );
     }
 

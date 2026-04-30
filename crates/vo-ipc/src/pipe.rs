@@ -126,18 +126,20 @@ impl PipeRead {
     pub async fn read_frame(&mut self) -> Result<Vec<u8>, IpcError> {
         let read_future = async {
             let mut header = [0u8; 4];
-            self.file.read_exact(&mut header).await.map_err(|e| {
-                IpcError::Fd4ReadFailed {
+            self.file
+                .read_exact(&mut header)
+                .await
+                .map_err(|e| IpcError::Fd4ReadFailed {
                     detail: e.to_string(),
-                }
-            })?;
+                })?;
             let len = u32::from_be_bytes(header);
             let mut payload = vec![0u8; len as usize];
-            self.file.read_exact(&mut payload).await.map_err(|e| {
-                IpcError::Fd4ReadFailed {
+            self.file
+                .read_exact(&mut payload)
+                .await
+                .map_err(|e| IpcError::Fd4ReadFailed {
                     detail: e.to_string(),
-                }
-            })?;
+                })?;
             Ok(payload)
         };
 
@@ -167,7 +169,13 @@ mod tests {
         drop(write_fd);
 
         let result = reader.read_frame().await;
-        assert!(matches!(result, Err(IpcError::Timeout { elapsed_ms: 5000, .. })));
+        assert!(matches!(
+            result,
+            Err(IpcError::Timeout {
+                elapsed_ms: 5000,
+                ..
+            })
+        ));
     }
 
     #[tokio::test]

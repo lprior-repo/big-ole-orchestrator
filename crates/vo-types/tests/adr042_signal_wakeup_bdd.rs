@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use vo_types::{
     signal::{signal_match, SignalDedupeKey, SignalMatchResult},
-    BufferPolicy, Epoch, IdempotencyKey, InstanceId, SignalAddress, TimestampMs, WaitKey, WaitRecord,
+    BufferPolicy, Epoch, IdempotencyKey, InstanceId, SignalAddress, TimestampMs, WaitKey,
+    WaitRecord,
 };
 
 fn valid_instance_id() -> InstanceId {

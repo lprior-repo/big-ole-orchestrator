@@ -112,7 +112,9 @@ pub fn parse_execute_args(args: &[String]) -> Result<ExecuteArgs, ExecuteArgsErr
             }
 
             node_name = Some(NodeName::parse(name_str).map_err(|_| {
-                ExecuteArgsError::UnrecognizedArgument { arg: name_str.clone() }
+                ExecuteArgsError::UnrecognizedArgument {
+                    arg: name_str.clone(),
+                }
             })?);
         } else if arg.starts_with("--graph") {
             return Err(ExecuteArgsError::UnrecognizedArgument { arg: arg.clone() });
@@ -196,17 +198,12 @@ impl BoxedNodeFn {
 /// Returns `()` if `--execute-node` was not present. If `--execute-node` was present,
 /// this function always terminates the process (success or failure).
 #[allow(clippy::result_unit_err)]
-pub fn execute_node(
-    args: &[String],
-    registry: &[(&str, BoxedNodeFn)],
-) -> Result<(), ()> {
+pub fn execute_node(args: &[String], registry: &[(&str, BoxedNodeFn)]) -> Result<(), ()> {
     match parse_execute_args(args) {
         Ok(execute_args) => {
             let node_name_str = execute_args.node_name.as_str();
 
-            let handler = registry
-                .iter()
-                .find(|(name, _)| *name == node_name_str);
+            let handler = registry.iter().find(|(name, _)| *name == node_name_str);
 
             match handler {
                 Some((_, node_fn)) => {
@@ -284,7 +281,11 @@ mod tests {
 
     #[test]
     fn parse_execute_args_valid_single_arg() {
-        let args = vec!["binary".to_string(), "--execute-node".to_string(), "charge".to_string()];
+        let args = vec![
+            "binary".to_string(),
+            "--execute-node".to_string(),
+            "charge".to_string(),
+        ];
         let result = parse_execute_args(&args);
         assert!(result.is_ok());
         let execute_args = result.unwrap();
@@ -327,7 +328,10 @@ mod tests {
             "extra".to_string(),
         ];
         let result = parse_execute_args(&args);
-        assert!(matches!(result, Err(ExecuteArgsError::UnrecognizedArgument { .. })));
+        assert!(matches!(
+            result,
+            Err(ExecuteArgsError::UnrecognizedArgument { .. })
+        ));
     }
 
     #[test]
@@ -339,12 +343,18 @@ mod tests {
             "--graph".to_string(),
         ];
         let result = parse_execute_args(&args);
-        assert!(matches!(result, Err(ExecuteArgsError::UnrecognizedArgument { arg }) if arg == "--graph"));
+        assert!(
+            matches!(result, Err(ExecuteArgsError::UnrecognizedArgument { arg }) if arg == "--graph")
+        );
     }
 
     #[test]
     fn has_execute_flag_true() {
-        let args = vec!["binary".to_string(), "--execute-node".to_string(), "charge".to_string()];
+        let args = vec![
+            "binary".to_string(),
+            "--execute-node".to_string(),
+            "charge".to_string(),
+        ];
         assert!(has_execute_flag(&args));
     }
 
@@ -381,7 +391,9 @@ mod tests {
         let err = ExecuteArgsError::NoExecuteNodeFlag;
         assert!(format!("{}", err).contains("no --execute-node flag"));
 
-        let err = ExecuteArgsError::UnrecognizedArgument { arg: "foo".to_string() };
+        let err = ExecuteArgsError::UnrecognizedArgument {
+            arg: "foo".to_string(),
+        };
         assert!(format!("{}", err).contains("unrecognized argument"));
         assert!(format!("{}", err).contains("foo"));
     }

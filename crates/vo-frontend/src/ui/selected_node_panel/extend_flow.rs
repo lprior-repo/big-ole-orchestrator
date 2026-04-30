@@ -3,12 +3,12 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use dioxus::prelude::*;
 use crate::flow_extender::{
     apply_extension, extension_presets, suggest_extensions, ExtensionPatchPreview,
     ExtensionPriority,
 };
 use crate::ui::graph::{NodeId, Workflow};
+use dioxus::prelude::*;
 
 use super::preset_card::PresetCard;
 use super::suggestion_card::SuggestionCard;

@@ -100,8 +100,8 @@ impl CommandEnvelope {
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+mod behavior_tests;
+#[cfg(test)]
 mod parsing_tests;
 #[cfg(test)]
 mod validation_tests;
-#[cfg(test)]
-mod behavior_tests;

@@ -61,7 +61,9 @@ impl DagGraph {
             adj.entry(step.name.clone()).or_default();
         }
         for edge in &self.edges {
-            adj.entry(edge.from.clone()).or_default().push(edge.to.clone());
+            adj.entry(edge.from.clone())
+                .or_default()
+                .push(edge.to.clone());
         }
         adj
     }
@@ -161,6 +163,9 @@ mod tests {
             .add_edge("a", "b")
             .add_edge("a", "c");
         let adj = graph.adjacency_list();
-        assert_eq!(adj.get("a").map(|v| v.as_slice()), Some(&["b".to_string(), "c".to_string()][..]));
+        assert_eq!(
+            adj.get("a").map(|v| v.as_slice()),
+            Some(&["b".to_string(), "c".to_string()][..])
+        );
     }
 }

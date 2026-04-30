@@ -4,12 +4,12 @@
 #![warn(clippy::pedantic)]
 #![forbid(unsafe_code)]
 
+use crate::ui::graph::{NodeId, RunRecord};
 use crate::ui::panel_types::{
     chevron_rotation_class, outcome_badge_style, outcome_icon_class, panel_height_class,
     CollapseState, PayloadShape, RunOutcome,
 };
 use dioxus::prelude::*;
-use crate::ui::graph::{NodeId, RunRecord};
 use std::collections::{HashMap, HashSet};
 
 const fn status_badge_classes(outcome: RunOutcome) -> &'static str {

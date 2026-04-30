@@ -3,7 +3,6 @@ mod attempt_number_tests;
 #[cfg(test)]
 mod binary_hash_tests;
 mod binomial_heap;
-mod edge_tracking;
 #[cfg(test)]
 mod blackhat_encryption_credentials_tests;
 mod blob;
@@ -16,7 +15,6 @@ pub mod command_history;
 pub mod command_metadata;
 mod compensation;
 mod connector;
-mod workload_class;
 pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
@@ -30,6 +28,7 @@ mod dual_representation;
 mod dual_representation_tests;
 #[cfg(test)]
 mod duration_ms_tests;
+mod edge_tracking;
 pub mod effects;
 #[cfg(test)]
 mod effects_receipt_tests;
@@ -62,13 +61,13 @@ mod integer_types_serde_tests;
 #[cfg(test)]
 mod integer_types_try_from_tests;
 mod lifecycle_superstate;
-pub mod merge_conflict;
 mod lineage;
 mod link_cut_tree;
 mod macros;
-mod monoid;
 #[cfg(test)]
 mod max_attempts_tests;
+pub mod merge_conflict;
+mod monoid;
 pub mod next_step_selection;
 mod node_kind;
 #[cfg(test)]
@@ -78,18 +77,19 @@ mod octree;
 mod pairing_heap;
 mod payload_parser;
 mod plugin;
+#[cfg(feature = "proptest")]
+mod proptest_domain_roundtrips;
 #[cfg(all(test, feature = "proptest"))]
 mod proptest_domain_types;
 #[cfg(feature = "proptest")]
 mod proptest_generators;
 #[cfg(feature = "proptest")]
 mod proptest_targets;
-#[cfg(feature = "proptest")]
-mod proptest_domain_roundtrips;
 pub mod proptest_verifier;
 mod recovery_contract;
 mod registration_status;
 mod rope;
+pub mod saga_coordinator;
 pub mod search;
 #[cfg(test)]
 mod sequence_number_tests;
@@ -114,13 +114,13 @@ mod timer_id_tests;
 mod timestamp_ms_tests;
 mod topology;
 mod tx_coordinator;
-pub mod saga_coordinator;
 mod types;
 #[cfg(test)]
 mod types_tests;
 mod workflow;
 #[cfg(test)]
 mod workflow_name_tests;
+mod workload_class;
 pub mod workspace;
 
 pub use binomial_heap::BinomialHeap;
@@ -160,10 +160,11 @@ pub use discovery::{
 pub use dual_representation::{
     apply_redaction, OperatorProjection, RedactionKind, RedactionPolicy, RedactionRule,
 };
+pub use edge_tracking::{select_fan_in_source, EdgeTraversalLog, RouterDecision, TraversedEdge};
 pub use effects::{
-    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, ExternalReceipt, validate_effect_against_schema,
-    EffectValidationError, JsonType, StepSchema,
+    apply_effect_transition, validate_effect_against_schema, CompensationPolicy, EffectIntent,
+    EffectKind, EffectRecord, EffectTransitionError, EffectTransitionEvent, EffectValidationError,
+    ExternalReceipt, JsonType, StepSchema,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;
@@ -173,16 +174,13 @@ pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree};
-pub use monoid::Monoid;
 pub use merge_conflict::{
     ConflictClass, ConflictType, ConflictWinner, ErrorCategory, ErrorDetail, FenceConflict,
     LeaseConflict, MergeConflictError, ResolutionResult, ResolutionStrategy, SequenceConflict,
     StateTransitionConflict, UnresolvableReason,
 };
+pub use monoid::Monoid;
 pub use node_kind::NodeKind;
-pub use edge_tracking::{
-    EdgeTraversalLog, RouterDecision, TraversedEdge, select_fan_in_source,
-};
 pub use non_empty_vec::NonEmptyVec;
 pub use octree::{BoundingBox, Octree, OctreeConfig, OctreeEntry, OctreeError, OctreeNode, Point3};
 pub use pairing_heap::{PairingHeap, PairingHeapError};
@@ -203,6 +201,10 @@ pub use rope::{Measurable, Rope, RopeBuilder, RopeError, RopeSlice};
 pub use vo_ds::btree::{BTree, BTreeError};
 pub use vo_ds::node::BTreeNode;
 
+pub use saga_coordinator::{
+    apply_saga_transition, SagaRecord, SagaState, SagaStep, SagaStepStatus, SagaTransition,
+    SagaTransitionError,
+};
 pub use signal::{
     signal_match, BufferPolicy, FailureScope, LineageScope, SignalAddress, SignalDedupeKey,
     SignalDelivery, SignalMatchResult, WaitKey, WaitRecord,
@@ -210,10 +212,6 @@ pub use signal::{
 pub use task_failure_kind::TaskFailureKind;
 pub use task_input::{TaskInput, TaskInputEnvelope};
 pub use topology::{LeaseKey, NodeId};
-pub use saga_coordinator::{
-    apply_saga_transition, SagaRecord, SagaState, SagaStep, SagaStepStatus, SagaTransition,
-    SagaTransitionError,
-};
 pub use tx_coordinator::{
     apply_coordinator_transition, CoordinatorDecision, CoordinatorTransition,
     CoordinatorTransitionError, ParticipantRecord, ParticipantStatus, ParticipantVote,
@@ -230,9 +228,7 @@ pub use workflow::{
     StepOutcome, VersionCompatResult, VersionError, WorkflowDefinition, WorkflowDefinitionError,
     WorkflowVersion,
 };
-pub use workload_class::{
-    WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES,
-};
+pub use workload_class::{WorkloadClass, WorkloadClassParseError, ALL_WORKLOAD_CLASSES};
 
 #[cfg(kani)]
 mod kani_proofs;

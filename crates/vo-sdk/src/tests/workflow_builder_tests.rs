@@ -309,13 +309,11 @@ fn workflow_nodes_auto_registered() {
     assert!(registry.contains("node-c"));
     assert!(!registry.contains("node-d"));
 
-    let func_a: crate::execution::BoxedNodeFn<String, i32> = registry
-        .lookup("node-a")
-        .expect("should exist");
+    let func_a: crate::execution::BoxedNodeFn<String, i32> =
+        registry.lookup("node-a").expect("should exist");
     assert_eq!(func_a("input".to_string()), 42);
 
-    let func_b: crate::execution::BoxedNodeFn<i32, bool> = registry
-        .lookup("node-b")
-        .expect("should exist");
+    let func_b: crate::execution::BoxedNodeFn<i32, bool> =
+        registry.lookup("node-b").expect("should exist");
     assert!(func_b(0));
 }

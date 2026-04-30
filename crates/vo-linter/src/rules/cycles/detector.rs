@@ -34,7 +34,9 @@ impl CycleDetector {
 
         for step in &graph.steps {
             if white.contains(&step.name) {
-                if let Some(cycle_path) = Self::dfs_visit(&step.name, &adj, &mut white, &mut gray, &mut HashMap::new()) {
+                if let Some(cycle_path) =
+                    Self::dfs_visit(&step.name, &adj, &mut white, &mut gray, &mut HashMap::new())
+                {
                     return Err(CycleError { path: cycle_path });
                 }
             }
@@ -67,7 +69,8 @@ impl CycleDetector {
                 if white.contains(neighbor) {
                     let mut new_stack = stack.clone();
                     new_stack.insert(neighbor.to_string(), vec![node.to_string()]);
-                    if let Some(cycle) = Self::dfs_visit(neighbor, adj, white, gray, &mut new_stack) {
+                    if let Some(cycle) = Self::dfs_visit(neighbor, adj, white, gray, &mut new_stack)
+                    {
                         return Some(cycle);
                     }
                 }
@@ -85,9 +88,13 @@ pub fn check_cycles(graph: &DagGraph) -> Vec<Diagnostic> {
         Ok(()) => Vec::new(),
         Err(cycle_error) => {
             let cycle_str = cycle_error.path.join("->");
-            vec![Diagnostic::new(LintCode::L008, format!("cycle detected: {}", cycle_str))
-                .with_severity(Severity::Error)
-                .with_suggestion("Remove the cyclic dependency to make the workflow a valid DAG")]
+            vec![
+                Diagnostic::new(LintCode::L008, format!("cycle detected: {}", cycle_str))
+                    .with_severity(Severity::Error)
+                    .with_suggestion(
+                        "Remove the cyclic dependency to make the workflow a valid DAG",
+                    ),
+            ]
         }
     }
 }
@@ -99,9 +106,18 @@ mod tests {
     #[test]
     fn test_acyclic_graph_returns_ok() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
-            .add_step(Step { name: "c".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "c".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b")
             .add_edge("b", "c");
 
@@ -112,8 +128,14 @@ mod tests {
     #[test]
     fn test_simple_self_referential_cycle() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
             .add_edge("a", "a");
 
         let result = CycleDetector::check(&graph);
@@ -125,8 +147,14 @@ mod tests {
     #[test]
     fn test_two_node_cycle() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b")
             .add_edge("b", "a");
 
@@ -140,9 +168,18 @@ mod tests {
     #[test]
     fn test_three_node_cycle_abc() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
-            .add_step(Step { name: "c".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "c".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b")
             .add_edge("b", "c")
             .add_edge("c", "a");
@@ -164,8 +201,10 @@ mod tests {
 
     #[test]
     fn test_single_node_no_edges_returns_ok() {
-        let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true });
+        let graph = DagGraph::new().add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        });
 
         let result = CycleDetector::check(&graph);
         assert!(result.is_ok(), "single node with no edges should return Ok");
@@ -174,10 +213,22 @@ mod tests {
     #[test]
     fn test_diamond_dag_no_cycle() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
-            .add_step(Step { name: "c".into(), is_entry: false })
-            .add_step(Step { name: "d".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "c".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "d".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b")
             .add_edge("a", "c")
             .add_edge("b", "d")
@@ -190,10 +241,22 @@ mod tests {
     #[test]
     fn test_linear_chain_no_cycle() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
-            .add_step(Step { name: "c".into(), is_entry: false })
-            .add_step(Step { name: "d".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "c".into(),
+                is_entry: false,
+            })
+            .add_step(Step {
+                name: "d".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b")
             .add_edge("b", "c")
             .add_edge("c", "d");
@@ -205,8 +268,14 @@ mod tests {
     #[test]
     fn test_cycle_diagnostic_contains_error_severity() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
             .add_edge("a", "a");
 
         let diags = check_cycles(&graph);
@@ -218,8 +287,14 @@ mod tests {
     #[test]
     fn test_no_cycle_diagnostic_returns_empty() {
         let graph = DagGraph::new()
-            .add_step(Step { name: "a".into(), is_entry: true })
-            .add_step(Step { name: "b".into(), is_entry: false })
+            .add_step(Step {
+                name: "a".into(),
+                is_entry: true,
+            })
+            .add_step(Step {
+                name: "b".into(),
+                is_entry: false,
+            })
             .add_edge("a", "b");
 
         let diags = check_cycles(&graph);

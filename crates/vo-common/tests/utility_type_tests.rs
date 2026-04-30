@@ -7,8 +7,8 @@
 //! - Edge cases (boundary values, empty inputs, unicode handling, error type conversions)
 
 use vo_common::{
-    EventId, InstanceId, NamespaceId, TimerId, VoError, WorkflowEvent, EventDedup, DuplicateResult,
-    types::TimestampMs,
+    types::TimestampMs, DuplicateResult, EventDedup, EventId, InstanceId, NamespaceId, TimerId,
+    VoError, WorkflowEvent,
 };
 
 // ============================================================================
@@ -380,10 +380,7 @@ mod vo_error_tests {
             VoError::internal(s.clone()).to_string(),
             "internal error: test"
         );
-        assert_eq!(
-            VoError::not_found(s.clone()).to_string(),
-            "not found: test"
-        );
+        assert_eq!(VoError::not_found(s.clone()).to_string(), "not found: test");
         assert_eq!(
             VoError::validation(s.clone()).to_string(),
             "validation failed: test"
@@ -532,7 +529,10 @@ mod event_tests {
     fn event_dedup_empty_event_id() {
         let mut dedup = EventDedup::new();
         dedup.check_and_track("".into());
-        assert_eq!(dedup.check_and_track("".into()), DuplicateResult::Duplicate("".into()));
+        assert_eq!(
+            dedup.check_and_track("".into()),
+            DuplicateResult::Duplicate("".into())
+        );
     }
 
     #[test]
@@ -870,7 +870,10 @@ mod error_conversion_tests {
 
     #[test]
     fn vo_error_from_json_missing_field() {
-        let json_err = serde_json::from_str::<WorkflowEvent>(r#"{"TimerFired":{"event_id":"e1","timer_id":"t1"}}"#).unwrap_err();
+        let json_err = serde_json::from_str::<WorkflowEvent>(
+            r#"{"TimerFired":{"event_id":"e1","timer_id":"t1"}}"#,
+        )
+        .unwrap_err();
         let vo_err: VoError = json_err.into();
         assert!(matches!(vo_err, VoError::Validation(_)));
     }

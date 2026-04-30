@@ -148,12 +148,11 @@ where
     let writer_pressure = Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
 
     let api_key_store = Arc::new(
-        vo_storage::api_key_partition::fjall_api_key::FjallApiKeyStore::open(&db_handle)
-            .map_err(|e| ServeError::InvalidStoragePath(format!("Failed to open API key store: {e}")))?
+        vo_storage::api_key_partition::fjall_api_key::FjallApiKeyStore::open(&db_handle).map_err(
+            |e| ServeError::InvalidStoragePath(format!("Failed to open API key store: {e}")),
+        )?,
     );
-    let api_key_state = vo_api::middleware::ApiKeyState {
-        api_key_store,
-    };
+    let api_key_state = vo_api::middleware::ApiKeyState { api_key_store };
 
     let state = vo_api::router::AppState {
         query,

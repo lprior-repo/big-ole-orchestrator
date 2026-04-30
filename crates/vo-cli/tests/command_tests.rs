@@ -2,8 +2,8 @@ use std::path::PathBuf;
 mod test_helpers;
 use test_helpers::{make_temp_dir, setup_project};
 use vo_cli::{
-    commands::init::InitConfig, run_check, run_doctor, run_lock, BinaryFormat, CheckCategory, CheckError,
-    DoctorConfig, DoctorError, LockConfig, Severity,
+    commands::init::InitConfig, run_check, run_doctor, run_lock, BinaryFormat, CheckCategory,
+    CheckError, DoctorConfig, DoctorError, LockConfig, Severity,
 };
 
 // ============================================================

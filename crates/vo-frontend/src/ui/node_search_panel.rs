@@ -1,6 +1,6 @@
+use crate::ui::graph::{Node, NodeCategory, NodeId};
 use dioxus::prelude::*;
 use regex::Regex;
-use crate::ui::graph::{Node, NodeCategory, NodeId};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SearchResult {
@@ -11,10 +11,7 @@ pub struct SearchResult {
     pub is_regex_match: bool,
 }
 
-pub fn filter_nodes_by_query(
-    nodes: &[Node],
-    query: &str,
-) -> Vec<SearchResult> {
+pub fn filter_nodes_by_query(nodes: &[Node], query: &str) -> Vec<SearchResult> {
     let query = query.trim();
     if query.is_empty() {
         return Vec::new();
@@ -22,7 +19,7 @@ pub fn filter_nodes_by_query(
 
     let is_regex = query.starts_with('/') && query.ends_with('/') && query.len() > 2;
     let search_pattern = if is_regex {
-        &query[1..query.len()-1]
+        &query[1..query.len() - 1]
     } else {
         query
     };
@@ -190,9 +187,7 @@ mod tests {
 
     #[test]
     fn given_whitespace_query_when_filtering_then_returns_empty() {
-        let nodes = vec![
-            make_node("HTTP Handler", NodeKind::Pure),
-        ];
+        let nodes = vec![make_node("HTTP Handler", NodeKind::Pure)];
         let results = filter_nodes_by_query(&nodes, "   ");
         assert!(results.is_empty());
     }
@@ -245,9 +240,7 @@ mod tests {
 
     #[test]
     fn given_invalid_regex_when_filtering_then_returns_empty() {
-        let nodes = vec![
-            make_node("node-001", NodeKind::Pure),
-        ];
+        let nodes = vec![make_node("node-001", NodeKind::Pure)];
         let results = filter_nodes_by_query(&nodes, "/[invalid/");
         assert!(results.is_empty());
     }

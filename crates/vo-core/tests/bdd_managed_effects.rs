@@ -21,7 +21,11 @@ fn given_default_sinks_when_queried_then_contains_blob_http_sql() {
     assert!(sinks.contains("blob"), "blob sink should be known");
     assert!(sinks.contains("http"), "http sink should be known");
     assert!(sinks.contains("sql"), "sql sink should be known");
-    assert_eq!(sinks.len(), 3, "exactly 3 default sinks should be registered");
+    assert_eq!(
+        sinks.len(),
+        3,
+        "exactly 3 default sinks should be registered"
+    );
 }
 
 #[test]
@@ -49,8 +53,14 @@ fn given_known_sink_when_validated_then_succeeds() {
     let sql_result = validator.validate_sink("sql");
 
     // Then: all known sinks pass validation
-    assert!(blob_result.is_ok(), "blob sink should validate successfully");
-    assert!(http_result.is_ok(), "http sink should validate successfully");
+    assert!(
+        blob_result.is_ok(),
+        "blob sink should validate successfully"
+    );
+    assert!(
+        http_result.is_ok(),
+        "http sink should validate successfully"
+    );
     assert!(sql_result.is_ok(), "sql sink should validate successfully");
 }
 
@@ -63,10 +73,21 @@ fn given_unknown_sink_when_validated_then_rejects_with_error() {
     let err = validator.validate_sink("kafka").unwrap_err();
 
     // Then: error indicates unsupported sink with correct metadata
-    assert_eq!(err.error_code(), "unsupported_sink", "error code should be unsupported_sink");
-    assert_eq!(err.sink_identifier(), Some("kafka"), "sink identifier should be kafka");
+    assert_eq!(
+        err.error_code(),
+        "unsupported_sink",
+        "error code should be unsupported_sink"
+    );
+    assert_eq!(
+        err.sink_identifier(),
+        Some("kafka"),
+        "sink identifier should be kafka"
+    );
     let msg = err.to_string();
-    assert!(msg.contains("kafka") && msg.contains("blob"), "error message should mention kafka and blob");
+    assert!(
+        msg.contains("kafka") && msg.contains("blob"),
+        "error message should mention kafka and blob"
+    );
 }
 
 #[test]
@@ -78,8 +99,16 @@ fn given_empty_sink_when_validated_then_rejects_as_empty() {
     let err = validator.validate_sink("").unwrap_err();
 
     // Then: error indicates empty sink
-    assert_eq!(err.error_code(), "empty_sink", "error code should be empty_sink");
-    assert_eq!(err.sink_identifier(), None, "sink identifier should be None for empty");
+    assert_eq!(
+        err.error_code(),
+        "empty_sink",
+        "error code should be empty_sink"
+    );
+    assert_eq!(
+        err.sink_identifier(),
+        None,
+        "sink identifier should be None for empty"
+    );
 }
 
 #[test]
@@ -91,7 +120,10 @@ fn given_all_known_sinks_when_batch_validated_then_succeeds() {
     let result = validate_workflow_sinks(sinks);
 
     // Then: batch validation succeeds
-    assert!(result.is_ok(), "batch validation of known sinks should succeed");
+    assert!(
+        result.is_ok(),
+        "batch validation of known sinks should succeed"
+    );
 }
 
 #[test]
@@ -127,7 +159,10 @@ fn given_http_call_effect_kind_when_validated_then_maps_to_http_sink() {
     let result = validate_effect_kinds([effect_kind]);
 
     // Then: validation succeeds (maps to http sink)
-    assert!(result.is_ok(), "HttpCall effect kind should map to http sink");
+    assert!(
+        result.is_ok(),
+        "HttpCall effect kind should map to http sink"
+    );
 }
 
 #[test]
@@ -139,7 +174,10 @@ fn given_sql_query_effect_kind_when_validated_then_maps_to_sql_sink() {
     let result = validate_effect_kinds([effect_kind]);
 
     // Then: validation succeeds (maps to sql sink)
-    assert!(result.is_ok(), "SqlQuery effect kind should map to sql sink");
+    assert!(
+        result.is_ok(),
+        "SqlQuery effect kind should map to sql sink"
+    );
 }
 
 #[test]
@@ -151,7 +189,10 @@ fn given_blob_write_effect_kind_when_validated_then_maps_to_blob_sink() {
     let result = validate_effect_kinds([effect_kind]);
 
     // Then: validation succeeds (maps to blob sink)
-    assert!(result.is_ok(), "BlobWrite effect kind should map to blob sink");
+    assert!(
+        result.is_ok(),
+        "BlobWrite effect kind should map to blob sink"
+    );
 }
 
 #[test]
@@ -167,7 +208,10 @@ fn given_all_effect_kinds_when_validated_then_all_succeed() {
     let result = validate_effect_kinds(effect_kinds);
 
     // Then: all effect kinds validate successfully
-    assert!(result.is_ok(), "all known effect kinds should validate successfully");
+    assert!(
+        result.is_ok(),
+        "all known effect kinds should validate successfully"
+    );
 }
 
 #[test]
@@ -182,9 +226,18 @@ fn given_custom_sinks_when_validator_created_then_accepts_only_custom() {
     let blob_result = validator.validate_sink("blob");
 
     // Then: only custom sinks are accepted
-    assert!(kafka_result.is_ok(), "kafka should be accepted in custom registry");
-    assert!(redis_result.is_ok(), "redis should be accepted in custom registry");
-    assert!(blob_result.is_err(), "blob should be rejected in custom registry");
+    assert!(
+        kafka_result.is_ok(),
+        "kafka should be accepted in custom registry"
+    );
+    assert!(
+        redis_result.is_ok(),
+        "redis should be accepted in custom registry"
+    );
+    assert!(
+        blob_result.is_err(),
+        "blob should be rejected in custom registry"
+    );
 }
 
 #[test]
@@ -198,8 +251,14 @@ fn given_empty_custom_registry_when_validated_then_rejects_all_sinks() {
     let http_result = validator.validate_sink("http");
 
     // Then: all sinks are rejected
-    assert!(blob_result.is_err(), "blob should be rejected by empty registry");
-    assert!(http_result.is_err(), "http should be rejected by empty registry");
+    assert!(
+        blob_result.is_err(),
+        "blob should be rejected by empty registry"
+    );
+    assert!(
+        http_result.is_err(),
+        "http should be rejected by empty registry"
+    );
 }
 
 // ADR-028: Exactly-once ingress deduplication coverage
@@ -213,7 +272,10 @@ fn given_deduplication_scope_when_effect_recorded_then_unique_id_generated() {
     let effect_id_2 = format!("effect-{}-2", scope_name);
 
     // Then: each effect has a unique identifier
-    assert_ne!(effect_id_1, effect_id_2, "effect IDs must be unique within ingress scope");
+    assert_ne!(
+        effect_id_1, effect_id_2,
+        "effect IDs must be unique within ingress scope"
+    );
 }
 
 // ADR-029: Fencing coverage
@@ -226,7 +288,10 @@ fn given_fencing_token_when_acquired_then_exclusive_access_enforced() {
     let lease_acquired = true; // Simulated
 
     // Then: exclusive access is enforced via fencing
-    assert!(lease_acquired, "fencing token should grant exclusive lease access");
+    assert!(
+        lease_acquired,
+        "fencing token should grant exclusive lease access"
+    );
 }
 
 // ADR-034: Saga compensation coverage
@@ -239,7 +304,10 @@ fn given_compensation_policy_when_forward_fails_then_compensation_runs() {
     let should_compensate = compensation_triggered || true; // Forward failed
 
     // Then: compensation actions are triggered in reverse order
-    assert!(should_compensate, "saga compensation should trigger on forward failure");
+    assert!(
+        should_compensate,
+        "saga compensation should trigger on forward failure"
+    );
 }
 
 // ADR-041: Connector runtime coverage
@@ -252,5 +320,8 @@ fn given_connector_runtime_when_effect_intent_generated_then_effect_recorded() {
     let effect_intent = format!("effect-intent-for-{}", runtime);
 
     // Then: the effect is recorded with proper intent
-    assert!(effect_intent.contains(runtime), "effect intent should reference connector runtime");
+    assert!(
+        effect_intent.contains(runtime),
+        "effect intent should reference connector runtime"
+    );
 }

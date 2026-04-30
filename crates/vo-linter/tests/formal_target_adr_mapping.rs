@@ -161,9 +161,7 @@ fn in_proptest_block(source: &str) -> Vec<String> {
 
 fn map_file_to_adrs(file_path: &Path, crates_root: &Path) -> BTreeSet<String> {
     let mut adrs = BTreeSet::new();
-    let rel = file_path
-        .strip_prefix(crates_root)
-        .unwrap_or(file_path);
+    let rel = file_path.strip_prefix(crates_root).unwrap_or(file_path);
     let rel_str = rel.to_string_lossy();
 
     if rel_str.contains("upcaster")
@@ -325,10 +323,7 @@ fn given_formal_targets_when_scanned_then_adr_invariants_are_mapped() {
     let required_adrs = ["ADR-035", "ADR-039", "ADR-043"];
     for adr in &required_adrs {
         let covered = adr_coverage.contains_key(*adr);
-        assert!(
-            covered,
-            "Required {adr} has NO formal test coverage mapped"
-        );
+        assert!(covered, "Required {adr} has NO formal test coverage mapped");
     }
 
     for adr in &required_adrs {

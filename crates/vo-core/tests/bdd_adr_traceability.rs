@@ -85,28 +85,52 @@ fn build_traceability_matrix() -> HashMap<String, TraceabilityRecord> {
 fn get_bdd_test_crates(adr_id: &str) -> Vec<&'static str> {
     match adr_id {
         "001" => vec!["implicit — all vo-core integration tests"],
-        "002" => vec!["vo-storage key_encoding tests", "vo-storage event_store tests"],
+        "002" => vec![
+            "vo-storage key_encoding tests",
+            "vo-storage event_store tests",
+        ],
         "003" => vec!["vo-executor subprocess integration"],
         "004" => vec!["vo-sdk workflow_builder_tests.rs"],
         "012" => vec!["vo-executor bdd_ipc_secrets.rs (ADR-014/012)"],
         "014" => vec!["vo-core bdd_ipc_secrets.rs"],
         "016" => vec!["vo-storage event_summary_commit.rs atomic batch tests"],
-        "027" => vec!["vo-core bdd_publish_workflow_version.rs", "vo-core bdd_replay_stored_spec.rs"],
-        "028" => vec!["vo-types adr028_dedupe_bdd_tests.rs", "vo-api ingress_bdd_tests.rs"],
+        "027" => vec![
+            "vo-core bdd_publish_workflow_version.rs",
+            "vo-core bdd_replay_stored_spec.rs",
+        ],
+        "028" => vec![
+            "vo-types adr028_dedupe_bdd_tests.rs",
+            "vo-api ingress_bdd_tests.rs",
+        ],
         "029" => vec!["vo-storage lease_partition tests"],
         "030" => vec!["vo-core bdd_managed_effects.rs"],
-        "031" => vec!["vo-core bdd_publish_workflow_version.rs", "vo-sdk workflow_spec_validation_tests.rs"],
+        "031" => vec![
+            "vo-core bdd_publish_workflow_version.rs",
+            "vo-sdk workflow_spec_validation_tests.rs",
+        ],
         "032" => vec!["vo-actor qos_fairness_integration.rs"],
         "033" => vec!["vo-actor qos_fairness_integration.rs"],
         "034" => vec!["vo-core bdd_dag_cycle.rs"],
-        "035" => vec!["vo-core upcaster_integration.rs", "vo-core upcaster_proptest.rs"],
+        "035" => vec![
+            "vo-core upcaster_integration.rs",
+            "vo-core upcaster_proptest.rs",
+        ],
         "036" => vec!["vo-types identity_bdd_tests.rs"],
-        "038" => vec!["vo-actor timer_wakeup_bdd.rs", "vo-types lifecycle state machine tests"],
+        "038" => vec![
+            "vo-actor timer_wakeup_bdd.rs",
+            "vo-types lifecycle state machine tests",
+        ],
         "039" => vec!["vo-types tests_bdd_lifecycle.rs"],
         "040" => vec!["vo-storage event_summary_commit.rs publication barrier tests"],
         "041" => vec!["vo-types connector/tests.rs"],
-        "042" => vec!["vo-types adr042_signal_wakeup_bdd.rs", "vo-core lineage_signals.rs"],
-        "043" => vec!["vo-core red_queen_adversarial.rs", "vo-core admission_red_queen_qa.rs"],
+        "042" => vec![
+            "vo-types adr042_signal_wakeup_bdd.rs",
+            "vo-core lineage_signals.rs",
+        ],
+        "043" => vec![
+            "vo-core red_queen_adversarial.rs",
+            "vo-core admission_red_queen_qa.rs",
+        ],
         _ => vec![],
     }
 }
@@ -167,7 +191,9 @@ fn given_adr_traceability_when_checked_then_each_safety_adr_has_bdd_coverage() {
     for adr_id in &adr_ids {
         let record = matrix.get(*adr_id).expect("ADR must be in matrix");
 
-        if record.bdd_test_crates.is_empty() || (record.bdd_test_crates.len() == 1 && record.bdd_test_crates[0].contains("implicit")) {
+        if record.bdd_test_crates.is_empty()
+            || (record.bdd_test_crates.len() == 1 && record.bdd_test_crates[0].contains("implicit"))
+        {
             uncovered.push(format!("  {} — {}", adr_id, record.description));
         }
 
@@ -210,7 +236,8 @@ fn given_adr_traceability_when_checked_then_each_safety_adr_has_bdd_coverage() {
         coverage_pct >= 95.0,
         "Traceability coverage ({:.1}%) is below 95% threshold. \
          ADRs without explicit BDD coverage: {:#?}",
-        coverage_pct, uncovered
+        coverage_pct,
+        uncovered
     );
 }
 
@@ -228,10 +255,8 @@ fn given_traceability_matrix_when_queried_then_all_23_safety_adrs_present() {
     );
 
     let expected_ids: Vec<&str> = vec![
-        "001", "002", "003", "004", "012", "014", "016",
-        "027", "028", "029", "030", "031", "032", "033",
-        "034", "035", "036", "038", "039", "040", "041",
-        "042", "043",
+        "001", "002", "003", "004", "012", "014", "016", "027", "028", "029", "030", "031", "032",
+        "033", "034", "035", "036", "038", "039", "040", "041", "042", "043",
     ];
 
     for expected_id in &expected_ids {

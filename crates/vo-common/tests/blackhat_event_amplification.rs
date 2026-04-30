@@ -71,7 +71,9 @@ mod serialization_bomb {
         let escaped: String = (0..50_000)
             .map(|i| format!("\\u{:04x}", i % 0x10000))
             .collect();
-        let json_str = format!(r#"{{"TimerFired":{{"event_id":"evt-x","timer_id":"{escaped}","timestamp_ms":0}}}}"#);
+        let json_str = format!(
+            r#"{{"TimerFired":{{"event_id":"evt-x","timer_id":"{escaped}","timestamp_ms":0}}}}"#
+        );
         let _: Result<WorkflowEvent, _> = serde_json::from_str(&json_str);
     }
 

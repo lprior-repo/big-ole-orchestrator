@@ -171,22 +171,19 @@ mod tests {
 
     #[test]
     fn test_diagnostic_with_severity() {
-        let d = Diagnostic::new(LintCode::L002, "test")
-            .with_severity(Severity::Error);
+        let d = Diagnostic::new(LintCode::L002, "test").with_severity(Severity::Error);
         assert_eq!(d.severity, Severity::Error);
     }
 
     #[test]
     fn test_diagnostic_field() {
-        let d = Diagnostic::new(LintCode::L003, "test")
-            .with_field("max_attempts");
+        let d = Diagnostic::new(LintCode::L003, "test").with_field("max_attempts");
         assert_eq!(d.field(), Some("max_attempts"));
     }
 
     #[test]
     fn test_diagnostic_suggested_bound() {
-        let d = Diagnostic::new(LintCode::L003, "test")
-            .with_suggested_bound("<= 50");
+        let d = Diagnostic::new(LintCode::L003, "test").with_suggested_bound("<= 50");
         assert_eq!(d.suggested_bound(), Some("<= 50"));
     }
 

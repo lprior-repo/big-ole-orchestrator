@@ -373,7 +373,11 @@ mod tests {
 
         let connector = HttpConnector::new(format!("http://{}", addr));
         let prepared = connector
-            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-html".to_string(), 1)
+            .prepare(
+                json!({"method": "GET", "path": "/charge"}),
+                "fx-html".to_string(),
+                1,
+            )
             .await
             .unwrap();
 
@@ -399,7 +403,11 @@ mod tests {
 
         let connector = HttpConnector::new(format!("http://{}", addr));
         let prepared = connector
-            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-json".to_string(), 1)
+            .prepare(
+                json!({"method": "GET", "path": "/charge"}),
+                "fx-json".to_string(),
+                1,
+            )
             .await
             .unwrap();
 
@@ -422,7 +430,11 @@ mod tests {
 
         let connector = HttpConnector::new(format!("http://{}", addr));
         let prepared = connector
-            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-xml".to_string(), 1)
+            .prepare(
+                json!({"method": "GET", "path": "/charge"}),
+                "fx-xml".to_string(),
+                1,
+            )
             .await
             .unwrap();
 

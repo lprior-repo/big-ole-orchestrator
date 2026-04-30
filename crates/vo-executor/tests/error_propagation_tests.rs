@@ -15,15 +15,14 @@ use std::sync::Mutex;
 use std::sync::MutexGuard;
 
 use vo_executor::errors::{ExecuteNodeError, RetryPolicyError};
-use vo_executor::scheduler::{ExecutionError, RetryExhaustedError, SchedulerError};
 use vo_executor::scheduler::JobId;
+use vo_executor::scheduler::{ExecutionError, RetryExhaustedError, SchedulerError};
 use vo_executor::state::{
-    get_state, reset_all_state, set_executing_state_for_test, set_error, set_state,
-    StepState,
+    get_state, reset_all_state, set_error, set_executing_state_for_test, set_state, StepState,
 };
 use vo_executor::{
-    cancel_execution, execute_step, execute_step_with_retry, get_execution_status,
-    ExecutionStatus, RetryPolicy, StepId, SubprocessOutput,
+    cancel_execution, execute_step, execute_step_with_retry, get_execution_status, ExecutionStatus,
+    RetryPolicy, StepId, SubprocessOutput,
 };
 
 static STATE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -899,7 +898,10 @@ mod retry_limit_enforcement {
     fn retry_policy_max_attempts_cannot_be_zero() {
         let result = RetryPolicy::new(0, 100, 2.0);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RetryPolicyError::ZeroAttempts));
+        assert!(matches!(
+            result.unwrap_err(),
+            RetryPolicyError::ZeroAttempts
+        ));
     }
 
     #[test]
@@ -923,8 +925,7 @@ mod retry_limit_enforcement {
         {
             let policy = RetryPolicy::new(2, 10, 2.0).unwrap();
             let result =
-                execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy)
-                    .await;
+                execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
             assert!(result.is_err());
             assert!(matches!(
                 result.unwrap_err(),
@@ -940,8 +941,7 @@ mod retry_limit_enforcement {
         {
             let policy = RetryPolicy::new(3, 10, 2.0).unwrap();
             let result =
-                execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy)
-                    .await;
+                execute_step_with_retry(StepId::new("step-flaky".to_string()), 5000, policy).await;
             assert!(result.is_err());
             assert!(matches!(
                 result.unwrap_err(),
@@ -956,7 +956,11 @@ mod retry_limit_enforcement {
         // Calculate delays for attempts 1..=max_attempts
         for attempt in 1..=policy.max_attempts {
             let delay = policy.calculate_backoff_delay(attempt);
-            assert!(delay > 0, "Backoff delay for attempt {} should be > 0", attempt);
+            assert!(
+                delay > 0,
+                "Backoff delay for attempt {} should be > 0",
+                attempt
+            );
         }
     }
 }
@@ -973,7 +977,10 @@ mod retry_policy_validation {
         let _guard = setup();
         let result = RetryPolicy::new(0, 100, 2.0);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), RetryPolicyError::ZeroAttempts));
+        assert!(matches!(
+            result.unwrap_err(),
+            RetryPolicyError::ZeroAttempts
+        ));
     }
 
     #[tokio::test]
@@ -1040,8 +1047,7 @@ mod retry_policy_validation {
 
     #[test]
     fn retry_policy_with_max_backoff_large_max() {
-        let policy =
-            RetryPolicy::with_max_backoff(10, 1, 2.0, u64::MAX - 1).unwrap();
+        let policy = RetryPolicy::with_max_backoff(10, 1, 2.0, u64::MAX - 1).unwrap();
         assert_eq!(policy.max_backoff_ms, u64::MAX - 1);
     }
 

@@ -477,9 +477,12 @@ mod handlers {
                 let history =
                     crate::commands::workflow_history::run_workflow_history(&config).await?;
                 if json {
-                    println!("{}", serde_json::to_string_pretty(&history).map_err(|e| {
-                        CliError::Dispatch(format!("JSON serialization failed: {}", e))
-                    })?);
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&history).map_err(|e| {
+                            CliError::Dispatch(format!("JSON serialization failed: {}", e))
+                        })?
+                    );
                 } else {
                     println!("Workflow History for {}", history.instance_id);
                     println!("Total events: {}", history.entries.len());
@@ -490,7 +493,8 @@ mod handlers {
                     for entry in &history.entries {
                         println!(
                             "[{:>6}] {} {}",
-                            entry.sequence, entry.event_type,
+                            entry.sequence,
+                            entry.event_type,
                             entry.step_id.as_deref().unwrap_or("-")
                         );
                         if let Some(ref err) = entry.error {
@@ -582,7 +586,9 @@ mod handlers {
             } = cli.command
             else {
                 return Box::pin(async {
-                    Err(CliError::Dispatch("not an execute-node command".to_string()))
+                    Err(CliError::Dispatch(
+                        "not an execute-node command".to_string(),
+                    ))
                 });
             };
             let binary = binary.clone();

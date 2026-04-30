@@ -200,7 +200,10 @@ mod tests {
     struct DummyApiKeyStore;
 
     impl vo_storage::api_key_partition::ApiKeyStore for DummyApiKeyStore {
-        fn validate_key(&self, _key: &str) -> Result<(), vo_storage::api_key_partition::ApiKeyStoreError> {
+        fn validate_key(
+            &self,
+            _key: &str,
+        ) -> Result<(), vo_storage::api_key_partition::ApiKeyStoreError> {
             Ok(())
         }
     }

@@ -6,7 +6,10 @@ fn bench_octree_coplanar(c: &mut Criterion) {
     let mut group = c.benchmark_group("octree_coplanar");
     group.throughput(Throughput::Elements(1));
 
-    let bounds = Bounds::new(Vec3::new(-100.0, -100.0, -100.0), Vec3::new(100.0, 100.0, 100.0));
+    let bounds = Bounds::new(
+        Vec3::new(-100.0, -100.0, -100.0),
+        Vec3::new(100.0, 100.0, 100.0),
+    );
 
     group.bench_function("insert_10k_coplanar_z0", |b| {
         b.iter_batched(
@@ -42,7 +45,10 @@ fn bench_octree_coplanar(c: &mut Criterion) {
         b.iter(|| black_box(populated.query_range(black_box(&wide_query))))
     });
 
-    let full_query = Bounds::new(Vec3::new(-100.0, -100.0, -100.0), Vec3::new(100.0, 100.0, 100.0));
+    let full_query = Bounds::new(
+        Vec3::new(-100.0, -100.0, -100.0),
+        Vec3::new(100.0, 100.0, 100.0),
+    );
     group.bench_function("query_10k_coplanar_selectivity_100pct", |b| {
         b.iter(|| black_box(populated.query_range(black_box(&full_query))))
     });
@@ -54,7 +60,10 @@ fn bench_octree_random(c: &mut Criterion) {
     let mut group = c.benchmark_group("octree_random");
     group.throughput(Throughput::Elements(1));
 
-    let bounds = Bounds::new(Vec3::new(-100.0, -100.0, -100.0), Vec3::new(100.0, 100.0, 100.0));
+    let bounds = Bounds::new(
+        Vec3::new(-100.0, -100.0, -100.0),
+        Vec3::new(100.0, 100.0, 100.0),
+    );
 
     group.bench_function("insert_10k_random", |b| {
         b.iter_batched(

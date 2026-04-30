@@ -41,7 +41,11 @@ fn parse_init_command(
 ) {
     let cli = interpret_cli_from(args).expect("init should parse");
     match cli.command {
-        Command::Init { project_dir, engine_url, storage_path } => {
+        Command::Init {
+            project_dir,
+            engine_url,
+            storage_path,
+        } => {
             assert_eq!(project_dir, PathBuf::from(expected_project_dir));
             assert_eq!(engine_url, expected_engine_url);
             assert_eq!(storage_path, PathBuf::from(expected_storage_path));
@@ -66,7 +70,10 @@ fn parse_gc_command(
 ) {
     let cli = interpret_cli_from(args).expect("gc should parse");
     match cli.command {
-        Command::Gc { engine_url, dry_run } => {
+        Command::Gc {
+            engine_url,
+            dry_run,
+        } => {
             assert_eq!(engine_url, expected_engine_url);
             assert_eq!(dry_run, expected_dry_run);
         }
@@ -102,7 +109,12 @@ fn parse_rebuild_command(
 ) {
     let cli = interpret_cli_from(args).expect("rebuild should parse");
     match cli.command {
-        Command::Rebuild { project_dir, projection_id, list_projections, force } => {
+        Command::Rebuild {
+            project_dir,
+            projection_id,
+            list_projections,
+            force,
+        } => {
             assert_eq!(project_dir, PathBuf::from(expected_project_dir));
             assert_eq!(projection_id.as_deref(), expected_projection_id);
             assert_eq!(list_projections, expected_list);
@@ -166,7 +178,11 @@ fn parse_purge_command(
 ) {
     let cli = interpret_cli_from(args).expect("purge should parse");
     match cli.command {
-        Command::Purge { instance, storage_path: _, dry_run } => {
+        Command::Purge {
+            instance,
+            storage_path: _,
+            dry_run,
+        } => {
             assert_eq!(instance, expected_instance);
             assert_eq!(dry_run, expected_dry_run);
         }
@@ -215,7 +231,11 @@ fn parse_compensate_command(
 ) {
     let cli = interpret_cli_from(args).expect("compensate should parse");
     match cli.command {
-        Command::Compensate { engine_url, workflow_id, force } => {
+        Command::Compensate {
+            engine_url,
+            workflow_id,
+            force,
+        } => {
             assert_eq!(workflow_id, expected_workflow_id);
             assert_eq!(engine_url, expected_engine_url);
             assert_eq!(force, expected_force);
@@ -241,7 +261,10 @@ fn parse_status_command(
 ) {
     let cli = interpret_cli_from(args).expect("status should parse");
     match cli.command {
-        Command::Status { engine_url, workflow_id } => {
+        Command::Status {
+            engine_url,
+            workflow_id,
+        } => {
             assert_eq!(workflow_id, expected_workflow_id);
             assert_eq!(engine_url, expected_engine_url);
         }
@@ -279,7 +302,10 @@ fn parse_missing_required_field_fails(#[case] args: Vec<&str>) {
 fn parse_version_flag() {
     let result = interpret_cli_from(vec!["vo", "--version"]);
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err().kind(), clap::error::ErrorKind::DisplayVersion));
+    assert!(matches!(
+        result.unwrap_err().kind(),
+        clap::error::ErrorKind::DisplayVersion
+    ));
 }
 
 #[test]
@@ -302,8 +328,14 @@ fn parse_gc_with_unknown_flag_fails() {
 // ---------------------------------------------------------------------------
 
 #[rstest::rstest]
-#[case::clap_help(CliError::Clap(clap::Error::new(clap::error::ErrorKind::DisplayHelp)), 0)]
-#[case::clap_version(CliError::Clap(clap::Error::new(clap::error::ErrorKind::DisplayVersion)), 0)]
+#[case::clap_help(
+    CliError::Clap(clap::Error::new(clap::error::ErrorKind::DisplayHelp)),
+    0
+)]
+#[case::clap_version(
+    CliError::Clap(clap::Error::new(clap::error::ErrorKind::DisplayVersion)),
+    0
+)]
 #[case::invalid_numeric(CliError::InvalidNumeric("bad".into()), 2)]
 #[case::dispatch(CliError::Dispatch("fail".into()), 1)]
 fn exit_code_mapping(#[case] err: CliError, #[case] expected: i32) {

@@ -7,16 +7,25 @@
 
 use crate::diagnostic::LintSeverity;
 
-use crate::LintCode;
-use super::graph::{DagGraph, Step};
 use super::check_unused_steps;
+use super::graph::{DagGraph, Step};
+use crate::LintCode;
 
 #[test]
 fn test_no_unused_steps_fully_connected() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "c".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "c".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b")
         .add_edge("b", "c");
 
@@ -30,8 +39,14 @@ fn test_no_unused_steps_fully_connected() {
 #[test]
 fn test_single_unused_step() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b");
 
     let diagnostics = check_unused_steps(&graph);
@@ -47,16 +62,32 @@ fn test_single_unused_step() {
 #[test]
 fn test_multiple_unused_steps() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "c".into(), is_entry: false })
-        .add_step(Step { name: "d".into(), is_entry: false })
-        .add_step(Step { name: "e".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "c".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "d".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "e".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b");
 
     let diagnostics = check_unused_steps(&graph);
     assert_eq!(
-        diagnostics.len(), 3,
+        diagnostics.len(),
+        3,
         "expected three unused steps, got {}",
         diagnostics.len()
     );
@@ -84,15 +115,31 @@ fn test_entry_node_not_flagged() {
 #[test]
 fn test_disconnected_subgraph() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "x".into(), is_entry: false })
-        .add_step(Step { name: "y".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "x".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "y".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b")
         .add_edge("x", "y");
 
     let diagnostics = check_unused_steps(&graph);
-    assert_eq!(diagnostics.len(), 2, "disconnected subgraph nodes should each be flagged");
+    assert_eq!(
+        diagnostics.len(),
+        2,
+        "disconnected subgraph nodes should each be flagged"
+    );
 
     let names: Vec<&str> = diagnostics.iter().map(|d| d.message.as_str()).collect();
     assert!(names.iter().any(|m| *m == "unused step: `x`"));
@@ -103,10 +150,22 @@ fn test_disconnected_subgraph() {
 fn test_diamond_dag_no_false_positives() {
     // Diamond: A->B, A->C, B->D, C->D (A is entry)
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "c".into(), is_entry: false })
-        .add_step(Step { name: "d".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "c".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "d".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b")
         .add_edge("a", "c")
         .add_edge("b", "d")
@@ -122,16 +181,27 @@ fn test_diamond_dag_no_false_positives() {
 #[test]
 fn test_unused_step_diagnostic_includes_suggestion() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "orphan".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "orphan".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b");
 
     let diagnostics = check_unused_steps(&graph);
     assert_eq!(diagnostics.len(), 1);
     let diag = &diagnostics[0];
     assert!(
-        diag.suggestion.as_ref().is_some_and(|s| s.contains("Remove unused step")),
+        diag.suggestion
+            .as_ref()
+            .is_some_and(|s| s.contains("Remove unused step")),
         "suggestion should contain actionable advice, got: {:?}",
         diag.suggestion
     );
@@ -140,9 +210,18 @@ fn test_unused_step_diagnostic_includes_suggestion() {
 #[test]
 fn test_warning_severity() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "orphan".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "orphan".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b");
 
     let diagnostics = check_unused_steps(&graph);
@@ -180,8 +259,14 @@ fn test_entry_only_graph() {
 #[test]
 fn test_no_entry_node_returns_empty() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: false })
-        .add_step(Step { name: "b".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b");
 
     let diagnostics = check_unused_steps(&graph);
@@ -194,10 +279,22 @@ fn test_no_entry_node_returns_empty() {
 #[test]
 fn test_unused_steps_sorted_alphabetically() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "zebra".into(), is_entry: false })
-        .add_step(Step { name: "alpha".into(), is_entry: false })
-        .add_step(Step { name: "middle".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "zebra".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "alpha".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "middle".into(),
+            is_entry: false,
+        })
         .add_edge("a", "zebra");
 
     let diagnostics = check_unused_steps(&graph);
@@ -209,8 +306,14 @@ fn test_unused_steps_sorted_alphabetically() {
 #[test]
 fn test_lint_code_is_l004() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "orphan".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "orphan".into(),
+            is_entry: false,
+        })
         .add_edge("a", "a");
 
     let diagnostics = check_unused_steps(&graph);
@@ -221,8 +324,14 @@ fn test_lint_code_is_l004() {
 #[test]
 fn test_deep_chain_no_unused() {
     let mut graph = DagGraph::new()
-        .add_step(Step { name: "0".into(), is_entry: true })
-        .add_step(Step { name: "1".into(), is_entry: false });
+        .add_step(Step {
+            name: "0".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "1".into(),
+            is_entry: false,
+        });
     for i in 2..=20 {
         graph = graph.add_step(Step {
             name: i.to_string(),
@@ -242,10 +351,22 @@ fn test_deep_chain_no_unused() {
 fn test_multiple_entry_points_no_flag() {
     // Only first entry node is the actual entry
     let graph = DagGraph::new()
-        .add_step(Step { name: "a".into(), is_entry: true })
-        .add_step(Step { name: "b".into(), is_entry: false })
-        .add_step(Step { name: "c".into(), is_entry: false })
-        .add_step(Step { name: "d".into(), is_entry: false })
+        .add_step(Step {
+            name: "a".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "b".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "c".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "d".into(),
+            is_entry: false,
+        })
         .add_edge("a", "b")
         .add_edge("a", "c")
         .add_edge("b", "d");
@@ -260,8 +381,14 @@ fn test_multiple_entry_points_no_flag() {
 #[test]
 fn test_isolated_node_not_entry() {
     let graph = DagGraph::new()
-        .add_step(Step { name: "entry".into(), is_entry: true })
-        .add_step(Step { name: "isolated".into(), is_entry: false });
+        .add_step(Step {
+            name: "entry".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "isolated".into(),
+            is_entry: false,
+        });
 
     let diagnostics = check_unused_steps(&graph);
     assert_eq!(diagnostics.len(), 1);

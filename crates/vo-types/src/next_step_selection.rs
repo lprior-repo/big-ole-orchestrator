@@ -558,9 +558,9 @@ fn find_ready_nodes_fan_in(
             }
 
             // All incoming edge sources must have recorded outcomes
-            let all_parents_have_outcomes = incoming.iter().all(|edge| {
-                outcomes.contains(&edge.source_node)
-            });
+            let all_parents_have_outcomes = incoming
+                .iter()
+                .all(|edge| outcomes.contains(&edge.source_node));
 
             if !all_parents_have_outcomes {
                 return None;
@@ -824,9 +824,15 @@ mod tests {
 
         let mut log = EdgeTraversalLog::new();
         // First edge: A→B with Success
-        log.record(TraversedEdge::on_success(NodeName("A".into()), NodeName("B".into())));
+        log.record(TraversedEdge::on_success(
+            NodeName("A".into()),
+            NodeName("B".into()),
+        ));
         // Second edge: A→C with Failure (last outcome for A wins in map)
-        log.record(TraversedEdge::on_failure(NodeName("A".into()), NodeName("C".into())));
+        log.record(TraversedEdge::on_failure(
+            NodeName("A".into()),
+            NodeName("C".into()),
+        ));
 
         let map = ParentOutcomeMap::from_traversal_log(&log);
         // The last recorded outcome for A is Failure

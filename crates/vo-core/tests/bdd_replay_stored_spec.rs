@@ -121,12 +121,10 @@ fn make_test_events(instance_id: &str) -> Vec<vo_types::events::EventEnvelope> {
 #[test]
 fn given_instance_pinned_to_spec_hash_when_recovered_then_replay_uses_stored_spec() {
     // GIVEN an instance was started with workflow version hash A
-    let hash_a = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        .unwrap();
-    let binary_path_a = format!(
-        "/var/wtf/versions/{}/test-workflow",
-        hash_a.as_str()
-    );
+    let hash_a =
+        BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap();
+    let binary_path_a = format!("/var/wtf/versions/{}/test-workflow", hash_a.as_str());
 
     // AND the workflow version store has the canonical spec for hash A stored
     let store = SpyWorkflowVersionStore::with_spec(hash_a.clone(), &binary_path_a);
@@ -174,8 +172,9 @@ fn given_instance_pinned_to_spec_hash_when_recovered_then_replay_uses_stored_spe
 #[test]
 fn given_binary_hash_not_in_store_when_replay_with_stored_spec_then_returns_error() {
     // GIVEN a binary hash B that is NOT in the store
-    let hash_b = BinaryHash::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-        .unwrap();
+    let hash_b =
+        BinaryHash::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+            .unwrap();
     let store = SpyWorkflowVersionStore::new();
     let events = make_test_events("inst-1");
 
@@ -195,18 +194,18 @@ fn given_binary_hash_not_in_store_when_replay_with_stored_spec_then_returns_erro
 }
 
 #[test]
-fn given_instance_pinned_to_hash_a_and_binary_deployed_hash_b_when_recovered_then_still_uses_hash_a() {
+fn given_instance_pinned_to_hash_a_and_binary_deployed_hash_b_when_recovered_then_still_uses_hash_a(
+) {
     // GIVEN an instance started with hash A (old deployment)
-    let hash_a = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        .unwrap();
-    let binary_path_a = format!(
-        "/var/wtf/versions/{}/test-workflow",
-        hash_a.as_str()
-    );
+    let hash_a =
+        BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap();
+    let binary_path_a = format!("/var/wtf/versions/{}/test-workflow", hash_a.as_str());
 
     // AND a new deployment has hash B (current active)
-    let hash_b = BinaryHash::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
-        .unwrap();
+    let hash_b =
+        BinaryHash::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+            .unwrap();
 
     // AND only hash A is in the store (the instance's pinned version)
     let store = SpyWorkflowVersionStore::with_spec(hash_a.clone(), &binary_path_a);
@@ -237,13 +236,14 @@ fn given_instance_pinned_to_hash_a_and_binary_deployed_hash_b_when_recovered_the
 #[test]
 fn given_stored_spec_when_replay_with_stored_spec_then_store_get_called_before_replay() {
     // GIVEN a store with stored spec
-    let hash_a = BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-        .unwrap();
-    let binary_path_a = format!(
-        "/var/wtf/versions/{}/test-workflow",
-        hash_a.as_str()
-    );
-    let store = Rc::new(SpyWorkflowVersionStore::with_spec(hash_a.clone(), &binary_path_a));
+    let hash_a =
+        BinaryHash::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+            .unwrap();
+    let binary_path_a = format!("/var/wtf/versions/{}/test-workflow", hash_a.as_str());
+    let store = Rc::new(SpyWorkflowVersionStore::with_spec(
+        hash_a.clone(),
+        &binary_path_a,
+    ));
     let events = make_test_events("inst-1");
 
     // Clone the rc to use in the assertion after

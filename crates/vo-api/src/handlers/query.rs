@@ -202,11 +202,7 @@ pub async fn get_history(
     }
 
     let total_count = all_entries.len();
-    let entries = all_entries
-        .into_iter()
-        .skip(offset)
-        .take(limit)
-        .collect();
+    let entries = all_entries.into_iter().skip(offset).take(limit).collect();
 
     (
         StatusCode::OK,

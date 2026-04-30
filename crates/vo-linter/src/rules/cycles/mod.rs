@@ -10,5 +10,5 @@
 
 mod detector;
 
-pub use detector::{check_cycles, CycleDetector, CycleError};
 pub use crate::rules::unused_steps::{DagGraph, Edge, Step};
+pub use detector::{check_cycles, CycleDetector, CycleError};

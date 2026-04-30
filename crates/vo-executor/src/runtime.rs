@@ -6,8 +6,8 @@
 
 use crate::errors::ExecuteNodeError;
 use crate::types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
-use std::sync::LazyLock;
 use std::mem;
+use std::sync::LazyLock;
 use tokio::runtime::Handle;
 
 static BLOCKING_RT_HANDLE: LazyLock<Handle> = LazyLock::new(|| {

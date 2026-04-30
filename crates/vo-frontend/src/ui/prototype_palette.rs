@@ -255,7 +255,7 @@ mod tests {
         assert!(result.contains("depends_on: [step-1]"));
     }
 
-   #[test]
+    #[test]
     fn given_three_nodes_when_generating_skeleton_then_linear_chain_is_correct() {
         let nodes = vec![
             node(NodeTemplateId::HttpHandler),

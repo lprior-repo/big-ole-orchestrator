@@ -9,8 +9,8 @@ use tokio::time::{sleep, timeout};
 
 #[tokio::test]
 async fn sse_lag_event_emitted_when_client_falls_behind() {
-    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
     use tokio_stream::StreamExt;
+    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
 
     let broadcaster = SseBroadcaster::new();
     let receiver = broadcaster.subscribe();
@@ -61,8 +61,8 @@ async fn sse_lag_event_emitted_when_client_falls_behind() {
 
 #[tokio::test]
 async fn sse_lag_event_contains_skipped_count() {
-    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
     use tokio_stream::StreamExt;
+    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
 
     let broadcaster = SseBroadcaster::new();
     let receiver = broadcaster.subscribe();
@@ -101,10 +101,7 @@ async fn sse_lag_event_contains_skipped_count() {
         .expect("should not timeout")
         .expect("task should not panic");
 
-    assert!(
-        lag_data.is_some(),
-        "Should have received a lag event"
-    );
+    assert!(lag_data.is_some(), "Should have received a lag event");
     let lag_json = lag_data.unwrap();
     assert!(
         lag_json.contains("skipped_count"),
@@ -115,8 +112,8 @@ async fn sse_lag_event_contains_skipped_count() {
 
 #[tokio::test]
 async fn sse_slow_client_receives_lag_notifications_and_continues() {
-    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
     use tokio_stream::StreamExt;
+    use vo_api::handlers::sse::{make_sse_stream, SseBroadcaster, WorkflowSseEvent};
 
     let broadcaster = SseBroadcaster::new();
     let receiver = broadcaster.subscribe();

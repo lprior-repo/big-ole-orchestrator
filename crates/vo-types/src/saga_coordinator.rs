@@ -347,9 +347,7 @@ pub fn apply_saga_transition(
         (SagaState::Compensating, SagaTransition::CompensationCompleted) => {
             Ok(SagaState::Compensating)
         }
-        (SagaState::Compensating, SagaTransition::CompensationFailed) => {
-            Ok(SagaState::Failed)
-        }
+        (SagaState::Compensating, SagaTransition::CompensationFailed) => Ok(SagaState::Failed),
         (SagaState::Compensating, SagaTransition::AllCompensated) => Ok(SagaState::Failed),
 
         // Recovery from non-terminal states
@@ -361,8 +359,12 @@ pub fn apply_saga_transition(
         (SagaState::Failed, _) => Err(SagaTransitionError::TerminalStateTransition),
 
         // Invalid transitions
-        (SagaState::Init, SagaTransition::StepCompleted) => Err(SagaTransitionError::InvalidTransition),
-        (SagaState::Init, SagaTransition::StepFailed) => Err(SagaTransitionError::InvalidTransition),
+        (SagaState::Init, SagaTransition::StepCompleted) => {
+            Err(SagaTransitionError::InvalidTransition)
+        }
+        (SagaState::Init, SagaTransition::StepFailed) => {
+            Err(SagaTransitionError::InvalidTransition)
+        }
         (SagaState::Init, SagaTransition::CompensationCompleted) => {
             Err(SagaTransitionError::InvalidTransition)
         }
@@ -372,7 +374,9 @@ pub fn apply_saga_transition(
         (SagaState::Init, SagaTransition::AllCompensated) => {
             Err(SagaTransitionError::InvalidTransition)
         }
-        (SagaState::Executing, SagaTransition::Begin) => Err(SagaTransitionError::InvalidTransition),
+        (SagaState::Executing, SagaTransition::Begin) => {
+            Err(SagaTransitionError::InvalidTransition)
+        }
         (SagaState::Executing, SagaTransition::AllCompensated) => {
             Err(SagaTransitionError::InvalidTransition)
         }
@@ -496,8 +500,10 @@ mod tests {
 
     #[test]
     fn apply_saga_transition_compensating_compensation_completed_stays_compensating() {
-        let result =
-            apply_saga_transition(SagaState::Compensating, SagaTransition::CompensationCompleted);
+        let result = apply_saga_transition(
+            SagaState::Compensating,
+            SagaTransition::CompensationCompleted,
+        );
         assert_eq!(result, Ok(SagaState::Compensating));
     }
 

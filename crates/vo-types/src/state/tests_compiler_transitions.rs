@@ -17,17 +17,11 @@ fn test_lifecycle_table_complete() {
         Ok(LifecycleState::StepScheduled)
     );
     assert_eq!(
-        table.apply(
-            LifecycleState::StepScheduled,
-            TransitionEvent::ExecuteStep
-        ),
+        table.apply(LifecycleState::StepScheduled, TransitionEvent::ExecuteStep),
         Ok(LifecycleState::StepExecuting)
     );
     assert_eq!(
-        table.apply(
-            LifecycleState::StepExecuting,
-            TransitionEvent::CompleteStep
-        ),
+        table.apply(LifecycleState::StepExecuting, TransitionEvent::CompleteStep),
         Ok(LifecycleState::Completed)
     );
 }
@@ -67,17 +61,11 @@ fn test_lifecycle_table_timer_path() {
     let table = create_lifecycle_table();
 
     assert_eq!(
-        table.apply(
-            LifecycleState::StepExecuting,
-            TransitionEvent::WaitForTimer
-        ),
+        table.apply(LifecycleState::StepExecuting, TransitionEvent::WaitForTimer),
         Ok(LifecycleState::WaitingForTimer)
     );
     assert_eq!(
-        table.apply(
-            LifecycleState::WaitingForTimer,
-            TransitionEvent::TimerFired
-        ),
+        table.apply(LifecycleState::WaitingForTimer, TransitionEvent::TimerFired),
         Ok(LifecycleState::StepExecuting)
     );
 }
@@ -87,10 +75,7 @@ fn test_lifecycle_table_timer_expired() {
     let table = create_lifecycle_table();
 
     assert_eq!(
-        table.apply(
-            LifecycleState::StepExecuting,
-            TransitionEvent::WaitForTimer
-        ),
+        table.apply(LifecycleState::StepExecuting, TransitionEvent::WaitForTimer),
         Ok(LifecycleState::WaitingForTimer)
     );
     assert_eq!(

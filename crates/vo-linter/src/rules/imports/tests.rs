@@ -5,9 +5,9 @@
 #![deny(clippy::panic)]
 #![forbid(unsafe_code)]
 
+use super::check_unused_imports;
 use crate::diagnostic::LintSeverity;
 use crate::LintCode;
-use super::check_unused_imports;
 
 #[test]
 fn test_single_unused_import() {
@@ -56,7 +56,8 @@ fn test_multiple_unused_imports() {
     let file: syn::File = syn::parse_str(src).unwrap();
     let diagnostics = check_unused_imports(&file);
     assert_eq!(
-        diagnostics.len(), 3,
+        diagnostics.len(),
+        3,
         "expected three unused imports, got {}",
         diagnostics.len()
     );
@@ -211,7 +212,11 @@ fn test_glob_import_not_flagged_as_unused() {
     "#;
     let file: syn::File = syn::parse_str(src).unwrap();
     let diagnostics = check_unused_imports(&file);
-    assert_eq!(diagnostics.len(), 1, "glob imports are flagged as we cannot determine their contents");
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "glob imports are flagged as we cannot determine their contents"
+    );
     assert!(diagnostics[0].message.contains("std::collections"));
 }
 
@@ -489,6 +494,10 @@ fn test_wildcard_import_usage() {
     "#;
     let file: syn::File = syn::parse_str(src).unwrap();
     let diagnostics = check_unused_imports(&file);
-    assert_eq!(diagnostics.len(), 1, "wildcard imports are flagged as we cannot determine their contents");
+    assert_eq!(
+        diagnostics.len(),
+        1,
+        "wildcard imports are flagged as we cannot determine their contents"
+    );
     assert!(diagnostics[0].message.contains("foo::prelude"));
 }

@@ -6,13 +6,13 @@
 
 use std::path::{Path, PathBuf};
 
-use vo_cli::{
-    interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, BinaryFormat, CheckCategory,
-    CheckError, CheckResult, Cli, CliError, Command, CommandContext, DoctorError, DoctorReport,
-    GcConfig, GcError, HandlerRegistry, HistoryConfig, HistoryError, InitConfig, InitError,
-    LockError, CategoryReport, RebuildError, Severity,
-};
 use vo_cli::utils::{file_hash, sha256_hex};
+use vo_cli::{
+    interpret_cli_from, map_error_to_exit_code, parse_strict_numeric, BinaryFormat, CategoryReport,
+    CheckCategory, CheckError, CheckResult, Cli, CliError, Command, CommandContext, DoctorError,
+    DoctorReport, GcConfig, GcError, HandlerRegistry, HistoryConfig, HistoryError, InitConfig,
+    InitError, LockError, RebuildError, Severity,
+};
 
 // ---------------------------------------------------------------------------
 // 1. parse_strict_numeric rstest
@@ -107,7 +107,11 @@ fn make_cli_errors() -> Vec<(CliError, i32)> {
 #[test]
 fn exit_code_all_command_errors_are_1() {
     for (err, expected) in make_cli_errors() {
-        assert_eq!(map_error_to_exit_code(&err), expected, "exit code for {err:?}");
+        assert_eq!(
+            map_error_to_exit_code(&err),
+            expected,
+            "exit code for {err:?}"
+        );
     }
 }
 
@@ -140,19 +144,10 @@ fn exit_code_clap_unknown_flag_is_2() {
 fn rebuild_error_display_all_variants() {
     let cases: Vec<(RebuildError, &str)> = vec![
         (RebuildError::NotInitialized { path: "/x".into() }, "/x"),
-        (
-            RebuildError::ProjectionNotFound("my-agg".into()),
-            "my-agg",
-        ),
-        (
-            RebuildError::RebuildFailed("disk full".into()),
-            "disk full",
-        ),
+        (RebuildError::ProjectionNotFound("my-agg".into()), "my-agg"),
+        (RebuildError::RebuildFailed("disk full".into()), "disk full"),
         (RebuildError::UnsupportedSchemaVersion(255), "255"),
-        (
-            RebuildError::RebuildInProgress("orders".into()),
-            "orders",
-        ),
+        (RebuildError::RebuildInProgress("orders".into()), "orders"),
         (
             RebuildError::IdempotencyMismatch {
                 expected: "k1".into(),
@@ -160,10 +155,7 @@ fn rebuild_error_display_all_variants() {
             },
             "mismatch",
         ),
-        (
-            RebuildError::Engine("conn refused".into()),
-            "conn refused",
-        ),
+        (RebuildError::Engine("conn refused".into()), "conn refused"),
         (
             RebuildError::Io {
                 path: "/data".into(),
@@ -187,10 +179,7 @@ fn init_error_display_all_variants() {
     let cases: Vec<(InitError, &str)> = vec![
         (InitError::DirNotFound { path: "/x".into() }, "/x"),
         (InitError::NotDirectory { path: "/y".into() }, "/y"),
-        (
-            InitError::AlreadyInitialized { path: "/z".into() },
-            "/z",
-        ),
+        (InitError::AlreadyInitialized { path: "/z".into() }, "/z"),
         (
             InitError::PermissionDenied {
                 path: "/p".into(),
@@ -207,7 +196,9 @@ fn init_error_display_all_variants() {
             "read err",
         ),
         (
-            InitError::SymlinkTarget { path: "/sym".into() },
+            InitError::SymlinkTarget {
+                path: "/sym".into(),
+            },
             "symlink",
         ),
     ];
@@ -223,18 +214,9 @@ fn init_error_display_all_variants() {
 #[test]
 fn lock_error_display_all_variants() {
     let cases: Vec<(LockError, &str)> = vec![
-        (
-            LockError::NotInitialized { path: "/x".into() },
-            "/x",
-        ),
-        (
-            LockError::NoWorkflowsDir { path: "/wf".into() },
-            "/wf",
-        ),
-        (
-            LockError::Empty { path: "/e".into() },
-            "/e",
-        ),
+        (LockError::NotInitialized { path: "/x".into() }, "/x"),
+        (LockError::NoWorkflowsDir { path: "/wf".into() }, "/wf"),
+        (LockError::Empty { path: "/e".into() }, "/e"),
         (
             LockError::Io {
                 path: "/io".into(),
@@ -308,10 +290,7 @@ fn gc_error_display_all_variants() {
 #[test]
 fn doctor_error_display_all_variants() {
     let cases: Vec<(DoctorError, &str)> = vec![
-        (
-            DoctorError::NotInitialized { path: "/x".into() },
-            "/x",
-        ),
+        (DoctorError::NotInitialized { path: "/x".into() }, "/x"),
         (
             DoctorError::Io {
                 path: "/io".into(),
@@ -333,18 +312,9 @@ fn doctor_error_display_all_variants() {
 #[test]
 fn check_error_display_all_variants() {
     let cases: Vec<(CheckError, &str)> = vec![
-        (
-            CheckError::FileNotFound { path: "/x".into() },
-            "/x",
-        ),
-        (
-            CheckError::NotRegularFile { path: "/y".into() },
-            "/y",
-        ),
-        (
-            CheckError::FileTooSmall { path: "/s".into() },
-            "/s",
-        ),
+        (CheckError::FileNotFound { path: "/x".into() }, "/x"),
+        (CheckError::NotRegularFile { path: "/y".into() }, "/y"),
+        (CheckError::FileTooSmall { path: "/s".into() }, "/s"),
         (
             CheckError::InvalidMagic {
                 path: "/m".into(),
@@ -352,10 +322,7 @@ fn check_error_display_all_variants() {
             },
             "/m",
         ),
-        (
-            CheckError::PermissionDenied { path: "/p".into() },
-            "/p",
-        ),
+        (CheckError::PermissionDenied { path: "/p".into() }, "/p"),
         (
             CheckError::Io {
                 path: "/io".into(),
@@ -455,10 +422,7 @@ fn gc_config_default_values() {
 #[test]
 fn history_config_default_values() {
     let cfg = HistoryConfig::default();
-    assert_eq!(
-        cfg.history_path,
-        PathBuf::from(".vo/command_history.json")
-    );
+    assert_eq!(cfg.history_path, PathBuf::from(".vo/command_history.json"));
     assert_eq!(cfg.workflow_name, "default");
 }
 
@@ -563,7 +527,11 @@ fn command_debug_all_variants() {
     ];
     for cmd in &commands {
         let debug = format!("{cmd:?}");
-        assert!(!debug.is_empty(), "Command {:?} should have Debug output", cmd);
+        assert!(
+            !debug.is_empty(),
+            "Command {:?} should have Debug output",
+            cmd
+        );
     }
 }
 

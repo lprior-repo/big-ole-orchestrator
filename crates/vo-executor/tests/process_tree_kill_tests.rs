@@ -70,7 +70,11 @@ async fn test_timeout_kills_process_tree() {
 
     assert!(result.is_err(), "expected timeout error: {:?}", result);
     let err_str = result.unwrap_err().to_string();
-    assert!(err_str.contains("timeout"), "error should mention timeout: {}", err_str);
+    assert!(
+        err_str.contains("timeout"),
+        "error should mention timeout: {}",
+        err_str
+    );
 }
 
 #[tokio::test]

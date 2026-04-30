@@ -278,14 +278,20 @@ mod timer_supervisor_panic_cleanup {
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             Ok(())
         }
-        async fn enqueue_resume(&self, instance_id: InstanceId) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn enqueue_resume(
+            &self,
+            instance_id: InstanceId,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if self.should_panic.load(Ordering::SeqCst) {
                 panic!("simulated panic during enqueue_resume");
             }
             self.enqueued.lock().unwrap().push(instance_id);
             Ok(())
         }
-        async fn is_instance_terminal(&self, _instance_id: &InstanceId) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+        async fn is_instance_terminal(
+            &self,
+            _instance_id: &InstanceId,
+        ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
             Ok(false)
         }
     }
@@ -665,7 +671,7 @@ mod timer_lifecycle_panic_safety {
 mod crash_recovery_timer_safety {
     use super::*;
     use vo_actor::reanimator::traits::PendingTimer;
-use vo_actor::work_queue::WorkQueue;
+    use vo_actor::work_queue::WorkQueue;
 
     // RQ-TP10: Pending timer from crashed reanimator is replayed on restart.
     #[tokio::test]

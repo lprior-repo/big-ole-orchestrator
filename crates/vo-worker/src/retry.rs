@@ -752,7 +752,10 @@ mod tests {
             .iter()
             .position(|d| *d == Duration::from_millis(max_delay_ms))
             .expect("max_delay cap should be hit");
-        assert_eq!(cap_hit_at, 2, "max_delay cap should be hit at iteration 3 (index 2)");
+        assert_eq!(
+            cap_hit_at, 2,
+            "max_delay cap should be hit at iteration 3 (index 2)"
+        );
     }
 
     #[test]
@@ -941,8 +944,7 @@ mod tests {
     #[test]
     fn test_retry_config_with_budget() {
         let budget = RetryBudget::new(10, 1, Duration::from_secs(60));
-        let config = RetryConfig::new(10, 2.0, 3)
-            .with_budget(ConnectorId::new("sql-1"), budget);
+        let config = RetryConfig::new(10, 2.0, 3).with_budget(ConnectorId::new("sql-1"), budget);
         let retrieved = config.get_budget(&ConnectorId::new("sql-1"));
         assert!(retrieved.is_some());
         let retrieved_for_wrong_id = config.get_budget(&ConnectorId::new("sql-2"));
@@ -952,8 +954,8 @@ mod tests {
     #[tokio::test]
     async fn test_retry_wrapper_respects_budget() {
         let budget = RetryBudget::new(1, 1, Duration::from_secs(60));
-        let config = RetryConfig::new(10, 2.0, 10)
-            .with_budget(ConnectorId::new("budget-test"), budget);
+        let config =
+            RetryConfig::new(10, 2.0, 10).with_budget(ConnectorId::new("budget-test"), budget);
         let mock = MockLockManager::new(100);
         let wrapper = LockManagerRetryWrapper::new(&mock, config, ConnectorId::new("budget-test"));
         let request = LockRequest {
@@ -967,8 +969,16 @@ mod tests {
         assert!(!response.granted);
         assert!(response.error.is_some());
         let error = response.error.unwrap();
-        assert!(error.contains("retry budget exhausted"), "error should mention budget: {}", error);
-        assert_eq!(mock.attempt_count(), 1, "should only attempt once due to budget");
+        assert!(
+            error.contains("retry budget exhausted"),
+            "error should mention budget: {}",
+            error
+        );
+        assert_eq!(
+            mock.attempt_count(),
+            1,
+            "should only attempt once due to budget"
+        );
     }
 
     #[test]
@@ -977,7 +987,10 @@ mod tests {
         assert!(budget.try_acquire());
         assert!(budget.try_acquire());
         std::thread::sleep(Duration::from_millis(50));
-        assert!(!budget.try_acquire(), "should not refill with 0 refill_rate");
+        assert!(
+            !budget.try_acquire(),
+            "should not refill with 0 refill_rate"
+        );
     }
 
     #[test]

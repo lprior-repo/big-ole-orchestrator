@@ -13,10 +13,10 @@ use crate::stderr::{
     finalize_capture, read_bounded_stderr, update_capture, StderrCapture, MAX_STDERR_BYTES,
     TRUNCATION_MARKER,
 };
+use std::io::Cursor as StdCursor;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tempfile::tempdir;
-use std::io::Cursor as StdCursor;
 use tokio::io::AsyncWriteExt;
 
 fn executable_file() -> PathBuf {
@@ -566,7 +566,10 @@ async fn rq_stderr_read_beyond_limit_truncates() {
     let capture = read_bounded_stderr(reader).await.unwrap();
     assert!(capture.truncated);
     assert!(capture.bytes.ends_with(TRUNCATION_MARKER.as_bytes()));
-    assert_eq!(capture.bytes.len(), MAX_STDERR_BYTES + TRUNCATION_MARKER.len());
+    assert_eq!(
+        capture.bytes.len(),
+        MAX_STDERR_BYTES + TRUNCATION_MARKER.len()
+    );
     assert_eq!(capture.observed_bytes, MAX_STDERR_BYTES + 100_000);
 }
 
@@ -601,7 +604,10 @@ async fn rq_stderr_read_massive_flood_5mb() {
     let capture = read_bounded_stderr(reader).await.unwrap();
     assert!(capture.truncated);
     assert!(capture.bytes.ends_with(TRUNCATION_MARKER.as_bytes()));
-    assert_eq!(capture.bytes.len(), MAX_STDERR_BYTES + TRUNCATION_MARKER.len());
+    assert_eq!(
+        capture.bytes.len(),
+        MAX_STDERR_BYTES + TRUNCATION_MARKER.len()
+    );
     assert_eq!(capture.observed_bytes, 5 * 1024 * 1024);
 }
 
@@ -631,7 +637,8 @@ async fn rq_stderr_read_single_byte_stream() {
 async fn rq_stderr_e2e_flood_beyond_1mb_is_bounded() {
     let path = executable_file();
     let script = path.parent().unwrap().join("stderr_flood.sh");
-    let flood_cmd = format!("dd if=/dev/urandom bs=1024 count=2048 2>/dev/null | base64 >&2\nexit 0\n");
+    let flood_cmd =
+        format!("dd if=/dev/urandom bs=1024 count=2048 2>/dev/null | base64 >&2\nexit 0\n");
     std::fs::write(&script, format!("#!/bin/sh\n{}", flood_cmd)).unwrap();
     make_executable(&script);
 
@@ -666,7 +673,8 @@ async fn rq_stderr_e2e_flood_beyond_1mb_is_bounded() {
 async fn rq_stderr_e2e_flood_on_failure_path() {
     let path = executable_file();
     let script = path.parent().unwrap().join("stderr_fail_flood.sh");
-    let script_body = "#!/bin/sh\ndd if=/dev/urandom bs=1024 count=2048 2>/dev/null | base64 >&2\nexit 1\n";
+    let script_body =
+        "#!/bin/sh\ndd if=/dev/urandom bs=1024 count=2048 2>/dev/null | base64 >&2\nexit 1\n";
     std::fs::write(&script, script_body).unwrap();
     make_executable(&script);
 
@@ -686,7 +694,10 @@ async fn rq_stderr_e2e_flood_on_failure_path() {
             );
             assert!(stderr_truncated);
         }
-        other => panic!("expected ProcessFailed with truncated stderr, got: {:?}", other),
+        other => panic!(
+            "expected ProcessFailed with truncated stderr, got: {:?}",
+            other
+        ),
     }
 }
 
@@ -747,10 +758,7 @@ async fn rq_stderr_e2e_exact_1mb_boundary() {
     let path = executable_file();
     let script = path.parent().unwrap().join("exact_1mb.sh");
     let byte_count = 1024 * 1024;
-    let script_body = format!(
-        "#!/bin/sh\nhead -c {} /dev/zero >&2\nexit 0\n",
-        byte_count
-    );
+    let script_body = format!("#!/bin/sh\nhead -c {} /dev/zero >&2\nexit 0\n", byte_count);
     std::fs::write(&script, script_body).unwrap();
     make_executable(&script);
 

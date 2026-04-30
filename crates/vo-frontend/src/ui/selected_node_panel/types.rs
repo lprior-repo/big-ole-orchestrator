@@ -3,10 +3,10 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use dioxus::prelude::*;
-use itertools::Itertools;
 use crate::flow_extender::{preview_extension, ExtensionPatchPreview};
 use crate::ui::graph::{NodeId, Workflow};
+use dioxus::prelude::*;
+use itertools::Itertools;
 
 // ---------------------------------------------------------------------------
 // Extension timeline types
@@ -185,9 +185,9 @@ pub(crate) fn collect_input_payloads(
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn record_suggestion_decision(key: &str, accepted: bool, source: &str) {
-    use chrono::Utc;
-    use crate::metrics::{SuggestionDecision, SuggestionDecisionMetrics};
     use crate::metrics::MetricsStore;
+    use crate::metrics::{SuggestionDecision, SuggestionDecisionMetrics};
+    use chrono::Utc;
     use std::path::Path;
 
     let decision = if accepted {

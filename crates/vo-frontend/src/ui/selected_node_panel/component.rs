@@ -3,8 +3,8 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use dioxus::prelude::*;
 use crate::flow_extender::ExtensionPatchPreview;
+use dioxus::prelude::*;
 use std::collections::HashMap;
 
 use crate::ui::graph::NodeCategory;
@@ -24,7 +24,9 @@ pub fn SelectedNodePanel(
     preview_patches: Signal<Vec<ExtensionPatchPreview>>,
 ) -> Element {
     let (selection, selected_node_id) = crate::hooks::use_selection::use_selection();
-    let (workflow_state, workflow) = crate::hooks::use_workflow_state::use_workflow_state(Workflow::new("".to_string(), vo_types::GuaranteeClass::BestEffort));
+    let (workflow_state, workflow) = crate::hooks::use_workflow_state::use_workflow_state(
+        Workflow::new("".to_string(), vo_types::GuaranteeClass::BestEffort),
+    );
     let mut selected_extension_keys = use_signal(Vec::<String>::new);
     let mut extension_message = use_signal(|| None::<String>);
     let mut extension_timeline = use_signal(Vec::<ExtensionTimelineEvent>::new);

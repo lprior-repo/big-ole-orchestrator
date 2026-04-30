@@ -12,13 +12,10 @@ use vo_cli::commands::doctor_checks::{
     Severity,
 };
 use vo_cli::{
-    validate_binary_header, BinaryFormat, CheckError,
-    ELF_MAGIC, KNOWN_MAGICS, MACHO_MAGIC_32_BE, MACHO_MAGIC_32_LE, MACHO_MAGIC_64_BE,
-    MACHO_MAGIC_64_LE,
-    run_doctor, DoctorConfig, DoctorError,
-    run_init, InitConfig, InitError,
-    run_lock, LockConfig, LockError, LOCK_FILE_NAME,
-    run_rebuild, RebuildConfig, RebuildError, RebuildReport, RebuildStatus,
+    run_doctor, run_init, run_lock, run_rebuild, validate_binary_header, BinaryFormat, CheckError,
+    DoctorConfig, DoctorError, InitConfig, InitError, LockConfig, LockError, RebuildConfig,
+    RebuildError, RebuildReport, RebuildStatus, ELF_MAGIC, KNOWN_MAGICS, LOCK_FILE_NAME,
+    MACHO_MAGIC_32_BE, MACHO_MAGIC_32_LE, MACHO_MAGIC_64_BE, MACHO_MAGIC_64_LE,
 };
 
 fn make_temp_dir() -> PathBuf {
@@ -58,11 +55,20 @@ fn elf_bytes() -> Vec<u8> {
 #[test]
 fn e2e_full_pipeline_happy_path() {
     let dir = make_temp_dir();
-    let cfg = InitConfig { project_dir: dir.clone(), ..Default::default() };
+    let cfg = InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    };
     run_init(&cfg).unwrap();
     create_workflow_binary(&dir, "mybin", &elf_bytes());
-    run_lock(&LockConfig { project_dir: dir.clone() }).unwrap();
-    let report = run_doctor(&DoctorConfig { project_dir: dir.clone() }).unwrap();
+    run_lock(&LockConfig {
+        project_dir: dir.clone(),
+    })
+    .unwrap();
+    let report = run_doctor(&DoctorConfig {
+        project_dir: dir.clone(),
+    })
+    .unwrap();
     assert!(report.is_healthy());
     let rebuild_cfg = RebuildConfig {
         project_dir: dir.clone(),
@@ -78,18 +84,31 @@ fn e2e_full_pipeline_happy_path() {
 #[test]
 fn e2e_init_lock_tamper_doctor_catches_mismatch() {
     let dir = make_temp_dir();
-    run_init(&InitConfig { project_dir: dir.clone(), ..Default::default() }).unwrap();
+    run_init(&InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    })
+    .unwrap();
     create_workflow_binary(&dir, "mybin", &vec![0x7f, 0x45, 0x4c, 0x46, 0x00]);
-    run_lock(&LockConfig { project_dir: dir.clone() }).unwrap();
+    run_lock(&LockConfig {
+        project_dir: dir.clone(),
+    })
+    .unwrap();
     create_workflow_binary(&dir, "mybin", &vec![0x7f, 0x45, 0x4c, 0x46, 0xFF]);
-    let report = run_doctor(&DoctorConfig { project_dir: dir.clone() }).unwrap();
+    let report = run_doctor(&DoctorConfig {
+        project_dir: dir.clone(),
+    })
+    .unwrap();
     assert!(!report.is_healthy());
 }
 
 #[test]
 fn e2e_init_idempotent_same_config() {
     let dir = make_temp_dir();
-    let cfg = InitConfig { project_dir: dir.clone(), ..Default::default() };
+    let cfg = InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    };
     let r1 = run_init(&cfg).unwrap();
     let r2 = run_init(&cfg).unwrap();
     assert_eq!(r1, r2);
@@ -98,13 +117,20 @@ fn e2e_init_idempotent_same_config() {
 #[test]
 fn e2e_init_rejects_different_config() {
     let dir = make_temp_dir();
-    run_init(&InitConfig { project_dir: dir.clone(), ..Default::default() }).unwrap();
+    run_init(&InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    })
+    .unwrap();
     let other = InitConfig {
         project_dir: dir.clone(),
         engine_url: "http://other:9999".into(),
         storage_path: "/other".into(),
     };
-    assert!(matches!(run_init(&other), Err(InitError::AlreadyInitialized { .. })));
+    assert!(matches!(
+        run_init(&other),
+        Err(InitError::AlreadyInitialized { .. })
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -115,7 +141,9 @@ fn e2e_init_rejects_different_config() {
 fn doctor_without_init_returns_error() {
     let dir = make_temp_dir();
     assert!(matches!(
-        run_doctor(&DoctorConfig { project_dir: dir.clone() }),
+        run_doctor(&DoctorConfig {
+            project_dir: dir.clone()
+        }),
         Err(DoctorError::NotInitialized { .. })
     ));
 }
@@ -183,7 +211,9 @@ fn rebuild_with_projection_id_succeeds() {
 fn lock_without_init_returns_error() {
     let dir = make_temp_dir();
     assert!(matches!(
-        run_lock(&LockConfig { project_dir: dir.clone() }),
+        run_lock(&LockConfig {
+            project_dir: dir.clone()
+        }),
         Err(LockError::NotInitialized { .. })
     ));
 }
@@ -193,7 +223,9 @@ fn lock_with_empty_workflows_returns_error() {
     let dir = make_temp_dir();
     setup_project(&dir);
     assert!(matches!(
-        run_lock(&LockConfig { project_dir: dir.clone() }),
+        run_lock(&LockConfig {
+            project_dir: dir.clone()
+        }),
         Err(LockError::Empty { .. })
     ));
 }
@@ -206,7 +238,10 @@ fn lock_multiple_workflows_sorted() {
     create_workflow_binary(&dir, "z_wf", &elf);
     create_workflow_binary(&dir, "a_wf", &elf);
     create_workflow_binary(&dir, "m_wf", &elf);
-    let result = run_lock(&LockConfig { project_dir: dir.clone() }).unwrap();
+    let result = run_lock(&LockConfig {
+        project_dir: dir.clone(),
+    })
+    .unwrap();
     let keys: Vec<_> = result.keys().collect();
     assert_eq!(keys.len(), 3);
     assert_eq!(keys[0], "a_wf");
@@ -220,7 +255,10 @@ fn lock_multiple_workflows_sorted() {
 
 #[test]
 fn init_rejects_nonexistent_dir() {
-    let cfg = InitConfig { project_dir: PathBuf::from("/nonexistent/path"), ..Default::default() };
+    let cfg = InitConfig {
+        project_dir: PathBuf::from("/nonexistent/path"),
+        ..Default::default()
+    };
     assert!(matches!(run_init(&cfg), Err(InitError::DirNotFound { .. })));
 }
 
@@ -230,7 +268,10 @@ fn init_rejects_symlink() {
     let link = dir.join("link");
     std::os::unix::fs::symlink(&dir, &link).unwrap();
     assert!(matches!(
-        run_init(&InitConfig { project_dir: link, ..Default::default() }),
+        run_init(&InitConfig {
+            project_dir: link,
+            ..Default::default()
+        }),
         Err(InitError::SymlinkTarget { .. })
     ));
 }
@@ -238,7 +279,11 @@ fn init_rejects_symlink() {
 #[test]
 fn init_creates_vo_dir_and_workflows() {
     let dir = make_temp_dir();
-    run_init(&InitConfig { project_dir: dir.clone(), ..Default::default() }).unwrap();
+    run_init(&InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    })
+    .unwrap();
     assert!(dir.join(".vo").is_dir());
     assert!(dir.join(".vo").join("workflows").is_dir());
 }
@@ -246,7 +291,11 @@ fn init_creates_vo_dir_and_workflows() {
 #[test]
 fn init_writes_correct_config_toml() {
     let dir = make_temp_dir();
-    run_init(&InitConfig { project_dir: dir.clone(), ..Default::default() }).unwrap();
+    run_init(&InitConfig {
+        project_dir: dir.clone(),
+        ..Default::default()
+    })
+    .unwrap();
     let content = fs::read_to_string(dir.join("config.toml")).unwrap();
     assert!(content.contains("[engine]"));
     assert!(content.contains("http://localhost:3000"));
@@ -275,7 +324,10 @@ fn validate_too_small_file() {
     let dir = make_temp_dir();
     let path = dir.join("tiny");
     fs::write(&path, [0x00_u8, 0x01]).unwrap();
-    assert!(matches!(validate_binary_header(&path), Err(CheckError::FileTooSmall { .. })));
+    assert!(matches!(
+        validate_binary_header(&path),
+        Err(CheckError::FileTooSmall { .. })
+    ));
 }
 
 #[test]
@@ -283,7 +335,10 @@ fn validate_invalid_magic() {
     let dir = make_temp_dir();
     let path = dir.join("bad");
     fs::write(&path, [0xDE_u8, 0xAD, 0xBE, 0xEF, 0x00]).unwrap();
-    assert!(matches!(validate_binary_header(&path), Err(CheckError::InvalidMagic { .. })));
+    assert!(matches!(
+        validate_binary_header(&path),
+        Err(CheckError::InvalidMagic { .. })
+    ));
 }
 
 #[test]
@@ -301,13 +356,19 @@ fn validate_symlink_rejected() {
     fs::write(&real, &[0x7f_u8, 0x45, 0x4c, 0x46, 0x00]).unwrap();
     let link = dir.join("link");
     std::os::unix::fs::symlink(&real, &link).unwrap();
-    assert!(matches!(validate_binary_header(&link), Err(CheckError::NotRegularFile { .. })));
+    assert!(matches!(
+        validate_binary_header(&link),
+        Err(CheckError::NotRegularFile { .. })
+    ));
 }
 
 #[test]
 fn validate_directory_rejected() {
     let dir = make_temp_dir();
-    assert!(matches!(validate_binary_header(&dir), Err(CheckError::NotRegularFile { .. })));
+    assert!(matches!(
+        validate_binary_header(&dir),
+        Err(CheckError::NotRegularFile { .. })
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +379,11 @@ fn validate_directory_rejected() {
 fn config_missing_engine_section() {
     let dir = make_temp_dir();
     setup_project(&dir);
-    fs::write(dir.join("config.toml"), "[storage]\npath = \".vo/storage\"\n").unwrap();
+    fs::write(
+        dir.join("config.toml"),
+        "[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
     assert!(report.warnings().any(|c| c.check == "config-engine"));
 }
@@ -327,7 +392,11 @@ fn config_missing_engine_section() {
 fn config_missing_storage_section() {
     let dir = make_temp_dir();
     setup_project(&dir);
-    fs::write(dir.join("config.toml"), "[engine]\nurl = \"http://localhost:3000\"\n").unwrap();
+    fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"http://localhost:3000\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
     assert!(report.warnings().any(|c| c.check == "config-storage"));
 }
@@ -336,7 +405,11 @@ fn config_missing_storage_section() {
 fn config_empty_engine_url() {
     let dir = make_temp_dir();
     setup_project(&dir);
-    fs::write(dir.join("config.toml"), "[engine]\nurl = \"\"\n\n[storage]\npath = \".vo/storage\"\n").unwrap();
+    fs::write(
+        dir.join("config.toml"),
+        "[engine]\nurl = \"\"\n\n[storage]\npath = \".vo/storage\"\n",
+    )
+    .unwrap();
     let report = check_config_validation(&dir);
     assert!(report.warnings().any(|c| c.check == "config-engine-url"));
 }
@@ -366,7 +439,10 @@ fn doctor_workspace_readonly_vo_dir() {
     perms.set_mode(0o444);
     fs::set_permissions(&vo, perms.clone()).unwrap();
     let report = check_workspace(&dir, &vo);
-    assert!(report.checks.iter().any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "vo-dir-perms" && c.severity == Severity::Error));
     let mut perms = fs::metadata(&vo).unwrap().permissions();
     perms.set_mode(0o755);
     let _ = fs::set_permissions(&vo, perms);
@@ -380,7 +456,10 @@ fn doctor_lockstate_empty_lockfile() {
     // Lockfile lives at project root, not inside .vo
     fs::write(dir.join(LOCK_FILE_NAME), "").unwrap();
     let report = check_lock_state(&dir, &vo);
-    assert!(report.checks.iter().any(|c| c.check == "lockfile" && c.message.contains("empty")));
+    assert!(report
+        .checks
+        .iter()
+        .any(|c| c.check == "lockfile" && c.message.contains("empty")));
 }
 
 #[test]
@@ -400,7 +479,10 @@ fn doctor_storage_wal_patterns() {
 
 #[test]
 fn format_report_empty_categories() {
-    let report = DoctorReport { project_dir: PathBuf::from("."), categories: vec![] };
+    let report = DoctorReport {
+        project_dir: PathBuf::from("."),
+        categories: vec![],
+    };
     let (stdout, stderr) = format_report(&report);
     assert!(stdout.contains("Doctor Report"));
     assert!(stdout.contains("All checks passed"));
@@ -414,9 +496,21 @@ fn format_report_with_errors_and_warnings() {
         categories: vec![CategoryReport {
             category: CheckCategory::Workspace,
             checks: vec![
-                CheckResult { check: "ok".into(), severity: Severity::Info, message: "all good".into() },
-                CheckResult { check: "warn".into(), severity: Severity::Warn, message: "watch out".into() },
-                CheckResult { check: "err".into(), severity: Severity::Error, message: "broken".into() },
+                CheckResult {
+                    check: "ok".into(),
+                    severity: Severity::Info,
+                    message: "all good".into(),
+                },
+                CheckResult {
+                    check: "warn".into(),
+                    severity: Severity::Warn,
+                    message: "watch out".into(),
+                },
+                CheckResult {
+                    check: "err".into(),
+                    severity: Severity::Error,
+                    message: "broken".into(),
+                },
             ],
         }],
     };
@@ -434,7 +528,11 @@ fn format_report_json_structure() {
         project_dir: PathBuf::from("/proj"),
         categories: vec![CategoryReport {
             category: CheckCategory::Workspace,
-            checks: vec![CheckResult { check: "test".into(), severity: Severity::Info, message: "ok".into() }],
+            checks: vec![CheckResult {
+                check: "test".into(),
+                severity: Severity::Info,
+                message: "ok".into(),
+            }],
         }],
     };
     let json = format_report_json(&report);
@@ -465,13 +563,20 @@ fn rebuild_format_progress_all_statuses() {
     let started = make_report(RebuildStatus::Started { from_sequence: 42 });
     assert!(started.format_progress().contains("42"));
 
-    let in_progress = make_report(RebuildStatus::InProgress { progress_percent: 75, at_sequence: 3000 });
+    let in_progress = make_report(RebuildStatus::InProgress {
+        progress_percent: 75,
+        at_sequence: 3000,
+    });
     assert!(in_progress.format_progress().contains("75%"));
 
-    let failed = make_report(RebuildStatus::Failed { reason: "disk full".into() });
+    let failed = make_report(RebuildStatus::Failed {
+        reason: "disk full".into(),
+    });
     assert!(failed.format_progress().contains("disk full"));
 
-    let noop = make_report(RebuildStatus::NoOp { reason: "up to date".into() });
+    let noop = make_report(RebuildStatus::NoOp {
+        reason: "up to date".into(),
+    });
     assert!(noop.format_progress().contains("up to date"));
 }
 

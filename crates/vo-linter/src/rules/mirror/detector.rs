@@ -4,7 +4,7 @@
 #![forbid(unsafe_code)]
 
 use crate::diagnostic::{Diagnostic, LintCode};
-use syn::{visit::Visit, Item, File};
+use syn::{visit::Visit, File, Item};
 
 #[must_use]
 pub fn check_mirror_types_in_api_test(file: &File) -> Vec<Diagnostic> {
@@ -44,8 +44,14 @@ impl<'ast> Visit<'ast> for MirrorDetector {
     fn visit_item(&mut self, node: &'ast Item) {
         if let Item::Struct(item_struct) = node {
             let name = item_struct.ident.to_string();
-            if name.contains("SseEvent") || name.contains("Event") || name.contains("Handler") || name.contains("Broadcaster") {
-                if self.check_struct_is_mirror(&name) || self.check_mirror_comment(&item_struct.attrs) {
+            if name.contains("SseEvent")
+                || name.contains("Event")
+                || name.contains("Handler")
+                || name.contains("Broadcaster")
+            {
+                if self.check_struct_is_mirror(&name)
+                    || self.check_mirror_comment(&item_struct.attrs)
+                {
                     self.diagnostics.push(
                         Diagnostic::new(
                             LintCode::L003,

@@ -88,19 +88,14 @@ impl WorkloadClass {
     pub fn never_starved(self) -> bool {
         matches!(
             self,
-            WorkloadClass::ExactCritical
-                | WorkloadClass::Live
-                | WorkloadClass::Recovery
+            WorkloadClass::ExactCritical | WorkloadClass::Live | WorkloadClass::Recovery
         )
     }
 
     /// Returns `true` if this class is deferred in degraded mode.
     #[must_use]
     pub fn is_deferred_in_degraded(self) -> bool {
-        matches!(
-            self,
-            WorkloadClass::NonCritical | WorkloadClass::Background
-        )
+        matches!(self, WorkloadClass::NonCritical | WorkloadClass::Background)
     }
 
     /// Returns `true` if this class is accepted in Critical degraded mode.
@@ -111,9 +106,7 @@ impl WorkloadClass {
     pub fn is_accepted_in_critical(self) -> bool {
         matches!(
             self,
-            WorkloadClass::ExactCritical
-                | WorkloadClass::Live
-                | WorkloadClass::Recovery
+            WorkloadClass::ExactCritical | WorkloadClass::Live | WorkloadClass::Recovery
         )
     }
 
@@ -330,9 +323,7 @@ mod tests {
         let result: Result<WorkloadClass, WorkloadClassParseError> = "foobar".parse();
         assert!(result.is_err());
         let err = result.err().unwrap();
-        assert!(
-            matches!(err, WorkloadClassParseError::Unknown { ref input } if input == "foobar")
-        );
+        assert!(matches!(err, WorkloadClassParseError::Unknown { ref input } if input == "foobar"));
         assert!(err.to_string().contains("foobar"));
         assert!(err.to_string().contains("recovery"));
     }

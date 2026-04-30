@@ -4,9 +4,9 @@
 #![forbid(unsafe_code)]
 
 use crate::diagnostic::{Diagnostic, LintCode, Severity};
+use std::collections::HashSet;
 use syn::visit::Visit;
 use syn::{File, Ident, UseTree};
-use std::collections::HashSet;
 
 #[derive(Default)]
 struct UnusedImportDetector {
@@ -84,12 +84,9 @@ pub fn check_unused_imports(file: &File) -> Vec<Diagnostic> {
             };
 
             diagnostics.push(
-                Diagnostic::new(
-                    LintCode::L001,
-                    format!("unused import: `{}`", imported),
-                )
-                .with_suggestion(&suggestion)
-                .with_severity(Severity::Warning)
+                Diagnostic::new(LintCode::L001, format!("unused import: `{}`", imported))
+                    .with_suggestion(&suggestion)
+                    .with_severity(Severity::Warning),
             );
         }
     }

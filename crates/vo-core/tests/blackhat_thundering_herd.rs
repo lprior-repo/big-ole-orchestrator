@@ -128,7 +128,11 @@ fn blackhat_no_jitter_in_rate_limit_response() {
     assert_eq!(result2, result3, "Results should be identical - no jitter");
 
     // This is the vulnerability: all clients get the same value
-    assert_eq!(result1, Some(60), "At t0+1ms, retry should be ~60s (ceiling of 59.999s)");
+    assert_eq!(
+        result1,
+        Some(60),
+        "At t0+1ms, retry should be ~60s (ceiling of 59.999s)"
+    );
 }
 
 /// BLACKHAT-TH-03: Rate limit is per-workflow, not per-client
@@ -240,7 +244,9 @@ fn blackhat_window_expiry_synchronizes_all_waiting_clients() {
 
     // ALL 1000 clients have the SAME retry value
     assert!(
-        rate_limited_clients.iter().all(|&v| v == rate_limited_clients[0]),
+        rate_limited_clients
+            .iter()
+            .all(|&v| v == rate_limited_clients[0]),
         "All clients should have same retry value"
     );
 

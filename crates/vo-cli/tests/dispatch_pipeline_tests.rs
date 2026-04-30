@@ -15,7 +15,7 @@ use vo_cli::registry::HandlerRegistry;
 async fn v1_dispatch_unknown_command_returns_error() {
     let dispatcher = create_dispatcher();
     let cli = Cli {
-          command: Command::Purge {
+        command: Command::Purge {
             instance: "nope".into(),
             storage_path: PathBuf::from(".vo/storage"),
             dry_run: false,

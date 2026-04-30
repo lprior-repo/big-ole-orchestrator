@@ -181,9 +181,9 @@ pub fn validate_binary_path(path: &str) -> Result<String, SubprocessError> {
         return Err(SubprocessError::BinaryNotFound(path.to_string()));
     }
 
-    let metadata = p.metadata().map_err(|e| {
-        SubprocessError::BinaryNotFound(format!("{path}: {e}"))
-    })?;
+    let metadata = p
+        .metadata()
+        .map_err(|e| SubprocessError::BinaryNotFound(format!("{path}: {e}")))?;
 
     if metadata.is_dir() {
         return Err(SubprocessError::BinaryIsDirectory(path.to_string()));
@@ -198,9 +198,9 @@ pub fn validate_binary_path(path: &str) -> Result<String, SubprocessError> {
         }
     }
 
-    let canonical = p.canonicalize().map_err(|e| {
-        SubprocessError::BinaryNotFound(format!("{path}: {e}"))
-    })?;
+    let canonical = p
+        .canonicalize()
+        .map_err(|e| SubprocessError::BinaryNotFound(format!("{path}: {e}")))?;
 
     Ok(canonical.to_string_lossy().to_string())
 }
@@ -619,7 +619,9 @@ pub async fn run_subprocess_with_graceful_timeout(
 
                 let elapsed = total_ms;
                 if killed {
-                    Err(SubprocessError::TimeoutKilled { elapsed_ms: elapsed })
+                    Err(SubprocessError::TimeoutKilled {
+                        elapsed_ms: elapsed,
+                    })
                 } else {
                     Err(SubprocessError::TimeoutGraceful {
                         elapsed_ms: elapsed,
@@ -645,12 +647,9 @@ async fn send_sigterm_then_sigkill(
         }
 
         // Wait grace period to see if child exits on its own.
-        let exited = timeout(
-            Duration::from_millis(grace_period_ms),
-            child.wait(),
-        )
-        .await
-        .is_ok();
+        let exited = timeout(Duration::from_millis(grace_period_ms), child.wait())
+            .await
+            .is_ok();
 
         if !exited {
             unsafe {
@@ -825,7 +824,8 @@ mod tests {
             vec!["true".to_string()],
             5000,
             vec![1, 2, 3],
-        ).unwrap();
+        )
+        .unwrap();
         assert!(config.executable_path().ends_with("true"));
         assert_eq!(config.argv(), &["true".to_string()]);
         assert_eq!(config.timeout_ms(), 5000);
@@ -836,23 +836,15 @@ mod tests {
 
     #[test]
     fn test_grace_period_default_is_5s() {
-        let config = SubprocessConfig::new(
-            "/bin/true".to_string(),
-            vec![],
-            1000,
-            vec![],
-        ).unwrap();
+        let config = SubprocessConfig::new("/bin/true".to_string(), vec![], 1000, vec![]).unwrap();
         assert_eq!(config.grace_period_ms(), 5000);
     }
 
     #[test]
     fn test_with_grace_period_overrides_default() {
-        let config = SubprocessConfig::new(
-            "/bin/true".to_string(),
-            vec![],
-            1000,
-            vec![],
-        ).unwrap().with_grace_period(2000);
+        let config = SubprocessConfig::new("/bin/true".to_string(), vec![], 1000, vec![])
+            .unwrap()
+            .with_grace_period(2000);
         assert_eq!(config.grace_period_ms(), 2000);
     }
 
@@ -866,7 +858,8 @@ mod tests {
             vec!["echo".to_string()],
             10000,
             b"hello".to_vec(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = run_subprocess_with_graceful_timeout(config).await;
         assert!(result.is_ok(), "Expected Ok, got {:?}", result.err());
         let output = result.unwrap();
@@ -881,10 +874,16 @@ mod tests {
         // Child sleeps 60s — will be SIGTERMed after 200ms timeout.
         let config = SubprocessConfig::new(
             helper.to_string_lossy().to_string(),
-            vec!["sleep-exit".to_string(), "60000".to_string(), "0".to_string()],
+            vec![
+                "sleep-exit".to_string(),
+                "60000".to_string(),
+                "0".to_string(),
+            ],
             200,
             vec![],
-        ).unwrap().with_grace_period(500);
+        )
+        .unwrap()
+        .with_grace_period(500);
         let result = run_subprocess_with_graceful_timeout(config).await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -909,7 +908,9 @@ mod tests {
             vec!["grandchild-hold".to_string(), "60000".to_string()],
             200,
             vec![],
-        ).unwrap().with_grace_period(300);
+        )
+        .unwrap()
+        .with_grace_period(300);
         let result = run_subprocess_with_graceful_timeout(config).await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -939,7 +940,9 @@ mod tests {
             ],
             200,
             vec![],
-        ).unwrap().with_grace_period(500);
+        )
+        .unwrap()
+        .with_grace_period(500);
         let result = run_subprocess_with_graceful_timeout(config).await;
         assert!(result.is_err());
         // Either variant is acceptable; if TimeoutGraceful, partial_output may be Some.
@@ -957,9 +960,14 @@ mod tests {
             vec!["echo".to_string()],
             0,
             b"hello".to_vec(),
-        ).unwrap();
+        )
+        .unwrap();
         let result = run_subprocess_with_graceful_timeout(config).await;
-        assert!(result.is_ok(), "Expected Ok with zero timeout, got {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Expected Ok with zero timeout, got {:?}",
+            result.err()
+        );
         let output = result.unwrap();
         assert_eq!(output.exit_code, Some(0));
     }
@@ -1018,7 +1026,8 @@ mod tests {
             vec!["cat".to_string()],
             5000,
             payload_200kb,
-        ).unwrap();
+        )
+        .unwrap();
         assert_eq!(config.fd3_payload().len(), 204800);
     }
 

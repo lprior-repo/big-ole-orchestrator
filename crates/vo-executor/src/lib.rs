@@ -34,6 +34,7 @@ pub mod subprocess;
 pub mod types;
 
 // Re-export for convenience
+pub use dispatch::{dispatch_node, NodeDispatchResult};
 pub use errors::{ExecuteNodeError, RetryPolicyError};
 pub use execution::{
     cancel_execution, execute_step, execute_step_with_retry, get_execution_status, get_last_error,
@@ -47,8 +48,7 @@ pub use state::set_executing_state_for_test;
 pub use state::{clear_error, get_error_count, get_state_count, reset_all_state, set_error};
 pub use subprocess::{
     pin_binary, resolve_binary_path, run_subprocess, run_subprocess_with_graceful_timeout,
-    PinnedBinary, SubprocessConfig, SubprocessError, SubprocessOutput, VERSION_BASE_PATH,
-    BOUNDED_READ_BUFFER_SIZE, DEFAULT_GRACE_PERIOD_MS, MAX_STEP_INPUT_BYTES, MAX_STEP_OUTPUT_BYTES,
+    PinnedBinary, SubprocessConfig, SubprocessError, SubprocessOutput, BOUNDED_READ_BUFFER_SIZE,
+    DEFAULT_GRACE_PERIOD_MS, MAX_STEP_INPUT_BYTES, MAX_STEP_OUTPUT_BYTES, VERSION_BASE_PATH,
 };
-pub use dispatch::{dispatch_node, NodeDispatchResult};
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};

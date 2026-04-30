@@ -439,7 +439,14 @@ impl Dag {
 
         for i in 0..n {
             if colors[i] == WHITE {
-                if dfs(i, &adj, &mut colors, &self.nodes, &mut stack, &mut cycle_path) {
+                if dfs(
+                    i,
+                    &adj,
+                    &mut colors,
+                    &self.nodes,
+                    &mut stack,
+                    &mut cycle_path,
+                ) {
                     return Err(CycleError { path: cycle_path });
                 }
             }
@@ -601,7 +608,11 @@ impl Workflow {
     }
 
     /// Add a pure (side-effect free) node to the workflow.
-    pub fn pure<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn pure<I: 'static, O: 'static, F>(
+        &mut self,
+        name: &str,
+        f: F,
+    ) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + Send + Sync + 'static,
     {
@@ -609,11 +620,16 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Pure, ())
+        self.dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Pure, ())
     }
 
     /// Add a managed-effect node to the workflow.
-    pub fn effect<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn effect<I: 'static, O: 'static, F>(
+        &mut self,
+        name: &str,
+        f: F,
+    ) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + Send + Sync + 'static,
     {
@@ -626,7 +642,11 @@ impl Workflow {
     }
 
     /// Add a wait node to the workflow.
-    pub fn wait<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn wait<I: 'static, O: 'static, F>(
+        &mut self,
+        name: &str,
+        f: F,
+    ) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + Send + Sync + 'static,
     {
@@ -634,7 +654,8 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())
+        self.dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())
     }
 
     /// Add a wait node with signal metadata to the workflow.
@@ -651,13 +672,19 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        let handle = self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())?;
+        let handle = self
+            .dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Wait, ())?;
         self.dag.set_signal_meta(meta);
         Ok(handle)
     }
 
     /// Add a signal node to the workflow.
-    pub fn signal<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn signal<I: 'static, O: 'static, F>(
+        &mut self,
+        name: &str,
+        f: F,
+    ) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + Send + Sync + 'static,
     {
@@ -665,7 +692,8 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())
+        self.dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())
     }
 
     /// Add a signal node with signal metadata to the workflow.
@@ -682,13 +710,19 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        let handle = self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())?;
+        let handle = self
+            .dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Signal, ())?;
         self.dag.set_signal_meta(meta);
         Ok(handle)
     }
 
     /// Add an unsafe node to the workflow.
-    pub fn unsafe_node<I: 'static, O: 'static, F>(&mut self, name: &str, f: F) -> Result<NodeHandle<I, O>, DagError>
+    pub fn unsafe_node<I: 'static, O: 'static, F>(
+        &mut self,
+        name: &str,
+        f: F,
+    ) -> Result<NodeHandle<I, O>, DagError>
     where
         F: Fn(I) -> O + Send + Sync + 'static,
     {
@@ -696,7 +730,8 @@ impl Workflow {
         self.registry
             .register(name, boxed)
             .map_err(|e| map_registry_error(name, e))?;
-        self.dag.add_node_with_kind::<I, O, ()>(name, NodeKind::Unsafe, ())
+        self.dag
+            .add_node_with_kind::<I, O, ()>(name, NodeKind::Unsafe, ())
     }
 
     /// Connect two nodes with compile-time type safety.
@@ -740,7 +775,9 @@ fn map_registry_error(name: &str, e: crate::execution::RegistryError) -> DagErro
     use crate::execution::RegistryError;
     match e {
         RegistryError::AlreadyRegistered { .. } | RegistryError::NodeNotFound { .. } => {
-            DagError::InvalidNodeName { name: name.to_string() }
+            DagError::InvalidNodeName {
+                name: name.to_string(),
+            }
         }
         RegistryError::TypeMismatch { name } => DagError::DuplicateNodeName { name },
     }

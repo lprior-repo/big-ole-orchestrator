@@ -121,10 +121,7 @@ pub struct PoolState {
 
 impl PoolState {
     pub fn new(pool_id: PoolId, config: PoolConfig) -> Self {
-        let scaler = PoolScaler::new(
-            config.min_connections,
-            Duration::from_secs(5),
-        );
+        let scaler = PoolScaler::new(config.min_connections, Duration::from_secs(5));
         Self {
             pool_id,
             connections: HashMap::new(),
@@ -480,8 +477,7 @@ impl ConnectionPool {
 
         let connection_id = ConnectionId::new();
         let now = TimestampMs::now();
-        let pooled = PooledConnection::new(connection_id, now)
-            .with_status(ConnectionStatus::Idle);
+        let pooled = PooledConnection::new(connection_id, now).with_status(ConnectionStatus::Idle);
 
         self.state.connections.insert(connection_id, pooled);
         self.state.idle_connections.push_back(connection_id);
@@ -779,10 +775,7 @@ mod pool_tests {
         let config = PoolConfig::new(min, max, 5000, 30000, 10000, 5).unwrap();
         let mut pool = ConnectionPool::new(pool_id, nats_urls, config);
 
-        pool.state.scaler = PoolScaler::new(
-            min,
-            Duration::from_secs(cooldown_secs),
-        );
+        pool.state.scaler = PoolScaler::new(min, Duration::from_secs(cooldown_secs));
 
         pool
     }

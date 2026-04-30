@@ -126,7 +126,10 @@ pub struct BackpressureWriter<W> {
 
 impl<W: AsyncWrite + Unpin> BackpressureWriter<W> {
     pub fn new(writer: W, pressure_rx: watch::Receiver<bool>) -> Self {
-        Self { writer, pressure_rx }
+        Self {
+            writer,
+            pressure_rx,
+        }
     }
 
     pub async fn write_all(&mut self, payload: &[u8]) -> Result<(), IpcError> {
@@ -165,7 +168,10 @@ async fn backpressure_write(
         let chunk_end = (offset + CHUNK_SIZE).min(payload.len());
         let chunk = &payload[offset..chunk_end];
 
-        writer.write_all(chunk).await.map_err(|e| IpcError::IoError(e))?;
+        writer
+            .write_all(chunk)
+            .await
+            .map_err(|e| IpcError::IoError(e))?;
 
         offset = chunk_end;
 

@@ -5,8 +5,8 @@ use axum::{
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
 };
-use ractor::ActorRef;
 use ractor::rpc::CallResult;
+use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
@@ -261,23 +261,31 @@ pub async fn watch_workflow(
     Sse::new(stream).into_response()
 }
 
-fn should_emit_for_instance(event: &OrchestratorEvent, namespace: &str, instance_id: &InstanceId) -> bool {
+fn should_emit_for_instance(
+    event: &OrchestratorEvent,
+    namespace: &str,
+    instance_id: &InstanceId,
+) -> bool {
     match event {
-        OrchestratorEvent::InstanceStarted { namespace: ns, instance_id: id, .. } => {
-            ns == namespace && id == instance_id
-        }
-        OrchestratorEvent::SignalReceived { namespace: ns, instance_id: id, .. } => {
-            ns == namespace && id == instance_id
-        }
+        OrchestratorEvent::InstanceStarted {
+            namespace: ns,
+            instance_id: id,
+            ..
+        } => ns == namespace && id == instance_id,
+        OrchestratorEvent::SignalReceived {
+            namespace: ns,
+            instance_id: id,
+            ..
+        } => ns == namespace && id == instance_id,
         _ => false,
     }
 }
 
 fn convert_orchestrator_event(event: OrchestratorEvent) -> WorkflowSseEvent {
     match event {
-        OrchestratorEvent::InstanceStarted { .. } => {
-            WorkflowSseEvent::PhaseChanged { phase: "live".to_string() }
-        }
+        OrchestratorEvent::InstanceStarted { .. } => WorkflowSseEvent::PhaseChanged {
+            phase: "live".to_string(),
+        },
         OrchestratorEvent::InstanceCompleted { .. } => WorkflowSseEvent::InstanceCompleted,
         OrchestratorEvent::InstanceFailed { error, .. } => {
             WorkflowSseEvent::InstanceFailed { error }

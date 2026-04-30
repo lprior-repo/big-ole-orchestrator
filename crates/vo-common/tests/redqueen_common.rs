@@ -158,7 +158,10 @@ mod serialization_roundtrip {
         assert_eq!(obj["type"], "TimerFired", "type value must be TimerFired");
         assert!(obj.contains_key("event_id"), "field must be event_id");
         assert!(obj.contains_key("timer_id"), "field must be timer_id");
-        assert!(obj.contains_key("timestamp_ms"), "field must be timestamp_ms");
+        assert!(
+            obj.contains_key("timestamp_ms"),
+            "field must be timestamp_ms"
+        );
     }
 
     /// Kills: extra fields silently ignored (strict deserialization broken).
@@ -553,10 +556,7 @@ mod serialization_adversarial {
     fn rq_duplicate_fields_rejected() {
         let json = r#"{"TimerFired":{"timer_id":"first","timer_id":"second","timestamp_ms":1}}"#;
         let result: Result<WorkflowEvent, _> = serde_json::from_str(json);
-        assert!(
-            result.is_err(),
-            "duplicate fields must be rejected"
-        );
+        assert!(result.is_err(), "duplicate fields must be rejected");
         let err_msg = result.unwrap_err().to_string();
         assert!(
             err_msg.contains("duplicate"),

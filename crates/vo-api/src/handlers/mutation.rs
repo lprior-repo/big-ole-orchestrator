@@ -11,8 +11,8 @@ use vo_types::InstanceId;
 
 use crate::handlers::helpers::split_path_id;
 use crate::types::mutation::{
-    MutationError, MutationRejectionReason, MutationType, OperatorMutationRequest,
-    OperatorMutationResponse, mutation_error_status_code,
+    mutation_error_status_code, MutationError, MutationRejectionReason, MutationType,
+    OperatorMutationRequest, OperatorMutationResponse,
 };
 use crate::types::ApiError;
 
@@ -157,19 +157,64 @@ async fn dispatch_mutation(
             dispatch_cancel(master, namespace, instance_id, correlation_id, causation_id).await
         }
         MutationType::Pause => {
-            dispatch_signal(master, namespace, instance_id, "pause", payload, correlation_id, causation_id).await
+            dispatch_signal(
+                master,
+                namespace,
+                instance_id,
+                "pause",
+                payload,
+                correlation_id,
+                causation_id,
+            )
+            .await
         }
         MutationType::Resume => {
-            dispatch_signal(master, namespace, instance_id, "resume", payload, correlation_id, causation_id).await
+            dispatch_signal(
+                master,
+                namespace,
+                instance_id,
+                "resume",
+                payload,
+                correlation_id,
+                causation_id,
+            )
+            .await
         }
         MutationType::Patch => {
-            dispatch_signal(master, namespace, instance_id, "patch", payload, correlation_id, causation_id).await
+            dispatch_signal(
+                master,
+                namespace,
+                instance_id,
+                "patch",
+                payload,
+                correlation_id,
+                causation_id,
+            )
+            .await
         }
         MutationType::Retry => {
-            dispatch_signal(master, namespace, instance_id, "retry", payload, correlation_id, causation_id).await
+            dispatch_signal(
+                master,
+                namespace,
+                instance_id,
+                "retry",
+                payload,
+                correlation_id,
+                causation_id,
+            )
+            .await
         }
         MutationType::Undo => {
-            dispatch_signal(master, namespace, instance_id, "undo", payload, correlation_id, causation_id).await
+            dispatch_signal(
+                master,
+                namespace,
+                instance_id,
+                "undo",
+                payload,
+                correlation_id,
+                causation_id,
+            )
+            .await
         }
     }
 }
@@ -206,12 +251,12 @@ async fn dispatch_cancel(
         Ok(CallResult::SenderError) => Err(MutationError::EnvelopeValidation(
             "orchestrator dropped reply".to_string(),
         )),
-        Ok(CallResult::Success(Err(vo_actor::TerminateError::NotFound(id)))) => {
-            Err(MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)))
-        }
-        Ok(CallResult::Success(Err(vo_actor::TerminateError::Failed(msg)))) => {
-            Err(MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(msg)))
-        }
+        Ok(CallResult::Success(Err(vo_actor::TerminateError::NotFound(id)))) => Err(
+            MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)),
+        ),
+        Ok(CallResult::Success(Err(vo_actor::TerminateError::Failed(msg)))) => Err(
+            MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(msg)),
+        ),
         Ok(CallResult::Success(Ok(()))) => {
             // Phase 2: Commit the termination.
             let commit_result = master
@@ -237,14 +282,12 @@ async fn dispatch_cancel(
                 Ok(CallResult::SenderError) => Err(MutationError::EnvelopeValidation(
                     "orchestrator dropped reply during commit".to_string(),
                 )),
-                Ok(CallResult::Success(Err(vo_actor::TerminateError::NotFound(id)))) => {
-                    Err(MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)))
-                }
-                Ok(CallResult::Success(Err(vo_actor::TerminateError::Failed(msg)))) => {
-                    Err(MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(
-                        msg,
-                    )))
-                }
+                Ok(CallResult::Success(Err(vo_actor::TerminateError::NotFound(id)))) => Err(
+                    MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)),
+                ),
+                Ok(CallResult::Success(Err(vo_actor::TerminateError::Failed(msg)))) => Err(
+                    MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(msg)),
+                ),
                 Ok(CallResult::Success(Ok(()))) => Ok(OperatorMutationResponse::Accepted {
                     correlation_id: correlation_id.to_string(),
                     causation_id: causation_id.to_string(),
@@ -293,12 +336,12 @@ async fn dispatch_signal(
         Ok(CallResult::SenderError) => Err(MutationError::EnvelopeValidation(
             "orchestrator dropped reply".to_string(),
         )),
-        Ok(CallResult::Success(Err(vo_actor::SignalError::NotFound(id)))) => {
-            Err(MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)))
-        }
-        Ok(CallResult::Success(Err(vo_actor::SignalError::Failed(msg)))) => {
-            Err(MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(msg)))
-        }
+        Ok(CallResult::Success(Err(vo_actor::SignalError::NotFound(id)))) => Err(
+            MutationError::Rejected(MutationRejectionReason::InstanceNotFound(id)),
+        ),
+        Ok(CallResult::Success(Err(vo_actor::SignalError::Failed(msg)))) => Err(
+            MutationError::Rejected(MutationRejectionReason::InvalidMutationForState(msg)),
+        ),
         Ok(CallResult::Success(Ok(()))) => Ok(OperatorMutationResponse::Accepted {
             correlation_id: correlation_id.to_string(),
             causation_id: causation_id.to_string(),
@@ -448,8 +491,9 @@ mod tests {
     ///      Then it maps to HTTP 409.
     #[test]
     fn invalid_mutation_for_state_rejection_maps_to_409() {
-        let reason =
-            MutationRejectionReason::InvalidMutationForState("cannot mutate terminated".to_string());
+        let reason = MutationRejectionReason::InvalidMutationForState(
+            "cannot mutate terminated".to_string(),
+        );
         let err = MutationError::Rejected(reason);
         assert_eq!(mutation_error_status_code(&err), 409);
     }
@@ -557,7 +601,11 @@ mod tests {
 
         for resp in [accepted, dup, rejected] {
             let json = serde_json::to_string(&resp).expect("serialize");
-            assert!(json.contains(r#""status""#), "missing status field in: {}", json);
+            assert!(
+                json.contains(r#""status""#),
+                "missing status field in: {}",
+                json
+            );
         }
     }
 

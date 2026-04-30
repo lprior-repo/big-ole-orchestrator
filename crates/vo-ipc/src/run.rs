@@ -210,7 +210,7 @@ pub async fn run_subprocess_with_handshake(
         detail: e.to_string(),
     })?;
 
-       let _ = fd3_read;
+    let _ = fd3_read;
     let _ = fd4_write;
 
     let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
@@ -251,7 +251,13 @@ pub async fn run_subprocess_with_handshake(
 
     let timeout_res = tokio::time::timeout(
         std::time::Duration::from_millis(timeout_ms),
-        perform_ipc_with_handshake(&mut child, negotiated_version, fd3_payload, fd3_writer, fd4_reader),
+        perform_ipc_with_handshake(
+            &mut child,
+            negotiated_version,
+            fd3_payload,
+            fd3_writer,
+            fd4_reader,
+        ),
     )
     .await;
 
@@ -329,8 +335,8 @@ async fn perform_version_handshake(
         version: CURRENT_IPC_VERSION,
     };
 
-    let json_bytes = serde_json::to_vec(&handshake)
-        .map_err(|e| IpcError::InvalidJson(e.to_string()))?;
+    let json_bytes =
+        serde_json::to_vec(&handshake).map_err(|e| IpcError::InvalidJson(e.to_string()))?;
 
     let len = u32::try_from(json_bytes.len()).map_err(|_| {
         std::io::Error::new(
@@ -342,15 +348,21 @@ async fn perform_version_handshake(
     fd3_writer
         .write_all(&len.to_be_bytes())
         .await
-        .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        .map_err(|e| IpcError::Fd3WriteFailed {
+            detail: e.to_string(),
+        })?;
     fd3_writer
         .write_all(&json_bytes)
         .await
-        .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        .map_err(|e| IpcError::Fd3WriteFailed {
+            detail: e.to_string(),
+        })?;
     fd3_writer
         .flush()
         .await
-        .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        .map_err(|e| IpcError::Fd3WriteFailed {
+            detail: e.to_string(),
+        })?;
 
     let read_timeout = tokio::time::timeout(
         std::time::Duration::from_millis(HANDSHAKE_TIMEOUT_MS),
@@ -377,7 +389,9 @@ async fn read_version_response(fd4_reader: &mut tokio::fs::File) -> Result<u8, I
         let n = fd4_reader
             .read(&mut header[total_read..])
             .await
-            .map_err(|e| IpcError::Fd4ReadFailed { detail: e.to_string() })?;
+            .map_err(|e| IpcError::Fd4ReadFailed {
+                detail: e.to_string(),
+            })?;
         if n == 0 {
             if total_read == 0 {
                 return Err(IpcError::Fd4ReadFailed {
@@ -407,7 +421,9 @@ async fn read_version_response(fd4_reader: &mut tokio::fs::File) -> Result<u8, I
     fd4_reader
         .read_exact(&mut bytes)
         .await
-        .map_err(|e| IpcError::Fd4ReadFailed { detail: e.to_string() })?;
+        .map_err(|e| IpcError::Fd4ReadFailed {
+            detail: e.to_string(),
+        })?;
 
     let response: VersionHandshake =
         serde_json::from_slice(&bytes).map_err(|e| IpcError::InvalidJson(e.to_string()))?;

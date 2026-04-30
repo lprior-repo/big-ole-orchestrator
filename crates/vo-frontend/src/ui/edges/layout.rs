@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use super::graph_types::{Connection, Node, NodeId, WorkflowNode};
-use super::types::{sanitize_bend_input_edge, EdgeAnchor, Position, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH};
+use super::types::{
+    sanitize_bend_input_edge, EdgeAnchor, Position, BEND_CLAMP, NODE_HEIGHT, NODE_WIDTH,
+};
 use crate::ui::parallel_group_overlay::{AggregateStatus, BoundingBox, ParallelGroup};
 
 #[cfg(test)]
@@ -56,7 +58,10 @@ mod layout_tests {
 
     #[test]
     fn create_smooth_step_path_ignores_nan_coordinates() {
-        let from = Position { x: f32::NAN, y: 50.0 };
+        let from = Position {
+            x: f32::NAN,
+            y: 50.0,
+        };
         let to = Position { x: 100.0, y: 50.0 };
         let (path, midpoint) = create_smooth_step_path(from, to, 0.0);
         assert!(path.contains("L"));
@@ -65,7 +70,10 @@ mod layout_tests {
 
     #[test]
     fn create_smooth_step_path_ignores_infinite_coordinates() {
-        let from = Position { x: f32::INFINITY, y: 50.0 };
+        let from = Position {
+            x: f32::INFINITY,
+            y: 50.0,
+        };
         let to = Position { x: 100.0, y: 50.0 };
         let (path, _) = create_smooth_step_path(from, to, 0.0);
         assert!(path.contains("L"));
@@ -116,12 +124,14 @@ mod layout_tests {
         let source = Node::from_workflow_node(
             "Parallel".to_string(),
             WorkflowNode::Parallel(crate::ui::edges::graph_types::ParallelConfig::default()),
-            100.0, 100.0,
+            100.0,
+            100.0,
         );
         let target = Node::from_workflow_node(
             "Target".to_string(),
             WorkflowNode::Run(crate::ui::edges::graph_types::RunConfig::default()),
-            300.0, 100.0,
+            300.0,
+            100.0,
         );
         let nodes = vec![source, target];
         let conn = Connection {

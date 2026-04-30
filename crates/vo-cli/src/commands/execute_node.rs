@@ -85,12 +85,12 @@ pub async fn run_execute_node(config: &ExecuteNodeConfig) -> Result<(), ExecuteN
     }
 
     // Resolve version-pinned binary path
-    let pinned = vo_executor::resolve_binary_path(
-        config.binary.to_str().ok_or_else(|| ExecuteNodeError::InvalidBinary {
+    let pinned = vo_executor::resolve_binary_path(config.binary.to_str().ok_or_else(|| {
+        ExecuteNodeError::InvalidBinary {
             path: config.binary.display().to_string(),
             reason: "path is not valid UTF-8".to_string(),
-        })?,
-    )
+        }
+    })?)
     .map_err(|e| ExecuteNodeError::DispatchFailed(format!("version pinning: {e}")))?;
 
     // Dispatch the node execution
@@ -179,7 +179,10 @@ mod tests {
     #[test]
     fn parse_node_kind_all_variants() {
         assert!(matches!(parse_node_kind("pure"), Ok(NodeKind::Pure)));
-        assert!(matches!(parse_node_kind("managed_effect"), Ok(NodeKind::ManagedEffect)));
+        assert!(matches!(
+            parse_node_kind("managed_effect"),
+            Ok(NodeKind::ManagedEffect)
+        ));
         assert!(matches!(parse_node_kind("unsafe"), Ok(NodeKind::Unsafe)));
         assert!(matches!(parse_node_kind("wait"), Ok(NodeKind::Wait)));
         assert!(matches!(parse_node_kind("signal"), Ok(NodeKind::Signal)));

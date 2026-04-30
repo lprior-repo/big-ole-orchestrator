@@ -44,7 +44,10 @@ impl WorkflowLineage {
         }
         if let Some(parent) = parent_epoch {
             if parent >= epoch {
-                return Err(LineageError::InvalidEpochTransition { parent_epoch: parent, epoch });
+                return Err(LineageError::InvalidEpochTransition {
+                    parent_epoch: parent,
+                    epoch,
+                });
             }
         }
         Ok(Self {

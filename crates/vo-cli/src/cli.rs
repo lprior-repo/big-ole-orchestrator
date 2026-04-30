@@ -872,7 +872,7 @@ mod tests {
     }
 
     #[test]
-     fn cli_status_without_instance_returns_error() {
+    fn cli_status_without_instance_returns_error() {
         let args: Vec<OsString> = vec!["vo".into(), "status".into()];
         let result = interpret_cli_from(args);
         assert!(result.is_err());
