@@ -1,12 +1,20 @@
+//! Memory-mapped cache module for vo-storage.
+//!
+//! Provides an LRU-backed cache that stores data in memory-mapped files.
+//! Split into submodules for page management and eviction policy.
+
 #![allow(unused_imports)]
 
-use memmap2::Mmap;
+pub mod eviction;
+pub mod page;
+
 use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
-use std::fs::{File, OpenOptions};
-use std::io::Write;
 use std::path::PathBuf;
 use tokio::sync::broadcast;
+
+use self::eviction::{self, LruEntry};
+use self::page;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MmapCacheError {
@@ -30,19 +38,6 @@ pub enum CacheInvalidationEvent {
     AllInvalidated,
 }
 
-#[derive(Clone)]
-struct CacheRegion {
-    _offset: u64,
-    size: u64,
-    file_path: PathBuf,
-}
-
-struct LruEntry {
-    _key: String,
-    region: CacheRegion,
-    _last_access: u64,
-}
-
 pub struct MmapCache {
     base_path: PathBuf,
     max_memory_bytes: usize,
@@ -50,7 +45,7 @@ pub struct MmapCache {
     access_counter: u64,
     lru_queue: VecDeque<String>,
     entries: HashMap<String, LruEntry>,
-    lock: parking_lot::Mutex<()>,
+    lock: Mutex<()>,
     _invalidation_tx: Option<broadcast::Sender<CacheInvalidationEvent>>,
 }
 
@@ -88,7 +83,7 @@ impl MmapCache {
             access_counter: 0,
             lru_queue: VecDeque::new(),
             entries: HashMap::new(),
-            lock: parking_lot::Mutex::new(()),
+            lock: Mutex::new(()),
             _invalidation_tx: Some(tx),
         })
     }
@@ -108,7 +103,13 @@ impl MmapCache {
             self.current_memory_bytes + data.len() > self.max_memory_bytes
         };
         if needs_evict {
-            self.evict_until_space_available(data.len())?;
+            eviction::evict_until_space_available(
+                &mut self.lru_queue,
+                &mut self.entries,
+                &mut self.current_memory_bytes,
+                self.max_memory_bytes,
+                data.len(),
+            )?;
         }
         let old_file_path = {
             let _guard = self.lock.lock();
@@ -126,20 +127,20 @@ impl MmapCache {
         if let Some(file_path) = old_file_path {
             let _ = std::fs::remove_file(file_path);
         }
-        let offset = self.allocate_region(key, data.len())?;
-        self.write_data_to_region(key, offset, data)?;
+        let offset = page::allocate_region(key, &self.base_path, data.len())?;
+        page::write_data_to_region(key, offset, &self.base_path, data)?;
         {
             let _guard = self.lock.lock();
             self.access_counter += 1;
-            let region = CacheRegion {
-                _offset: offset,
+            let region = page::CacheRegion {
+                offset,
                 size: data.len() as u64,
                 file_path: self.region_file_path(key),
             };
             let entry = LruEntry {
-                _key: key.to_string(),
+                key: key.to_string(),
                 region,
-                _last_access: self.access_counter,
+                last_access: self.access_counter,
             };
             self.current_memory_bytes += data.len();
             self.lru_queue.push_back(key.to_string());
@@ -155,7 +156,6 @@ impl MmapCache {
     /// Returns `MmapCacheError::RegionNotFound` if the key does not exist.
     /// Returns `MmapCacheError::IoError` on filesystem failures.
     /// Returns `MmapCacheError::MmapError` if the memory map fails.
-    #[allow(clippy::cast_possible_truncation)]
     pub fn get(&self, key: &str) -> Result<Vec<u8>, MmapCacheError> {
         let region = {
             let _guard = self.lock.lock();
@@ -164,13 +164,8 @@ impl MmapCache {
                 .map(|e| e.region.clone())
                 .ok_or_else(|| MmapCacheError::RegionNotFound(key.to_string()))?
         };
-        let file = File::open(&region.file_path)?;
-        let metadata = file.metadata()?;
-        if metadata.len() != region.size {
-            return Err(MmapCacheError::InvalidRegion);
-        }
-        let mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
-        Ok(mmap[..region.size as usize].to_vec())
+        let file = std::fs::File::open(&region.file_path)?;
+        page::read_mapped(&file, region.size)
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
@@ -182,7 +177,6 @@ impl MmapCache {
     /// # Errors
     ///
     /// Returns `MmapCacheError::IoError` if the backing file cannot be removed.
-    #[allow(clippy::cast_possible_truncation)]
     pub fn remove(&mut self, key: &str) -> Result<(), MmapCacheError> {
         let _guard = self.lock.lock();
         if let Some(entry) = self.entries.remove(key) {
@@ -206,12 +200,9 @@ impl MmapCache {
                 .map(|e| (e.region.file_path.clone(), e.region.size))
         };
         if let Some((path, size)) = file_path {
-            let file = File::open(&path)?;
-            let metadata = file.metadata()?;
-            if metadata.len() != size {
-                return Err(MmapCacheError::InvalidRegion);
-            }
-            let _mmap = unsafe { Mmap::map(&file) }.map_err(MmapCacheError::MmapError)?;
+            let file = std::fs::File::open(&path)?;
+            let _mmap = page::read_mapped(&file, size)?;
+            drop(_mmap);
         }
         Ok(())
     }
@@ -296,49 +287,18 @@ impl MmapCache {
     }
 
     fn region_file_path(&self, key: &str) -> PathBuf {
-        let safe_name = key.replace(['/', '\\', ':'], "_");
-        self.base_path.join(safe_name)
+        page::region_file_path(&self.base_path, key)
     }
 
-    fn allocate_region(&self, key: &str, size: usize) -> Result<u64, MmapCacheError> {
-        let path = self.region_file_path(key);
-        let file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .read(true)
-            .truncate(true)
-            .open(&path)?;
-        file.set_len(size as u64)?;
-        Ok(0)
-    }
-
-    fn write_data_to_region(
-        &self,
-        key: &str,
-        _offset: u64,
-        data: &[u8],
-    ) -> Result<(), MmapCacheError> {
-        let path = self.region_file_path(key);
-        let mut file = OpenOptions::new().write(true).open(&path)?;
-        file.write_all(data)?;
-        file.flush()?;
-        Ok(())
-    }
-
-    #[allow(clippy::unnecessary_wraps, clippy::cast_possible_truncation)]
+    #[allow(clippy::unnecessary_wraps)]
     fn evict_until_space_available(&mut self, needed: usize) -> Result<(), MmapCacheError> {
-        let _guard = self.lock.lock();
-        while self.current_memory_bytes + needed > self.max_memory_bytes
-            && !self.lru_queue.is_empty()
-        {
-            if let Some(lru_key) = self.lru_queue.pop_front() {
-                if let Some(entry) = self.entries.remove(&lru_key) {
-                    self.current_memory_bytes -= entry.region.size as usize;
-                    let _ = std::fs::remove_file(entry.region.file_path);
-                }
-            }
-        }
-        Ok(())
+        eviction::evict_until_space_available(
+            &mut self.lru_queue,
+            &mut self.entries,
+            &mut self.current_memory_bytes,
+            self.max_memory_bytes,
+            needed,
+        )
     }
 
     /// Removes all entries from the cache and deletes their backing files.
@@ -534,10 +494,10 @@ mod tests {
     fn lru_eviction_with_multiple_entries() {
         let temp_dir = TempDir::new().unwrap();
         let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 15).unwrap();
-        cache.insert("key1", b"12345").unwrap(); // 5 bytes, total 5
-        cache.insert("key2", b"67890").unwrap(); // 5 bytes, total 10
-        cache.insert("key3", b"abcde").unwrap(); // 5 bytes, total 15
-        cache.insert("key4", b"fghij").unwrap(); // 5 bytes -> need 20, evict key1 (LRU)
+        cache.insert("key1", b"12345").unwrap();
+        cache.insert("key2", b"67890").unwrap();
+        cache.insert("key3", b"abcde").unwrap();
+        cache.insert("key4", b"fghij").unwrap();
         assert!(!cache.contains_key("key1"), "LRU key1 should be evicted");
         assert!(cache.contains_key("key2"));
         assert!(cache.contains_key("key3"));
@@ -624,7 +584,6 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut cache = MmapCache::new(temp_dir.path().to_path_buf(), 5).unwrap();
         cache.insert("key1", b"12345").unwrap();
-        // key2 (5 bytes) exceeds capacity (5 used) so key1 should be evicted
         cache.insert("key2", b"67890").unwrap();
         assert!(!cache.contains_key("key1"), "LRU entry should be evicted");
         assert!(cache.contains_key("key2"), "new entry should be inserted");
@@ -800,16 +759,11 @@ mod tests {
         cache.invalidate_key("key3").unwrap();
 
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        // With capacity 2, sending 3 events without receiving causes the receiver
-        // to lag by 1. tokio::broadcast returns Err(Lagged(n)) which, once resumed,
-        // delivers the latest value.
         let result = runtime.block_on(receiver.recv());
         assert!(
             result.is_err(),
             "expected Lagged error when buffer overflows"
         );
-        // After lag recovery, the receiver gets the current value (key2, which was
-        // in the buffer). key3 was sent after the lag recovery point.
         let event = runtime.block_on(receiver.recv()).unwrap();
         match event {
             CacheInvalidationEvent::KeyInvalidated(key) => assert_eq!(key, "key2"),
