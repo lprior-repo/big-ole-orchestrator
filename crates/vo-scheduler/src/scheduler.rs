@@ -11,7 +11,7 @@ use chrono::Utc;
 
 use crate::error::SchedulerError;
 use crate::types::job::ScheduledJob;
-use crate::types::queue::SchedulerQueue;
+use crate::queue::SchedulerQueue;
 use crate::types::{JobId, JobKind, JobState, SchedulePolicy};
 use vo_types::state::LifecycleState;
 
@@ -432,12 +432,12 @@ impl<S: JobStore, W: WorkerDispatch> Scheduler<S, W> {
 
         // Calculate next due_at based on schedule policy.
         let next_due_at = match &job.schedule_policy {
-            SchedulePolicy::Cron(expr) => {
+            SchedulePolicy::Cron { expression } => {
                 // For cron jobs, the next due time is approximated as now.
                 // A full cron parser would compute the next matching time.
                 // We use the current time as a placeholder; the actual cron
                 // evaluation is deferred to a future implementation.
-                let _ = expr;
+                let _ = expression;
                 Utc::now()
             }
             SchedulePolicy::After(d) => {

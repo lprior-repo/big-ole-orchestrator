@@ -7,11 +7,10 @@ use ulid::Ulid;
 
 pub mod job;
 pub mod priority;
-pub mod queue;
 
 pub use self::job::{ScheduledJob, SerializedPayload};
 pub use priority::JobPriority;
-pub use queue::SchedulerQueue;
+pub use crate::queue::SchedulerQueue;
 
 use crate::error::SchedulerError;
 

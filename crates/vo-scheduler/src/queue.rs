@@ -65,18 +65,18 @@ impl SchedulerQueue {
         let job = self
             .jobs
             .remove(job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         self.heap.retain(|entry| &entry.job_id != job_id);
         metrics::set_queue_depth(self.jobs.len());
         Ok(job)
     }
 
     pub fn lookup(&self, job_id: &JobId) -> Result<&ScheduledJob, SchedulerError> {
-        self.jobs.get(job_id).ok_or(SchedulerError::JobNotFound)
+        self.jobs.get(job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })
     }
 
     pub fn lookup_mut(&mut self, job_id: &JobId) -> Result<&mut ScheduledJob, SchedulerError> {
-        self.jobs.get_mut(job_id).ok_or(SchedulerError::JobNotFound)
+        self.jobs.get_mut(job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })
     }
 
     pub fn get_state(&self, job_id: &JobId) -> Option<JobState> {
@@ -115,7 +115,7 @@ impl SchedulerQueue {
         let job = self
             .jobs
             .get_mut(job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         job.transition(new_state)?;
         match new_state {
             JobState::Completed => metrics::jobs_completed_total(),
@@ -135,9 +135,12 @@ impl SchedulerQueue {
         let job = self
             .jobs
             .get_mut(job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         if matches!(job.state, JobState::Running | JobState::Completed) {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: job.state.to_string(),
+                action: "update_schedule".to_string(),
+            });
         }
         job.schedule_policy = new_schedule.clone();
         match new_schedule {
@@ -178,14 +181,17 @@ impl SchedulerQueue {
     }
 
     pub fn cancel(&mut self, job_id: &JobId) -> Result<(), SchedulerError> {
-        let job = self.jobs.get(job_id).ok_or(SchedulerError::JobNotFound)?;
+        let job = self.jobs.get(job_id).ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         if matches!(job.state, JobState::Completed | JobState::Failed) {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: job.state.to_string(),
+                action: "cancel".to_string(),
+            });
         }
         let job_mut = self
             .jobs
             .get_mut(job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         job_mut.transition(JobState::Cancelled)
     }
 
@@ -197,7 +203,7 @@ impl SchedulerQueue {
         let job = self
             .jobs
             .get_mut(job_id)
-            .ok_or(SchedulerError::JobNotFound)?;
+            .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
         job.apply_retryable_failure(error)?;
         let updated_due_at = job.due_at;
         let _ = job;

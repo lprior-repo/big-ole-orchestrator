@@ -1,4 +1,7 @@
+pub mod api;
 pub mod error;
+pub mod metrics;
+pub mod queue;
 pub mod scheduler;
 pub mod types;
 

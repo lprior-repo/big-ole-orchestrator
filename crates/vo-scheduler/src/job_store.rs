@@ -95,7 +95,7 @@ impl From<SchedulePolicy> for SchedulePolicyStorage {
             SchedulePolicy::Immediate => Self::Immediate,
             SchedulePolicy::At(dt) => Self::At(dt),
             SchedulePolicy::After(dur) => Self::After(dur),
-            SchedulePolicy::Cron(s) => Self::Cron(s),
+            SchedulePolicy::Cron { expression } => Self::Cron(expression),
         }
     }
 }
@@ -106,7 +106,7 @@ impl From<SchedulePolicyStorage> for SchedulePolicy {
             SchedulePolicyStorage::Immediate => Self::Immediate,
             SchedulePolicyStorage::At(dt) => Self::At(dt),
             SchedulePolicyStorage::After(dur) => Self::After(dur),
-            SchedulePolicyStorage::Cron(s) => Self::Cron(s),
+            SchedulePolicyStorage::Cron(s) => Self::Cron { expression: s },
         }
     }
 }

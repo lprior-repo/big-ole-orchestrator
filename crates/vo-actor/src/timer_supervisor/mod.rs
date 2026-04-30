@@ -30,5 +30,5 @@ pub use types::{
     Counter, CycleResult, TimerRecord, TimerSupervisorError, TimerSupervisorMetrics,
     TimerSupervisorState,
 };
-// Re-export TimerStorage from vo_common::ports for compatibility
-pub use vo_common::ports::TimerStorage;
+// Re-export TimerStorage from vo_common::timer_storage for compatibility
+pub use vo_common::timer_storage::TimerStorage;

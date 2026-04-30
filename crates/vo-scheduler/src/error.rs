@@ -14,15 +14,6 @@ pub type ExecutionErrorType = ExecutionError;
 /// Backwards-compatible alias for the unified retry error.
 pub type RetryExhaustedErrorType = RetryExhaustedError;
 
-
-
-    /// Returns true if this error is permanent.
-    #[inline]
-    pub fn is_permanent(&self) -> bool {
-        <vo_common::SchedulerError as std::ops::Deref>::deref(self).is_permanent()
-    }
-}
-
 /// Helper to create a SchedulerError::JobNotFound from a string.
 pub fn job_not_found(job_id: impl Into<String>) -> SchedulerError {
     SchedulerError::JobNotFound { job_id: job_id.into() }

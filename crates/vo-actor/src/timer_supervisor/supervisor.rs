@@ -17,7 +17,7 @@ use super::traits::WorkQueue;
 use super::types::{
     CycleResult, TimerSupervisorError, TimerSupervisorMetrics, TimerSupervisorState,
 };
-use vo_common::ports::TimerStorage;
+use vo_common::timer_storage::TimerStorage;
 
 // =============================================================================
 // `TimerSupervisor` - Actor that manages timer scanning and dispatch
@@ -314,7 +314,7 @@ mod tests {
     use super::*;
     use crate::timer_supervisor::traits::WorkQueue;
     use async_trait::async_trait;
-    use vo_common::ports::{TimerStorage, TimerStorageError};
+    use vo_common::timer_storage::{TimerStorage, TimerStorageError};
 
     struct MockStorage;
     #[async_trait]

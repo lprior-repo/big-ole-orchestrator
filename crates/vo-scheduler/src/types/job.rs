@@ -39,7 +39,7 @@ impl ScheduledJob {
             SchedulePolicy::At(t) => *t,
             SchedulePolicy::After(d) => {
                 now + chrono::Duration::from_std(*d)
-                    .map_err(|e| SchedulerError::DurationOverflow(e.to_string()))?
+                    .map_err(|e| SchedulerError::InvalidSchedule(e.to_string()))?
             }
             SchedulePolicy::Immediate => now,
             SchedulePolicy::Cron { expression: _ } => now,
@@ -70,11 +70,17 @@ impl ScheduledJob {
         error: impl Into<String>,
     ) -> Result<(), SchedulerError> {
         if self.state != JobState::Running {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: self.state.to_string(),
+                action: "transition_to_retrying".to_string(),
+            });
         }
         let next_attempt = self.attempt_count + 1;
         if !self.retry_policy.can_retry(next_attempt) {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: self.state.to_string(),
+                action: "transition_to_retrying".to_string(),
+            });
         }
         self.attempt_count = next_attempt;
         self.state = JobState::Retrying;
@@ -113,10 +119,16 @@ impl ScheduledJob {
 
     pub fn apply_retryable_failure(&mut self, error: String) -> Result<(), SchedulerError> {
         if self.state != JobState::Running && self.state != JobState::Failed {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: self.state.to_string(),
+                action: "apply_retryable_failure".to_string(),
+            });
         }
         if !self.retry_policy.can_retry(self.attempt_count) {
-            return Err(SchedulerError::InvalidTransition);
+            return Err(SchedulerError::InvalidTransition {
+                from_state: self.state.to_string(),
+                action: "apply_retryable_failure".to_string(),
+            });
         }
         self.attempt_count += 1;
         self.state = JobState::Retrying;

@@ -9,7 +9,7 @@
 
 use std::time::Duration;
 
-pub use vo_common::ports::TimerRecord;
+pub use vo_common::timer_storage::TimerRecord;
 use vo_types::InstanceId;
 
 // =============================================================================

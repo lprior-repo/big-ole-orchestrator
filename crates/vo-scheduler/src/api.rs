@@ -26,13 +26,30 @@ pub async fn schedule_job(
 }
 
 pub async fn cancel_job(queue: &mut SchedulerQueue, job_id: JobId) -> Result<(), SchedulerError> {
+    cancel_job_with_drain(queue, job_id, false).await
+}
+
+pub async fn cancel_job_with_drain(
+    queue: &mut SchedulerQueue,
+    job_id: JobId,
+    drain: bool,
+) -> Result<(), SchedulerError> {
     let state = queue
         .get_state(&job_id)
-        .ok_or(SchedulerError::JobNotFound)?;
+        .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
 
     match state {
-        JobState::Scheduled | JobState::Pending | JobState::Running | JobState::Retrying => {
+        JobState::Scheduled | JobState::Pending | JobState::Retrying => {
             queue.update_state(&job_id, JobState::Cancelled)?;
+            Ok(())
+        }
+        JobState::Running => {
+            queue.update_state(&job_id, JobState::Cancelled)?;
+            if drain {
+                // TODO: In a full implementation, this would wait for the job worker
+                // to acknowledge cancellation and complete its cleanup.
+                // For now, the queue layer just transitions to Cancelled.
+            }
             Ok(())
         }
         JobState::Completed | JobState::Failed | JobState::Cancelled => {
@@ -55,7 +72,7 @@ pub async fn update_job_schedule(
 ) -> Result<(), SchedulerError> {
     let state = queue
         .get_state(&job_id)
-        .ok_or(SchedulerError::JobNotFound)?;
+        .ok_or_else(|| SchedulerError::JobNotFound { job_id: job_id.to_string() })?;
 
     match state {
         JobState::Scheduled | JobState::Pending | JobState::Retrying => {
@@ -66,7 +83,10 @@ pub async fn update_job_schedule(
             Ok(())
         }
         JobState::Running | JobState::Completed | JobState::Failed | JobState::Cancelled => {
-            Err(SchedulerError::InvalidTransition)
+            Err(SchedulerError::InvalidTransition {
+                from_state: state.to_string(),
+                action: "update_schedule".to_string(),
+            })
         }
     }
 }
@@ -219,7 +239,7 @@ mod tests {
             SchedulePolicy::At(Utc::now() + Duration::hours(1)),
         )
         .await;
-        assert!(matches!(result, Err(SchedulerError::InvalidTransition)));
+        assert!(matches!(result, Err(SchedulerError::InvalidTransition { .. })));
     }
 
     #[tokio::test]
