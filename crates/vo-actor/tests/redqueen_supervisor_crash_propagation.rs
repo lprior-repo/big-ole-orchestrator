@@ -26,10 +26,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use vo_actor::lifecycle::{ActorLifecycleState, ParentChildRegistry};
+use vo_actor::lifecycle::{ActorLifecycleState, ParentChildRegistry, ShutdownPropagator};
 use vo_actor::spawn_supervisor::{
-    ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage, SpawnSupervisor,
-    SpawnSupervisorError, WorkQueue,
+    ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,
+    SpawnSupervisor, SpawnSupervisorError, WorkQueue,
 };
 use vo_types::InstanceId;
 

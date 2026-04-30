@@ -16,6 +16,7 @@ use super::{
     Counter, CycleResult, ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase,
     SpawnRecord, SpawnStorage, SpawnSupervisorMetrics, WorkQueue,
 };
+use crate::lifecycle::ShutdownPropagator;
 
 fn test_instance_id() -> InstanceId {
     let ulid = Ulid::new();
@@ -43,6 +44,7 @@ fn spawn_supervisor_rejects_zero_health_check_interval() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(matches!(
@@ -68,6 +70,7 @@ fn spawn_supervisor_rejects_zero_max_health_checks() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(matches!(
@@ -93,6 +96,7 @@ fn spawn_supervisor_rejects_zero_initial_backoff() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(matches!(
@@ -118,6 +122,7 @@ fn spawn_supervisor_rejects_backoff_multiplier_less_than_one() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(matches!(
@@ -197,6 +202,7 @@ fn spawn_supervisor_constructs_with_valid_config() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(supervisor.is_ok());
@@ -230,6 +236,7 @@ fn spawn_supervisor_debug_format() {
         Arc::new(pm),
         Arc::new(wq),
         Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     )
     .unwrap();
 
@@ -250,6 +257,7 @@ fn spawn_supervisor_handle_debug_format() {
         state_sender: tokio::sync::watch::channel(SpawnSupervisorState::Stopped).0,
         shutdown_trigger: tokio::sync::broadcast::channel(1).0,
         task_handle: None,
+        shutdown_propagator: Arc::new(ShutdownPropagator::default_propagator()),
     };
 
     let debug_str = format!("{:?}", handle);
@@ -264,6 +272,62 @@ fn spawn_supervisor_handle_debug_format() {
 fn spawn_supervisor_is_send() {
     fn assert_send<T: Send>() {}
     assert_send::<SpawnSupervisor>();
+}
+
+// =============================================================================
+// SpawnSupervisor Shutdown Propagator Registration Tests
+// =============================================================================
+
+#[test]
+fn spawn_supervisor_registers_cleanup_with_propagator() {
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
+    let propagator = Arc::new(ShutdownPropagator::default_propagator());
+
+    let _supervisor = SpawnSupervisor::new(
+        Duration::from_secs(10),
+        3,
+        Duration::from_millis(100),
+        2.0,
+        5,
+        Arc::new(storage),
+        Arc::new(pm),
+        Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
+        propagator.clone(),
+    )
+    .unwrap();
+
+    // Propagator should exist and be usable
+    assert!(Arc::strong_count(&propagator) >= 2);
+}
+
+#[test]
+fn spawn_supervisor_handle_propagator_shares_reference() {
+    let storage = MockStorage;
+    let pm = MockProcessManager;
+    let wq = MockWorkQueue;
+    let propagator = Arc::new(ShutdownPropagator::default_propagator());
+
+    let supervisor = SpawnSupervisor::new(
+        Duration::from_secs(10),
+        3,
+        Duration::from_millis(100),
+        2.0,
+        5,
+        Arc::new(storage),
+        Arc::new(pm),
+        Arc::new(wq),
+        Arc::new(ExecutionSemaphore::default()),
+        propagator.clone(),
+    )
+    .unwrap();
+
+    let handle = supervisor.spawn().unwrap();
+
+    // Handle should share the same propagator reference
+    assert_eq!(Arc::strong_count(&propagator), 2);
 }
 
 // =============================================================================

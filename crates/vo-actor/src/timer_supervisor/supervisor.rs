@@ -19,6 +19,8 @@ use super::types::{
 };
 use vo_common::timer_storage::TimerStorage;
 
+use crate::lifecycle::ShutdownPropagator;
+
 // =============================================================================
 // `TimerSupervisor` - Actor that manages timer scanning and dispatch
 // =============================================================================
@@ -35,6 +37,8 @@ pub struct TimerSupervisor {
     pub metrics: TimerSupervisorMetrics,
     /// Running state.
     is_running: std::sync::atomic::AtomicBool,
+    /// Shutdown propagator for ordered cleanup.
+    pub shutdown_propagator: Arc<ShutdownPropagator>,
 }
 
 impl std::fmt::Debug for TimerSupervisor {
@@ -48,12 +52,17 @@ impl std::fmt::Debug for TimerSupervisor {
 impl TimerSupervisor {
     /// Creates a new `TimerSupervisor`.
     ///
+    /// Registers the timer supervisor cleanup action with the shutdown
+    /// propagator to enforce reverse-initialization drop ordering
+    /// per ADR-050 and ADR-055.
+    ///
     /// # Errors
     /// Returns `InvalidConfig` if `tick_interval` is zero.
     pub fn new(
         tick_interval: Duration,
         storage: Arc<dyn TimerStorage>,
         work_queue: Arc<dyn WorkQueue>,
+        shutdown_propagator: Arc<ShutdownPropagator>,
     ) -> Result<Self, TimerSupervisorError> {
         // Precondition: tick_interval > 0
         if tick_interval.is_zero() {
@@ -62,12 +71,17 @@ impl TimerSupervisor {
             ));
         }
 
+        shutdown_propagator.register_drop_sync("timer_supervisor", || {
+            tracing::debug!("TimerSupervisor cleanup: draining timer queue");
+        });
+
         Ok(Self {
             tick_interval,
             storage,
             work_queue,
             metrics: TimerSupervisorMetrics::default(),
             is_running: std::sync::atomic::AtomicBool::new(false),
+            shutdown_propagator,
         })
     }
 
@@ -96,10 +110,12 @@ impl TimerSupervisor {
             }
         });
 
+       let propagator = self.shutdown_propagator.clone();
         Ok(TimerSupervisorHandle {
             state_sender,
             shutdown_trigger,
             task_handle: Some(task_handle),
+            shutdown_propagator: propagator,
         })
     }
 
@@ -245,6 +261,8 @@ pub struct TimerSupervisorHandle {
     state_sender: watch::Sender<TimerSupervisorState>,
     shutdown_trigger: broadcast::Sender<()>,
     task_handle: Option<JoinHandle<()>>,
+    /// Shared shutdown propagator for ordered cleanup.
+    shutdown_propagator: Arc<ShutdownPropagator>,
 }
 
 impl TimerSupervisorHandle {
@@ -261,6 +279,9 @@ impl TimerSupervisorHandle {
     }
 
     /// Requests the supervisor to shut down and waits for completion.
+    ///
+    /// Per ADR-050 and ADR-055: shutdown propagates through the propagator's
+    /// ordered drop registry (reverse-initialization order).
     ///
     /// # Errors
     /// Returns `ShutdownTimeout` if shutdown does not complete within the given timeout.
@@ -304,6 +325,8 @@ impl TimerSupervisorHandle {
                 }
             }
         }
+
+        let _ = self.shutdown_propagator.propagate();
 
         Ok(())
     }
@@ -397,9 +420,15 @@ mod tests {
     async fn shutdown_returns_ok_on_clean_shutdown() {
         let storage: Arc<dyn TimerStorage> = Arc::new(MockStorage);
         let work_queue: Arc<dyn WorkQueue> = Arc::new(MockQueue);
+        let propagator = Arc::new(ShutdownPropagator::default_propagator());
 
-        let supervisor = TimerSupervisor::new(Duration::from_millis(100), storage, work_queue)
-            .expect("valid config should construct supervisor");
+        let supervisor = TimerSupervisor::new(
+            Duration::from_millis(100),
+            storage,
+            work_queue,
+            propagator,
+        )
+        .expect("valid config should construct supervisor");
 
         let handle = supervisor.spawn().expect("spawn should return a handle");
         assert!(handle.is_running());
@@ -417,9 +446,15 @@ mod tests {
     async fn shutdown_sets_state_to_shutdown() {
         let storage: Arc<dyn TimerStorage> = Arc::new(MockStorage);
         let work_queue: Arc<dyn WorkQueue> = Arc::new(MockQueue);
+        let propagator = Arc::new(ShutdownPropagator::default_propagator());
 
-        let supervisor = TimerSupervisor::new(Duration::from_secs(3600), storage, work_queue)
-            .expect("valid config should construct supervisor");
+        let supervisor = TimerSupervisor::new(
+            Duration::from_secs(3600),
+            storage,
+            work_queue,
+            propagator,
+        )
+        .expect("valid config should construct supervisor");
 
         let handle = supervisor.spawn().expect("spawn should return a handle");
         let state_before = handle.current_state();

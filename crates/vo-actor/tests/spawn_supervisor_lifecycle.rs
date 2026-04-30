@@ -5,8 +5,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use common::{test_instance_id, MockProcessManager, MockSpawnStorage, MockWorkQueue};
+use vo_actor::lifecycle::ShutdownPropagator;
 use vo_actor::spawn_supervisor::{
-    SpawnPhase, SpawnRecord, SpawnSupervisor, SpawnSupervisorError, SpawnSupervisorState,
+    ExecutionSemaphore, SpawnPhase, SpawnRecord, SpawnSupervisor, SpawnSupervisorError,
+    SpawnSupervisorState,
 };
 
 // =============================================================================

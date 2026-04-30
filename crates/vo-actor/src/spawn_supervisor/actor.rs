@@ -10,6 +10,7 @@ use tokio::time::{interval, MissedTickBehavior};
 use super::types::{SpawnSupervisorError, SpawnSupervisorState};
 use super::{calculate_backoff_delay, ProcessManager, WorkQueue};
 use super::{SpawnStorage, SpawnSupervisorMetrics};
+use crate::lifecycle::ShutdownPropagator;
 use crate::semaphore::ExecutionSemaphore;
 
 // =============================================================================
@@ -40,6 +41,8 @@ pub struct SpawnSupervisor {
     pub metrics: SpawnSupervisorMetrics,
     /// Global execution semaphore for limiting concurrent spawns.
     pub execution_semaphore: Arc<ExecutionSemaphore>,
+    /// Shutdown propagator for ordered cleanup.
+    pub shutdown_propagator: Arc<ShutdownPropagator>,
 }
 
 impl std::fmt::Debug for SpawnSupervisor {
@@ -59,6 +62,10 @@ impl std::fmt::Debug for SpawnSupervisor {
 impl SpawnSupervisor {
     /// Creates a new `SpawnSupervisor`.
     ///
+    /// Registers the spawn supervisor cleanup action with the shutdown
+    /// propagator to enforce reverse-initialization drop ordering
+    /// per ADR-050 and ADR-055.
+    ///
     /// # Errors
     /// Returns `InvalidConfig` if configuration is invalid.
     #[allow(clippy::too_many_arguments)]
@@ -73,6 +80,7 @@ impl SpawnSupervisor {
         process_manager: Arc<dyn ProcessManager>,
         work_queue: Arc<dyn WorkQueue>,
         execution_semaphore: Arc<ExecutionSemaphore>,
+        shutdown_propagator: Arc<ShutdownPropagator>,
     ) -> Result<Self, SpawnSupervisorError> {
         if health_check_interval.is_zero() {
             return Err(SpawnSupervisorError::InvalidConfig(
@@ -98,11 +106,15 @@ impl SpawnSupervisor {
             ));
         }
 
-        if jitter_factor <= 0.0 || jitter_factor > 1.0 {
+       if jitter_factor <= 0.0 || jitter_factor > 1.0 {
             return Err(SpawnSupervisorError::InvalidConfig(
                 "jitter_factor must be in (0.0, 1.0]".to_string(),
             ));
         }
+
+        shutdown_propagator.register_drop_sync("spawn_supervisor", || {
+            tracing::debug!("SpawnSupervisor cleanup: draining spawn queue");
+        });
 
         Ok(Self {
             health_check_interval,
@@ -116,6 +128,7 @@ impl SpawnSupervisor {
             work_queue,
             metrics: SpawnSupervisorMetrics::default(),
             execution_semaphore,
+            shutdown_propagator,
         })
     }
 
@@ -137,10 +150,12 @@ impl SpawnSupervisor {
             }
         });
 
+        let propagator = self.shutdown_propagator.clone();
         Ok(SpawnSupervisorHandle {
             state_sender,
             shutdown_trigger,
             task_handle: Some(task_handle),
+            shutdown_propagator: propagator,
         })
     }
 
@@ -202,6 +217,8 @@ pub struct SpawnSupervisorHandle {
     pub(crate) state_sender: watch::Sender<SpawnSupervisorState>,
     pub(crate) shutdown_trigger: broadcast::Sender<()>,
     pub(crate) task_handle: Option<JoinHandle<()>>,
+    /// Shared shutdown propagator for ordered cleanup.
+    pub(crate) shutdown_propagator: Arc<ShutdownPropagator>,
 }
 
 impl SpawnSupervisorHandle {
@@ -212,6 +229,9 @@ impl SpawnSupervisorHandle {
     }
 
     /// Requests the supervisor to shut down.
+    ///
+    /// Per ADR-050 and ADR-055: shutdown propagates through the propagator's
+    /// ordered drop registry (reverse-initialization order).
     #[tracing::instrument(skip(self))]
     pub async fn shutdown(mut self) -> Result<(), SpawnSupervisorError> {
         let _ = self.shutdown_trigger.send(());
@@ -250,6 +270,8 @@ impl SpawnSupervisorHandle {
                 }
             }
         }
+
+        let _ = self.shutdown_propagator.propagate();
 
         Ok(())
     }

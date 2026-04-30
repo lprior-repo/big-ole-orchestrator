@@ -25,6 +25,7 @@ use vo_actor::reanimator::{
     MockTimerStorage, MockWorkQueue, ReanimatorConfig, ReanimatorLoop, ReanimatorState, TimerRecord,
 };
 use vo_actor::timer_lifecycle::{cancel_timers_for_instance, has_pending_timers};
+use vo_actor::lifecycle::ShutdownPropagator;
 use vo_actor::timer_supervisor::{
     supervisor::TimerSupervisor, traits::WorkQueue as SyncWorkQueue, types::TimerSupervisorError,
 };
@@ -311,6 +312,7 @@ mod timer_supervisor_panic_cleanup {
             Duration::from_millis(50),
             storage.clone(),
             work_queue.clone(),
+            Arc::new(ShutdownPropagator::default_propagator()),
         )
         .expect("valid config");
 
@@ -432,6 +434,7 @@ mod timer_supervisor_panic_cleanup {
             Duration::from_millis(50),
             storage.clone(),
             work_queue.clone(),
+            Arc::new(ShutdownPropagator::default_propagator()),
         )
         .expect("valid config");
 
@@ -543,7 +546,7 @@ mod timer_supervisor_panic_cleanup {
         let work_queue: Arc<dyn SyncWorkQueue> = Arc::new(NoopQueue);
 
         let supervisor =
-            TimerSupervisor::new(Duration::from_millis(50), storage.clone(), work_queue)
+            TimerSupervisor::new(Duration::from_millis(50), storage.clone(), work_queue, Arc::new(ShutdownPropagator::default_propagator()))
                 .expect("valid config");
 
         // process_cycle should still complete (with errors logged)

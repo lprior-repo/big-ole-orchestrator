@@ -5,7 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use common::{test_instance_id, MockProcessManager, MockSpawnStorage, MockWorkQueue};
-use vo_actor::spawn_supervisor::{SpawnPhase, SpawnRecord, SpawnSupervisor};
+use vo_actor::lifecycle::ShutdownPropagator;
+use vo_actor::spawn_supervisor::{ExecutionSemaphore, SpawnPhase, SpawnRecord, SpawnSupervisor};
 
 #[tokio::test]
 async fn respawn_after_health_check_failure_delays_by_backoff() {

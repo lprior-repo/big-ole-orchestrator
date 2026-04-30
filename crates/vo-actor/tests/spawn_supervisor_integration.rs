@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use vo_actor::lifecycle::ShutdownPropagator;
 use vo_actor::spawn_supervisor::{
     calculate_backoff_delay, is_zombie_state, should_respawn, Counter, CycleResult,
     ExecutionSemaphore, ProcessHandle, ProcessManager, SpawnPhase, SpawnRecord, SpawnStorage,

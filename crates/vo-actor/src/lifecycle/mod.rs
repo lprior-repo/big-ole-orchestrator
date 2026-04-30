@@ -20,6 +20,7 @@
 
 pub mod child_registry;
 pub mod failures;
+pub mod ordered_drop;
 pub mod shutdown;
 pub mod state;
 pub mod transition;
@@ -27,6 +28,7 @@ pub mod transition;
 // Re-export top-level symbols for backward compatibility
 pub use child_registry::{ChildInfo, ParentChildRegistry};
 pub use failures::{compute_failure_outcome, FailureOutcome};
+pub use ordered_drop::{DropAction, MaybeDoneAction, OrderedDropRegistry, ShutdownOrder};
 pub use shutdown::{ShutdownPropagator, ShutdownResult};
 pub use state::{ActorLifecycleState, LifecycleTransition};
 pub use transition::{compute_next_state, is_valid_transition, LifecycleError};

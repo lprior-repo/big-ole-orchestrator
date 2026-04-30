@@ -4,7 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use common::{MockProcessManager, MockSpawnStorage, MockWorkQueue};
-use vo_actor::spawn_supervisor::{SpawnSupervisor, SpawnSupervisorError};
+use vo_actor::lifecycle::ShutdownPropagator;
+use vo_actor::spawn_supervisor::{ExecutionSemaphore, SpawnSupervisor, SpawnSupervisorError};
 
 #[test]
 fn supervisor_rejects_zero_health_check_interval() {
@@ -21,6 +22,8 @@ fn supervisor_rejects_zero_health_check_interval() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(result.is_err());
@@ -43,6 +46,8 @@ fn supervisor_rejects_zero_max_health_checks() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(result.is_err());
@@ -65,6 +70,8 @@ fn supervisor_rejects_zero_initial_backoff() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(result.is_err());
@@ -87,6 +94,8 @@ fn supervisor_rejects_backoff_multiplier_less_than_one() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(result.is_err());
@@ -109,6 +118,8 @@ fn supervisor_accepts_valid_config() {
         storage.clone(),
         process_manager.clone(),
         work_queue.clone(),
+        Arc::new(ExecutionSemaphore::default()),
+        Arc::new(ShutdownPropagator::default_propagator()),
     );
 
     assert!(result.is_ok());
