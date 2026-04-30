@@ -95,10 +95,8 @@ mod tests {
     #[test]
     fn user_in_approvers_can_read_when_approval_required() {
         let user = make_user("01H5JYV4XHGSR2F8KZ9BWNRFMA");
-        let mut policy = AccessPolicy::new(vec![user.clone()]);
-        policy = AccessPolicy {
-            allowed_principals: policy.allowed_principals,
-            permission_principals: std::collections::HashMap::new(),
+        let policy = AccessPolicy {
+            allowed_principals: vec![user.clone()],
             require_approval: true,
             approvers: vec![user.clone()],
             audit_enabled: true,
@@ -111,10 +109,8 @@ mod tests {
     fn user_not_in_approvers_denied_when_approval_required() {
         let user = make_user("01H5JYV4XHGSR2F8KZ9BWNRFMA");
         let other = make_user("01H5JYV4XHGSR2F8KZ9BWNRFMB");
-        let mut policy = AccessPolicy::new(vec![user.clone()]);
-        policy = AccessPolicy {
-            allowed_principals: policy.allowed_principals,
-            permission_principals: std::collections::HashMap::new(),
+        let policy = AccessPolicy {
+            allowed_principals: vec![user.clone()],
             require_approval: true,
             approvers: vec![other.clone()],
             audit_enabled: true,
