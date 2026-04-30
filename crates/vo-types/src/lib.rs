@@ -10,6 +10,7 @@ mod blob;
 mod blob_tests;
 pub mod cartesian_tree;
 mod clique_tree;
+mod causation_chain;
 mod command_envelope;
 pub mod command_history;
 pub mod command_metadata;
@@ -130,6 +131,11 @@ pub use blob::{
 };
 pub use cartesian_tree::{CartesianNode, CartesianTree, CartesianTreeError};
 pub use clique_tree::{Clique, CliqueTree, CliqueTreeError};
+pub use causation_chain::{
+    advance_chain, validate_chain_depths, CausationArchival, CausationChainError, CausationDepth,
+    ChainAdvanceResult, CollapsedLink, DEFAULT_MAX_CAUSATION_DEPTH,
+    is_broken_chain_reference, extract_broken_chain_original, BrokenChainLink,
+};
 pub use command_envelope::{CommandEnvelope, CommandEnvelopeError, MAX_SUPPORTED_COMMAND_VERSION};
 pub use command_history::{
     BatchId, CommandHistory, CommandHistoryError, CommandKind, ExtensionApplyMode,

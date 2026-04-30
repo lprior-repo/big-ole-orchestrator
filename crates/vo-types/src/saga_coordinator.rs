@@ -353,6 +353,8 @@ pub fn apply_saga_transition(
         // Recovery from non-terminal states
         (SagaState::Executing, SagaTransition::Recover) => Ok(SagaState::Executing),
         (SagaState::Compensating, SagaTransition::Recover) => Ok(SagaState::Compensating),
+        (SagaState::Init, SagaTransition::Recover) => Ok(SagaState::Init),
+        (SagaState::Executing, SagaTransition::CompensationFailed) => Ok(SagaState::Failed),
 
         // Terminal states reject all transitions
         (SagaState::Completed, _) => Err(SagaTransitionError::TerminalStateTransition),
