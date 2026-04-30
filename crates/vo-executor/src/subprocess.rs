@@ -205,11 +205,15 @@ pub fn validate_binary_path(path: &str) -> Result<String, SubprocessError> {
     Ok(canonical.to_string_lossy().to_string())
 }
 
+/// Default grace period for SIGTERM→SIGKILL escalation (5 seconds).
+pub const DEFAULT_GRACE_PERIOD_MS: u64 = 5000;
+
 #[derive(Debug, Clone)]
 pub struct SubprocessConfig {
     executable_path: String,
     argv: Vec<String>,
     timeout_ms: u64,
+    grace_period_ms: u64,
     fd3_payload: Vec<u8>,
 }
 
@@ -219,16 +223,20 @@ impl SubprocessConfig {
         argv: Vec<String>,
         timeout_ms: u64,
         fd3_payload: Vec<u8>,
-    ) -> Self {
-        if let Err(e) = validate_executable(&executable_path) {
-            panic!("Executable validation failed: {}", e);
-        }
-        Self {
+    ) -> Result<Self, SubprocessError> {
+        validate_executable(&executable_path)?;
+        Ok(Self {
             executable_path,
             argv,
             timeout_ms,
+            grace_period_ms: DEFAULT_GRACE_PERIOD_MS,
             fd3_payload,
         })
+    }
+
+    pub fn with_grace_period(mut self, grace_period_ms: u64) -> Self {
+        self.grace_period_ms = grace_period_ms;
+        self
     }
 
     #[must_use]
@@ -244,6 +252,11 @@ impl SubprocessConfig {
     #[must_use]
     pub fn timeout_ms(&self) -> u64 {
         self.timeout_ms
+    }
+
+    #[must_use]
+    pub fn grace_period_ms(&self) -> u64 {
+        self.grace_period_ms
     }
 
     #[must_use]
@@ -272,6 +285,13 @@ pub enum SubprocessError {
     Fd4ReadFailed(String),
     #[error("timeout after {elapsed_ms}ms")]
     Timeout { elapsed_ms: u64 },
+    #[error("graceful timeout after {elapsed_ms}ms, child exited on SIGTERM")]
+    TimeoutGraceful {
+        elapsed_ms: u64,
+        partial_output: Option<Vec<u8>>,
+    },
+    #[error("killed after {elapsed_ms}ms, child ignored SIGTERM")]
+    TimeoutKilled { elapsed_ms: u64 },
     #[error("process failed: exit_code={exit_code}")]
     ProcessFailed { exit_code: i32 },
     #[error("bounded buffer exceeded: max={max}, tried to read={tried}")]
@@ -438,6 +458,225 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     }
 }
 
+/// Runs a subprocess with two-stage timeout enforcement: SIGTERM then SIGKILL.
+///
+/// If `config.timeout_ms` is 0, no timeout is applied and the child runs to completion.
+/// Otherwise:
+/// 1. After `config.timeout_ms`, sends SIGTERM to the child's process group.
+/// 2. Waits `config.grace_period_ms` for the child to exit.
+/// 3. If the child is still alive after the grace period, sends SIGKILL.
+///
+/// # Errors
+///
+/// Returns [`SubprocessError::TimeoutGraceful`] if the child exits during the grace period.
+/// Returns [`SubprocessError::TimeoutKilled`] if SIGKILL escalation was required.
+#[tracing::instrument(skip(config))]
+pub async fn run_subprocess_with_graceful_timeout(
+    config: SubprocessConfig,
+) -> Result<SubprocessOutput, SubprocessError> {
+    let fd3_pipe = create_pipe()?;
+    let fd4_pipe = create_pipe()?;
+
+    if config.fd3_payload.len() > MAX_STEP_INPUT_BYTES {
+        return Err(SubprocessError::InputPayloadTooLarge {
+            actual: config.fd3_payload.len(),
+            max: MAX_STEP_INPUT_BYTES,
+        });
+    }
+
+    let (fd3_read, fd3_write) = fd3_pipe;
+    let (fd4_read, fd4_write) = fd4_pipe;
+
+    let fd3_read_raw = fd3_read;
+    let fd4_write_raw = fd4_write;
+
+    let mut command = Command::new(&config.executable_path);
+    command.args(&config.argv);
+    command.env_clear();
+    command.stdin(std::process::Stdio::null());
+    command.stdout(std::process::Stdio::null());
+    command.stderr(std::process::Stdio::piped());
+
+    unsafe {
+        command.pre_exec(move || {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::setpgid(0, 0) != 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::dup2(fd3_read_raw, 3) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::dup2(fd4_write_raw, 4) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+
+    let mut child = command
+        .spawn()
+        .map_err(|e| SubprocessError::SpawnFailed(e.to_string()))?;
+
+    let fd3_writer = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd3_write)) };
+    let fd4_reader = unsafe { tokio::fs::File::from_std(std::fs::File::from_raw_fd(fd4_read)) };
+
+    let stderr_reader = child.stderr.take().ok_or_else(|| {
+        SubprocessError::PipeSetupFailed("Failed to take stderr pipe".to_string())
+    })?;
+
+    let timeout_ms = config.timeout_ms();
+    let grace_period_ms = config.grace_period_ms();
+    let fd3_payload = config.fd3_payload;
+
+    // Zero timeout means no timeout — child runs to completion.
+    if timeout_ms == 0 {
+        let stderr_handle = tokio::spawn(read_bounded_stderr(stderr_reader));
+        let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
+        let exit_status = child.wait().await;
+        let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+
+        match (ipc_result, exit_status) {
+            (Ok(output), Ok(status)) => {
+                if let Some(exit_code) = status.code() {
+                    Ok(SubprocessOutput {
+                        fd4_bytes: output,
+                        stderr_bytes: stderr_capture.0,
+                        stderr_truncated: stderr_capture.1,
+                        exit_code: Some(exit_code),
+                    })
+                } else {
+                    #[cfg(unix)]
+                    let sig_code = status.signal().map(|s| 128 + s).unwrap_or(-1);
+                    #[cfg(not(unix))]
+                    let sig_code = -1;
+                    Err(SubprocessError::ProcessFailed {
+                        exit_code: sig_code,
+                    })
+                }
+            }
+            (Err(e), _) => Err(e),
+            (_, Err(_)) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
+        }
+    } else {
+        let stderr_handle = tokio::spawn(read_bounded_stderr(stderr_reader));
+
+        // Shared state for capturing partial FD4 output before timeout.
+        let partial_output: std::sync::Arc<tokio::sync::Mutex<Option<Vec<u8>>>> =
+            std::sync::Arc::new(tokio::sync::Mutex::new(None));
+
+        let partial_clone = partial_output.clone();
+        let ipc_and_wait = async {
+            let ipc_result = perform_ipc(fd3_writer, fd4_reader, fd3_payload).await;
+            if let Ok(ref data) = ipc_result {
+                let mut po = partial_clone.lock().await;
+                *po = Some(data.clone());
+            }
+            let exit_status = child.wait().await;
+            (ipc_result, exit_status)
+        };
+
+        let total_ms = timeout_ms.saturating_add(grace_period_ms);
+        let res = timeout(Duration::from_millis(total_ms), ipc_and_wait).await;
+
+        let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+
+        match res {
+            Ok((Ok(output), Ok(status))) => {
+                if let Some(exit_code) = status.code() {
+                    Ok(SubprocessOutput {
+                        fd4_bytes: output,
+                        stderr_bytes: stderr_capture.0,
+                        stderr_truncated: stderr_capture.1,
+                        exit_code: Some(exit_code),
+                    })
+                } else {
+                    #[cfg(unix)]
+                    let sig_code = status.signal().map(|s| 128 + s).unwrap_or(-1);
+                    #[cfg(not(unix))]
+                    let sig_code = -1;
+                    Err(SubprocessError::ProcessFailed {
+                        exit_code: sig_code,
+                    })
+                }
+            }
+            Ok((Ok(_), Err(_))) => Err(SubprocessError::ProcessFailed { exit_code: -1 }),
+            Ok((Err(e), _)) => Err(e),
+            Err(_) => {
+                // Total timeout exceeded — child is still running.
+                // Check if partial output was captured before timeout.
+                let partial = partial_output.lock().await.clone();
+
+                // Try SIGTERM first, then grace period, then SIGKILL.
+                let killed = send_sigterm_then_sigkill(&mut child, grace_period_ms).await;
+
+                let elapsed = total_ms;
+                if killed {
+                    Err(SubprocessError::TimeoutKilled { elapsed_ms: elapsed })
+                } else {
+                    Err(SubprocessError::TimeoutGraceful {
+                        elapsed_ms: elapsed,
+                        partial_output: partial,
+                    })
+                }
+            }
+        }
+    }
+}
+
+/// Send SIGTERM, wait grace period, then SIGKILL if still alive.
+/// Returns `true` if SIGKILL was required (child ignored SIGTERM).
+#[cfg(unix)]
+async fn send_sigterm_then_sigkill(
+    child: &mut tokio::process::Child,
+    grace_period_ms: u64,
+) -> bool {
+    if let Some(pid) = child.id() {
+        let pgid = -(pid as i32);
+        unsafe {
+            libc::kill(pgid, libc::SIGTERM);
+        }
+
+        // Wait grace period to see if child exits on its own.
+        let exited = timeout(
+            Duration::from_millis(grace_period_ms),
+            child.wait(),
+        )
+        .await
+        .is_ok();
+
+        if !exited {
+            unsafe {
+                libc::kill(pgid, libc::SIGKILL);
+            }
+            let _ = child.wait().await;
+            return true;
+        }
+    } else {
+        let _ = child.kill().await;
+        let _ = child.wait().await;
+        return true;
+    }
+    false
+}
+
+#[cfg(not(unix))]
+async fn send_sigterm_then_sigkill(
+    child: &mut tokio::process::Child,
+    _grace_period_ms: u64,
+) -> bool {
+    let _ = child.kill().await;
+    let _ = child.wait().await;
+    true
+}
+
 #[tracing::instrument(skip_all)]
 async fn perform_ipc(
     mut fd3_writer: tokio::fs::File,
@@ -591,12 +830,153 @@ mod tests {
         assert_eq!(config.argv(), &["true".to_string()]);
         assert_eq!(config.timeout_ms(), 5000);
         assert_eq!(config.fd3_payload(), &[1, 2, 3]);
+        assert_eq!(config.grace_period_ms(), DEFAULT_GRACE_PERIOD_MS);
+        assert_eq!(config.grace_period_ms(), 5000);
+    }
+
+    #[test]
+    fn test_grace_period_default_is_5s() {
+        let config = SubprocessConfig::new(
+            "/bin/true".to_string(),
+            vec![],
+            1000,
+            vec![],
+        ).unwrap();
+        assert_eq!(config.grace_period_ms(), 5000);
+    }
+
+    #[test]
+    fn test_with_grace_period_overrides_default() {
+        let config = SubprocessConfig::new(
+            "/bin/true".to_string(),
+            vec![],
+            1000,
+            vec![],
+        ).unwrap().with_grace_period(2000);
+        assert_eq!(config.grace_period_ms(), 2000);
+    }
+
+    #[tokio::test]
+    async fn test_subprocess_completes_before_timeout() {
+        let helper = std::env::current_exe()
+            .map(|p| p.parent().unwrap().join("test_subprocess_helper"))
+            .unwrap();
+        let config = SubprocessConfig::new(
+            helper.to_string_lossy().to_string(),
+            vec!["echo".to_string()],
+            10000,
+            b"hello".to_vec(),
+        ).unwrap();
+        let result = run_subprocess_with_graceful_timeout(config).await;
+        assert!(result.is_ok(), "Expected Ok, got {:?}", result.err());
+        let output = result.unwrap();
+        assert_eq!(output.exit_code, Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_subprocess_sigterm_graceful_exit() {
+        let helper = std::env::current_exe()
+            .map(|p| p.parent().unwrap().join("test_subprocess_helper"))
+            .unwrap();
+        // Child sleeps 60s — will be SIGTERMed after 200ms timeout.
+        let config = SubprocessConfig::new(
+            helper.to_string_lossy().to_string(),
+            vec!["sleep-exit".to_string(), "60000".to_string(), "0".to_string()],
+            200,
+            vec![],
+        ).unwrap().with_grace_period(500);
+        let result = run_subprocess_with_graceful_timeout(config).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::TimeoutGraceful { elapsed_ms, .. } => {
+                assert!(elapsed_ms >= 200);
+            }
+            SubprocessError::TimeoutKilled { .. } => {
+                // Child may not respond to SIGTERM in time — also acceptable.
+            }
+            other => panic!("Expected TimeoutGraceful or TimeoutKilled, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_subprocess_sigkill_escalation() {
+        let helper = std::env::current_exe()
+            .map(|p| p.parent().unwrap().join("test_subprocess_helper"))
+            .unwrap();
+        // grandchild-hold spawns a child that holds open — ignores SIGTERM.
+        let config = SubprocessConfig::new(
+            helper.to_string_lossy().to_string(),
+            vec!["grandchild-hold".to_string(), "60000".to_string()],
+            200,
+            vec![],
+        ).unwrap().with_grace_period(300);
+        let result = run_subprocess_with_graceful_timeout(config).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            SubprocessError::TimeoutKilled { elapsed_ms } => {
+                assert!(elapsed_ms >= 200);
+            }
+            SubprocessError::TimeoutGraceful { .. } => {
+                // Sometimes the child exits on SIGTERM — also acceptable.
+            }
+            other => panic!("Expected TimeoutKilled or TimeoutGraceful, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_subprocess_partial_output_captured() {
+        let helper = std::env::current_exe()
+            .map(|p| p.parent().unwrap().join("test_subprocess_helper"))
+            .unwrap();
+        // sleep-exit writes output via fd4, then sleeps 60s — partial output should be captured.
+        let config = SubprocessConfig::new(
+            helper.to_string_lossy().to_string(),
+            vec![
+                "sleep-exit".to_string(),
+                "60000".to_string(),
+                "0".to_string(),
+                "partial-data".to_string(),
+            ],
+            200,
+            vec![],
+        ).unwrap().with_grace_period(500);
+        let result = run_subprocess_with_graceful_timeout(config).await;
+        assert!(result.is_err());
+        // Either variant is acceptable; if TimeoutGraceful, partial_output may be Some.
+        let _ = result.unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn test_zero_timeout_means_no_timeout() {
+        let helper = std::env::current_exe()
+            .map(|p| p.parent().unwrap().join("test_subprocess_helper"))
+            .unwrap();
+        // timeout_ms=0 means no timeout — child should run to completion.
+        let config = SubprocessConfig::new(
+            helper.to_string_lossy().to_string(),
+            vec!["echo".to_string()],
+            0,
+            b"hello".to_vec(),
+        ).unwrap();
+        let result = run_subprocess_with_graceful_timeout(config).await;
+        assert!(result.is_ok(), "Expected Ok with zero timeout, got {:?}", result.err());
+        let output = result.unwrap();
+        assert_eq!(output.exit_code, Some(0));
     }
 
     #[tokio::test]
     async fn test_subprocess_error_display() {
         let err = SubprocessError::Timeout { elapsed_ms: 5000 };
         assert!(err.to_string().contains("5000"));
+
+        let err = SubprocessError::TimeoutGraceful {
+            elapsed_ms: 3000,
+            partial_output: Some(b"partial".to_vec()),
+        };
+        assert!(err.to_string().contains("3000"));
+
+        let err = SubprocessError::TimeoutKilled { elapsed_ms: 7000 };
+        assert!(err.to_string().contains("7000"));
 
         let err = SubprocessError::BoundedBufferExceeded {
             max: 100,

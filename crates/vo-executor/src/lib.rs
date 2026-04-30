@@ -46,9 +46,9 @@ pub use scheduler::{
 pub use state::set_executing_state_for_test;
 pub use state::{clear_error, get_error_count, get_state_count, reset_all_state, set_error};
 pub use subprocess::{
-    pin_binary, resolve_binary_path, run_subprocess, PinnedBinary, SubprocessConfig, SubprocessError,
-    SubprocessOutput, VERSION_BASE_PATH, BOUNDED_READ_BUFFER_SIZE, MAX_STEP_INPUT_BYTES,
-    MAX_STEP_OUTPUT_BYTES,
+    pin_binary, resolve_binary_path, run_subprocess, run_subprocess_with_graceful_timeout,
+    PinnedBinary, SubprocessConfig, SubprocessError, SubprocessOutput, VERSION_BASE_PATH,
+    BOUNDED_READ_BUFFER_SIZE, DEFAULT_GRACE_PERIOD_MS, MAX_STEP_INPUT_BYTES, MAX_STEP_OUTPUT_BYTES,
 };
 pub use dispatch::{dispatch_node, NodeDispatchResult};
 pub use types::{ExecutionStatus, RetryPolicy, StepId, StepResult};
