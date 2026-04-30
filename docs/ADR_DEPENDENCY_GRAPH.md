@@ -1,6 +1,6 @@
 # ADR Dependency Graph
 
-This document maps the final dependency structure across `ADR-001` through `ADR-043`.
+This document maps the final dependency structure across `ADR-001` through `ADR-048`.
 
 ## High-Level Graph
 
@@ -103,6 +103,15 @@ flowchart TD
 
   A038 --> A037
   A038 --> A042
+
+  A004 --> A048["048 Version Migration"]
+  A017 --> A048
+  A021 --> A048
+  A034 --> A048
+  A038 --> A048
+
+  A048 --> A039
+  A048 --> A041
 ```
 
 ## Dependency Layers
@@ -120,7 +129,7 @@ flowchart TD
    - `027`, `028`, `029`, `030`, `031`, `032`, `033`, `034`
 
 5. **Long-Lived Durability / Product Maturity Contracts**
-   - `035`, `036`, `037`, `038`, `039`, `040`, `041`, `042`, `043`
+    - `035`, `036`, `037`, `038`, `039`, `040`, `041`, `042`, `043`, `048`
 
 ## Critical Paths
 

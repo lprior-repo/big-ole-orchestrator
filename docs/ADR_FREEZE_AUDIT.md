@@ -1,6 +1,6 @@
 # ADR Freeze Audit
 
-This document is the final contradiction and sharp-edge audit for `ADR-001` through `ADR-043`.
+This document is the final contradiction and sharp-edge audit for `ADR-001` through `ADR-048`.
 
 ## Status
 
@@ -83,7 +83,7 @@ That is acceptable as long as projections stay outside the exact-once hot path.
 Treat these ADRs as the semantic freeze set for implementation:
 
 ### Core Freeze Set
-`001`, `002`, `003`, `004`, `012`, `014`, `016`, `027`, `028`, `029`, `030`, `031`, `032`, `033`, `034`, `035`, `036`, `038`, `039`, `040`, `041`, `042`, `043`
+`001`, `002`, `003`, `004`, `012`, `014`, `016`, `027`, `028`, `029`, `030`, `031`, `032`, `033`, `034`, `035`, `036`, `038`, `039`, `040`, `041`, `042`, `043`, `048`
 
 Everything else can evolve more freely as long as it does not violate that semantic core.
 

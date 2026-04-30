@@ -82,3 +82,21 @@ Only `Additive → Additive` allows mid-flight upgrade. All other paths preserve
 - **Positive:** The classification system is deterministic and auditable — operators can inspect why a given instance did or did not upgrade.
 - **Negative:** Additive changes require discipline; a seemingly additive change that affects a workflow's hot path is effectively breaking.
 - **Negative:** Classification diffing is not free; for large workflows with hundreds of nodes, the diff computation adds latency to registration.
+- **Negative:** Saga compensation does not reference this ADR — a version change during compensation is currently undefined.
+
+### 6. Version Upgrades During Saga Compensation
+
+ADR-034 defines compensation as its own managed effect with a separate prepare/commit journal. However, it does not address what happens when the workflow version changes while compensation is pending or in progress.
+
+**Rule:** When a workflow instance is under compensation, it is treated as "in-flight" for migration purposes. The pinned version from Section 4 applies fully:
+
+- If the new version is **additive**: the instance may upgrade at the next checkpoint (same as normal in-flight behavior). However, any compensating actions that are defined in the compensation policy must be validated against the pinned version — a new version must not silently change the semantics of an already-decided compensation action.
+- If the new version is **deprecating** or **breaking**: the instance continues pinned. Compensation must use the pinned version's effect definitions.
+
+**Special case — version change during active compensation:**
+
+If a version upgrade occurs while compensation is actively executing (e.g., a compensating effect is in-flight for a prior committed managed effect), the Engine MUST NOT interrupt the in-flight compensation. The compensation continues to completion under the pinned version. Only subsequent compensation actions (e.g., compensating effects further down the reverse dependency chain) are evaluated for migration eligibility at the next checkpoint.
+
+This prevents partial-compensation states where some effects were compensated under one version's semantics and others under a different version's semantics — a scenario that would leave the business process in an inconsistent state.
+
+**Implication for SDK authors:** When designing compensating effects, treat them as part of the workflow version contract. Adding or removing a compensator for an existing managed effect is a **breaking** change (not additive), because it changes the business rollback semantics that external systems may depend on.
