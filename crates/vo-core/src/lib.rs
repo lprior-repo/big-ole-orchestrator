@@ -93,3 +93,6 @@ pub mod write_class_verification;
 
 #[cfg(test)]
 mod invalid_business_data;
+
+#[cfg(test)]
+mod init_order_contract_tests;
