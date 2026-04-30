@@ -72,14 +72,28 @@ impl FjallBlobStore {
 
     /// Retrieve a blob by content address.
     ///
+    /// Verifies integrity by computing SHA-256 of retrieved data and comparing
+    /// against the content address. Returns `ChecksumMismatch` if verification fails.
+    ///
     /// # Errors
     ///
     /// Returns `BlobStoreError::ContentNotFound` if no blob exists.
+    /// Returns `BlobStoreError::ChecksumMismatch` if integrity verification fails.
     /// Returns `BlobStoreError::Storage` if the underlying storage fails.
     pub fn get(&self, addr: &ContentAddress) -> Result<Vec<u8>, BlobStoreError> {
         let key = encode_content_address(addr);
         match self.partition.get(&key) {
-            Ok(Some(value)) => Ok(value.to_vec()),
+            Ok(Some(value)) => {
+                let computed = Self::compute_content_address(&value);
+                if computed != *addr {
+                    return Err(BlobStoreError::ChecksumMismatch {
+                        content_addr: addr.to_string(),
+                        expected: addr.to_string(),
+                        actual: computed.to_string(),
+                    });
+                }
+                Ok(value.to_vec())
+            }
             Ok(None) => Err(BlobStoreError::ContentNotFound {
                 content_addr: addr.to_string(),
             }),
@@ -283,6 +297,38 @@ mod tests {
         let store2 = FjallBlobStore::open(&db2).unwrap();
         let retrieved = store2.get(&addr).unwrap();
         assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn get_verifies_integrity_on_retrieve() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let store = FjallBlobStore::open(&db).unwrap();
+        let data = b"integrity test data";
+        let addr = store.put(data).unwrap();
+
+        let retrieved = store.get(&addr).unwrap();
+        assert_eq!(retrieved, data);
+    }
+
+    #[test]
+    fn get_checksum_mismatch_after_corruption() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = fjall::Database::builder(dir.path()).open().unwrap();
+        let store = FjallBlobStore::open(&db).unwrap();
+        let data = b"original data";
+        let addr = store.put(data).unwrap();
+
+        // Corrupt the blob directly in the partition
+        let corrupted = b"corrupted data!!!";
+        let key = content_address::encode_content_address(&addr);
+        store.partition.insert(&key, corrupted).unwrap();
+
+        // Get should fail with checksum mismatch
+        let result = store.get(&addr);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, BlobStoreError::ChecksumMismatch { .. }));
     }
 
     use std::fmt::Write;
