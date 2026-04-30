@@ -6,28 +6,9 @@
 
 use std::sync::RwLock;
 
-// ── Monoid ─────────────────────────────────────────────────────────
+use crate::monoid::Monoid;
 
-pub trait Monoid: Clone {
-    fn identity() -> Self;
-    fn combine(&self, other: &Self) -> Self;
-}
-
-impl Monoid for () {
-    fn identity() -> Self {}
-    fn combine(&self, _other: &Self) -> Self {}
-}
-
-impl Monoid for u64 {
-    fn identity() -> Self {
-        0
-    }
-    fn combine(&self, other: &Self) -> Self {
-        self + other
-    }
-}
-
-pub trait LctAggregate<A: Monoid> {
+pub trait LctAggregate<A: Monoid>: Clone {
     fn lct_aggregate(&self) -> A;
 }
 

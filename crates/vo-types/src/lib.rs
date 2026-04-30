@@ -66,6 +66,7 @@ pub mod merge_conflict;
 mod lineage;
 mod link_cut_tree;
 mod macros;
+mod monoid;
 #[cfg(test)]
 mod max_attempts_tests;
 pub mod next_step_selection;
@@ -171,7 +172,8 @@ pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
-pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
+pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree};
+pub use monoid::Monoid;
 pub use merge_conflict::{
     ConflictClass, ConflictType, ConflictWinner, ErrorCategory, ErrorDetail, FenceConflict,
     LeaseConflict, MergeConflictError, ResolutionResult, ResolutionStrategy, SequenceConflict,

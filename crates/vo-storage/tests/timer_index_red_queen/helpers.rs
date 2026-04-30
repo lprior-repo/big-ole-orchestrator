@@ -13,6 +13,11 @@ pub fn make_test_timer_id(byte_fill: u8) -> TimerId {
     TimerId::from_bytes([byte_fill; 16])
 }
 
+pub use {
+    scan_all_timers_for_instance, scan_due_timers, timer_delete, timer_set, TimerKey, TimerRecord,
+    TimerValue,
+};
+
 pub struct MockStorage {
     data: std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
     fail_on_op: Option<String>,

@@ -1,23 +1,6 @@
-//! Monoid trait, EttAggregate trait, and EttError type for the Euler Tour Tree.
+//! EttAggregate trait and EttError type for the Euler Tour Tree.
 
-pub trait Monoid: Clone {
-    fn identity() -> Self;
-    fn combine(&self, other: &Self) -> Self;
-}
-
-impl Monoid for () {
-    fn identity() -> Self {}
-    fn combine(&self, _other: &Self) -> Self {}
-}
-
-impl Monoid for u64 {
-    fn identity() -> Self {
-        0
-    }
-    fn combine(&self, other: &Self) -> Self {
-        self + other
-    }
-}
+pub use crate::monoid::Monoid;
 
 pub trait EttAggregate<A: Monoid>: Clone {
     fn ett_aggregate(&self) -> A;

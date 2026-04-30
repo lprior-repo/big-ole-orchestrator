@@ -15,8 +15,28 @@
 //! bead_title: RED QUEEN: nitro test 2
 //! module: timer_index (12 attack vectors)
 
+mod av01_timer_key;
+mod av02_timer_value;
+mod av03_timer_record;
+mod av04_timer_set;
+mod av05_scan_due_timers;
+mod av06_timer_delete;
+mod av07_multiple_timers;
+mod av08_scan_all_timers;
+mod av09_crash_recovery;
+mod av10_cancellation;
 mod helpers;
-mod key_value_validation;
-mod scan_tests;
-mod timer_set_tests;
-mod crash_recovery_tests;
+
+#[cfg(test)]
+mod tests {
+    mod av01_timer_key;
+    mod av02_timer_value;
+    mod av03_timer_record;
+    mod av04_timer_set;
+    mod av05_scan_due_timers;
+    mod av06_timer_delete;
+    mod av07_multiple_timers;
+    mod av08_scan_all_timers;
+    mod av09_crash_recovery;
+    mod av10_cancellation;
+}
