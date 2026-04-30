@@ -8,6 +8,8 @@ pub enum ConnectorError {
     Terminal(String),
     #[error("connector '{0}' does not support compensation")]
     CompensationNotSupported(String),
+    #[error("unexpected content type: {0}")]
+    UnexpectedContentType(String),
 }
 
 impl ConnectorError {
@@ -21,6 +23,10 @@ impl ConnectorError {
 
     pub fn compensation_not_supported(connector_type: &str) -> Self {
         Self::CompensationNotSupported(connector_type.to_string())
+    }
+
+    pub fn unexpected_content_type(content_type: impl Into<String>) -> Self {
+        Self::UnexpectedContentType(content_type.into())
     }
 
     pub fn is_retryable(&self) -> bool {
@@ -92,5 +98,19 @@ mod tests {
     fn test_terminal_empty_message() {
         let err = ConnectorError::terminal("");
         assert!(!err.is_retryable());
+    }
+
+    #[test]
+    fn test_unexpected_content_type_error() {
+        let err = ConnectorError::unexpected_content_type("text/html");
+        assert!(!err.is_retryable());
+        assert!(err.to_string().contains("text/html"));
+    }
+
+    #[test]
+    fn test_unexpected_content_type_display() {
+        let err = ConnectorError::unexpected_content_type("application/xml");
+        assert!(err.to_string().contains("unexpected content type"));
+        assert!(err.to_string().contains("application/xml"));
     }
 }

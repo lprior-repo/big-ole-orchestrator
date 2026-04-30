@@ -91,6 +91,16 @@ impl Connector for HttpConnector {
             .await
             .map_err(|e| classify_http_error(&e))?;
 
+        let content_type = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+
+        if !content_type.contains("application/json") && !content_type.is_empty() {
+            return Err(ConnectorError::unexpected_content_type(content_type));
+        }
+
         match response.status().as_u16() {
             200..=299 => Ok(CommitOutcome::Committed {
                 receipt: format!("http:{}:{}", response.status().as_u16(), idempotency_key),
@@ -133,7 +143,10 @@ mod tests {
     use crate::connector::{
         CommitOutcome, Connector, ConnectorError, PreparedEffect, ReconcileOutcome,
     };
+    use axum::{routing::get, Router};
     use serde_json::json;
+    use std::net::SocketAddr;
+    use tokio::net::TcpListener;
 
     #[test]
     fn test_http_connector_new() {
@@ -344,5 +357,78 @@ mod tests {
     fn test_reconcile_outcome_still_ambiguous() {
         let outcome = ReconcileOutcome::StillAmbiguous;
         assert!(matches!(outcome, ReconcileOutcome::StillAmbiguous));
+    }
+
+    #[tokio::test]
+    async fn test_http_connector_rejects_html_response() {
+        async fn html_handler() -> axum::response::Html<&'static str> {
+            axum::response::Html("<html><body>Error Page</body></html>")
+        }
+        let app = Router::new().route("/charge", get(html_handler));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let connector = HttpConnector::new(format!("http://{}", addr));
+        let prepared = connector
+            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-html".to_string(), 1)
+            .await
+            .unwrap();
+
+        let result = connector.commit(prepared).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ConnectorError::UnexpectedContentType(_)));
+        let err_str = err.to_string();
+        assert!(err_str.contains("text/html") || err_str.contains("html"));
+    }
+
+    #[tokio::test]
+    async fn test_http_connector_accepts_json_response() {
+        async fn json_handler() -> axum::Json<serde_json::Value> {
+            axum::Json(serde_json::json!({"status": "ok"}))
+        }
+        let app = Router::new().route("/charge", get(json_handler));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let connector = HttpConnector::new(format!("http://{}", addr));
+        let prepared = connector
+            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-json".to_string(), 1)
+            .await
+            .unwrap();
+
+        let result = connector.commit(prepared).await;
+        assert!(result.is_ok());
+        assert!(matches!(result.unwrap(), CommitOutcome::Committed { .. }));
+    }
+
+    #[tokio::test]
+    async fn test_http_connector_rejects_xml_response() {
+        async fn xml_handler() -> axum::response::Html<&'static str> {
+            axum::response::Html("<root><message>error</message></root>")
+        }
+        let app = Router::new().route("/charge", get(xml_handler));
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let connector = HttpConnector::new(format!("http://{}", addr));
+        let prepared = connector
+            .prepare(json!({"method": "GET", "path": "/charge"}), "fx-xml".to_string(), 1)
+            .await
+            .unwrap();
+
+        let result = connector.commit(prepared).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, ConnectorError::UnexpectedContentType(_)));
     }
 }
