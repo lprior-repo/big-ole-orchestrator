@@ -189,24 +189,26 @@ pub fn get_effect_key_prefix(instance_id: &InstanceId) -> Vec<u8> {
 // Calc layer — record encoding/decoding
 // ---------------------------------------------------------------------------
 
-/// Encode an `EffectRecord` to JSON bytes for storage.
+/// Encode an `EffectRecord` to compressed bytes for storage.
+///
+/// Uses zstd compression to reduce storage size.
 ///
 /// # Errors
 ///
-/// Returns `EffectJournalError::Codec` if serialization fails.
+/// Returns `EffectJournalError::Codec` if compression fails.
 pub fn encode_effect_record(record: &EffectRecord) -> Result<Vec<u8>, EffectJournalError> {
-    serde_json::to_vec(record).map_err(|e| EffectJournalError::Codec {
+    record.compress().map_err(|e| EffectJournalError::Codec {
         reason: e.to_string(),
     })
 }
 
-/// Decode JSON bytes into an `EffectRecord`.
+/// Decode compressed bytes into an `EffectRecord`.
 ///
 /// # Errors
 ///
-/// Returns `EffectJournalError::Codec` if deserialization fails.
+/// Returns `EffectJournalError::Codec` if decompression fails.
 pub fn decode_effect_record(bytes: &[u8]) -> Result<EffectRecord, EffectJournalError> {
-    serde_json::from_slice(bytes).map_err(|e| EffectJournalError::Codec {
+    EffectRecord::decompress(bytes).map_err(|e| EffectJournalError::Codec {
         reason: e.to_string(),
     })
 }
