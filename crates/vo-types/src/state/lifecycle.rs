@@ -110,9 +110,18 @@ impl LifecycleState {
             | LifecycleState::PendingPublication => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
-            LifecycleState::Failed => crate::lifecycle_superstate::LifecycleSuperstate::Recovering,
+            LifecycleState::Failed
+            | LifecycleState::Reconciling => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Recovering
+            }
+            LifecycleState::Compensating => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Compensating
+            }
             LifecycleState::Completed | LifecycleState::Cancelled => {
                 crate::lifecycle_superstate::LifecycleSuperstate::Terminal
+            }
+            LifecycleState::Hibernated => {
+                crate::lifecycle_superstate::LifecycleSuperstate::Suspended
             }
         }
     }
