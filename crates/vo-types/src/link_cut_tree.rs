@@ -123,9 +123,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
 
     /// Which side is x on in its parent?
     #[allow(clippy::expect_used)]
-    fn dir(&self, x: usize) -> usize {
+    fn dir(nodes: &[Node<V, A>], x: usize) -> usize {
         #[allow(clippy::expect_used)]
-        let p = self.nodes[x]
+        let p = nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
         if nodes[p].ch[1] == Some(x) {
@@ -136,9 +136,9 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     #[allow(clippy::expect_used)]
-    fn rotate(&mut self, x: usize) {
+    fn rotate(nodes: &mut [Node<V, A>], x: usize) {
         #[allow(clippy::expect_used)]
-        let p = self.nodes[x]
+        let p = nodes[x]
             .parent
             .expect("LCT node has no parent despite not being root");
         let g = nodes[p].parent;
@@ -169,16 +169,16 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     #[allow(clippy::expect_used)]
-    fn splay(&mut self, x: usize) {
-        self.push(x);
-        while !self.is_root(x) {
+    fn splay(nodes: &mut [Node<V, A>], x: usize) {
+        Self::push(nodes, x);
+        while !Self::is_root(nodes, x) {
             #[allow(clippy::expect_used)]
-            let p = self.nodes[x]
+            let p = nodes[x]
                 .parent
                 .expect("LCT node has no parent in splay loop");
-            if !self.is_root(p) {
+            if !Self::is_root(nodes, p) {
                 #[allow(clippy::expect_used)]
-                let _g = self.nodes[p]
+                let _g = nodes[p]
                     .parent
                     .expect("LCT grandparent missing despite non-root parent");
                 if Self::dir(nodes, x) == Self::dir(nodes, p) {
@@ -191,7 +191,7 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
         }
     }
 
-    fn expose(nodes: &mut Vec<Node<V, A>>, x: usize) {
+    fn expose(nodes: &mut [Node<V, A>], x: usize) {
         Self::splay(nodes, x);
         nodes[x].ch[1] = None;
         Self::pull(nodes, x);
@@ -214,7 +214,7 @@ impl<V: LctAggregate<A>, A: Monoid> LinkCutTree<V, A> {
     }
 
     #[allow(dead_code)]
-    fn evert(nodes: &mut Vec<Node<V, A>>, x: usize) {
+    fn evert(nodes: &mut [Node<V, A>], x: usize) {
         Self::expose(nodes, x);
         nodes[x].rev ^= true;
         Self::push(nodes, x);

@@ -22,7 +22,7 @@ pub enum JsonType {
     Null,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct StepSchema {
     pub expected_intent: crate::effects::EffectIntent,
     pub expected_kind: EffectKind,

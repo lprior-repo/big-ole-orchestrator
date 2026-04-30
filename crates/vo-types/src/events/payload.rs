@@ -40,6 +40,16 @@ pub enum StepOutput {
     Ref { ref_type: String, uri: String },
 }
 
+impl From<serde_json::Value> for StepOutput {
+    fn from(value: serde_json::Value) -> Self {
+        if value.is_null() {
+            StepOutput::Null
+        } else {
+            StepOutput::Inline(value)
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {
     WorkflowStarted {
