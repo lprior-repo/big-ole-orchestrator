@@ -1,5 +1,10 @@
 //! Connector error classification (retryable vs terminal).
 
+/// Trait for error types that carry retryability semantics.
+pub trait Retryable {
+    fn is_retryable(&self) -> bool;
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ConnectorError {
     #[error("retryable connector error: {0}")]
@@ -30,6 +35,12 @@ impl ConnectorError {
     }
 
     pub fn is_retryable(&self) -> bool {
+        matches!(self, Self::Retryable(_) | Self::CompensationNotSupported(_))
+    }
+}
+
+impl Retryable for ConnectorError {
+    fn is_retryable(&self) -> bool {
         matches!(self, Self::Retryable(_) | Self::CompensationNotSupported(_))
     }
 }

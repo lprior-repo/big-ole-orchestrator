@@ -13,7 +13,7 @@
 mod connector;
 pub use connector::{
     CommitOutcome, Connector, ConnectorError, ConnectorRegistry, HttpConnector, PreparedEffect,
-    ReconcileOutcome,
+    ReconcileOutcome, Retryable,
 };
 pub mod executor;
 pub use executor::{
