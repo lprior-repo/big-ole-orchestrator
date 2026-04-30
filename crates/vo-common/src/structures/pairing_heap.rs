@@ -189,4 +189,26 @@ mod tests {
         assert_eq!(h1.pop(), Some(1));
         assert!(h1.is_empty());
     }
+
+    #[test]
+    fn pop_min_correct_order_after_merge() {
+        let mut h1 = PairingHeap::new();
+        h1.push(5);
+        h1.push(3);
+        h1.push(7);
+        h1.push(1);
+        assert_eq!(h1.pop(), Some(1));
+
+        let mut h2 = PairingHeap::new();
+        h2.push(2);
+        h2.push(6);
+        h1.merge(&mut h2);
+
+        assert_eq!(h1.pop(), Some(2));
+        assert_eq!(h1.pop(), Some(3));
+        assert_eq!(h1.pop(), Some(5));
+        assert_eq!(h1.pop(), Some(6));
+        assert_eq!(h1.pop(), Some(7));
+        assert!(h1.is_empty());
+    }
 }
