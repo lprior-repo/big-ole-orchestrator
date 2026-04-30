@@ -61,6 +61,7 @@ mod integer_types_serde_tests;
 #[cfg(test)]
 mod integer_types_try_from_tests;
 mod lifecycle_superstate;
+pub mod merge_conflict;
 mod lineage;
 mod link_cut_tree;
 mod macros;
@@ -170,6 +171,11 @@ pub use instance_status::InstanceStatus;
 pub use lifecycle_superstate::LifecycleSuperstate;
 pub use lineage::{Epoch, LineageError, LineageState, LineageStatus, WorkflowLineage};
 pub use link_cut_tree::{LctAggregate, LctError, LinkCutTree, Monoid};
+pub use merge_conflict::{
+    ConflictClass, ConflictType, ConflictWinner, ErrorCategory, ErrorDetail, FenceConflict,
+    LeaseConflict, MergeConflictError, ResolutionResult, ResolutionStrategy, SequenceConflict,
+    StateTransitionConflict, UnresolvableReason,
+};
 pub use node_kind::NodeKind;
 pub use edge_tracking::{
     EdgeTraversalLog, RouterDecision, TraversedEdge, select_fan_in_source,
