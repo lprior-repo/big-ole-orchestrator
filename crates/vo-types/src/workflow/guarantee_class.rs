@@ -27,7 +27,6 @@ pub enum GuaranteeClass {
     /// At-least-once execution — retries possible, duplicates may occur.
     AtLeastOnce,
     /// Best-effort execution — no guarantees, fire-and-forget.
-    #[default]
     BestEffort,
 }
 

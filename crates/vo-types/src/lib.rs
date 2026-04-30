@@ -16,6 +16,7 @@ pub mod command_history;
 pub mod command_metadata;
 mod compensation;
 mod connector;
+mod workload_class;
 pub mod credentials;
 #[cfg(test)]
 mod credentials_tests;
@@ -160,7 +161,7 @@ pub use dual_representation::{
 };
 pub use effects::{
     apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, validate_effect_against_schema,
+    EffectTransitionError, EffectTransitionEvent, ExternalReceipt, validate_effect_against_schema,
     EffectValidationError, JsonType, StepSchema,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};

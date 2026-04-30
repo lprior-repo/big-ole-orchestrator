@@ -33,8 +33,12 @@ impl FromStr for SinkKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
-pub struct RoutingProjection {}
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum StepOutput {
+    Null,
+    Inline(serde_json::Value),
+    Ref { ref_type: String, uri: String },
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventPayload {

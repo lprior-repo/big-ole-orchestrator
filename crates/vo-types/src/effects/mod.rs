@@ -9,6 +9,7 @@
 pub mod compensation;
 pub mod intent;
 pub mod lifecycle;
+pub mod types;
 
 pub use compensation::CompensationPolicy;
 pub use intent::{
@@ -18,6 +19,7 @@ pub use lifecycle::{
     validate_effect_against_schema, EffectCompressionError, EffectKind, EffectRecord,
     EffectValidationError, JsonType, Receipt, StepSchema,
 };
+pub use types::ExternalReceipt;
 
 #[cfg(feature = "proptest")]
 #[allow(clippy::unwrap_used)]
