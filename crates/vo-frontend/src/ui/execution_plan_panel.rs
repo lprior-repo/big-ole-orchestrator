@@ -226,7 +226,7 @@ fn QueueItem(
     index: usize,
     is_current: bool,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
-    workflow_guarantee: oya_frontend::GuaranteeClass,
+    workflow_guarantee: crate::ui::graph::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     let node = nodes_by_id.read().get(&node_id).cloned();
@@ -236,7 +236,7 @@ fn QueueItem(
     let status = node
         .as_ref()
         .map_or(InvocationStatus::Queued, node_invocation_status);
-    let node_kind = node.as_ref().map_or(oya_frontend::NodeKind::Pure, |n| n.kind);
+    let node_kind = node.as_ref().map_or(vo_types::NodeKind::Pure, |n| n.kind);
     let active_class = if is_current {
         "ring-1 ring-indigo-300 bg-indigo-50"
     } else {
@@ -266,7 +266,7 @@ fn LayerSection(
     layer_idx: usize,
     layer: Vec<NodeId>,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
-    workflow_guarantee: oya_frontend::GuaranteeClass,
+    workflow_guarantee: crate::ui::graph::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     rsx! {
@@ -290,7 +290,7 @@ fn LayerSection(
 fn LayerNodeItem(
     node_id: NodeId,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
-    workflow_guarantee: oya_frontend::GuaranteeClass,
+    workflow_guarantee: crate::ui::graph::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     let node = nodes_by_id.read().get(&node_id).cloned();
@@ -300,7 +300,7 @@ fn LayerNodeItem(
     let status = node
         .as_ref()
         .map_or(InvocationStatus::Queued, node_invocation_status);
-    let node_kind = node.as_ref().map_or(oya_frontend::NodeKind::Pure, |n| n.kind);
+    let node_kind = node.as_ref().map_or(vo_types::NodeKind::Pure, |n| n.kind);
     let badge = status_badge_classes(status);
 
     rsx! {
@@ -323,7 +323,7 @@ fn LayerNodeItem(
 fn UnscheduledSection(
     unscheduled: Vec<NodeId>,
     nodes_by_id: ReadSignal<HashMap<NodeId, Node>>,
-    workflow_guarantee: oya_frontend::GuaranteeClass,
+    workflow_guarantee: crate::ui::graph::GuaranteeClass,
     on_select_node: EventHandler<NodeId>,
 ) -> Element {
     rsx! {
@@ -398,19 +398,19 @@ mod tests {
         let mut workflow = Workflow::new();
         let a = workflow.add_node("run", 0.0, 0.0);
         let b = workflow.add_node("run", 100.0, 0.0);
-        workflow.connections.push(oya_frontend::graph::Connection {
+        workflow.connections.push(crate::ui::graph::Connection {
             id: uuid::Uuid::new_v4(),
             source: a,
             target: b,
-            source_port: oya_frontend::graph::PortName::from("main"),
-            target_port: oya_frontend::graph::PortName::from("main"),
+            source_port: crate::ui::graph::PortName::from("main"),
+            target_port: crate::ui::graph::PortName::from("main"),
         });
-        workflow.connections.push(oya_frontend::graph::Connection {
+        workflow.connections.push(crate::ui::graph::Connection {
             id: uuid::Uuid::new_v4(),
             source: b,
             target: a,
-            source_port: oya_frontend::graph::PortName::from("main"),
-            target_port: oya_frontend::graph::PortName::from("main"),
+            source_port: crate::ui::graph::PortName::from("main"),
+            target_port: crate::ui::graph::PortName::from("main"),
         });
 
         let snapshot = build_plan_snapshot(&workflow);

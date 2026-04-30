@@ -9,7 +9,7 @@ use crate::ui::panel_types::{
     CollapseState, PayloadShape, RunOutcome,
 };
 use dioxus::prelude::*;
-use oya_frontend::graph::{NodeId, RunRecord};
+use crate::ui::graph::{NodeId, RunRecord};
 use std::collections::{HashMap, HashSet};
 
 const fn status_badge_classes(outcome: RunOutcome) -> &'static str {
@@ -122,7 +122,7 @@ mod tests {
         derive_step_counts, format_elapsed, format_run_duration, format_run_status,
         run_status_badge_class, status_badge_classes, truncate_id, truncate_preview, RunOutcome,
     };
-    use oya_frontend::graph::{NodeId, RunRecord};
+    use crate::ui::graph::{NodeId, RunRecord};
     use std::collections::HashMap;
     use uuid::Uuid;
 
@@ -351,7 +351,7 @@ fn FrozenModeBanner(
 #[component]
 pub fn ExecutionHistoryPanel(
     history: Memo<Vec<RunRecord>>,
-    nodes_by_id: ReadSignal<HashMap<NodeId, oya_frontend::graph::Node>>,
+    nodes_by_id: ReadSignal<HashMap<NodeId, crate::ui::graph::Node>>,
     on_select_node: EventHandler<NodeId>,
     collapsed: Signal<bool>,
     active_run_id: ReadSignal<Option<uuid::Uuid>>,

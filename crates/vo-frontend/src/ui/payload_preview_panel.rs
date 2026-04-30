@@ -6,7 +6,7 @@
 
 use crate::ui::panel_types::{chevron_rotation_class, CollapseState, PayloadShape};
 use dioxus::prelude::*;
-use oya_frontend::graph::{NodeId, Workflow};
+use crate::ui::graph::{NodeId, Workflow};
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -70,7 +70,7 @@ fn PayloadItem(payload: serde_json::Value, index: usize, label: String) -> Eleme
 #[component]
 pub fn PayloadPreviewPanel(
     selected_node_id: Signal<Option<NodeId>>,
-    nodes_by_id: ReadSignal<HashMap<NodeId, oya_frontend::graph::Node>>,
+    nodes_by_id: ReadSignal<HashMap<NodeId, crate::ui::graph::Node>>,
     workflow: Signal<Workflow>,
 ) -> Element {
     let mut active_tab: Signal<PayloadTab> = use_signal(|| PayloadTab::Input);
