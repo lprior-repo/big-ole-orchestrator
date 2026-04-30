@@ -10,6 +10,7 @@ pub type LintSeverity = Severity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LintCode {
+    L001,
     L002,
     L003,
     L004,

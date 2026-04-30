@@ -16,11 +16,13 @@
 //! - Independence: Each rule can be tested in isolation
 //! - Composability: Multiple rules can run concurrently without interference
 
+pub mod imports;
 pub mod mirror;
 pub mod random;
 pub mod retry_policy;
 pub mod unused_steps;
 
+pub use imports::{check_unused_imports, UnusedImportRule};
 pub use mirror::check_mirror_types_in_api_test;
 pub use random::check_random_in_workflow;
 pub use retry_policy::check_retry_policy_bounds;
@@ -58,6 +60,7 @@ impl RuleRegistry {
     #[must_use]
     pub fn new() -> Self {
         let mut registry = Self { rules: Vec::new() };
+        registry.add_rule(imports::UnusedImportRule);
         registry.add_rule(random::RandomRule);
         registry.add_rule(mirror::MirrorRule);
         registry.add_rule(unused_steps::UnusedStepsRule);
