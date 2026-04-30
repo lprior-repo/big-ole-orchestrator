@@ -709,6 +709,53 @@ mod tests {
     }
 
     #[test]
+    fn test_retry_config_exponential_backoff_iterative_cap() {
+        let base_delay_ms = 100u64;
+        let max_delay_ms = 400u64;
+        let factor = 2.0;
+        let config = RetryConfig::new(base_delay_ms, factor, 20).with_max_backoff(max_delay_ms);
+
+        let mut delays: Vec<Duration> = Vec::new();
+        for attempt in 1..=20 {
+            delays.push(config.calculate_backoff(attempt));
+        }
+
+        for i in 1..delays.len() {
+            let prev_ms = delays[i - 1].as_millis() as u64;
+            let curr_ms = delays[i].as_millis() as u64;
+            assert!(
+                prev_ms * factor as u64 <= curr_ms,
+                "delay_n * factor ({}) <= delay_n+1 ({}) at iteration {}",
+                prev_ms * factor as u64,
+                curr_ms,
+                i + 1
+            );
+        }
+
+        for (i, delay) in delays.iter().enumerate() {
+            assert!(
+                *delay <= Duration::from_millis(max_delay_ms),
+                "delay[{}] ({}) exceeds max_delay ({})",
+                i,
+                delay.as_millis(),
+                max_delay_ms
+            );
+        }
+
+        assert_eq!(delays[0], Duration::from_millis(100));
+        assert_eq!(delays[1], Duration::from_millis(200));
+        assert_eq!(delays[2], Duration::from_millis(400));
+        assert_eq!(delays[3], Duration::from_millis(400));
+        assert_eq!(delays[4], Duration::from_millis(400));
+
+        let cap_hit_at = delays
+            .iter()
+            .position(|d| *d == Duration::from_millis(max_delay_ms))
+            .expect("max_delay cap should be hit");
+        assert_eq!(cap_hit_at, 2, "max_delay cap should be hit at iteration 3 (index 2)");
+    }
+
+    #[test]
     fn test_retry_config_jitter_zero_factor_returns_base() {
         let config = RetryConfig::new(100, 2.0, 3).with_jitter(0.0);
         let base = Duration::from_millis(200);
