@@ -297,4 +297,72 @@ mod tests {
         let queue = SpscQueue::<i32>::new(8);
         assert!(format!("{:?}", queue).contains("SpscQueue"));
     }
+
+    #[test]
+    fn spsc_queue_capacity_rounds_to_power_of_two() {
+        let queue = Arc::new(SpscQueue::<i32>::new(5));
+        assert_eq!(queue.capacity(), 8);
+    }
+
+    #[test]
+    fn spsc_queue_capacity_already_power_of_two() {
+        let queue = Arc::new(SpscQueue::<i32>::new(16));
+        assert_eq!(queue.capacity(), 16);
+    }
+
+    #[test]
+    fn spsc_queue_capacity_one() {
+        let queue = Arc::new(SpscQueue::<i32>::new(1));
+        assert_eq!(queue.capacity(), 1);
+        let (tx, rx) = queue.sender();
+        tx.send(42).unwrap();
+        assert_eq!(rx.recv().unwrap(), 42);
+    }
+
+    #[test]
+    fn spsc_queue_is_empty_after_drain() {
+        let queue = Arc::new(SpscQueue::<String>::new(4));
+        let (tx, rx) = queue.sender();
+        tx.send("a".into()).unwrap();
+        tx.send("b".into()).unwrap();
+        rx.recv().unwrap();
+        rx.recv().unwrap();
+        assert!(queue.is_empty());
+    }
+
+    #[test]
+    fn spsc_error_display() {
+        assert_eq!(SpscError::Full.to_string(), "queue is full");
+        assert_eq!(SpscError::Empty.to_string(), "queue is empty");
+    }
+
+    #[test]
+    fn spsc_sender_is_full() {
+        let queue = Arc::new(SpscQueue::<i32>::new(2));
+        let (tx, _rx) = queue.sender();
+        tx.send(1).unwrap();
+        tx.send(2).unwrap();
+        assert!(tx.is_full());
+    }
+
+    #[test]
+    fn spsc_receiver_is_empty() {
+        let queue = Arc::new(SpscQueue::<i32>::new(4));
+        let (_tx, rx) = queue.sender();
+        assert!(rx.is_empty());
+    }
+
+    #[test]
+    fn spsc_sender_debug() {
+        let queue = Arc::new(SpscQueue::<i32>::new(4));
+        let (tx, _) = queue.sender();
+        assert!(format!("{:?}", tx).contains("Sender"));
+    }
+
+    #[test]
+    fn spsc_receiver_debug() {
+        let queue = Arc::new(SpscQueue::<i32>::new(4));
+        let (_, rx) = queue.sender();
+        assert!(format!("{:?}", rx).contains("Receiver"));
+    }
 }

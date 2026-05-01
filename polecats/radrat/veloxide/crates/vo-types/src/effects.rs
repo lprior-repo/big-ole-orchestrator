@@ -90,6 +90,10 @@ pub struct EffectRecord {
     status: EffectIntent,
     #[serde(default)]
     committed_at: Option<crate::types::TimestampMs>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    effect_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    fence_token: Option<u64>,
 }
 
 /// Error returned when effect idempotency key validation fails.
@@ -171,6 +175,8 @@ impl EffectRecord {
             params_json,
             status,
             committed_at,
+            effect_id: None,
+            fence_token: None,
         })
     }
 
@@ -198,6 +204,22 @@ impl EffectRecord {
     }
 
     #[must_use]
+    pub fn with_effect_id(mut self, effect_id: String) -> Self {
+        self.effect_id = if effect_id.is_empty() {
+            None
+        } else {
+            Some(effect_id)
+        };
+        self
+    }
+
+    #[must_use]
+    pub fn with_fence_token(mut self, fence: u64) -> Self {
+        self.fence_token = Some(fence);
+        self
+    }
+
+    #[must_use]
     pub fn intent_id(&self) -> &str {
         &self.intent_id
     }
@@ -220,6 +242,16 @@ impl EffectRecord {
     #[must_use]
     pub fn committed_at(&self) -> Option<&crate::types::TimestampMs> {
         self.committed_at.as_ref()
+    }
+
+    #[must_use]
+    pub fn effect_id(&self) -> Option<&str> {
+        self.effect_id.as_deref()
+    }
+
+    #[must_use]
+    pub fn fence_token(&self) -> Option<u64> {
+        self.fence_token
     }
 }
 
@@ -318,6 +350,308 @@ impl std::fmt::Display for Receipt {
             self.effect_id, self.connector_type, self.connector_version, self.committed_at
         )
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type", content = "data")]
+pub enum EffectJournalEntry {
+    Prepared(EffectRecord),
+    Committed {
+        effect_id: String,
+        record: EffectRecord,
+        committed_at: crate::types::TimestampMs,
+    },
+    RolledBack {
+        effect_id: String,
+        record: EffectRecord,
+    },
+}
+
+impl EffectJournalEntry {
+    #[must_use]
+    pub fn effect_id(&self) -> Option<&str> {
+        match self {
+            EffectJournalEntry::Prepared(r) => r.effect_id(),
+            EffectJournalEntry::Committed { effect_id, .. } => Some(effect_id),
+            EffectJournalEntry::RolledBack { effect_id, .. } => Some(effect_id),
+        }
+    }
+
+    #[must_use]
+    pub fn record(&self) -> &EffectRecord {
+        match self {
+            EffectJournalEntry::Prepared(r) => r,
+            EffectJournalEntry::Committed { record, .. } => record,
+            EffectJournalEntry::RolledBack { record, .. } => record,
+        }
+    }
+
+    #[must_use]
+    pub fn intent_status(&self) -> EffectIntent {
+        match self {
+            EffectJournalEntry::Prepared(_) => EffectIntent::Prepared,
+            EffectJournalEntry::Committed { .. } => EffectIntent::Committed,
+            EffectJournalEntry::RolledBack { .. } => EffectIntent::RolledBack,
+        }
+    }
+
+    #[must_use]
+    pub fn is_terminal(&self) -> bool {
+        self.intent_status().is_terminal()
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> EffectKind {
+        self.record().kind()
+    }
+
+    #[must_use]
+    pub fn all_variants() -> &'static [&'static str] {
+        &["prepared", "committed", "rolled_back"]
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct PreparedEffect {
+    effect_id: String,
+    record: EffectRecord,
+    fence_token: Option<u64>,
+}
+
+impl PreparedEffect {
+    #[must_use]
+    pub fn new(effect_id: String, record: EffectRecord, fence_token: Option<u64>) -> Option<Self> {
+        if effect_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            effect_id,
+            record,
+            fence_token,
+        })
+    }
+
+    #[must_use]
+    pub fn effect_id(&self) -> &str {
+        &self.effect_id
+    }
+
+    #[must_use]
+    pub fn record(&self) -> &EffectRecord {
+        &self.record
+    }
+
+    #[must_use]
+    pub fn fence_token(&self) -> Option<u64> {
+        self.fence_token
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> EffectKind {
+        self.record.kind()
+    }
+
+    #[must_use]
+    pub fn intent_id(&self) -> &str {
+        self.record.intent_id()
+    }
+
+    pub fn into_committed(
+        self,
+        committed_at: crate::types::TimestampMs,
+    ) -> Option<CommittedEffect> {
+        let committed_record = EffectRecord::new(
+            self.record.intent_id().to_string(),
+            self.record.kind(),
+            self.record.params_json().clone(),
+            EffectIntent::Committed,
+            Some(committed_at),
+        )?
+        .with_effect_id(self.effect_id.clone())
+        .with_fence_token(self.fence_token.unwrap_or(0));
+        CommittedEffect::new(self.effect_id, committed_record, committed_at, self.fence_token)
+    }
+
+    pub fn into_rolled_back(self) -> Option<RolledBackEffect> {
+        let rolled_back_record = EffectRecord::new(
+            self.record.intent_id().to_string(),
+            self.record.kind(),
+            self.record.params_json().clone(),
+            EffectIntent::RolledBack,
+            None,
+        )?
+        .with_effect_id(self.effect_id.clone())
+        .with_fence_token(self.fence_token.unwrap_or(0));
+        RolledBackEffect::new(self.effect_id, rolled_back_record, self.fence_token)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct CommittedEffect {
+    effect_id: String,
+    record: EffectRecord,
+    committed_at: crate::types::TimestampMs,
+    fence_token: Option<u64>,
+}
+
+impl CommittedEffect {
+    #[must_use]
+    pub fn new(
+        effect_id: String,
+        record: EffectRecord,
+        committed_at: crate::types::TimestampMs,
+        fence_token: Option<u64>,
+    ) -> Option<Self> {
+        if effect_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            effect_id,
+            record,
+            committed_at,
+            fence_token,
+        })
+    }
+
+    #[must_use]
+    pub fn effect_id(&self) -> &str {
+        &self.effect_id
+    }
+
+    #[must_use]
+    pub fn record(&self) -> &EffectRecord {
+        &self.record
+    }
+
+    #[must_use]
+    pub fn committed_at(&self) -> crate::types::TimestampMs {
+        self.committed_at
+    }
+
+    #[must_use]
+    pub fn fence_token(&self) -> Option<u64> {
+        self.fence_token
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> EffectKind {
+        self.record.kind()
+    }
+
+    #[must_use]
+    pub fn to_receipt(&self, connector_type: String, connector_version: String) -> Option<Receipt> {
+        Receipt::new(
+            self.effect_id.clone(),
+            connector_type,
+            connector_version,
+            self.record.params_json().clone(),
+            self.committed_at,
+        )
+    }
+
+    #[must_use]
+    pub fn to_journal_entry(&self) -> EffectJournalEntry {
+        EffectJournalEntry::Committed {
+            effect_id: self.effect_id.clone(),
+            record: self.record.clone(),
+            committed_at: self.committed_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct RolledBackEffect {
+    effect_id: String,
+    record: EffectRecord,
+    fence_token: Option<u64>,
+}
+
+impl RolledBackEffect {
+    #[must_use]
+    pub fn new(
+        effect_id: String,
+        record: EffectRecord,
+        fence_token: Option<u64>,
+    ) -> Option<Self> {
+        if effect_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            effect_id,
+            record,
+            fence_token,
+        })
+    }
+
+    #[must_use]
+    pub fn effect_id(&self) -> &str {
+        &self.effect_id
+    }
+
+    #[must_use]
+    pub fn record(&self) -> &EffectRecord {
+        &self.record
+    }
+
+    #[must_use]
+    pub fn fence_token(&self) -> Option<u64> {
+        self.fence_token
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> EffectKind {
+        self.record.kind()
+    }
+
+    #[must_use]
+    pub fn to_journal_entry(&self) -> EffectJournalEntry {
+        EffectJournalEntry::RolledBack {
+            effect_id: self.effect_id.clone(),
+            record: self.record.clone(),
+        }
+    }
+}
+
+pub fn prepare_effect_record(
+    intent_id: String,
+    kind: EffectKind,
+    params_json: serde_json::Value,
+    effect_id: String,
+    fence_token: Option<u64>,
+) -> Option<PreparedEffect> {
+    let record = EffectRecord::new(
+        intent_id,
+        kind,
+        params_json,
+        EffectIntent::Prepared,
+        None,
+    )?
+    .with_effect_id(effect_id)
+    .with_fence_token(fence_token.unwrap_or(0));
+    PreparedEffect::new(
+        record.effect_id().unwrap_or_default().to_string(),
+        record,
+        fence_token,
+    )
+}
+
+pub fn commit_effect_record(
+    prepared: PreparedEffect,
+    committed_at: crate::types::TimestampMs,
+) -> Option<CommittedEffect> {
+    prepared.into_committed(committed_at)
+}
+
+pub fn rollback_effect_record(prepared: PreparedEffect) -> Option<RolledBackEffect> {
+    prepared.into_rolled_back()
+}
+
+pub fn encode_journal_entry(entry: &EffectJournalEntry) -> Result<Vec<u8>, serde_json::Error> {
+    serde_json::to_vec(entry)
+}
+
+pub fn decode_journal_entry(bytes: &[u8]) -> Result<EffectJournalEntry, serde_json::Error> {
+    serde_json::from_slice(bytes)
 }
 // ============================================================================
 

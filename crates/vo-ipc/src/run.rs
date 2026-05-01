@@ -663,3 +663,82 @@ pub(crate) fn map_exit_code(status: std::process::ExitStatus) -> i32 {
         .code()
         .unwrap_or_else(|| status.signal().map_or(-1, |s| 128 + s))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::process::ExitStatusExt;
+
+    #[test]
+    fn subprocess_output_equality() {
+        let o1 = SubprocessOutput {
+            fd4_bytes: b"data".to_vec(),
+            stderr_bytes: b"err".to_vec(),
+            stderr_truncated: false,
+        };
+        let o2 = o1.clone();
+        assert_eq!(o1, o2);
+    }
+
+    #[test]
+    fn subprocess_output_inequality() {
+        let o1 = SubprocessOutput {
+            fd4_bytes: b"a".to_vec(),
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let o2 = SubprocessOutput {
+            fd4_bytes: b"b".to_vec(),
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        assert_ne!(o1, o2);
+    }
+
+    #[test]
+    fn subprocess_output_debug() {
+        let o = SubprocessOutput {
+            fd4_bytes: vec![],
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let debug = format!("{:?}", o);
+        assert!(debug.contains("SubprocessOutput"));
+    }
+
+    #[test]
+    fn map_exit_code_zero() {
+        let status = std::process::ExitStatus::from_raw(0);
+        assert_eq!(map_exit_code(status), 0);
+    }
+
+    #[test]
+    fn map_exit_code_nonzero() {
+        let status = std::process::ExitStatus::from_raw(42 << 8);
+        assert_eq!(map_exit_code(status), 42);
+    }
+
+    #[test]
+    fn map_exit_code_sigkill() {
+        let status = std::process::ExitStatus::from_raw(9);
+        assert_eq!(map_exit_code(status), 128 + 9);
+    }
+
+    #[test]
+    fn map_exit_code_sigterm() {
+        let status = std::process::ExitStatus::from_raw(15);
+        assert_eq!(map_exit_code(status), 128 + 15);
+    }
+
+    #[test]
+    fn map_exit_code_sigsegv() {
+        let status = std::process::ExitStatus::from_raw(11);
+        assert_eq!(map_exit_code(status), 128 + 11);
+    }
+
+    #[test]
+    fn map_exit_code_max_signal() {
+        let status = std::process::ExitStatus::from_raw(31);
+        assert_eq!(map_exit_code(status), 128 + 31);
+    }
+}

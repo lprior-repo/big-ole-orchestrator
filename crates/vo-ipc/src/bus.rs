@@ -446,4 +446,105 @@ mod tests {
         assert_eq!(config.backpressure_limit(), DEFAULT_BACKPRESSURE_LIMIT);
         assert_eq!(config.timeout_ms(), BUS_TIMEOUT_MS);
     }
+
+    #[test]
+    fn bus_message_request_equality() {
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "i".into(),
+            node_id: "n".into(),
+            input: serde_json::json!(null),
+            secrets: Default::default(),
+            metadata: Default::default(),
+        };
+        let m1 = BusMessage::Request(env.clone());
+        let m2 = BusMessage::Request(env);
+        assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn bus_message_response_equality() {
+        let env = Fd4Envelope {
+            version: 1,
+            instance_id: "i".into(),
+            node_id: "n".into(),
+            result: crate::envelope::TaskResult::Success {
+                output: serde_json::json!(42),
+            },
+        };
+        let m1 = BusMessage::Response(env.clone());
+        let m2 = BusMessage::Response(env);
+        assert_eq!(m1, m2);
+    }
+
+    #[test]
+    fn bus_message_drained_equality() {
+        assert_eq!(BusMessage::Drained, BusMessage::Drained);
+    }
+
+    #[test]
+    fn bus_message_request_ne_response() {
+        let req = BusMessage::Request(Fd3Envelope {
+            version: 1,
+            instance_id: "i".into(),
+            node_id: "n".into(),
+            input: serde_json::json!(null),
+            secrets: Default::default(),
+            metadata: Default::default(),
+        });
+        let resp = BusMessage::Response(Fd4Envelope {
+            version: 1,
+            instance_id: "i".into(),
+            node_id: "n".into(),
+            result: crate::envelope::TaskResult::Success {
+                output: serde_json::json!(null),
+            },
+        });
+        assert_ne!(req, resp);
+    }
+
+    #[test]
+    fn bus_message_debug() {
+        let m = BusMessage::Drained;
+        assert!(format!("{:?}", m).contains("Drained"));
+    }
+
+    #[test]
+    fn bus_error_clone_eq() {
+        let e1 = BusError::BusClosed;
+        let e2 = e1.clone();
+        assert_eq!(e1, e2);
+    }
+
+    #[test]
+    fn bus_error_from_io_error() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::BrokenPipe, "pipe broke");
+        let bus_err = BusError::from(io_err);
+        assert!(bus_err.to_string().contains("pipe broke"));
+    }
+
+    #[test]
+    fn bus_config_debug() {
+        let config = BusConfig::new(16, 1000);
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("BusConfig"));
+    }
+
+    #[test]
+    fn map_exit_code_zero() {
+        let status = std::process::ExitStatus::from_raw(0);
+        assert_eq!(map_exit_code(status), 0);
+    }
+
+    #[test]
+    fn map_exit_code_nonzero() {
+        let status = std::process::ExitStatus::from_raw(7 << 8);
+        assert_eq!(map_exit_code(status), 7);
+    }
+
+    #[test]
+    fn map_exit_code_signal() {
+        let status = std::process::ExitStatus::from_raw(15);
+        assert_eq!(map_exit_code(status), 128 + 15);
+    }
 }

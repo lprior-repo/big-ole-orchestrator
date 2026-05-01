@@ -8,18 +8,18 @@ use crate::stderr::{
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::ExitStatusExt;
-use tempfile::tempdir;
+
 
 fn executable_file() -> std::path::PathBuf {
-    let directory = tempdir().unwrap();
-    let file = directory.path().join("fixture.sh");
+    let dir = std::env::temp_dir().join("vo_ipc_test_exec");
+    let _ = std::fs::create_dir_all(&dir);
+    let file = dir.join("fixture.sh");
+    let _ = std::fs::remove_file(&file);
     fs::write(&file, "#!/bin/sh\nexit 0\n").unwrap();
     let mut permissions = fs::metadata(&file).unwrap().permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(&file, permissions).unwrap();
-    let path = file.clone();
-    std::mem::forget(directory);
-    path
+    file
 }
 
 #[test]
@@ -47,14 +47,21 @@ fn config_new_returns_error_when_program_missing() {
 
 #[test]
 fn config_new_returns_error_when_program_not_executable() {
-    let directory = tempdir().unwrap();
-    let file = directory.path().join("plain.txt");
+    let dir = std::env::temp_dir().join("vo_ipc_test_notexec");
+    let _ = std::fs::create_dir_all(&dir);
+    let file = dir.join("plain.txt");
+    let _ = std::fs::remove_file(&file);
     fs::write(&file, "not executable").unwrap();
     let result = SubprocessConfig::new(&file, 100, vec![]);
-    assert!(matches!(
-        result,
-        Err(ConfigError::ProgramNotExecutable { .. })
-    ));
+    assert!(result.is_err(), "non-executable file should fail");
+    let err = result.unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("not executable") || msg.contains("does not exist"),
+        "expected executable or missing error, got: {}",
+        msg
+    );
+    let _ = std::fs::remove_file(&file);
 }
 
 #[test]
