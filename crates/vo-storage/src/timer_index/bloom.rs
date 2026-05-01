@@ -1,5 +1,6 @@
-use std::collections::bitvec::BitVec;
 use vo_types::TimerId;
+
+type BitVec = Vec<bool>;
 
 const DEFAULT_EXPECTED_ITEMS: usize = 1_000_000;
 const DEFAULT_FP_RATE: f64 = 0.01;
@@ -41,7 +42,7 @@ impl TimerBloomFilter {
     pub fn new(expected_items: usize, fp_rate: f64) -> Self {
         let num_hash_functions = Self::optimal_k(fp_rate);
         let num_bits = Self::optimal_m(expected_items, fp_rate);
-        let bit_vector = BitVec::repeat(false, num_bits);
+        let bit_vector = vec![false; num_bits];
 
         Self {
             bit_vector,
@@ -84,7 +85,7 @@ impl TimerBloomFilter {
             .collect()
     }
 
-    pub fn might_be_expired(&self, timer_id: &TimerId, fire_at_ms: u64, _now_ms: u64) -> bool {
+    pub fn might_be_expired(&mut self, timer_id: &TimerId, fire_at_ms: u64, _now_ms: u64) -> bool {
         self.stats.check_count += 1;
 
         let positions = self.compute_hash_positions(timer_id, fire_at_ms);
@@ -104,7 +105,7 @@ impl TimerBloomFilter {
         let positions = self.compute_hash_positions(timer_id, fire_at_ms);
 
         for pos in positions {
-            self.bit_vector.set(pos, true);
+            self.bit_vector[pos] = true;
         }
 
         if self.inserts_since_rebuild >= REBUILD_THRESHOLD {
@@ -113,7 +114,9 @@ impl TimerBloomFilter {
     }
 
     fn reset_for_rebuild(&mut self) {
-        self.bit_vector.set_all(false);
+        for v in &mut self.bit_vector {
+            *v = false;
+        }
         self.inserts_since_rebuild = 0;
     }
 

@@ -37,22 +37,28 @@ fn fnv1a_64(data: &[u8]) -> u64 {
 /// preserving key length (16 bytes).
 /// Reversible via `unscramble_instance_id`.
 #[inline]
-pub fn scramble_instance_id(instance_id: &InstanceId) -> [u8; 16] {
-    let hash = fnv1a_64(instance_id);
-    let mut scrambled = *instance_id;
-    // Use first 8 bytes of hash for XOR
+pub fn scramble_instance_id(instance_id: &InstanceId) -> Result<[u8; 16], crate::codec::StorageError> {
+    let id_bytes = instance_id.to_bytes().map_err(|e| crate::codec::StorageError::InvalidInstanceId(e))?;
+    let hash = fnv1a_64(&id_bytes);
+    let mut scrambled = id_bytes;
     let hash_bytes = hash.to_le_bytes();
     for i in 0..8 {
         scrambled[i] ^= hash_bytes[i];
     }
-    scrambled
+    Ok(scrambled)
 }
 
 /// Reverse of `scramble_instance_id`.
 /// Since XOR is its own inverse: `unscramble(scrambled(x)) = x`.
 #[inline]
-pub fn unscramble_instance_id(scrambled: &InstanceId) -> [u8; 16] {
-    scramble_instance_id(scrambled)
+pub fn unscramble_instance_id(scrambled: &[u8; 16]) -> Result<InstanceId, crate::codec::StorageError> {
+    let hash = fnv1a_64(scrambled);
+    let mut unscrambled = *scrambled;
+    let hash_bytes = hash.to_le_bytes();
+    for i in 0..8 {
+        unscrambled[i] ^= hash_bytes[i];
+    }
+    Ok(InstanceId::from_bytes(unscrambled))
 }
 
 /// Apply scrambling to an event key.
@@ -60,20 +66,24 @@ pub fn unscramble_instance_id(scrambled: &InstanceId) -> [u8; 16] {
 /// Only the instance_id portion is scrambled; sequence bytes are untouched
 /// (preserving per-instance sort order).
 #[inline]
-pub fn scramble_event_key(key: &[u8]) -> [u8; 26] {
+pub fn scramble_event_key(key: &[u8]) -> Result<[u8; 26], crate::codec::StorageError> {
     let mut scrambled = [0u8; 26];
-    scrambled[0..16].copy_from_slice(&scramble_instance_id(&key[0..16].try_into().unwrap()));
+    let instance_id_bytes: [u8; 16] = key[0..16].try_into().unwrap();
+    let instance_id = InstanceId::from_bytes(instance_id_bytes);
+    scrambled[0..16].copy_from_slice(&scramble_instance_id(&instance_id)?);
     scrambled[16..24].copy_from_slice(&key[16..24]); // sequence
-    scrambled
+    Ok(scrambled)
 }
 
 /// Reverse of `scramble_event_key`.
 #[inline]
-pub fn unscramble_event_key(scrambled_key: &[u8]) -> [u8; 26] {
+pub fn unscramble_event_key(scrambled_key: &[u8]) -> Result<[u8; 26], crate::codec::StorageError> {
     let mut key = [0u8; 26];
-    key[0..16].copy_from_slice(&unscramble_instance_id(&scrambled_key[0..16].try_into().unwrap()));
+    let scrambled_instance_bytes: [u8; 16] = scrambled_key[0..16].try_into().unwrap();
+    let instance_id = unscramble_instance_id(&scrambled_instance_bytes)?;
+    key[0..16].copy_from_slice(&instance_id.to_bytes().map_err(|e| crate::codec::StorageError::InvalidInstanceId(e))?);
     key[16..24].copy_from_slice(&scrambled_key[16..24]);
-    key
+    Ok(key)
 }
 
 /// Configuration for hot spot detection.
@@ -134,7 +144,7 @@ impl HotSpotDetector {
     pub fn record_append(&self, instance_id: &InstanceId) -> bool {
         let mut instances = self.instances.write();
         let metrics = instances
-            .entry(*instance_id)
+            .entry(instance_id.clone())
             .or_insert_with(|| InstanceMetrics {
                 append_count: AtomicU64::new(0),
                 last_check: AtomicUsize::new(0),
@@ -205,7 +215,11 @@ impl ShardedHotSpotDetector {
 
     /// Get the shard index for an instance ID.
     fn shard_index(&self, instance_id: &InstanceId) -> usize {
-        fnv1a_64(instance_id) as usize % self.shard_count
+        if let Ok(id_bytes) = instance_id.to_bytes() {
+            fnv1a_64(&id_bytes) as usize % self.shard_count
+        } else {
+            0
+        }
     }
 
     /// Record an append event for an instance.

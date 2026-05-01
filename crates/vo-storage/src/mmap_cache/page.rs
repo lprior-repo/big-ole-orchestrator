@@ -46,7 +46,6 @@ pub(super) fn write_data_to_region(
     Ok(())
 }
 
-#[derive(Debug, Clone)]
 pub(super) fn read_mapped(file: &File, size: u64) -> Result<Vec<u8>, MmapCacheError> {
     let metadata = file.metadata()?;
     if metadata.len() != size {

@@ -182,7 +182,10 @@ impl EventStore for FjallEventStore {
             let seq_bytes = event.sequence.to_be_bytes();
             let mut key = Vec::with_capacity(24);
             if is_hot {
-                let scrambled = crate::hot_spot::scramble_instance_id(instance_id);
+                let scrambled = crate::hot_spot::scramble_instance_id(instance_id)
+                    .map_err(|e| EventStoreError::Storage {
+                        reason: format!("failed to scramble instance id: {e}"),
+                    })?;
                 key.extend_from_slice(&scrambled);
             } else {
                 key.extend_from_slice(&id_bytes);
