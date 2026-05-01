@@ -71,6 +71,12 @@ pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError>
 }
 
 fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
+    if !path.is_absolute() {
+        return Err(ConfigError::RelativePath {
+            path: path.to_path_buf(),
+        });
+    }
+
     let path_cstr = CString::new(path.to_str().ok_or_else(|| ConfigError::ProgramMissing {
         path: path.to_path_buf(),
     })?).map_err(|_| ConfigError::ProgramMissing {
@@ -310,5 +316,54 @@ mod tests {
     fn parse_fd3_payload_tabs_and_newlines() {
         let args = parse_fd3_payload_as_argv(b"a\tb\nc\td");
         assert_eq!(args, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn subprocess_config_accepts_absolute_path() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let result = SubprocessConfig::new(&file_path, 100, vec![]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn subprocess_config_rejects_relative_path() {
+        let result = SubprocessConfig::new("python3", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::RelativePath { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_rejects_path_traversal() {
+        let result = SubprocessConfig::new("../bin/python3", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::RelativePath { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_accepts_symlink_to_executable() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let symlink_path = dir.path().join("exec_link");
+        std::os::unix::fs::symlink(&file_path, &symlink_path).unwrap();
+
+        let result = SubprocessConfig::new(&symlink_path, 100, vec![]);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert!(config.executable_path().is_absolute());
+    }
+
+    #[test]
+    fn subprocess_config_rejects_nonexistent_path() {
+        let result = SubprocessConfig::new("/nonexistent/binary", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::ProgramMissing { .. })));
     }
 }

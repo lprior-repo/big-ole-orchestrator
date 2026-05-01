@@ -5,6 +5,8 @@ use thiserror::Error;
 pub enum ConfigError {
     #[error("timeout must be greater than 0ms, got {timeout_ms}")]
     TimeoutMustBePositive { timeout_ms: u64 },
+    #[error("program path is not absolute: {path:?}")]
+    RelativePath { path: PathBuf },
     #[error("program path does not exist: {path:?}")]
     ProgramMissing { path: PathBuf },
     #[error("program path is not executable: {path:?}")]
@@ -116,6 +118,14 @@ mod tests {
             path: PathBuf::from("/tmp/bar"),
         };
         assert!(err.to_string().contains("/tmp/bar"));
+    }
+
+    #[test]
+    fn config_error_relative_path_display() {
+        let err = ConfigError::RelativePath {
+            path: PathBuf::from("python3"),
+        };
+        assert_eq!(err.to_string(), "program path is not absolute: \"python3\"");
     }
 
     #[test]
