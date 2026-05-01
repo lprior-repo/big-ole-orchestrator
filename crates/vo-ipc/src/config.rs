@@ -103,6 +103,13 @@ pub(crate) fn parse_fd3_payload_as_argv(payload: &[u8]) -> Vec<OsString> {
         .collect()
 }
 
+pub(crate) fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
+    validate_program_path(path)?;
+    path.canonicalize().map_err(|_| ConfigError::ProgramMissing {
+        path: path.to_path_buf(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

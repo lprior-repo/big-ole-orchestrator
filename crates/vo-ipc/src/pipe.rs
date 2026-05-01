@@ -157,6 +157,34 @@ impl PipeRead {
     }
 }
 
+pub(crate) struct PipeWriter {
+    file: File,
+}
+
+impl PipeWriter {
+    pub fn from_fd_guard(fd_guard: FdGuard) -> Self {
+        let std_file = unsafe { std::fs::File::from_raw_fd(fd_guard.into_raw_fd()) };
+        let file = File::from_std(std_file);
+        Self { file }
+    }
+
+    pub async fn write_frame(&mut self, payload: &[u8]) -> Result<(), IpcError> {
+        let len = u32::try_from(payload.len()).map_err(|_| {
+            IpcError::PayloadTooLarge(u32::try_from(payload.len()).unwrap_or(u32::MAX))
+        })?;
+        self.file
+            .write_all(&len.to_be_bytes())
+            .await
+            .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        self.file
+            .write_all(payload)
+            .await
+            .map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        self.file.flush().await.map_err(|e| IpcError::Fd3WriteFailed { detail: e.to_string() })?;
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,6 +218,84 @@ mod tests {
         let len_bytes = (payload.len() as u32).to_be_bytes();
         writer.write_all(&len_bytes).await.unwrap();
         writer.write_all(&payload).await.unwrap();
+        drop(writer);
+
+        let result = reader.read_frame().await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), payload);
+    }
+
+    #[tokio::test]
+    async fn pipe_writer_reads_128kb_payload_perfect_roundtrip() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        let mut writer = PipeWriter::from_fd_guard(write_fd);
+
+        let payload: Vec<u8> = (0..128 * 1024).map(|i| (i % 256) as u8).collect();
+        let payload_clone = payload.clone();
+        let write_handle = tokio::spawn(async move {
+            writer.write_frame(&payload_clone).await.unwrap();
+            drop(writer);
+        });
+
+        let result = reader.read_frame().await;
+        write_handle.await.unwrap();
+        assert!(result.is_ok(), "read_frame failed: {:?}", result);
+        let received = result.unwrap();
+        assert_eq!(received.len(), 128 * 1024, "payload length mismatch");
+        assert_eq!(received, payload, "payload content mismatch");
+    }
+
+    #[tokio::test]
+    async fn pipe_writer_reads_exactly_64kb_payload() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        let mut writer = PipeWriter::from_fd_guard(write_fd);
+
+        let payload: Vec<u8> = (0..64 * 1024).map(|i| (i % 256) as u8).collect();
+        let payload_clone = payload.clone();
+        let write_handle = tokio::spawn(async move {
+            writer.write_frame(&payload_clone).await.unwrap();
+            drop(writer);
+        });
+
+        let result = reader.read_frame().await;
+        write_handle.await.unwrap();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), payload);
+    }
+
+    #[tokio::test]
+    async fn pipe_writer_reads_64kb_plus_one_byte_payload() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        let mut writer = PipeWriter::from_fd_guard(write_fd);
+
+        let payload: Vec<u8> = (0..(64 * 1024 + 1)).map(|i| (i % 256) as u8).collect();
+        let payload_clone = payload.clone();
+        let write_handle = tokio::spawn(async move {
+            writer.write_frame(&payload_clone).await.unwrap();
+            drop(writer);
+        });
+
+        let result = reader.read_frame().await;
+        write_handle.await.unwrap();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), payload);
+    }
+
+    #[tokio::test]
+    async fn pipe_writer_reads_empty_payload() {
+        let guard = PipeGuard::new().unwrap();
+        let (read_fd, write_fd) = guard.into_parts();
+        let mut reader = PipeRead::from_fd_guard(read_fd);
+        let mut writer = PipeWriter::from_fd_guard(write_fd);
+
+        let payload: Vec<u8> = vec![];
+        writer.write_frame(&payload).await.unwrap();
         drop(writer);
 
         let result = reader.read_frame().await;
