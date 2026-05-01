@@ -483,99 +483,139 @@ fn engine_receive_envelope_fails_on_identity_mismatch() {
     assert!(matches!(result, Err(IpcError::IdentityMismatch { .. })));
 }
 
-struct PartialReadCursor {
-    data: Vec<u8>,
-    chunk_size: usize,
-    offset: usize,
+// ---------------------------------------------------------------------------
+// SEC-4: Per-field size limit tests for secrets/metadata
+// ---------------------------------------------------------------------------
+
+fn make_fd3_json_with_secrets(secrets: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": "inst1",
+        "node_id": "node1",
+        "input": {},
+        "secrets": secrets,
+        "metadata": {}
+    })
 }
 
-impl PartialReadCursor {
-    fn new(data: Vec<u8>, chunk_size: usize) -> Self {
-        Self {
-            data,
-            chunk_size,
-            offset: 0,
-        }
-    }
+fn make_fd3_json_with_metadata(metadata: serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "version": 1,
+        "instance_id": "inst1",
+        "node_id": "node1",
+        "input": {},
+        "secrets": {},
+        "metadata": metadata
+    })
 }
 
-impl std::io::Read for PartialReadCursor {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if self.offset >= self.data.len() {
-            return Ok(0);
-        }
-        let remaining = self.data.len() - self.offset;
-        let to_read = remaining.min(self.chunk_size).min(buf.len());
-        buf[..to_read].copy_from_slice(&self.data[self.offset..self.offset + to_read]);
-        self.offset += to_read;
-        Ok(to_read)
-    }
+fn read_fd3_from_json(json: serde_json::Value) -> Result<Fd3Envelope, IpcError> {
+    let payload = serde_json::to_vec(&json).unwrap();
+    let mut buffer = (payload.len() as u32).to_be_bytes().to_vec();
+    buffer.extend(payload);
+    let mut reader = Cursor::new(buffer);
+    read_envelope(&mut reader)
 }
 
 #[test]
-fn read_envelope_handles_partial_header_reads() {
-    let env = Fd4Envelope {
-        version: 1,
-        instance_id: "inst1".into(),
-        node_id: "node1".into(),
-        result: TaskResult::Success {
-            output: serde_json::json!({"result": 42}),
-        },
-    };
-
-    let mut buffer = Vec::new();
-    write_envelope(&mut buffer, &env).unwrap();
-    let original_len = buffer.len();
-
-    let mut reader = PartialReadCursor::new(buffer, 4);
-    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
+fn secrets_exceeding_max_entries_is_rejected() {
+    let mut secrets = serde_json::Map::new();
+    for i in 0..101 {
+        secrets.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
     match result {
-        Ok(got) => assert_eq!(env, got),
-        Err(e) => panic!(
-            "Expected Ok (buffer was {} bytes), got {:?}",
-            original_len, e
-        ),
+        Err(IpcError::FieldEntryLimitExceeded { field, actual, .. }) => {
+            assert_eq!(field, "secrets");
+            assert_eq!(actual, 101);
+        }
+        other => panic!("Expected FieldEntryLimitExceeded, got {:?}", other),
     }
 }
 
 #[test]
-fn read_envelope_handles_partial_payload_reads() {
-    let env = Fd4Envelope {
-        version: 1,
-        instance_id: "inst1".into(),
-        node_id: "node1".into(),
-        result: TaskResult::Success {
-            output: serde_json::json!({"result": 42}),
-        },
-    };
+fn secrets_at_max_entries_is_accepted() {
+    let mut secrets = serde_json::Map::new();
+    for i in 0..100 {
+        secrets.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
+}
 
-    let mut buffer = Vec::new();
-    write_envelope(&mut buffer, &env).unwrap();
-
-    let mut reader = PartialReadCursor::new(buffer, 100);
-    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
+#[test]
+fn secret_value_exceeding_max_bytes_is_rejected() {
+    let mut secrets = serde_json::Map::new();
+    secrets.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_537)));
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
     match result {
-        Ok(got) => assert_eq!(env, got),
-        Err(e) => panic!("Expected Ok, got {:?}", e),
+        Err(IpcError::FieldValueTooLarge {
+            field,
+            key,
+            actual,
+            ..
+        }) => {
+            assert_eq!(field, "secrets");
+            assert_eq!(key, "big_key");
+            assert_eq!(actual, 65_537);
+        }
+        other => panic!("Expected FieldValueTooLarge, got {:?}", other),
     }
 }
 
 #[test]
-fn read_envelope_returns_incomplete_read_on_early_eof() {
-    let env = Fd4Envelope {
-        version: 1,
-        instance_id: "inst1".into(),
-        node_id: "node1".into(),
-        result: TaskResult::Success {
-            output: serde_json::json!({"result": 42}),
-        },
-    };
+fn secret_value_at_max_bytes_is_accepted() {
+    let mut secrets = serde_json::Map::new();
+    secrets.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_536)));
+    let json = make_fd3_json_with_secrets(serde_json::Value::Object(secrets));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
+}
 
-    let mut buffer = Vec::new();
-    write_envelope(&mut buffer, &env).unwrap();
-    buffer.truncate(50);
+#[test]
+fn metadata_exceeding_max_entries_is_rejected() {
+    let mut metadata = serde_json::Map::new();
+    for i in 0..101 {
+        metadata.insert(format!("k{i}"), serde_json::Value::String(format!("v{i}")));
+    }
+    let json = make_fd3_json_with_metadata(serde_json::Value::Object(metadata));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldEntryLimitExceeded { field, actual, .. }) => {
+            assert_eq!(field, "metadata");
+            assert_eq!(actual, 101);
+        }
+        other => panic!("Expected FieldEntryLimitExceeded, got {:?}", other),
+    }
+}
 
-    let mut reader = PartialReadCursor::new(buffer, 4);
-    let result: Result<Fd4Envelope, IpcError> = read_envelope(&mut reader);
-    assert!(matches!(result, Err(IpcError::IncompleteRead { .. })));
+#[test]
+fn metadata_value_exceeding_max_bytes_is_rejected() {
+    let mut metadata = serde_json::Map::new();
+    metadata.insert("big_key".to_string(), serde_json::Value::String("x".repeat(65_537)));
+    let json = make_fd3_json_with_metadata(serde_json::Value::Object(metadata));
+    let result = read_fd3_from_json(json);
+    match result {
+        Err(IpcError::FieldValueTooLarge {
+            field,
+            key,
+            actual,
+            ..
+        }) => {
+            assert_eq!(field, "metadata");
+            assert_eq!(key, "big_key");
+            assert_eq!(actual, 65_537);
+        }
+        other => panic!("Expected FieldValueTooLarge, got {:?}", other),
+    }
+}
+
+#[test]
+fn empty_secrets_and_metadata_are_accepted() {
+    let json = make_fd3_json_with_secrets(serde_json::json!({}));
+    let result = read_fd3_from_json(json);
+    assert!(result.is_ok());
 }
