@@ -2,6 +2,9 @@ use crate::error::ConfigError;
 use std::ffi::{CString, OsString};
 use std::path::{Path, PathBuf};
 
+#[cfg(unix)]
+use libc::{close, fstat, open, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessConfig {
     executable_path: PathBuf,
@@ -67,7 +70,7 @@ pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError>
     Ok(())
 }
 
-fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
+fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
     let path_cstr = CString::new(path.to_str().ok_or_else(|| ConfigError::ProgramMissing {
         path: path.to_path_buf(),
     })?).map_err(|_| ConfigError::ProgramMissing {
@@ -119,12 +122,6 @@ pub(crate) fn parse_fd3_payload_as_argv(payload: &[u8]) -> Vec<OsString> {
         .collect()
 }
 
-pub(crate) fn open_and_validate_program(path: &Path) -> Result<PathBuf, ConfigError> {
-    validate_program_path(path)?;
-    path.canonicalize().map_err(|_| ConfigError::ProgramMissing {
-        path: path.to_path_buf(),
-    })
-}
 
 #[cfg(test)]
 mod tests {

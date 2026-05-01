@@ -169,10 +169,8 @@ pub use dual_representation::{
 };
 pub use edge_tracking::{select_fan_in_source, EdgeTraversalLog, RouterDecision, TraversedEdge};
 pub use effects::{
-    apply_effect_transition, commit_effect_record, CompensationPolicy, CommittedEffect,
-    decode_journal_entry, EffectIntent, EffectJournalEntry, EffectKind, EffectRecord,
-    EffectTransitionError, EffectTransitionEvent, ExternalReceipt, prepare_effect_record,
-    PreparedEffect, rollback_effect_record, RolledBackEffect,
+    apply_effect_transition, CompensationPolicy, EffectIntent, EffectKind, EffectRecord,
+    EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
 pub use errors::ParseError;

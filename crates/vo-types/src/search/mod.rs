@@ -20,25 +20,6 @@ pub struct SearchResult {
     pub score: f64,
     pub workspace_id: String,
     pub matched_terms: Vec<String>,
-    pub document_type: DocumentType,
-}
-
-#[derive(Debug, Clone)]
-struct DocumentEntry {
-    workspace_id: String,
-    doc_type: DocumentType,
-    #[allow(dead_code)]
-    text: String,
-    #[allow(dead_code)]
-    tags: Vec<String>,
-}
-
-fn tokenize(text: &str) -> Vec<String> {
-    text.to_lowercase()
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|s| !s.is_empty())
-        .map(String::from)
-        .collect()
 }
 
 #[derive(Debug, Clone)]
@@ -176,12 +157,6 @@ impl SearchEngine {
     pub fn remove_workspace(&mut self, id: WorkspaceId) {
         self.index.remove_document(id);
         self.documents.remove(&id);
-    }
-
-    #[must_use]
-    pub fn remove_workspace(&mut self, _id: crate::workspace::WorkspaceId) -> bool {
-        // Stub implementation - workspace removal not yet implemented
-        true
     }
 }
 

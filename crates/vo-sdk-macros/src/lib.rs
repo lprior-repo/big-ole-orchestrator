@@ -88,6 +88,18 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::GenerationFailed { .. }) => {
             quote::quote! { compile_error!("code generation failed"); }
         }
+        Err(error::Error::InvalidAttributeValue(name, reason)) => {
+            let msg = format!("invalid value for attribute '{}': {}", name, reason);
+            quote::quote! { compile_error!(#msg); }
+        }
+        Err(error::Error::UnknownAttribute(attr)) => {
+            let msg = format!("unknown attribute: '{}' is not a recognized #[task] attribute", attr);
+            quote::quote! { compile_error!(#msg); }
+        }
+        Err(error::Error::NegativeRetries(val)) => {
+            let msg = format!("negative retry count: {}; retries must be non-negative", val);
+            quote::quote! { compile_error!(#msg); }
+        }
     }
 }
 

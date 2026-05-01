@@ -78,7 +78,7 @@ pub struct Fd4Envelope {
 pub enum TaskResult {
     Success { output: serde_json::Value },
     Failure { error: TaskError },
-    EffectIntent { intent: EffectIntentEnvelope },
+    EffectIntent { intent: serde_json::Value },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
