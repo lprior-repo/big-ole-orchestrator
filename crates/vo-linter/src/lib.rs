@@ -24,6 +24,8 @@
 
 mod diagnostic;
 pub mod rules;
+pub mod type_checks;
 
 pub use diagnostic::{Diagnostic, LintCode};
 pub use rules::Rule;
+pub use type_checks::{check_type_compatibility, DataType, TypeMismatch};
