@@ -273,11 +273,28 @@ pub struct WorkflowStatusResponseInner {
     pub is_quarantined: bool,
 }
 
-/// Convert an instance snapshot to a workflow status response.
+/// Convert an instance snapshot to a workflow status response,
+/// reading quarantine/registration status from the circuit breaker.
 #[must_use]
 pub fn workflow_status_response(
     snapshot: vo_actor::InstanceSnapshot,
+    circuit_breaker: &vo_core::circuit_breaker::CircuitBreakerState,
 ) -> WorkflowStatusResponseInner {
+    let workflow_name = vo_types::WorkflowName::parse(&snapshot.workflow_type).ok();
+    let (registration_status, is_quarantined) = match workflow_name {
+        None => (None, false),
+        Some(name) => {
+            let reg = circuit_breaker.get_status(&name);
+            let quarantined = reg == vo_types::RegistrationStatus::Quarantined;
+            let status_str = match reg {
+                vo_types::RegistrationStatus::Quarantined => Some("quarantined".to_owned()),
+                vo_types::RegistrationStatus::Deactivated => Some("deactivated".to_owned()),
+                vo_types::RegistrationStatus::Deleted => Some("deleted".to_owned()),
+                vo_types::RegistrationStatus::Active => None,
+            };
+            (status_str, quarantined)
+        }
+    };
     WorkflowStatusResponseInner {
         instance_id: snapshot.instance_id.to_string(),
         namespace: snapshot.namespace.to_string(),
@@ -285,7 +302,77 @@ pub fn workflow_status_response(
         paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
         phase: phase_to_str(snapshot.phase).to_owned(),
         events_applied: snapshot.events_applied,
-        registration_status: None,
-        is_quarantined: false,
+        registration_status,
+        is_quarantined,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use vo_actor::{InstancePhaseView, InstanceSnapshot, WorkflowParadigm};
+    use vo_core::circuit_breaker::CircuitBreakerState;
+    use vo_types::{InstanceId, RegistrationStatus, WorkflowName};
+
+    fn test_snapshot(workflow_type: &str) -> InstanceSnapshot {
+        InstanceSnapshot {
+            instance_id: InstanceId::parse("01ARZ3NDEKTSV4RRFFQ69G5FAV").unwrap(),
+            namespace: "test-ns".to_owned(),
+            workflow_type: workflow_type.to_owned(),
+            paradigm: WorkflowParadigm::Procedural,
+            phase: InstancePhaseView::Live,
+            events_applied: 5,
+        }
+    }
+
+    #[test]
+    fn quarantine_status_active_workflow() {
+        let cb = CircuitBreakerState::new();
+        let snapshot = test_snapshot("my-workflow");
+        let resp = workflow_status_response(snapshot, &cb);
+        assert!(!resp.is_quarantined);
+        assert!(resp.registration_status.is_none());
+    }
+
+    #[test]
+    fn quarantine_status_quarantined_workflow() {
+        let cb = CircuitBreakerState::new();
+        let wf = WorkflowName::parse("my-workflow").unwrap();
+        cb.set_status(wf, RegistrationStatus::Quarantined);
+        let snapshot = test_snapshot("my-workflow");
+        let resp = workflow_status_response(snapshot, &cb);
+        assert!(resp.is_quarantined);
+        assert_eq!(resp.registration_status.as_deref(), Some("quarantined"));
+    }
+
+    #[test]
+    fn quarantine_status_deactivated_workflow() {
+        let cb = CircuitBreakerState::new();
+        let wf = WorkflowName::parse("my-workflow").unwrap();
+        cb.set_status(wf, RegistrationStatus::Deactivated);
+        let snapshot = test_snapshot("my-workflow");
+        let resp = workflow_status_response(snapshot, &cb);
+        assert!(!resp.is_quarantined);
+        assert_eq!(resp.registration_status.as_deref(), Some("deactivated"));
+    }
+
+    #[test]
+    fn quarantine_status_deleted_workflow() {
+        let cb = CircuitBreakerState::new();
+        let wf = WorkflowName::parse("my-workflow").unwrap();
+        cb.set_status(wf, RegistrationStatus::Deleted);
+        let snapshot = test_snapshot("my-workflow");
+        let resp = workflow_status_response(snapshot, &cb);
+        assert!(!resp.is_quarantined);
+        assert_eq!(resp.registration_status.as_deref(), Some("deleted"));
+    }
+
+    #[test]
+    fn quarantine_status_untracked_workflow_defaults_active() {
+        let cb = CircuitBreakerState::new();
+        let snapshot = test_snapshot("never-seen-wf");
+        let resp = workflow_status_response(snapshot, &cb);
+        assert!(!resp.is_quarantined);
+        assert!(resp.registration_status.is_none());
     }
 }
