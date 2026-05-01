@@ -14,6 +14,9 @@ impl InstanceId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+    pub fn generate() -> Self {
+        Self(ulid::Ulid::new().to_string())
+    }
 }
 
 impl Deref for InstanceId {
