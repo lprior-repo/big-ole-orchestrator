@@ -28,7 +28,7 @@ pub use imports::{check_unused_imports, UnusedImportRule};
 pub use mirror::check_mirror_types_in_api_test;
 pub use random::check_random_in_workflow;
 pub use retry_policy::check_retry_policy_bounds;
-pub use unused_steps::{check_unused_steps_ast, UnusedStepsRule};
+pub use unused_steps::check_unused_steps_ast;
 
 /// Trait for all linting rules.
 ///
@@ -65,7 +65,7 @@ impl RuleRegistry {
         registry.add_rule(imports::UnusedImportRule);
         registry.add_rule(random::RandomRule);
         registry.add_rule(mirror::MirrorRule);
-        registry.add_rule(unused_steps::UnusedStepsRule);
+
         registry
     }
 

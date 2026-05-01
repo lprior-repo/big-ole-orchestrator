@@ -11,11 +11,11 @@ use std::time::Duration;
 use vo_actor::{InstancePhaseView, InstanceSnapshot, OrchestratorMsg};
 use vo_core::circuit_breaker::CircuitBreakerState;
 use vo_storage::event_log::replay_events_in_namespace;
-use vo_types::{InstanceId, RegistrationStatus, WorkflowName};
+use vo_types::InstanceId;
 
 use crate::handlers::helpers::{paradigm_to_str, phase_to_str, split_path_id};
 use crate::handlers::{status_response, terminal_status_response, workflow_status_response};
-use crate::types::{ApiError, V3StatusResponse};
+use crate::types::ApiError;
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -190,6 +190,7 @@ pub async fn list_workflows(
 pub async fn get_workflow_status(
     Extension(master): Extension<ActorRef<OrchestratorMsg>>,
     Extension(event_db): Extension<Arc<fjall::Database>>,
+    Extension(circuit_breaker): Extension<Arc<CircuitBreakerState>>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     let (namespace, instance_id) = match split_path_id(&id) {
@@ -254,65 +255,21 @@ pub async fn get_workflow_status(
                         .into_response()
                 },
                 |snapshot| {
-                    (StatusCode::OK, Json(workflow_status_response(snapshot))).into_response()
+                    (
+                        StatusCode::OK,
+                        Json(workflow_status_response(snapshot, &circuit_breaker)),
+                    )
+                        .into_response()
                 },
             )
         }
         Ok(CallResult::Success(Some(snapshot))) => {
-            (StatusCode::OK, Json(workflow_status_response(snapshot))).into_response()
+            (
+                StatusCode::OK,
+                Json(workflow_status_response(snapshot, &circuit_breaker)),
+            )
+                .into_response()
         }
-    }
-}
-
-fn status_response(snapshot: InstanceSnapshot) -> V3StatusResponse {
-    V3StatusResponse {
-        instance_id: snapshot.instance_id.to_string(),
-        namespace: snapshot.namespace.to_string(),
-        workflow_type: snapshot.workflow_type,
-        paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
-        phase: phase_to_str(&snapshot.phase).to_owned(),
-        events_applied: snapshot.events_applied,
-    }
-}
-
-fn workflow_status_response(
-    snapshot: &InstanceSnapshot,
-    circuit_breaker: &Arc<CircuitBreakerState>,
-) -> WorkflowStatusResponse {
-    let workflow_name = match WorkflowName::parse(&snapshot.workflow_type) {
-        Ok(name) => name,
-        Err(_) => {
-            return WorkflowStatusResponse {
-                instance_id: snapshot.instance_id.to_string(),
-                namespace: snapshot.namespace.to_string(),
-                workflow_type: snapshot.workflow_type.clone(),
-                paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
-                phase: phase_to_str(&snapshot.phase).to_owned(),
-                events_applied: snapshot.events_applied,
-                registration_status: Some("unknown".to_owned()),
-                is_quarantined: false,
-            };
-        }
-    };
-
-    let reg_status = circuit_breaker.get_status(&workflow_name);
-    let is_quarantined = reg_status == RegistrationStatus::Quarantined;
-    let registration_status_str = match reg_status {
-        RegistrationStatus::Quarantined => Some("quarantined".to_owned()),
-        RegistrationStatus::Deactivated => Some("deactivated".to_owned()),
-        RegistrationStatus::Deleted => Some("deleted".to_owned()),
-        RegistrationStatus::Active => None,
-    };
-
-    WorkflowStatusResponse {
-        instance_id: snapshot.instance_id.to_string(),
-        namespace: snapshot.namespace.to_string(),
-        workflow_type: snapshot.workflow_type.clone(),
-        paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
-        phase: phase_to_str(&snapshot.phase).to_owned(),
-        events_applied: snapshot.events_applied,
-        registration_status: registration_status_str,
-        is_quarantined,
     }
 }
 

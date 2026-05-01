@@ -192,7 +192,7 @@ impl PoolState {
 #[derive(Debug)]
 pub struct ConnectionPool {
     pool_id: PoolId,
-    state: PoolState,
+    pub(crate) state: PoolState,
     nats_urls: Vec<String>,
     connection_semaphore: Arc<Semaphore>,
     wait_semaphore: Arc<Semaphore>,

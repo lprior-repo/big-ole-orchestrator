@@ -257,7 +257,8 @@ proptest! {
         // Property: random in try/fallible contexts is detected
         let fn_name = if src.is_empty() { "w" } else { &src[..src.len().min(20)] };
         let src = format!(
-            "fn {}() -> Result<(), ()> {{ let _ = Uuid::new_v4()?; Ok(()) }}"
+            "fn {}() -> Result<(), ()> {{ let _ = Uuid::new_v4()?; Ok(()) }}",
+            fn_name
         );
         let diags = parse_and_check(&src);
         assert!(

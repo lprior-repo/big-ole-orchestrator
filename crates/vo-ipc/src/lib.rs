@@ -31,6 +31,7 @@ pub mod stderr;
 
 pub use config::SubprocessConfig;
 pub use envelope::MAX_PAYLOAD_SIZE;
+pub use envelope::{MAX_MAP_ENTRIES, MAX_MAP_VALUE_BYTES};
 pub use envelope::{
     engine_receive_envelope, negotiate_version, read_envelope, validate_identity, write_envelope,
     BackpressureWriter, Fd3Envelope, Fd4Envelope, TaskError, TaskResult, VersionHandshake,

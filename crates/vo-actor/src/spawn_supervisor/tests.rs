@@ -331,6 +331,81 @@ fn spawn_supervisor_handle_propagator_shares_reference() {
 }
 
 // =============================================================================
+// SpawnSupervisor Restart Policy Tests
+// =============================================================================
+
+#[tokio::test]
+async fn spawn_supervisor_restarts_with_exponential_backoff_and_respects_max_retries() {
+    use super::pure::calculate_backoff_delay;
+
+    let instance_id = test_instance_id();
+    let executable = PathBuf::from("always-panics");
+    let initial_backoff_ms = 100u64;
+    let backoff_multiplier = 2.0;
+
+    let spawn_record = SpawnRecord::new(instance_id.clone(), executable, vec![], None);
+    assert_eq!(spawn_record.spawn_attempts, 1);
+
+    assert_eq!(calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 1), 100);
+    assert_eq!(calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 2), 200);
+    assert_eq!(calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 3), 400);
+}
+
+#[tokio::test]
+async fn spawn_supervisor_enforces_max_spawn_attempts() {
+    use super::pure::{should_respawn, calculate_backoff_delay};
+
+    let instance_id = test_instance_id();
+    let max_attempts = 4u32;
+
+    let mut record = SpawnRecord::new(
+        instance_id,
+        PathBuf::from("failing-process"),
+        vec![],
+        None,
+    );
+    record.spawn_phase = SpawnPhase::Failed;
+
+    assert_eq!(record.spawn_attempts, 1);
+    assert!(should_respawn(&record, max_attempts), "Should respawn on attempt 1");
+
+    record = record.respawn(None);
+    assert_eq!(record.spawn_attempts, 2);
+    assert!(should_respawn(&record, max_attempts), "Should respawn on attempt 2");
+
+    record = record.respawn(None);
+    assert_eq!(record.spawn_attempts, 3);
+    assert!(should_respawn(&record, max_attempts), "Should respawn on attempt 3");
+
+    record = record.respawn(None);
+    assert_eq!(record.spawn_attempts, 4);
+    assert!(!should_respawn(&record, max_attempts), "Should NOT respawn on attempt 4 (max reached)");
+}
+
+#[tokio::test]
+async fn spawn_supervisor_backoff_delay_grows_exponentially() {
+    use super::pure::calculate_backoff_delay;
+
+    let initial_backoff_ms = 100u64;
+    let backoff_multiplier = 2.0;
+    let jitter_factor = 0.0;
+
+    let delay_1 = calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 1);
+    let delay_2 = calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 2);
+    let delay_3 = calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 3);
+    let delay_4 = calculate_backoff_delay(initial_backoff_ms, backoff_multiplier, 4);
+
+    assert_eq!(delay_1, 100, "First attempt: 100ms");
+    assert_eq!(delay_2, 200, "Second attempt: 200ms (2x)");
+    assert_eq!(delay_3, 400, "Third attempt: 400ms (4x)");
+    assert_eq!(delay_4, 800, "Fourth attempt: 800ms (8x)");
+
+    assert!(delay_2 > delay_1);
+    assert!(delay_3 > delay_2);
+    assert!(delay_4 > delay_3);
+}
+
+// =============================================================================
 // Mock Implementations for SpawnSupervisor Tests
 // =============================================================================
 

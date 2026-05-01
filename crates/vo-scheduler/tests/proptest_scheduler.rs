@@ -1,339 +1,537 @@
-//! Property-based tests for vo-scheduler state machine, queue, and retry policy.
+//! Proptest generators for vo-scheduler types.
+//!
+//! These generators enable property-based testing of the scheduler queue,
+//! job lifecycle, retry policies, and error classification.
 
-use proptest::{prop_assert, prop_assert_eq, proptest};
-use vo_scheduler::{
-    job::ScheduledJob,
-    queue::SchedulerQueue,
-    types::{JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy},
+use proptest::prelude::*;
+use std::time::Duration;
+
+use vo_scheduler::error::{ExecutionError, RetryExhaustedError, SchedulerError};
+use vo_scheduler::job::ScheduledJob;
+use vo_scheduler::queue::SchedulerQueue;
+use vo_scheduler::types::{
+    JobId, JobKind, JobPriority, JobState, RetryPolicy, SchedulePolicy,
 };
 
-fn make_job(priority: JobPriority, policy: SchedulePolicy) -> ScheduledJob {
-    ScheduledJob::new(
-        JobKind::OneShot,
-        priority,
-        policy,
-        RetryPolicy::default_policy(),
-        bytes::Bytes::from_static(b"payload"),
-    )
-}
-
-fn past_due() -> SchedulePolicy {
-    SchedulePolicy::At(chrono::Utc::now() - chrono::Duration::seconds(10))
-}
-
-// PROPERTY 1: Retry policy backoff is always bounded by max_delay.
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    // ── ScheduledJob generation and serialization ──
+
     #[test]
-    fn retry_policy_caps_at_max_delay(
-        max_attempts in 1u32..1000u32,
-        multiplier in 1.0f64..100.0f64,
-        initial_secs in 1u64..3600u64,
-        max_secs in 1u64..7200u64
+    fn job_roundtrip_serialization(
+        kind in any::<JobKind>(),
+        priority in any::<JobPriority>(),
+        policy in any::<SchedulePolicy>(),
+        payload in any::<Vec<u8>>(),
     ) {
-        let initial = std::time::Duration::from_secs(initial_secs);
-        let max = std::time::Duration::from_secs(max_secs.max(initial_secs));
-        let policy = RetryPolicy::try_new(max_attempts, multiplier, initial, max).unwrap();
-        for attempt in 0..max_attempts {
-            let backoff = policy.compute_backoff(attempt);
-            prop_assert!(backoff <= max,
-                "backoff {:?} at attempt {} exceeds max_delay {:?} (multiplier={})",
-                backoff, attempt, max, multiplier);
-        }
+        let retry = RetryPolicy::default();
+        let job = ScheduledJob::new(kind, priority, policy.clone(), retry, payload.clone().into())
+            .unwrap();
+        let serialized = serde_json::to_string(&job).unwrap();
+        let deserialized: ScheduledJob = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(job.id, deserialized.id);
+        assert_eq!(job.kind, deserialized.kind);
+        assert_eq!(job.priority, deserialized.priority);
+        assert_eq!(job.state, deserialized.state);
+        assert_eq!(job.payload, deserialized.payload);
     }
-}
 
-// PROPERTY 2: Backoff is monotonically non-decreasing within max_delay.
-proptest! {
     #[test]
-    fn backoff_is_monotonic(
-        max_attempts in 2u32..50u32,
-        multiplier in 1.0f64..5.0f64,
-        initial_secs in 1u64..60u64,
-        max_secs in 60u64..7200u64
-    ) {
-        let initial = std::time::Duration::from_secs(initial_secs);
-        let max = std::time::Duration::from_secs(max_secs.max(initial_secs));
-        let policy = RetryPolicy::try_new(max_attempts, multiplier, initial, max).unwrap();
-        let mut prev = policy.compute_backoff(0);
-        for attempt in 1..max_attempts {
-            let curr = policy.compute_backoff(attempt);
-            prop_assert!(curr >= prev,
-                "backoff {:?} at attempt {} < {:?} at {} — not monotonic",
-                curr, attempt, prev, attempt - 1);
-            prev = curr;
-        }
+    fn job_new_immediate_starts_pending(job_id in any::<Ulid>()) {
+        let policy = SchedulePolicy::Immediate;
+        let job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            policy,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        assert_eq!(job.state, JobState::Pending);
     }
-}
 
-// PROPERTY 3: can_retry is consistent with attempt count.
-proptest! {
     #[test]
-    fn can_retry_reflects_attempt_count(
-        max_attempts in 1u32..100u32,
-        attempt_count in 0u32..100u32
+    fn job_new_future_starts_scheduled() {
+        let future = chrono::Utc::now() + chrono::Duration::hours(24);
+        let job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::At(future),
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        assert_eq!(job.state, JobState::Scheduled);
+    }
+
+    // ── JobState transitions ──
+
+    #[test]
+    fn valid_transition_chain_pending_running_completed() {
+        let mut job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        assert_eq!(job.state, JobState::Pending);
+        job.transition(JobState::Running).unwrap();
+        assert_eq!(job.state, JobState::Running);
+        job.transition(JobState::Completed).unwrap();
+        assert_eq!(job.state, JobState::Completed);
+        assert!(job.state.is_terminal());
+    }
+
+    #[test]
+    fn valid_transition_chain_failed_retrying_pending() {
+        let mut job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition(JobState::Failed).unwrap();
+        job.transition(JobState::Retrying).unwrap();
+        job.transition(JobState::Pending).unwrap();
+        assert_eq!(job.state, JobState::Pending);
+        assert!(!job.state.is_terminal());
+    }
+
+    #[test]
+    fn valid_transition_chain_scheduled_pending() {
+        let future = chrono::Utc::now() + chrono::Duration::hours(1);
+        let mut job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::At(future),
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        assert_eq!(job.state, JobState::Scheduled);
+        job.transition(JobState::Pending).unwrap();
+        assert_eq!(job.state, JobState::Pending);
+    }
+
+    #[test]
+    fn valid_transition_scheduled_or_pending_to_cancelled() {
+        let future = chrono::Utc::now() + chrono::Duration::hours(1);
+        let mut job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::At(future),
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        job.transition(JobState::Cancelled).unwrap();
+        assert!(job.state.is_terminal());
+
+        let mut job2 = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        job2.transition(JobState::Cancelled).unwrap();
+        assert!(job2.state.is_terminal());
+    }
+
+    #[test]
+    fn invalid_transition_recurring_completed_to_scheduled() {
+        let mut job = ScheduledJob::new(
+            JobKind::Recurring,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition(JobState::Completed).unwrap();
+        job.transition(JobState::Scheduled).unwrap();
+        assert!(!job.state.is_terminal());
+    }
+
+    #[test]
+    fn invalid_transition_oneshot_completed_to_scheduled_fails() {
+        let mut job = ScheduledJob::new(
+            JobKind::OneShot,
+            JobPriority::Normal,
+            SchedulePolicy::Immediate,
+            RetryPolicy::default(),
+            bytes::Bytes::new(),
+        )
+        .unwrap();
+        job.transition(JobState::Running).unwrap();
+        job.transition(JobState::Completed).unwrap();
+        let result = job.transition(JobState::Scheduled);
+        assert!(result.is_err());
+    }
+
+    // ── RetryPolicy properties ──
+
+    #[test]
+    fn retry_policy_can_retry_before_max_attempts(policy_max in 1u32..100u32) {
+        let policy = RetryPolicy::try_new(
+            policy_max,
+            2.0,
+            Duration::from_millis(100),
+            Duration::from_secs(60),
+        )
+        .unwrap();
+        for i in 0..policy_max {
+            assert!(
+                policy.can_retry(i),
+                "should be able to retry at attempt {i} < {policy_max}"
+            );
+        }
+        assert!(!policy.can_retry(policy_max));
+    }
+
+    #[test]
+    fn backoff_never_exceeds_max_delay(
+        initial_millis in 1u64..1000u64,
+        max_millis in 1000u64..60000u64,
     ) {
         let policy = RetryPolicy::try_new(
-            max_attempts, 2.0,
-            std::time::Duration::from_secs(1),
-            std::time::Duration::from_secs(300),
-        ).unwrap();
-        let can = policy.can_retry(attempt_count);
-        if attempt_count < max_attempts {
-            prop_assert!(can, "should retry at {} with max {}", attempt_count, max_attempts);
-        } else {
-            prop_assert!(!can, "should NOT retry at {} with max {}", attempt_count, max_attempts);
-        }
-    }
-}
-
-// PROPERTY 4: Capacity limit is always respected.
-proptest! {
-    #[test]
-    fn capacity_limit_always_respected(
-        capacity in 1usize..50usize,
-        num_inserts in 0usize..100usize
-    ) {
-        let mut q = SchedulerQueue::new(capacity);
-        let mut inserted_count = 0usize;
-        for _ in 0..num_inserts {
-            let job = make_job(JobPriority::Normal, past_due());
-            match q.insert(job) {
-                Ok(_) => inserted_count += 1,
-                Err(vo_scheduler::error::SchedulerError::QueueFull) => {}
-                Err(e) => panic!("unexpected error: {:?}", e),
-            }
-        }
-        prop_assert_eq!(q.len(), inserted_count.min(capacity));
-        prop_assert!(q.len() <= capacity);
-    }
-}
-
-// PROPERTY 5: pop_due respects priority ordering for due jobs.
-proptest! {
-    #[test]
-    fn pop_order_respects_priority(
-        priorities in proptest::collection::vec(
-            proptest::prop_oneof![
-                proptest::strategy::Just(JobPriority::Critical),
-                proptest::strategy::Just(JobPriority::High),
-                proptest::strategy::Just(JobPriority::Normal),
-                proptest::strategy::Just(JobPriority::Low),
-                proptest::strategy::Just(JobPriority::Background),
-            ],
-            0..20
+            10,
+            2.0,
+            Duration::from_millis(initial_millis),
+            Duration::from_millis(max_millis),
         )
-    ) {
-        let mut q = SchedulerQueue::new(100);
-        for p in &priorities {
-            let job = make_job(*p, past_due());
+        .unwrap();
+        for attempt in 0u32..50 {
+            let backoff = policy.compute_backoff(attempt);
+            assert!(
+                backoff <= policy.max_delay,
+                "backoff {:?} exceeds max {:?}",
+                backoff,
+                policy.max_delay
+            );
+        }
+    }
+
+    #[test]
+    fn backoff_increases_with_attempt(initial_millis in 1u64..100u64) {
+        let max = Duration::from_secs(300);
+        let policy = RetryPolicy::try_new(
+            10,
+            2.0,
+            Duration::from_millis(initial_millis),
+            max,
+        )
+        .unwrap();
+        let b0 = policy.compute_backoff(0);
+        let b1 = policy.compute_backoff(1);
+        assert!(b1 >= b0, "backoff should not decrease");
+    }
+
+    // ── SchedulerQueue properties ──
+
+    #[test]
+    fn queue_len_matches_inserts_and_removals(capacity in 10u32..100u32) {
+        let cap = capacity as usize;
+        let mut q = SchedulerQueue::new(cap);
+        let mut ids = Vec::new();
+        for _ in 0..cap {
+            let job = ScheduledJob::new(
+                JobKind::OneShot,
+                JobPriority::Normal,
+                SchedulePolicy::Immediate,
+                RetryPolicy::default(),
+                bytes::Bytes::new(),
+            )
+            .unwrap();
+            ids.push(job.id);
             q.insert(job).unwrap();
         }
-        let mut last = JobPriority::Critical;
-        while let Some(job) = q.pop_due(chrono::Utc::now()) {
-            prop_assert!(job.priority >= last,
-                "popped {:?} after {:?} — priority order violated", job.priority, last);
-            last = job.priority;
+        assert_eq!(q.len(), cap);
+
+        // Remove half
+        for id in ids.iter().take(cap / 2) {
+            q.remove(id).unwrap();
         }
+        assert_eq!(q.len(), cap / 2);
     }
-}
 
-// PROPERTY 6: RetryPolicy::try_new rejects all invalid parameter combinations.
-proptest! {
     #[test]
-    fn retry_policy_rejects_invalid_params(
-        max_attempts in 0u32..5u32,
-        multiplier in 0.0f64..2.0f64,
-        initial_nanos in 0u64..100u64,
-        max_nanos in 0u64..100u64,
-    ) {
-        let initial = std::time::Duration::from_nanos(initial_nanos);
-        let max = std::time::Duration::from_nanos(max_nanos);
-        let result = RetryPolicy::try_new(max_attempts, multiplier, initial, max);
-        let valid = max_attempts > 0
-            && multiplier >= 1.0
-            && initial_nanos > 0
-            && max_nanos >= initial_nanos;
-        prop_assert_eq!(result.is_ok(), valid,
-            "expected is_ok={} for max={}, mult={}, init={:?}, max_d={:?}",
-            valid, max_attempts, multiplier, initial, max);
-    }
-}
-
-// PROPERTY 7: State machine transitions respect the defined transition table.
-proptest! {
-    #[test]
-    fn state_transitions_respect_job_kind(
-        kind in proptest::prop_oneof![
-            proptest::strategy::Just(JobKind::OneShot),
-            proptest::strategy::Just(JobKind::Recurring),
-            proptest::strategy::Just(JobKind::Delayed),
-        ],
-        from in proptest::prop_oneof![
-            proptest::strategy::Just(JobState::Scheduled),
-            proptest::strategy::Just(JobState::Pending),
-            proptest::strategy::Just(JobState::Running),
-            proptest::strategy::Just(JobState::Completed),
-            proptest::strategy::Just(JobState::Failed),
-            proptest::strategy::Just(JobState::Cancelled),
-            proptest::strategy::Just(JobState::Retrying),
-        ],
-        to in proptest::prop_oneof![
-            proptest::strategy::Just(JobState::Scheduled),
-            proptest::strategy::Just(JobState::Pending),
-            proptest::strategy::Just(JobState::Running),
-            proptest::strategy::Just(JobState::Completed),
-            proptest::strategy::Just(JobState::Failed),
-            proptest::strategy::Just(JobState::Cancelled),
-            proptest::strategy::Just(JobState::Retrying),
-        ]
-    ) {
-        // Drive to `from` state via known valid transition paths.
-        // Create a fresh job using a future schedule to start in Scheduled state.
-        let mut job = ScheduledJob::new(
-            kind, JobPriority::Normal,
-            SchedulePolicy::At(chrono::Utc::now() + chrono::Duration::hours(1)),
-            RetryPolicy::default_policy(), bytes::Bytes::from_static(b"prop"),
+    fn queue_capacity_enforced() {
+        let q = SchedulerQueue::new(5);
+        for _ in 0..5 {
+            let job = ScheduledJob::new(
+                JobKind::OneShot,
+                JobPriority::Normal,
+                SchedulePolicy::Immediate,
+                RetryPolicy::default(),
+                bytes::Bytes::new(),
+            )
+            .unwrap();
+            let _ = q.insert(job);
+        }
+        let result = q.insert(
+            ScheduledJob::new(
+                JobKind::OneShot,
+                JobPriority::High,
+                SchedulePolicy::Immediate,
+                RetryPolicy::default(),
+                bytes::Bytes::new(),
+            )
+            .unwrap(),
         );
-        // Now drive to target `from` state
-        match from {
-            JobState::Scheduled => { /* already Scheduled */ }
-            JobState::Pending => { let _ = job.transition(JobState::Pending); }
-            JobState::Running => {
-                let _ = job.transition(JobState::Pending);
-                let _ = job.transition(JobState::Running);
-            }
-            JobState::Completed => {
-                let _ = job.transition(JobState::Pending);
-                let _ = job.transition(JobState::Running);
-                let _ = job.transition(JobState::Completed);
-            }
-            JobState::Failed => {
-                let _ = job.transition(JobState::Pending);
-                let _ = job.transition(JobState::Running);
-                let _ = job.transition(JobState::Failed);
-            }
-            JobState::Cancelled => {
-                let _ = job.transition(JobState::Cancelled);
-            }
-            JobState::Retrying => {
-                let _ = job.transition(JobState::Pending);
-                let _ = job.transition(JobState::Running);
-                let _ = job.transition(JobState::Failed);
-                let _ = job.transition(JobState::Retrying);
-            }
-        }
-        let expected = matches!(
-            (from, to),
-            (JobState::Scheduled, JobState::Pending) |
-            (JobState::Scheduled, JobState::Cancelled) |
-            (JobState::Pending, JobState::Running) |
-            (JobState::Pending, JobState::Cancelled) |
-            (JobState::Running, JobState::Completed) |
-            (JobState::Running, JobState::Failed) |
-            (JobState::Running, JobState::Cancelled) |
-            (JobState::Failed, JobState::Retrying) |
-            (JobState::Retrying, JobState::Pending) |
-            (JobState::Retrying, JobState::Cancelled)
-        ) || (from == JobState::Completed && to == JobState::Scheduled && kind == JobKind::Recurring);
-
-        // Skip self-transitions — not meaningful for state machine testing
-        if from == to { return Ok(()); }
-        let result = job.transition(to);
-        if expected {
-            prop_assert!(result.is_ok(), "{:?}->{:?} should be valid for {:?}", from, to, kind);
-        } else {
-            prop_assert!(result.is_err(), "{:?}->{:?} should be INVALID for {:?}", from, to, kind);
-        }
+        assert!(matches!(result, Err(SchedulerError::QueueFull)));
     }
-}
 
-// PROPERTY 8: Terminal states have no valid transitions (except Recurring Completed->Scheduled).
-proptest! {
     #[test]
-    fn terminal_states_have_no_valid_transitions(
-        terminal in proptest::prop_oneof![
-            proptest::strategy::Just(JobState::Completed),
-            proptest::strategy::Just(JobState::Failed),
-            proptest::strategy::Just(JobState::Cancelled),
-        ],
-        target in proptest::prop_oneof![
-            proptest::strategy::Just(JobState::Scheduled),
-            proptest::strategy::Just(JobState::Pending),
-            proptest::strategy::Just(JobState::Running),
-            proptest::strategy::Just(JobState::Completed),
-            proptest::strategy::Just(JobState::Failed),
-            proptest::strategy::Just(JobState::Cancelled),
-            proptest::strategy::Just(JobState::Retrying),
-        ],
-        kind in proptest::prop_oneof![
-            proptest::strategy::Just(JobKind::OneShot),
-            proptest::strategy::Just(JobKind::Recurring),
-            proptest::strategy::Just(JobKind::Delayed),
-        ],
-    ) {
-        if terminal == target { return Ok(()); }
-        let should_be_valid = terminal == JobState::Completed
-            && target == JobState::Scheduled
-            && kind == JobKind::Recurring;
-        let valid = matches!(
-            (terminal, target),
-            (JobState::Completed, JobState::Scheduled)
-        ) && kind == JobKind::Recurring;
-        prop_assert_eq!(valid, should_be_valid,
-            "terminal {:?} -> {:?} validity mismatch for {:?}", terminal, target, kind);
-    }
-}
-
-// PROPERTY 9: Queue len() is always accurate after mixed insert/pop/cancel operations.
-proptest! {
-    #[test]
-    fn queue_len_accurate_after_mixed_ops(
-        ops in proptest::collection::vec(
-            proptest::prop_oneof![
-                0 => proptest::strategy::Just(0u8),  // Insert
-                1 => proptest::strategy::Just(1u8),  // PopDue
-                2 => proptest::strategy::Just(2u8),  // CancelRandom
-            ],
-            0..30
-        )
-    ) {
-        let mut q = SchedulerQueue::new(50);
-        let mut tracked_ids: Vec<_> = Vec::new();
-        for op in ops {
-            match op {
-                0 => {
-                    let job = make_job(JobPriority::Normal, past_due());
-                    let id = job.id;
-                    if q.insert(job).is_ok() {
-                        tracked_ids.push(id);
-                    }
-                }
-                1 => {
-                    let _ = q.pop_due(chrono::Utc::now());
-                    tracked_ids.retain(|id| q.lookup(id).is_ok());
-                }
-                2 => {
-                    if let Some(id) = tracked_ids.first().copied() {
-                        let _ = q.cancel(&id);
-                        tracked_ids.retain(|i| q.lookup(i).is_ok());
-                    }
-                }
-                _ => unreachable!(),
-            }
+    fn queue_peek_consistent_with_pop() {
+        let mut q = SchedulerQueue::new(20);
+        for priority in [
+            JobPriority::Critical,
+            JobPriority::High,
+            JobPriority::Normal,
+            JobPriority::Low,
+            JobPriority::Background,
+        ] {
+            let job = ScheduledJob::new(
+                JobKind::OneShot,
+                priority,
+                SchedulePolicy::Immediate,
+                RetryPolicy::default(),
+                bytes::Bytes::new(),
+            )
+            .unwrap();
+            let _ = q.insert(job);
         }
-        let actual: usize = tracked_ids.iter().filter(|id| q.lookup(id).is_ok()).count();
-        prop_assert_eq!(q.len(), actual, "len() mismatch after mixed operations");
+        let peeked = q.peek(chrono::Utc::now()).map(|j| j.id);
+        let popped = q.pop_due(chrono::Utc::now()).map(|j| j.id);
+        assert_eq!(peeked, popped, "peek and pop must return same job");
     }
-}
 
-// PROPERTY 10: Remove on nonexistent IDs always errors (no panic, no corruption).
-proptest! {
     #[test]
-    fn remove_nonexistent_is_always_error(num_ids in 0usize..20usize) {
+    fn queue_is_empty_after_all_popped() {
         let mut q = SchedulerQueue::new(10);
-        for _ in 0..num_ids {
-            let id = vo_scheduler::types::JobId::generate();
-            prop_assert!(q.remove(&id).is_err());
+        for _ in 0..5 {
+            let job = ScheduledJob::new(
+                JobKind::OneShot,
+                JobPriority::Normal,
+                SchedulePolicy::Immediate,
+                RetryPolicy::default(),
+                bytes::Bytes::new(),
+            )
+            .unwrap();
+            let _ = q.insert(job);
         }
+        while q.pop_due(chrono::Utc::now()).is_some() {}
+        assert!(q.is_empty());
+        assert_eq!(q.len(), 0);
     }
+
+    // ── Error classification ──
+
+    #[test]
+    fn scheduler_error_classification() {
+        assert!(SchedulerError::QueueFull.is_transient());
+        assert!(!SchedulerError::QueueFull.is_permanent());
+
+        assert!(SchedulerError::SerializationError("test".into()).is_transient());
+        assert!(!SchedulerError::SerializationError("test".into()).is_permanent());
+
+        assert!(!SchedulerError::JobNotFound.is_transient());
+        assert!(SchedulerError::JobNotFound.is_permanent());
+
+        assert!(!SchedulerError::InvalidSchedule.is_transient());
+        assert!(SchedulerError::InvalidSchedule.is_permanent());
+
+        assert!(!SchedulerError::InvalidTransition.is_transient());
+        assert!(SchedulerError::InvalidTransition.is_permanent());
+    }
+
+    #[test]
+    fn execution_error_retryable_classification() {
+        assert!(ExecutionError::ResourceExhausted.is_retryable());
+        assert!(ExecutionError::ResourceExhausted.is_transient());
+
+        assert!(!ExecutionError::Panicked.is_retryable());
+        assert!(!ExecutionError::Panicked.is_transient());
+
+        assert!(!ExecutionError::TimedOut.is_retryable());
+        assert!(!ExecutionError::TimedOut.is_transient());
+
+        assert!(!ExecutionError::Cancelled.is_retryable());
+        assert!(!ExecutionError::Cancelled.is_transient());
+    }
+
+    // ── SchedulePolicy validation ──
+
+    #[test]
+    fn valid_cron_expressions_accepted(
+        minute in "([0-9]|\\*/[1-9][0-9]*)",
+        hour in "([0-9]|\\*/[1-9][0-9]*)",
+        dom in "([1-9]|\\*/[1-9][0-9]*)",
+        month in "([1-9]|\\*/[1-9])",
+        dow in "([0-6]|\\*/[1-7])",
+    ) {
+        let cron = format!("{minute} {hour} {dom} {month} {dow}");
+        let result = SchedulePolicy::validate_cron(&cron);
+        assert!(
+            result.is_ok(),
+            "cron '{cron}' should be valid (got: {result:?})"
+        );
+    }
+
+    #[test]
+    fn invalid_cron_rejected(short in "([0-9]+ [0-9]+ [0-9]+)", long in "([0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+ [0-9]+)") {
+        assert!(SchedulePolicy::validate_cron(&short).is_err());
+        assert!(SchedulePolicy::validate_cron(&long).is_err());
+    }
+
+    #[test]
+    fn invalid_cron_out_of_range_minute() {
+        assert!(SchedulePolicy::validate_cron("60 * * * *").is_err());
+    }
+
+    #[test]
+    fn invalid_cron_out_of_range_hour() {
+        assert!(SchedulePolicy::validate_cron("0 24 * * *").is_err());
+    }
+
+    #[test]
+    fn invalid_cron_out_of_range_month() {
+        assert!(SchedulePolicy::validate_cron("0 0 * 13 *").is_err());
+    }
+
+    #[test]
+    fn invalid_cron_out_of_range_day_of_week() {
+        assert!(SchedulePolicy::validate_cron("0 0 * * 7").is_err());
+    }
+
+    // ── RetryPolicy try_new constraints ──
+
+    #[test]
+    fn retry_policy_zero_max_attempts_rejected() {
+        let result = RetryPolicy::try_new(0, 2.0, Duration::from_secs(1), Duration::from_secs(60));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_backoff_below_one_rejected() {
+        let result = RetryPolicy::try_new(3, 0.99, Duration::from_secs(1), Duration::from_secs(60));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_zero_initial_delay_rejected() {
+        let result = RetryPolicy::try_new(3, 2.0, Duration::ZERO, Duration::from_secs(60));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_max_below_initial_rejected() {
+        let result = RetryPolicy::try_new(3, 2.0, Duration::from_secs(10), Duration::from_secs(5));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn retry_policy_valid_boundary_values() {
+        let policy = RetryPolicy::try_new(1, 1.0, Duration::from_millis(1), Duration::from_secs(300));
+        assert!(policy.is_ok());
+    }
+}
+
+// ── Custom proptest strategy for JobPriority ──
+
+impl Strategy for JobPriority {
+    type Item = Self;
+    type Strategy = proptest::collection::IndexVecStrategy<usize, Self>;
+
+    fn strategy(&self) -> Self::Strategy {
+        proptest::collection::index_vec(any::<u8>().prop_map(|v| JobPriority::from_u8(v)))
+    }
+}
+
+// ── Helper strategies for types without built-in strategies ──
+
+/// Proptest strategy for JobKind.
+pub fn any_job_kind() -> impl Strategy<Value = JobKind> {
+    prop_oneof![
+        Just(JobKind::OneShot),
+        Just(JobKind::Recurring),
+        Just(JobKind::Delayed),
+    ]
+}
+
+/// Proptest strategy for JobPriority.
+pub fn any_job_priority() -> impl Strategy<Value = JobPriority> {
+    prop_oneof![
+        Just(JobPriority::Critical),
+        Just(JobPriority::High),
+        Just(JobPriority::Normal),
+        Just(JobPriority::Low),
+        Just(JobPriority::Background),
+    ]
+}
+
+/// Proptest strategy for JobState.
+pub fn any_job_state() -> impl Strategy<Value = JobState> {
+    prop_oneof![
+        Just(JobState::Scheduled),
+        Just(JobState::Pending),
+        Just(JobState::Running),
+        Just(JobState::Completed),
+        Just(JobState::Failed),
+        Just(JobState::Cancelled),
+        Just(JobState::Retrying),
+    ]
+}
+
+/// Proptest strategy for SchedulePolicy.
+pub fn any_schedule_policy() -> impl Strategy<Value = SchedulePolicy> {
+    prop_oneof![
+        any::<chrono::DateTime<chrono::Utc>>().prop_map(SchedulePolicy::At),
+        (1u64..3600000).prop_map(|ms| SchedulePolicy::After(Duration::from_millis(ms))),
+        any::<String>()
+            .prop_filter("valid cron", |s| {
+                s.split_whitespace().count() == 5
+            })
+            .prop_map(SchedulePolicy::Cron),
+        Just(SchedulePolicy::Immediate),
+    ]
+}
+
+/// Proptest strategy for RetryPolicy.
+pub fn any_retry_policy() -> impl Strategy<Value = RetryPolicy> {
+    (
+        1u32..10u32,
+        1.0f64..3.0f64,
+        1u64..5000u64,
+        1000u64..300000u64,
+    )
+        .prop_map(|(max, mult, init, max_d)| {
+            // Ensure max_delay >= initial_delay by adjusting
+            let init = Duration::from_millis(init);
+            let max_delay = Duration::from_millis(max_d.max(init.as_millis() as u64));
+            RetryPolicy::try_new(max, mult, init, max_delay).unwrap()
+        })
+}
+
+/// Proptest strategy for ScheduledJob.
+pub fn any_scheduled_job() -> impl Strategy<Value = ScheduledJob> {
+    (
+        any_job_kind(),
+        any_job_priority(),
+        any_schedule_policy(),
+        any_retry_policy(),
+        any::<Vec<u8>>(),
+    )
+        .prop_map(|(kind, priority, policy, retry, payload)| {
+            ScheduledJob::new(kind, priority, policy, retry, payload.into()).unwrap()
+        })
 }

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use vo_types::{GuaranteeClass, NodeKind, NodeName, WorkflowName};
 
+use crate::execution::{BoxedNodeFn, NodeFunctionRegistry};
 use crate::graph::{default_retry_policy, EdgeSpec, NodeSpec, SignalNodeMeta, WorkflowSpec};
 use crate::node_handle::NodeHandle;
 
@@ -26,8 +27,10 @@ pub enum DagError {
     CycleDetected { cycle: String },
     #[error("duplicate node name: {name}")]
     DuplicateNodeName { name: String },
-    #[error("self-loop not allowed on node: {name}")]
+    #[error("self-loop not allowed: {name}")]
     SelfLoop { name: String },
+    #[error("orphan node (no edges): {name}")]
+    OrphanNode { name: String },
 }
 
 /// Error returned when a cycle is detected during DAG validation.

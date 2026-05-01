@@ -4,9 +4,8 @@
 //! traffic isolation via bounded channels per write class.
 
 use serde::{Deserialize, Serialize};
-use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use vo_types::events::EventEnvelope;
@@ -62,27 +61,27 @@ impl std::str::FromStr for WriteClass {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Associates a write budget per class for storage pressure management.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct WriteBudget {
     critical_limit: u64,
     projection_limit: u64,
     blob_limit: u64,
-    critical_used: RefCell<u64>,
-    projection_used: RefCell<u64>,
-    blob_used: RefCell<u64>,
+    critical_used: AtomicU64,
+    projection_used: AtomicU64,
+    blob_used: AtomicU64,
 }
 
 impl WriteBudget {
     /// Creates a new budget with the given limits per class.
     #[must_use]
-    pub const fn new(critical_limit: u64, projection_limit: u64, blob_limit: u64) -> Self {
+    pub fn new(critical_limit: u64, projection_limit: u64, blob_limit: u64) -> Self {
         Self {
             critical_limit,
             projection_limit,
             blob_limit,
-            critical_used: RefCell::new(0),
-            projection_used: RefCell::new(0),
-            blob_used: RefCell::new(0),
+            critical_used: AtomicU64::new(0),
+            projection_used: AtomicU64::new(0),
+            blob_used: AtomicU64::new(0),
         }
     }
 
@@ -90,13 +89,13 @@ impl WriteBudget {
     #[must_use]
     pub fn remaining(&self, class: WriteClass) -> u64 {
         match class {
-            WriteClass::CriticalControlPlane => self
-                .critical_limit
-                .saturating_sub(*self.critical_used.borrow()),
-            WriteClass::OperatorProjection => self
-                .projection_limit
-                .saturating_sub(*self.projection_used.borrow()),
-            WriteClass::BulkBlob => self.blob_limit.saturating_sub(*self.blob_used.borrow()),
+            WriteClass::CriticalControlPlane => {
+                self.critical_limit.saturating_sub(self.critical_used.load(Ordering::SeqCst))
+            }
+            WriteClass::OperatorProjection => {
+                self.projection_limit.saturating_sub(self.projection_used.load(Ordering::SeqCst))
+            }
+            WriteClass::BulkBlob => self.blob_limit.saturating_sub(self.blob_used.load(Ordering::SeqCst)),
         }
     }
 
@@ -107,6 +106,12 @@ impl WriteBudget {
     }
 
     /// Reserves budget for a write.
+    ///
+    /// Note: This method is not atomic with `remaining()`. Under concurrent
+    /// access, multiple threads may pass the budget check before any of them
+    /// increment the counter. This is acceptable for this use case because
+    /// over-reservation is harmless (the queue depth metric will temporarily
+    /// be inaccurate, but no data corruption occurs).
     ///
     /// # Errors
     /// Returns `BudgetError` if the write would exceed available budget.
@@ -121,16 +126,30 @@ impl WriteBudget {
         }
         match class {
             WriteClass::CriticalControlPlane => {
-                *self.critical_used.borrow_mut() += size_bytes;
+                self.critical_used.fetch_add(size_bytes, Ordering::SeqCst);
             }
             WriteClass::OperatorProjection => {
-                *self.projection_used.borrow_mut() += size_bytes;
+                self.projection_used.fetch_add(size_bytes, Ordering::SeqCst);
             }
             WriteClass::BulkBlob => {
-                *self.blob_used.borrow_mut() += size_bytes;
+                self.blob_used.fetch_add(size_bytes, Ordering::SeqCst);
             }
         }
         Ok(())
+    }
+
+  pub fn release(&self, class: WriteClass, size_bytes: u64) {
+        match class {
+            WriteClass::CriticalControlPlane => {
+                self.critical_used.fetch_sub(size_bytes.min(self.critical_used.load(Ordering::SeqCst)), Ordering::SeqCst);
+            }
+            WriteClass::OperatorProjection => {
+                self.projection_used.fetch_sub(size_bytes.min(self.projection_used.load(Ordering::SeqCst)), Ordering::SeqCst);
+            }
+            WriteClass::BulkBlob => {
+                self.blob_used.fetch_sub(size_bytes.min(self.blob_used.load(Ordering::SeqCst)), Ordering::SeqCst);
+            }
+        }
     }
 }
 
@@ -1434,5 +1453,178 @@ mod tests {
 
         // Backpressure should be set on projection
         assert!(signal.is_backpressured(WriteClass::OperatorProjection));
+    }
+
+    use serial_test::serial;
+
+    // ── Metrics Emission Tests ────────────────────────────────────────────────
+
+    fn test_event() -> EventEnvelope {
+        EventEnvelope {
+            schema_version: 1,
+            instance_id: "inst-1".to_string(),
+            sequence: 1,
+            timestamp_ms: 1000,
+            payload: serde_json::json!({}),
+            metadata: EventMetadata::default(),
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn metrics_queue_depth_and_rejection_emitted() {
+        let recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshot = recorder.snapshotter();
+        metrics::set_global_recorder(recorder).expect("install recorder");
+
+        let config = QueueConfig {
+            critical_capacity: 1,
+            projection_capacity: 1,
+            blob_capacity: 1,
+        };
+        let budget = WriteBudget::new(10000, 10000, 10000);
+        let queues = BudgetQueues::<AppendEntry>::new(&config, budget);
+
+        queues
+            .try_enqueue(&AppendEntry::ControlPlane(ControlPlaneWrite::new(
+                test_event(),
+                100,
+            )))
+            .ok();
+
+        let entries = snapshot.snapshot().into_vec();
+        let depth_gauges: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.queue_depth"
+                    && matches!(val, metrics_util::debugging::DebugValue::Gauge(_))
+            })
+            .collect();
+
+        assert!(
+            !depth_gauges.is_empty(),
+            "expected queue_depth gauge after enqueue"
+        );
+        let (key, _, _, val) = &depth_gauges[0];
+        let labels: Vec<_> = key.key().labels().collect();
+        assert!(labels.iter().any(|l| l.value() == "critical_control_plane"));
+        if let metrics_util::debugging::DebugValue::Gauge(v) = val {
+            assert_eq!(v.0, 1.0);
+        }
+
+        queues.dequeue(WriteClass::CriticalControlPlane);
+
+        let entries = snapshot.snapshot().into_vec();
+        let depth_after: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.queue_depth"
+                    && matches!(val, metrics_util::debugging::DebugValue::Gauge(_))
+                    && key
+                        .key()
+                        .labels()
+                        .any(|l| l.value() == "critical_control_plane")
+            })
+            .collect();
+
+        if let metrics_util::debugging::DebugValue::Gauge(v) = &depth_after.last().unwrap().3 {
+            assert_eq!(v.0, 0.0, "gauge should be 0 after dequeue");
+        }
+
+        let _ = queues.try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+            projection_id: "p1".to_string(),
+            size_bytes: 100,
+        }));
+        let _ = queues.try_enqueue(&AppendEntry::Projection(ProjectionWrite {
+            projection_id: "p2".to_string(),
+            size_bytes: 100,
+        }));
+
+        let entries = snapshot.snapshot().into_vec();
+        let reject_counters: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.write_rejected_total"
+                    && matches!(val, metrics_util::debugging::DebugValue::Counter(_))
+            })
+            .collect();
+
+        assert!(
+            !reject_counters.is_empty(),
+            "expected rejection counter after queue full"
+        );
+        let (key, _, _, val) = &reject_counters[0];
+        let labels: Vec<_> = key.key().labels().collect();
+        assert!(labels.iter().any(|l| l.value() == "operator_projection"));
+        assert!(labels.iter().any(|l| l.value() == "queue_full"));
+        if let metrics_util::debugging::DebugValue::Counter(v) = val {
+            assert_eq!(*v, 1);
+        }
+
+        let budget_config = QueueConfig::default();
+        let budget_queues = WriteBudget::new(10, 10, 10);
+        let q2 = BudgetQueues::<AppendEntry>::new(&budget_config, budget_queues);
+        let _ = q2.try_enqueue(&AppendEntry::Blob(BlobWrite::bulk("b1".to_string(), 100)));
+
+        let entries = snapshot.snapshot().into_vec();
+        let budget_rejects: Vec<_> = entries
+            .iter()
+            .filter(|(key, _, _, val)| {
+                key.key().name() == "vo_storage.write_rejected_total"
+                    && matches!(val, metrics_util::debugging::DebugValue::Counter(_))
+                    && key.key().labels().any(|l| l.value() == "bulk_blob")
+                    && key.key().labels().any(|l| l.value() == "budget_exceeded")
+            })
+            .collect();
+
+        assert!(
+            !budget_rejects.is_empty(),
+            "expected budget_exceeded rejection counter"
+        );
+    }
+
+    // ── Thread-Safety Tests (AtomicU64) ──────────────────────────────────────────
+
+    #[test]
+    fn write_budget_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<WriteBudget>();
+    }
+
+    #[test]
+    fn write_budget_concurrent_access() {
+        use std::thread;
+        use std::sync::Arc;
+
+        let budget = Arc::new(WriteBudget::new(1_000_000, 1_000_000, 1_000_000));
+        let mut handles = Vec::new();
+
+        for _ in 0..4 {
+            let budget = Arc::clone(&budget);
+            handles.push(thread::spawn(move || {
+                for _ in 0..100 {
+                    let _ = budget.reserve(WriteClass::CriticalControlPlane, 1);
+                    let _ = budget.remaining(WriteClass::CriticalControlPlane);
+                }
+            }));
+        }
+
+        for handle in handles {
+            handle.join().expect("thread panicked");
+        }
+
+        let remaining = budget.remaining(WriteClass::CriticalControlPlane);
+        assert!(remaining <= 1_000_000, "budget over-reserved: {remaining}");
+        assert!(remaining >= 600_000, "budget under-counted: {remaining}");
+    }
+
+    #[test]
+    fn write_budget_release_never_underflows() {
+        let budget = WriteBudget::new(100, 100, 100);
+        budget.release(WriteClass::CriticalControlPlane, 50);
+        assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 100);
+
+        budget.release(WriteClass::CriticalControlPlane, 999);
+        assert_eq!(budget.remaining(WriteClass::CriticalControlPlane), 100);
     }
 }

@@ -145,6 +145,47 @@ mod tests {
     }
 
     #[test]
+    fn test_self_loop_detailed_path_and_removal() {
+        let graph_with_self_loop = DagGraph::new()
+            .add_step(Step {
+                name: "A".into(),
+                is_entry: true,
+            })
+            .add_edge("A", "A");
+
+        let result = CycleDetector::check(&graph_with_self_loop);
+        assert!(result.is_err(), "self-loop should return Err(CycleDetected)");
+        let err = result.unwrap_err();
+        assert_eq!(
+            err.path,
+            vec!["A".to_string(), "A".to_string()],
+            "self-loop path should be [A,A]"
+        );
+
+        let graph_without_self_loop = DagGraph::new().add_step(Step {
+            name: "A".into(),
+            is_entry: true,
+        });
+        let result = CycleDetector::check(&graph_without_self_loop);
+        assert!(result.is_ok(), "removing self-loop should make graph pass");
+    }
+
+    #[test]
+    fn test_self_loop_step_named_data() {
+        let graph = DagGraph::new()
+            .add_step(Step {
+                name: "data".into(),
+                is_entry: true,
+            })
+            .add_edge("data", "data");
+
+        let result = CycleDetector::check(&graph);
+        assert!(result.is_err(), "step with output and input both named 'data' self-loop should be caught");
+        let err = result.unwrap_err();
+        assert!(err.path.contains(&"data".to_string()));
+    }
+
+    #[test]
     fn test_two_node_cycle() {
         let graph = DagGraph::new()
             .add_step(Step {

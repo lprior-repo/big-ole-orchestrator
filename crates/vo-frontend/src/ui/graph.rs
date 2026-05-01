@@ -88,7 +88,7 @@ pub struct Connection {
 }
 
 /// Run record for a workflow execution (ADR-031).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RunRecord {
     pub id: Uuid,
     pub timestamp: DateTime<Utc>,
@@ -311,6 +311,8 @@ pub struct Node {
     pub y: f64,
     pub config: serde_json::Value,
     pub execution_state: ExecutionState,
+    #[serde(default)]
+    pub last_output: Option<serde_json::Value>,
 }
 
 impl Node {
@@ -334,6 +336,7 @@ impl Node {
             y: 0.0,
             config: serde_json::Value::Object(Default::default()),
             execution_state: ExecutionState::Idle,
+            last_output: None,
         })
     }
 
@@ -373,6 +376,7 @@ impl Node {
             y,
             config: serde_json::Value::Object(Default::default()),
             execution_state: ExecutionState::Idle,
+            last_output: None,
         })
     }
 

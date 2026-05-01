@@ -187,3 +187,91 @@ pub fn kill_process_group(pid: i32, signal: i32) {
         libc::kill(pid, signal);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pipe2_returns_valid_fds() {
+        let fds = pipe2().expect("pipe2 should succeed");
+        assert_ne!(fds[0], fds[1]);
+        assert!(fds[0] >= 0);
+        assert!(fds[1] >= 0);
+        unsafe {
+            libc::close(fds[0]);
+            libc::close(fds[1]);
+        }
+    }
+
+    #[test]
+    fn pipe2_fds_are_cloexec() {
+        let fds = pipe2().expect("pipe2 should succeed");
+        let read_flags = unsafe { libc::fcntl(fds[0], libc::F_GETFD) };
+        let write_flags = unsafe { libc::fcntl(fds[1], libc::F_GETFD) };
+        assert_eq!(read_flags & libc::FD_CLOEXEC, libc::FD_CLOEXEC);
+        assert_eq!(write_flags & libc::FD_CLOEXEC, libc::FD_CLOEXEC);
+        unsafe {
+            libc::close(fds[0]);
+            libc::close(fds[1]);
+        }
+    }
+
+    #[test]
+    fn pipe2_write_then_read() {
+        let fds = pipe2().expect("pipe2 should succeed");
+        let msg = b"hello syscalls";
+        let written = unsafe { libc::write(fds[1], msg.as_ptr() as *const _, msg.len()) };
+        assert_eq!(written as usize, msg.len());
+        unsafe { libc::close(fds[1]); }
+
+        let mut buf = [0u8; 32];
+        let n = unsafe { libc::read(fds[0], buf.as_mut_ptr() as *mut _, buf.len()) };
+        assert_eq!(n as usize, msg.len());
+        assert_eq!(&buf[..msg.len()], msg);
+        unsafe { libc::close(fds[0]); }
+    }
+
+    #[test]
+    fn close_raw_fd_does_not_panic() {
+        let fds = pipe2().unwrap();
+        close_raw_fd(fds[0]);
+        close_raw_fd(fds[1]);
+    }
+
+    #[test]
+    fn file_from_raw_fd_creates_readable_file() {
+        let fds = pipe2().unwrap();
+        let msg = b"fd conversion test";
+        let written = unsafe { libc::write(fds[1], msg.as_ptr() as *const _, msg.len()) };
+        assert_eq!(written as usize, msg.len());
+        unsafe { libc::close(fds[1]); }
+
+        let file = file_from_raw_fd(fds[0]);
+        use std::io::Read;
+        let mut buf = Vec::new();
+        file.take(msg.len() as u64).read_to_end(&mut buf).unwrap();
+        assert_eq!(&buf[..], msg);
+    }
+
+    #[test]
+    fn pre_exec_setup_new() {
+        let setup = PreExecSetup::new(10, 20);
+        let closure = setup.pre_exec_closure();
+        let _closure: Box<dyn FnMut() -> std::io::Result<()>> = Box::new(closure);
+    }
+
+    #[test]
+    fn pre_exec_setup_debug() {
+        let setup = PreExecSetup::new(3, 4);
+        let debug = format!("{:?}", setup);
+        assert!(debug.contains("PreExecSetup"));
+    }
+
+    #[test]
+    fn pre_exec_setup_copy() {
+        let setup = PreExecSetup::new(5, 6);
+        let copied = setup;
+        assert_eq!(format!("{:?}", copied), format!("{:?}", setup));
+    }
+}

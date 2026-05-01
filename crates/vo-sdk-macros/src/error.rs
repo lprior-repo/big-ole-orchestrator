@@ -1,13 +1,4 @@
 //! Error taxonomy for the `#[task]` procedural macro.
-//!
-//! # Error Categories
-//!
-//! | Category | Variants | Phase |
-//! |----------|----------|-------|
-//! | Input validation | `InvalidInputItem`, `UnsupportedSignature`, `GenericFunction` | Parsing |
-//! | Attribute errors | `EmptyAttribute`, `TooManyAttributes`, `UnsupportedAttribute` | Attribute parsing |
-//! | Code generation | `IdentParsingFailed`, `AsyncReturnTypeMismatch`, `GenerationFailed` | Generation |
-//! | Parse errors | `ParseFailure` | Parsing |
 
 use thiserror::Error;
 
@@ -33,4 +24,10 @@ pub enum Error {
     UnsupportedAttribute { attribute: String },
     #[error("code generation failed for function '{ident}'")]
     GenerationFailed { ident: String },
+    #[error("invalid value for attribute '{0}': {1}")]
+    InvalidAttributeValue(String, String),
+    #[error("unknown attribute: '{0}'")]
+    UnknownAttribute(String),
+    #[error("negative retry count: {0}")]
+    NegativeRetries(i64),
 }

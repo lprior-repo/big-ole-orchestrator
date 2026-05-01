@@ -52,6 +52,7 @@
 
 pub mod dag;
 pub mod execute;
+pub mod execution;
 pub mod graph;
 pub mod node_handle;
 pub mod runtime;
@@ -238,38 +239,6 @@ pub enum SdkError {
     AlreadyWritten,
     #[error("WriteError")]
     WriteError,
-}
-
-// TODO(vel-edo): TaskFailureKind should live in vo-types per the contract.
-// Kept here temporarily because this bead is scoped to vo-sdk only.
-// See: contract.md precondition "vo-types must define the shared IPC types"
-/// Kind of task failure, used to categorize errors from [`write_failure`](crate::write_failure).
-///
-/// # Example
-///
-/// ```
-/// use vo_sdk::TaskFailureKind;
-///
-/// // Each variant represents a distinct failure category
-/// assert_eq!(format!("{:?}", TaskFailureKind::User), "User");
-/// assert_eq!(format!("{:?}", TaskFailureKind::System), "System");
-/// assert_eq!(format!("{:?}", TaskFailureKind::Timeout), "Timeout");
-/// ```
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub enum TaskFailureKind {
-    User,
-    System,
-    Timeout,
-}
-
-impl TaskFailureKind {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::User => "User",
-            Self::System => "System",
-            Self::Timeout => "Timeout",
-        }
-    }
 }
 
 // TaskInput re-exported from vo_types.

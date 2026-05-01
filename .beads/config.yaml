@@ -55,5 +55,8 @@ no-db: false
 
 backup.enabled: false
 
-dolt.port: 3399
+dolt.port: 3307
+dolt.database: veloxide
+dolt.host: 127.0.0.1
+dolt.data-dir: /home/lewis/gt/.dolt-data/veloxide
 

@@ -177,4 +177,122 @@ mod tests {
         assert!(index.get("hello").is_none());
         assert!(!index.contains("hello"));
     }
+
+    #[test]
+    fn ii_008_merge_frequencies_duplicate_term() {
+        let mut index = InvertedIndex::new();
+        let doc1 = WorkspaceId::generate();
+        let doc2 = WorkspaceId::generate();
+
+        for _ in 0..3 {
+            index.insert("workflow", doc1, 10.0);
+        }
+        let postings = index.get("workflow").unwrap();
+        assert_eq!(postings.len(), 1);
+        assert_eq!(postings[0].term_frequency, 3);
+
+        for _ in 0..2 {
+            index.insert("workflow", doc1, 10.0);
+        }
+        let postings = index.get("workflow").unwrap();
+        assert_eq!(postings.len(), 1);
+        assert_eq!(postings[0].term_frequency, 5);
+
+        index.insert("workflow", doc2, 20.0);
+        let postings = index.get("workflow").unwrap();
+        assert_eq!(postings.len(), 2);
+        assert_eq!(
+            postings.iter().find(|p| p.document_id == doc1).unwrap().term_frequency,
+            5
+        );
+        assert_eq!(
+            postings.iter().find(|p| p.document_id == doc2).unwrap().term_frequency,
+            1
+        );
+
+        assert_eq!(index.document_frequency("workflow"), 2);
+    }
+
+    #[test]
+    fn ii_009_empty_string_term_inserted_as_key() {
+        let mut index = InvertedIndex::new();
+        let id = WorkspaceId::generate();
+        index.insert("", id, 10.0);
+        assert!(index.contains(""));
+        assert_eq!(index.get("").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ii_010_empty_string_does_not_corrupt_other_terms() {
+        let mut index = InvertedIndex::new();
+        let id1 = WorkspaceId::generate();
+        let id2 = WorkspaceId::generate();
+        index.insert("hello", id1, 10.0);
+        index.insert("", id2, 5.0);
+        assert_eq!(index.get("hello").unwrap().len(), 1);
+        assert_eq!(index.get("hello").unwrap()[0].document_id, id1);
+        assert!(index.contains(""));
+    }
+
+    #[test]
+    fn ii_011_zero_document_length() {
+        let mut index = InvertedIndex::new();
+        let id = WorkspaceId::generate();
+        index.insert("hello", id, 0.0);
+        let postings = index.get("hello").unwrap();
+        assert_eq!(postings.len(), 1);
+        assert_eq!(postings[0].document_length, 0);
+    }
+
+    #[test]
+    fn ii_012_zero_length_does_not_corrupt_index() {
+        let mut index = InvertedIndex::new();
+        let id1 = WorkspaceId::generate();
+        let id2 = WorkspaceId::generate();
+        index.insert("hello", id1, 10.0);
+        index.insert("world", id2, 0.0);
+        assert_eq!(index.get("hello").unwrap()[0].document_length, 10);
+        assert_eq!(index.get("world").unwrap()[0].document_length, 0);
+    }
+
+    #[test]
+    fn ii_013_single_char_term() {
+        let mut index = InvertedIndex::new();
+        let id = WorkspaceId::generate();
+        index.insert("a", id, 10.0);
+        assert!(index.contains("a"));
+        assert_eq!(index.get("a").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ii_014_unicode_term() {
+        let mut index = InvertedIndex::new();
+        let id = WorkspaceId::generate();
+        index.insert("café", id, 10.0);
+        assert!(index.contains("café"));
+        let postings = index.get("café").unwrap();
+        assert_eq!(postings.len(), 1);
+        assert_eq!(postings[0].term_frequency, 1);
+    }
+
+    #[test]
+    fn ii_015_unicode_multi_codepoint_term() {
+        let mut index = InvertedIndex::new();
+        let id = WorkspaceId::generate();
+        index.insert("🏳️‍🌈", id, 10.0);
+        assert!(index.contains("🏳️‍🌈"));
+        assert_eq!(index.get("🏳️‍🌈").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn ii_016_unicode_and_ascii_coexist() {
+        let mut index = InvertedIndex::new();
+        let id1 = WorkspaceId::generate();
+        let id2 = WorkspaceId::generate();
+        index.insert("hello", id1, 10.0);
+        index.insert("café", id2, 15.0);
+        assert_eq!(index.get("hello").unwrap().len(), 1);
+        assert_eq!(index.get("café").unwrap().len(), 1);
+        assert!(index.get("hello").unwrap()[0].document_id != index.get("café").unwrap()[0].document_id);
+    }
 }

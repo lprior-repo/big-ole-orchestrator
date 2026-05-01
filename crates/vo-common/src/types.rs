@@ -14,6 +14,9 @@ impl InstanceId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+    pub fn generate() -> Self {
+        Self(ulid::Ulid::new().to_string())
+    }
 }
 
 impl Deref for InstanceId {
@@ -201,5 +204,20 @@ mod tests {
     fn instance_id_unicode() {
         let id = InstanceId::new("实例-123-🔱");
         assert_eq!(id.as_str(), "实例-123-🔱");
+    }
+
+    #[test]
+    fn namespace_id_json_roundtrip() {
+        let ns = NamespaceId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV");
+        let json = serde_json::to_string(&ns).expect("serialize");
+        assert_eq!(json, "\"01ARZ3NDEKTSV4RRFFQ69G5FAV\"");
+        let deserialized: NamespaceId = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(ns, deserialized);
+    }
+
+    #[test]
+    fn namespace_id_deserialize_invalid_rejects() {
+        let result: Result<NamespaceId, _> = serde_json::from_str("invalid!");
+        assert!(result.is_err());
     }
 }

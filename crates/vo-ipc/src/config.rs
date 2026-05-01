@@ -1,7 +1,9 @@
 use crate::error::ConfigError;
-use std::ffi::OsString;
-use std::os::unix::fs::PermissionsExt;
+use std::ffi::{CString, OsString};
 use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
+use libc::{close, fstat, open, O_NOFOLLOW, O_RDONLY, S_IFMT, S_IFREG};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubprocessConfig {
@@ -68,25 +70,48 @@ pub(crate) const fn validate_timeout(timeout_ms: u64) -> Result<(), ConfigError>
     Ok(())
 }
 
-pub(crate) fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
-    if !path.exists() {
-        return Err(ConfigError::ProgramMissing {
+fn validate_program_path(path: &Path) -> Result<(), ConfigError> {
+    if !path.is_absolute() {
+        return Err(ConfigError::RelativePath {
             path: path.to_path_buf(),
         });
     }
 
-    let metadata = path.metadata().map_err(|_| ConfigError::ProgramMissing {
+    let path_cstr = CString::new(path.to_str().ok_or_else(|| ConfigError::ProgramMissing {
+        path: path.to_path_buf(),
+    })?).map_err(|_| ConfigError::ProgramMissing {
         path: path.to_path_buf(),
     })?;
 
-    if !metadata.is_file() {
+    let fd = unsafe { open(path_cstr.as_ptr(), O_NOFOLLOW | O_RDONLY) };
+    if fd < 0 {
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
+    }
+    let mut stat_buf: libc::stat = unsafe { std::mem::zeroed() };
+    let fstat_result = unsafe { fstat(fd, &mut stat_buf) };
+    let close_result = unsafe { close(fd) };
+
+    if fstat_result < 0 {
         return Err(ConfigError::ProgramMissing {
             path: path.to_path_buf(),
         });
     }
 
-    let permissions = metadata.permissions();
-    if permissions.mode() & 0o111 == 0 {
+    if close_result < 0 {
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
+    }
+
+    if (stat_buf.st_mode & S_IFMT) != S_IFREG {
+        return Err(ConfigError::ProgramMissing {
+            path: path.to_path_buf(),
+        });
+    }
+
+    if stat_buf.st_mode & 0o111 == 0 {
         return Err(ConfigError::ProgramNotExecutable {
             path: path.to_path_buf(),
         });
@@ -103,74 +128,97 @@ pub(crate) fn parse_fd3_payload_as_argv(payload: &[u8]) -> Vec<OsString> {
         .collect()
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs::File;
     use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
     use tempfile::tempdir;
 
     #[test]
-    fn validate_timeout_returns_error_when_timeout_is_zero() {
+    fn validate_timeout_rejects_zero() {
         assert_eq!(
             validate_timeout(0),
             Err(ConfigError::TimeoutMustBePositive { timeout_ms: 0 })
         );
-        assert_eq!(validate_timeout(10), Ok(()));
     }
 
     #[test]
-    fn validate_program_returns_missing_when_path_does_not_exist() {
-        let path = PathBuf::from("/does/not/exist");
-        let result = open_and_validate_program(&path);
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ConfigError::ProgramMissing { path: p } => assert_eq!(p, path),
-            other => panic!("expected ProgramMissing, got {:?}", other),
-        }
+    fn validate_timeout_accepts_positive() {
+        assert_eq!(validate_timeout(1), Ok(()));
+        assert_eq!(validate_timeout(u64::MAX), Ok(()));
     }
 
     #[test]
-    fn validate_program_returns_missing_when_path_is_directory() {
+    fn parse_fd3_payload_splits_whitespace() {
+        let args = parse_fd3_payload_as_argv(b"hello world  foo");
+        assert_eq!(args, vec!["hello", "world", "foo"]);
+    }
+
+    #[test]
+    fn parse_fd3_payload_empty_returns_empty() {
+        let args = parse_fd3_payload_as_argv(b"");
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn parse_fd3_payload_all_whitespace_returns_empty() {
+        let args = parse_fd3_payload_as_argv(b"  \t  \n  ");
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn parse_fd3_payload_invalid_utf8_lossy() {
+        let args = parse_fd3_payload_as_argv(&[0xff, 0xfe, b' ', b'a']);
+        assert_eq!(args.len(), 2);
+        assert_eq!(args[1], "a");
+    }
+
+    #[test]
+    fn subprocess_config_validates_timeout() {
         let dir = tempdir().unwrap();
-        let result = open_and_validate_program(dir.path());
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            ConfigError::ProgramMissing { path: p } => assert_eq!(p, dir.path()),
-            other => panic!("expected ProgramMissing, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn validate_program_rejects_non_executable_file() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("not_exec");
+        let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
-        let metadata = std::fs::metadata(&file_path).unwrap();
-        let mut perms = metadata.permissions();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let result = SubprocessConfig::new(&file_path, 0, vec![]);
+        assert!(matches!(result, Err(ConfigError::TimeoutMustBePositive { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_validates_missing_path() {
+        let result = SubprocessConfig::new("/nonexistent/binary", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::ProgramMissing { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_validates_non_executable() {
+        let dir = std::env::temp_dir().join("vo_ipc_test_nonexec");
+        let _ = std::fs::create_dir_all(&dir);
+        let file_path = dir.join("data.txt");
+        let _ = std::fs::remove_file(&file_path);
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
         perms.set_mode(0o644);
         std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = open_and_validate_program(&file_path);
-        assert!(result.is_err(), "non-executable file should be rejected");
+
+        let result = SubprocessConfig::new(&file_path, 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::ProgramNotExecutable { .. })));
+        let _ = std::fs::remove_file(&file_path);
     }
 
     #[test]
-    fn validate_program_accepts_executable_file() {
+    fn subprocess_config_validates_directory_as_not_a_file() {
         let dir = tempdir().unwrap();
-        let file_path = dir.path().join("exec");
-        File::create(&file_path).unwrap();
-        let metadata = std::fs::metadata(&file_path).unwrap();
-        let mut perms = metadata.permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&file_path, perms).unwrap();
-        let result = open_and_validate_program(&file_path);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), file_path.canonicalize().unwrap());
+        let result = SubprocessConfig::new(dir.path(), 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::ProgramMissing { .. })));
     }
 
     #[test]
-    fn subprocess_config_returns_expected_getters_when_input_is_valid() {
+    fn subprocess_config_getters_return_correct_values() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
@@ -178,17 +226,14 @@ mod tests {
         perms.set_mode(0o755);
         std::fs::set_permissions(&file_path, perms).unwrap();
 
-        let config = SubprocessConfig::new(&file_path, 100, b"arg1 arg2".to_vec()).unwrap();
-        assert_eq!(config.timeout_ms(), 100);
+        let config = SubprocessConfig::new(&file_path, 200, b"arg1 arg2".to_vec()).unwrap();
+        assert_eq!(config.timeout_ms(), 200);
         assert_eq!(config.fd3_payload(), b"arg1 arg2");
-        let argv = config.argv();
-        assert_eq!(argv.len(), 2);
-        assert_eq!(argv[0], "arg1");
-        assert_eq!(argv[1], "arg2");
+        assert_eq!(config.argv(), vec!["arg1", "arg2"]);
     }
 
     #[test]
-    fn subprocess_config_supports_clone_eq_and_debug() {
+    fn subprocess_config_canonicalizes_path() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("exec");
         File::create(&file_path).unwrap();
@@ -196,12 +241,129 @@ mod tests {
         perms.set_mode(0o755);
         std::fs::set_permissions(&file_path, perms).unwrap();
 
-        let config1 = SubprocessConfig::new(&file_path, 100, b"arg1 arg2".to_vec()).unwrap();
-        let config2 = config1.clone();
+        let config = SubprocessConfig::new(&file_path, 100, vec![]).unwrap();
+        assert!(config.executable_path().is_absolute());
+    }
 
-        assert_eq!(config1, config2);
+    #[test]
+    fn subprocess_config_clone_eq() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
 
-        let debug_str = format!("{:?}", config1);
-        assert!(debug_str.contains("SubprocessConfig"));
+        let config = SubprocessConfig::new(&file_path, 100, b"test".to_vec()).unwrap();
+        let clone = config.clone();
+        assert_eq!(config, clone);
+    }
+
+    #[test]
+    fn subprocess_config_debug() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let config = SubprocessConfig::new(&file_path, 100, vec![]).unwrap();
+        let debug = format!("{:?}", config);
+        assert!(debug.contains("SubprocessConfig"));
+    }
+
+    #[test]
+    fn subprocess_config_large_timeout_accepted() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let config = SubprocessConfig::new(&file_path, u64::MAX, vec![]).unwrap();
+        assert_eq!(config.timeout_ms(), u64::MAX);
+    }
+
+    #[test]
+    fn subprocess_config_payload_preserved() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let payload = b"custom payload with spaces".to_vec();
+        let config = SubprocessConfig::new(&file_path, 500, payload.clone()).unwrap();
+        assert_eq!(config.fd3_payload(), &payload[..]);
+    }
+
+    #[test]
+    fn parse_fd3_payload_preserves_order() {
+        let args = parse_fd3_payload_as_argv(b"first second third fourth");
+        assert_eq!(args, vec!["first", "second", "third", "fourth"]);
+    }
+
+    #[test]
+    fn parse_fd3_payload_single_arg() {
+        let args = parse_fd3_payload_as_argv(b"only");
+        assert_eq!(args, vec!["only"]);
+    }
+
+    #[test]
+    fn parse_fd3_payload_tabs_and_newlines() {
+        let args = parse_fd3_payload_as_argv(b"a\tb\nc\td");
+        assert_eq!(args, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn subprocess_config_accepts_absolute_path() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let result = SubprocessConfig::new(&file_path, 100, vec![]);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn subprocess_config_rejects_relative_path() {
+        let result = SubprocessConfig::new("python3", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::RelativePath { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_rejects_path_traversal() {
+        let result = SubprocessConfig::new("../bin/python3", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::RelativePath { .. })));
+    }
+
+    #[test]
+    fn subprocess_config_accepts_symlink_to_executable() {
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("exec");
+        File::create(&file_path).unwrap();
+        let mut perms = std::fs::metadata(&file_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&file_path, perms).unwrap();
+
+        let symlink_path = dir.path().join("exec_link");
+        std::os::unix::fs::symlink(&file_path, &symlink_path).unwrap();
+
+        let result = SubprocessConfig::new(&symlink_path, 100, vec![]);
+        assert!(result.is_ok());
+        let config = result.unwrap();
+        assert!(config.executable_path().is_absolute());
+    }
+
+    #[test]
+    fn subprocess_config_rejects_nonexistent_path() {
+        let result = SubprocessConfig::new("/nonexistent/binary", 100, vec![]);
+        assert!(matches!(result, Err(ConfigError::ProgramMissing { .. })));
     }
 }

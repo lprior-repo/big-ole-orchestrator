@@ -433,6 +433,7 @@ impl StorageEngine {
             Arc::new(crate::workflow_version_partition::FjallWorkflowVersionStore::open(&db)?);
         let snapshots_store = Arc::new(crate::snapshots::FjallSnapshotStore::open(&db)?);
         let instances_store = Arc::new(crate::instance_index::FjallInstanceIndex::open(&db)?);
+        let timers_store = Arc::new(crate::timer_index::FjallTimerIndex::open(&db)?);
 
         Ok(Self {
             db,
@@ -443,6 +444,7 @@ impl StorageEngine {
             workflow_versions_store,
             snapshots_store,
             instances_store,
+            timers_store,
         })
     }
 
