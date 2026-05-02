@@ -868,6 +868,29 @@ mod tests {
     }
 
     #[test]
+    fn read_envelope_version_1_succeeds() {
+        let env = serde_json::json!({
+            "version": 1,
+            "instance_id": "i",
+            "node_id": "n",
+            "input": null,
+            "secrets": {},
+            "metadata": {}
+        });
+        let payload = serde_json::to_vec(&env).unwrap();
+        let len = payload.len() as u32;
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&payload);
+        let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut Cursor::new(buf));
+        assert!(result.is_ok(), "version 1 should be accepted");
+        let envelope = result.unwrap();
+        assert_eq!(envelope.version, 1);
+        assert_eq!(envelope.instance_id, "i");
+        assert_eq!(envelope.node_id, "n");
+    }
+
+    #[test]
     fn read_envelope_version_255_returns_version_mismatch() {
         let env = serde_json::json!({
             "version": 255,
