@@ -70,6 +70,129 @@ mod reanimator_error_tests {
         let err = ReanimatorError::CorruptKey("bad key".to_string());
         assert_eq!(format!("{}", err), "Corrupt key format: bad key");
     }
+
+    #[test]
+    fn enqueue_failed_is_transient() {
+        let err = ReanimatorError::EnqueueFailed("queue full".to_string());
+        assert!(err.is_transient());
+        assert!(!err.is_fatal());
+    }
+
+    #[test]
+    fn instance_not_found_is_fatal() {
+        let instance_id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap();
+        let err = ReanimatorError::InstanceNotFound(instance_id);
+        assert!(!err.is_transient());
+        assert!(err.is_fatal());
+    }
+
+    #[test]
+    fn xor_all_variants_never_both() {
+        let transient: Vec<ReanimatorError> = vec![
+            ReanimatorError::StorageError("disk full".into()),
+            ReanimatorError::EnqueueFailed("queue full".into()),
+            ReanimatorError::AtomicityViolation("partial write".into()),
+            ReanimatorError::BudgetExceeded("rate limited".into()),
+        ];
+        let fatal: Vec<ReanimatorError> = vec![
+            ReanimatorError::CorruptKey("bad format".into()),
+            ReanimatorError::InstanceNotFound(
+                InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            ReanimatorError::AlreadyRunning,
+            ReanimatorError::AlreadyShutdown,
+        ];
+
+        for err in &transient {
+            assert!(
+                err.is_transient() && !err.is_fatal(),
+                "Transient variant {:?} must be transient only",
+                err
+            );
+        }
+        for err in &fatal {
+            assert!(
+                !err.is_transient() && err.is_fatal(),
+                "Fatal variant {:?} must be fatal only",
+                err
+            );
+        }
+    }
+
+    #[test]
+    fn xor_all_variants_neither_never_holds() {
+        let all: Vec<ReanimatorError> = vec![
+            ReanimatorError::StorageError("x".into()),
+            ReanimatorError::CorruptKey("x".into()),
+            ReanimatorError::AtomicityViolation("x".into()),
+            ReanimatorError::InstanceNotFound(
+                InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            ReanimatorError::BudgetExceeded("x".into()),
+            ReanimatorError::EnqueueFailed("x".into()),
+            ReanimatorError::AlreadyRunning,
+            ReanimatorError::AlreadyShutdown,
+        ];
+        for err in &all {
+            let transient = err.is_transient();
+            let fatal = err.is_fatal();
+            assert!(
+                transient ^ fatal,
+                "Variant {:?} must be exactly one of transient/fatal (transient={}, fatal={})",
+                err,
+                transient,
+                fatal
+            );
+        }
+    }
+
+    #[test]
+    fn exhaustive_variants_covered() {
+        fn assert_exhaustive(err: ReanimatorError) -> (bool, bool) {
+            (err.is_transient(), err.is_fatal())
+        }
+
+        let variants: [ReanimatorError; 8] = [
+            ReanimatorError::StorageError("disk".into()),
+            ReanimatorError::CorruptKey("bad".into()),
+            ReanimatorError::AtomicityViolation("violated".into()),
+            ReanimatorError::InstanceNotFound(
+                InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").unwrap(),
+            ),
+            ReanimatorError::BudgetExceeded("over".into()),
+            ReanimatorError::EnqueueFailed("failed".into()),
+            ReanimatorError::AlreadyRunning,
+            ReanimatorError::AlreadyShutdown,
+        ];
+
+        for (i, v) in variants.iter().enumerate() {
+            let (trans, fat) = assert_exhaustive(v.clone());
+            let expected_trans = matches!(
+                v,
+                ReanimatorError::StorageError(_)
+                    | ReanimatorError::EnqueueFailed(_)
+                    | ReanimatorError::AtomicityViolation(_)
+                    | ReanimatorError::BudgetExceeded(_)
+            );
+            let expected_fatal = matches!(
+                v,
+                ReanimatorError::CorruptKey(_)
+                    | ReanimatorError::InstanceNotFound(_)
+                    | ReanimatorError::AlreadyRunning
+                    | ReanimatorError::AlreadyShutdown
+            );
+            assert_eq!(
+                trans, expected_trans,
+                "variant[{}] {:?} is_transient mismatch",
+                i, v
+            );
+            assert_eq!(
+                fat, expected_fatal,
+                "variant[{}] {:?} is_fatal mismatch",
+                i, v
+            );
+        }
+    }
 }
 
 // =============================================================================
