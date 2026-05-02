@@ -295,4 +295,55 @@ mod tests {
         assert_eq!(index.get("café").unwrap().len(), 1);
         assert!(index.get("hello").unwrap()[0].document_id != index.get("café").unwrap()[0].document_id);
     }
+
+    #[test]
+    fn ii_017_remove_document_cleans_all_postings() {
+        let mut index = InvertedIndex::new();
+        let doc1 = WorkspaceId::generate();
+        let doc2 = WorkspaceId::generate();
+        let doc3 = WorkspaceId::generate();
+
+        index.insert("hello", doc1, 10.0);
+        index.insert("hello", doc2, 15.0);
+        index.insert("hello", doc3, 20.0);
+        index.insert("world", doc1, 5.0);
+        index.insert("world", doc2, 8.0);
+        index.insert("world", doc3, 12.0);
+        index.insert("search", doc2, 30.0);
+
+        assert_eq!(index.document_frequency("hello"), 3);
+        assert_eq!(index.document_frequency("world"), 3);
+        assert_eq!(index.document_frequency("search"), 1);
+
+        index.remove_document(doc2);
+
+        assert!(
+            index.get("hello").map(|pl| !pl.iter().any(|p| p.document_id == doc2)).unwrap_or(true),
+            "doc2 should have no posting in hello"
+        );
+        assert!(
+            index.get("world").map(|pl| !pl.iter().any(|p| p.document_id == doc2)).unwrap_or(true),
+            "doc2 should have no posting in world"
+        );
+        assert!(
+            index.get("search").map(|pl| !pl.iter().any(|p| p.document_id == doc2)).unwrap_or(true),
+            "doc2 should have no posting in search"
+        );
+
+        let hello_postings = index.get("hello").unwrap();
+        assert_eq!(hello_postings.len(), 2);
+        assert!(hello_postings.iter().any(|p| p.document_id == doc1));
+        assert!(hello_postings.iter().any(|p| p.document_id == doc3));
+
+        let world_postings = index.get("world").unwrap();
+        assert_eq!(world_postings.len(), 2);
+        assert!(world_postings.iter().any(|p| p.document_id == doc1));
+        assert!(world_postings.iter().any(|p| p.document_id == doc3));
+
+        assert!(index.get("search").is_none(), "search term should be gone after removing only doc");
+
+        assert_eq!(index.document_frequency("hello"), 2);
+        assert_eq!(index.document_frequency("world"), 2);
+        assert!(index.document_lengths.get(&doc2).is_none());
+    }
 }
