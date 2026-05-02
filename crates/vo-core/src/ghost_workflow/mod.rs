@@ -19,4 +19,4 @@ pub use lifecycle::GhostLifecycle;
 pub use reaper::{spawn_reaper, ReaperConfig};
 pub use registration::{WorkflowReaped, WorkflowRegistration};
 pub use store::GhostLifecycleStore;
-pub use watcher::{GhostWorkflowWatcher, GhostWorkflowWatcherError};
+pub use watcher::{BinaryRemoved, GhostWorkflowWatcher, GhostWorkflowWatcherError};
