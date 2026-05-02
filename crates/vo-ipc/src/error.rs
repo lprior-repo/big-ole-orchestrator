@@ -311,4 +311,70 @@ mod tests {
         let debug = format!("{:?}", err);
         assert!(debug.contains("ProcessFailed"));
     }
+
+    #[test]
+    fn ipc_error_process_failed_includes_stdout_bytes() {
+        let err = IpcError::ProcessFailed {
+            exit_code: 1,
+            stdout_bytes: b"error output".to_vec(),
+            stdout_truncated: false,
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("error output"), "Display should include stdout_bytes content");
+    }
+
+    #[test]
+    fn ipc_error_process_failed_includes_truncated_indicator() {
+        let err = IpcError::ProcessFailed {
+            exit_code: 1,
+            stdout_bytes: b"long output that was cut".to_vec(),
+            stdout_truncated: true,
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("[truncated]"), "Display should include [truncated] indicator when stdout_truncated is true");
+    }
+
+    #[test]
+    fn ipc_error_process_failed_empty_stdout_no_stdout_section() {
+        let err = IpcError::ProcessFailed {
+            exit_code: 1,
+            stdout_bytes: vec![],
+            stdout_truncated: false,
+            stderr_bytes: b"stderr output".to_vec(),
+            stderr_truncated: false,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("exited with code 1"));
+        assert!(!msg.contains("stdout"), "Empty stdout_bytes should not include stdout in message");
+    }
+
+    #[test]
+    fn ipc_error_timeout_includes_stdout_bytes() {
+        let err = IpcError::Timeout {
+            elapsed_ms: 5000,
+            stdout_bytes: b"timeout output".to_vec(),
+            stdout_truncated: false,
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("timeout output"), "Timeout Display should include stdout_bytes content");
+    }
+
+    #[test]
+    fn ipc_error_timeout_includes_truncated_indicator() {
+        let err = IpcError::Timeout {
+            elapsed_ms: 5000,
+            stdout_bytes: b"cut off output".to_vec(),
+            stdout_truncated: true,
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("[truncated]"), "Timeout Display should include [truncated] indicator");
+    }
 }
