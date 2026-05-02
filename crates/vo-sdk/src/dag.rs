@@ -5,6 +5,7 @@
 //! [`WorkflowSpec`] is emitted.
 
 use std::any::Any;
+use std::collections::VecDeque;
 
 use thiserror::Error;
 use vo_types::{GuaranteeClass, NodeKind, NodeName, WorkflowName};
@@ -27,6 +28,8 @@ pub enum DagError {
     DuplicateNodeName { name: String },
     #[error("self-loop not allowed on node: {name}")]
     SelfLoop { name: String },
+    #[error("orphan nodes with no connections: {name}")]
+    OrphanNode { name: String },
 }
 
 /// Internal node record with name, kind, and optional signal metadata.
@@ -237,24 +240,29 @@ impl Dag {
     /// # Errors
     ///
     /// Returns `DagError::EmptyWorkflow` if the DAG has no nodes.
+    /// Returns `DagError::OrphanNode` if the DAG has disconnected nodes.
     /// Returns `DagError::CycleDetected` if the DAG contains a cycle.
     pub fn build(self, workflow_name: &str) -> Result<WorkflowSpec, DagError> {
         if self.nodes.is_empty() {
             return Err(DagError::EmptyWorkflow);
         }
 
-        // Cycle detection via Kahn's algorithm (topological sort).
-        // Failing test: dag_tests::build_detects_simple_cycle
         let n = self.nodes.len();
         let mut in_degree = vec![0u32; n];
         for &(_, to) in &self.edges {
             in_degree[to] += 1;
         }
-        let mut queue: std::collections::VecDeque<usize> =
-            (0..n).filter(|&i| in_degree[i] == 0).collect();
-        let mut visited = 0usize;
+
+        let has_outgoing = |idx: usize| self.edges.iter().any(|(from, _)| *from == idx);
+
+        let initial_queue: VecDeque<usize> = (0..n)
+            .filter(|&i| in_degree[i] == 0 && has_outgoing(i))
+            .collect();
+
+        let mut visited = vec![false; n];
+        let mut queue = initial_queue;
         while let Some(node) = queue.pop_front() {
-            visited += 1;
+            visited[node] = true;
             for &(_, to) in self.edges.iter().filter(|&&(_from, _)| _from == node) {
                 in_degree[to] -= 1;
                 if in_degree[to] == 0 {
@@ -262,9 +270,15 @@ impl Dag {
                 }
             }
         }
-        if visited != n {
-            let cycle_nodes = Self::find_cycle_nodes(&self.nodes, &self.edges);
-            return Err(DagError::CycleDetected { cycle: cycle_nodes });
+
+        if visited.iter().any(|&v| !v) {
+            let orphan_names: Vec<String> = visited
+                .iter()
+                .enumerate()
+                .filter(|&(_, &v)| !v)
+                .map(|(i, _)| self.nodes[i].name.to_string())
+                .collect();
+            return Err(DagError::OrphanNode { name: orphan_names.join(", ") });
         }
 
         let wf_name =
