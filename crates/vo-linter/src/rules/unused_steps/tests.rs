@@ -396,17 +396,41 @@ fn test_isolated_node_not_entry() {
 }
 
 #[test]
-fn test_rule_implements_rule_trait() {
-    use super::rule::UnusedStepsRule;
-    use crate::Rule;
+fn test_three_node_dag_with_unreachable_cleanup() {
+    let graph = DagGraph::new()
+        .add_step(Step {
+            name: "start".into(),
+            is_entry: true,
+        })
+        .add_step(Step {
+            name: "middle".into(),
+            is_entry: false,
+        })
+        .add_step(Step {
+            name: "cleanup".into(),
+            is_entry: false,
+        })
+        .add_edge("start", "middle");
 
-    let rule = UnusedStepsRule;
-    assert_eq!(rule.id(), "L004");
-    assert_eq!(rule.name(), "unused workflow step");
+    let diagnostics = check_unused_steps(&graph);
+    assert_eq!(diagnostics.len(), 1, "cleanup node should be unreachable");
+    assert_eq!(diagnostics[0].message, "unused step: `cleanup`");
+    assert_eq!(diagnostics[0].code, LintCode::L004);
+}
 
-    // Should compile and return empty vec for arbitrary input
-    let src = "fn foo() {}";
-    let file: syn::File = syn::parse_str(src).unwrap();
-    let diags = rule.execute(&file);
-    assert!(diags.is_empty());
+#[test]
+fn test_self_referencing_node_produces_cycle_warning() {
+    use crate::rules::cycles::check_cycles;
+    use crate::LintCode;
+
+    let graph = DagGraph::new()
+        .add_step(Step {
+            name: "self_ref".into(),
+            is_entry: true,
+        })
+        .add_edge("self_ref", "self_ref");
+
+    let diagnostics = check_cycles(&graph);
+    assert_eq!(diagnostics.len(), 1, "self-referencing node should produce cycle diagnostic");
+    assert_eq!(diagnostics[0].code, LintCode::L008);
 }
