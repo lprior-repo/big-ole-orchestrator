@@ -28,6 +28,7 @@ pub mod pool;
 mod port;
 pub mod retry;
 pub mod storage;
+pub mod subscriber;
 pub mod supervisor;
 
 use chrono::{DateTime, Utc};
