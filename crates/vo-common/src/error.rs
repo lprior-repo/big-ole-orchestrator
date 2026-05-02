@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use vo_types::ErrorKind;
+use vo_types::ErrorClassification;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Error)]
 pub enum VoError {
@@ -48,6 +50,17 @@ impl VoError {
 
     pub fn timeout(msg: impl Into<String>) -> Self {
         Self::Timeout(msg.into())
+    }
+}
+
+impl ErrorClassification for VoError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::Config(_) | Self::Validation(_) => ErrorKind::Operational,
+            Self::Internal(_) => ErrorKind::Fatal,
+            Self::NotFound(_) => ErrorKind::Operational,
+            Self::Timeout(_) => ErrorKind::Transient,
+        }
     }
 }
 
@@ -235,6 +248,51 @@ impl RetryError {
             self,
             Self::MaxAttemptsReached { .. } | Self::MaxBackoffTooSmall { .. }
         )
+    }
+}
+
+impl ErrorClassification for ExecutionError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::Transient { recoverable: true, .. } => ErrorKind::Transient,
+            Self::Transient { recoverable: false, .. } => ErrorKind::Fatal,
+            Self::TimeoutExceeded { .. } | Self::TimedOut { .. } => ErrorKind::Transient,
+            Self::RetryExhausted { .. } => ErrorKind::Transient,
+            Self::StepNotFound { .. } | Self::InvalidTransition { .. } => ErrorKind::Operational,
+            Self::InvalidTimeout { .. } | Self::InvalidRetryPolicy { .. } | Self::Panicked => ErrorKind::Fatal,
+            Self::Cancelled { .. } | Self::ResourceExhausted => ErrorKind::Operational,
+        }
+    }
+}
+
+impl ErrorClassification for SchedulerError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::QueueFull | Self::StorageError(_) | Self::SerializationError(_) => ErrorKind::Transient,
+            Self::InvalidSchedule(_) | Self::InvalidTransition { .. } | Self::InvalidJobId(_) => ErrorKind::Operational,
+            Self::JobNotFound { .. } | Self::SchedulerStopped => ErrorKind::Operational,
+            Self::ConcurrencyLimitReached => ErrorKind::Transient,
+        }
+    }
+}
+
+impl ErrorClassification for RetryError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::MaxAttemptsReached { .. } => ErrorKind::Fatal,
+            Self::BackoffOverflow | Self::RetryNotAllowed | Self::ZeroAttempts => ErrorKind::Operational,
+            Self::InvalidMultiplier { .. } | Self::MaxBackoffTooSmall { .. } => ErrorKind::Operational,
+        }
+    }
+}
+
+impl ErrorClassification for JobRunError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::Failed { .. } => ErrorKind::Operational,
+            Self::ExceededRetries { .. } => ErrorKind::Fatal,
+            Self::Cancelled { .. } => ErrorKind::Operational,
+        }
     }
 }
 

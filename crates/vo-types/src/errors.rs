@@ -1,5 +1,29 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ErrorKind {
+    Transient,
+    Resumable,
+    Fatal,
+    Operational,
+}
+
+pub trait ErrorClassification {
+    fn classify(&self) -> ErrorKind;
+    fn is_transient(&self) -> bool {
+        self.classify() == ErrorKind::Transient
+    }
+    fn is_resumable(&self) -> bool {
+        self.classify() == ErrorKind::Resumable
+    }
+    fn is_fatal(&self) -> bool {
+        self.classify() == ErrorKind::Fatal
+    }
+    fn is_operational(&self) -> bool {
+        self.classify() == ErrorKind::Operational
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
 pub enum ParseError {
     #[error("{type_name}: value must not be empty")]

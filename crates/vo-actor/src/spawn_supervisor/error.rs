@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use vo_types::InstanceId;
+use vo_types::{ErrorClassification, ErrorKind, InstanceId};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SpawnSupervisorError {
@@ -82,6 +82,20 @@ impl SpawnSupervisorError {
                 | Self::ShutdownTimeout(_)
                 | Self::AtomicityViolation(_)
         )
+    }
+}
+
+impl ErrorClassification for SpawnSupervisorError {
+    fn classify(&self) -> ErrorKind {
+        if self.is_transient() {
+            ErrorKind::Transient
+        } else if self.is_resumable() {
+            ErrorKind::Resumable
+        } else if self.is_fatal() {
+            ErrorKind::Fatal
+        } else {
+            ErrorKind::Operational
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 //! Error types for the Reanimator Loop.
 
 use thiserror::Error;
-use vo_types::InstanceId;
+use vo_types::{ErrorClassification, ErrorKind, InstanceId};
 
 /// Classification of Reanimator errors by retry behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -60,6 +60,18 @@ impl ReanimatorError {
     #[must_use]
     pub const fn is_fatal(&self) -> bool {
         matches!(self.classify(), ReanimatorErrorClass::Fatal)
+    }
+}
+
+impl ErrorClassification for ReanimatorError {
+    fn classify(&self) -> ErrorKind {
+        match self {
+            Self::StorageError(_) | Self::EnqueueFailed(_) | Self::AtomicityViolation(_) | Self::BudgetExceeded(_) => {
+                ErrorKind::Transient
+            }
+            Self::CorruptKey(_) | Self::InstanceNotFound(_) => ErrorKind::Fatal,
+            Self::AlreadyRunning | Self::AlreadyShutdown => ErrorKind::Operational,
+        }
     }
 }
 

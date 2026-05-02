@@ -175,7 +175,7 @@ pub use effects::{
     EffectTransitionError, EffectTransitionEvent, ExternalReceipt,
 };
 pub use encryption::{CryptoAlgorithm, DekId, EncryptedBlob, KeyMetadata, WrappedDek};
-pub use errors::ParseError;
+pub use errors::{ErrorClassification, ErrorKind, ParseError};
 pub use events::{Error as EventError, EventEnvelope};
 pub use identity::{CausationId, CommandId, CorrelationId};
 pub use instance_status::InstanceStatus;
