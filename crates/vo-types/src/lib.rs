@@ -98,6 +98,8 @@ pub mod signal;
 pub mod state;
 #[cfg(test)]
 mod step_id_tests;
+#[cfg(test)]
+mod step_result;
 mod string_types;
 #[cfg(test)]
 mod string_types_contract_tests;
