@@ -17,6 +17,7 @@ pub mod db_writer;
 pub mod fairness;
 pub mod instance;
 pub mod instance_registry;
+pub mod hibernation;
 pub mod lifecycle;
 pub mod master;
 pub mod message_router;
