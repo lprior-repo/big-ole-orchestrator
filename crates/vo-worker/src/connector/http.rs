@@ -24,6 +24,16 @@ impl HttpConnector {
             client: reqwest::Client::new(),
         }
     }
+
+    pub fn new_with_client(base_url: impl Into<String>, client: reqwest::Client) -> Self {
+        let base_url = base_url.into();
+        assert!(
+            !base_url.is_empty() && (base_url.starts_with("http://") || base_url.starts_with("https://")),
+            "HttpConnector::new_with_client: invalid base_url, must start with http:// or https://, got: '{}'",
+            base_url
+        );
+        Self { base_url, client }
+    }
 }
 
 #[async_trait]
@@ -386,5 +396,121 @@ mod tests {
     #[test]
     fn test_http_connector_new_rejects_no_scheme() {
         HttpConnector::new("api.example.com");
+    }
+
+    #[tokio::test]
+    async fn test_http_connector_keep_alive_reuses_connection() {
+        use std::sync::Arc;
+        use tokio::net::TcpListener;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use std::net::SocketAddr;
+
+        let connection_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let connection_count_clone = connection_count.clone();
+
+        let listener = TcpListener::bind("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                match listener.accept().await {
+                    Ok((mut tcp, _)) => {
+                        connection_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        let mut buf = [0u8; 1024];
+                        let _ = tcp.read(&mut buf).await;
+                        let response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
+                        let _ = tcp.write_all(response).await;
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let client = reqwest::Client::builder()
+            .keep_alive(true)
+            .build()
+            .unwrap();
+
+        let connector = HttpConnector::new_with_client(
+            format!("http://{}", addr),
+            client,
+        );
+
+        for _ in 0..3 {
+            let effect = connector
+                .prepare(json!({"method": "GET", "path": "/test"}), "test".to_string(), 1)
+                .await
+                .unwrap();
+            let _ = connector.commit(effect).await;
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        assert_eq!(
+            connection_count.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "Expected 1 TCP connection with keep_alive=true, but got {}",
+            connection_count.load(std::sync::atomic::Ordering::SeqCst)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_http_connector_no_keep_alive_creates_separate_connections() {
+        use std::sync::Arc;
+        use tokio::net::TcpListener;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use std::net::SocketAddr;
+
+        let connection_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let connection_count_clone = connection_count.clone();
+
+        let listener = TcpListener::bind("127.0.0.1:0".parse::<SocketAddr>().unwrap())
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            loop {
+                match listener.accept().await {
+                    Ok((mut tcp, _)) => {
+                        connection_count_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        let mut buf = [0u8; 1024];
+                        let _ = tcp.read(&mut buf).await;
+                        let response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 2\r\n\r\n{}";
+                        let _ = tcp.write_all(response).await;
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let client = reqwest::Client::builder()
+            .keep_alive(false)
+            .build()
+            .unwrap();
+
+        let connector = HttpConnector::new_with_client(
+            format!("http://{}", addr),
+            client,
+        );
+
+        for _ in 0..3 {
+            let effect = connector
+                .prepare(json!({"method": "GET", "path": "/test"}), "test".to_string(), 1)
+                .await
+                .unwrap();
+            let _ = connector.commit(effect).await;
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        assert_eq!(
+            connection_count.load(std::sync::atomic::Ordering::SeqCst),
+            3,
+            "Expected 3 TCP connections with keep_alive=false, but got {}",
+            connection_count.load(std::sync::atomic::Ordering::SeqCst)
+        );
     }
 }
