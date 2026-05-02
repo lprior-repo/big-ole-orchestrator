@@ -58,6 +58,11 @@ impl WorkloadClass {
     }
 
     #[must_use]
+    pub fn adr033_class_index(self) -> usize {
+        usize::from(self.rank())
+    }
+
+    #[must_use]
     pub fn never_starved(self) -> bool {
         matches!(self, WorkloadClass::ExactCritical | WorkloadClass::Recovery)
     }

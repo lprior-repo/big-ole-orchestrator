@@ -7,6 +7,39 @@ use super::priority::{RejectionDetail, RejectionReason};
 // ── WorkloadClass ─────────────────────────────────────────────────────────────
 
 #[test]
+fn adr033_class_index_maps_all_variants() {
+    let variants = WorkloadClass::all_by_priority();
+    let n = variants.len();
+    let mut indices = Vec::with_capacity(n);
+    for class in variants {
+        let idx = class.adr033_class_index();
+        assert!(idx < n, "adr033_class_index({:?}) = {} out of range 0..{}", class, idx, n);
+        assert!(!indices.contains(&idx), "adr033_class_index({:?}) = {} is not unique", class, idx);
+        indices.push(idx);
+    }
+}
+
+#[test]
+fn adr033_class_index_no_panic_on_any_variant() {
+    for class in WorkloadClass::all_by_priority() {
+        let _ = class.adr033_class_index();
+    }
+}
+
+#[test]
+fn adr033_class_index_roundtrip_is_bijective() {
+    let variants = WorkloadClass::all_by_priority();
+    for class in variants {
+        let idx = class.adr033_class_index();
+        assert_eq!(idx, class.adr033_class_index());
+    }
+    let indices: Vec<usize> = variants.iter().map(|c| c.adr033_class_index()).collect();
+    for (i, &idx) in indices.iter().enumerate() {
+        assert_eq!(idx, i);
+    }
+}
+
+#[test]
 fn parse_exact_critical() {
     assert_eq!(
         WorkloadClass::parse("exact_critical"),
