@@ -6,7 +6,7 @@ use vo_storage::{
     checksum::{compute_checksum, Checksum, ChecksumAlgorithm, StreamingHasher},
     codec::{decode_event_key, encode_event_key, StorageError},
     query::{decode_key, encode_key, prefix_generator, LineageQuery},
-    timer_index::{TimerKey, TimerRecord, TimerValue},
+    timer_index::TimerKey,
 };
 use vo_types::{Epoch, InstanceId, SequenceNumber, TimerId};
 
@@ -480,28 +480,6 @@ fn timer_key_new_and_accessors() {
     assert_eq!(key.timer_id(), timer_id);
     assert_eq!(key.as_bytes().len(), 40);
 }
-
-// Temporarily commented out - broken timer tests (API mismatch with current stub)
-// #[test]
-// fn timer_value_new_and_accessors() {
-//     let value = TimerValue::new(5000).unwrap();
-//     assert_eq!(value.duration_ms(), 5000);
-//     assert_eq!(value.as_be_bytes(), 5000u64.to_be_bytes());
-// }
-//
-// #[test]
-// fn timer_value_rejects_zero() {
-//     let result = TimerValue::new(0);
-//     assert!(result.is_err());
-//     assert_eq!(result.unwrap_err(), StorageError::InvalidArgument);
-// }
-//
-// #[test]
-// fn timer_record_new() {
-//     let fire_at_ms = 1000u64;
-//     let record = TimerRecord::new(fire_at_ms);
-//     assert_eq!(record.fire_at_ms, fire_at_ms);
-// }
 
 #[test]
 fn checksum_struct_fields() {
