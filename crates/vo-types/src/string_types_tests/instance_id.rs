@@ -147,3 +147,66 @@ fn instance_id_to_bytes_returns_error_when_ulid_invalid() {
         Err(ParseError::InvalidFormat { .. })
     ));
 }
+
+#[test]
+fn instance_id_from_bytes_all_zeros_roundtrips() {
+    let bytes = [0u8; 16];
+    let id = InstanceId::from_bytes(bytes);
+    let result = id.to_bytes().expect("from_bytes creates valid ULID string");
+    assert_eq!(result, bytes);
+}
+
+#[test]
+fn instance_id_from_bytes_all_ones_roundtrips() {
+    let bytes = [0xFFu8; 16];
+    let id = InstanceId::from_bytes(bytes);
+    let result = id.to_bytes().expect("from_bytes creates valid ULID string");
+    assert_eq!(result, bytes);
+}
+
+#[test]
+fn instance_id_display_is_valid_ulid_string() {
+    let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid ULID");
+    let display = format!("{id}");
+    assert_eq!(display.len(), 26, "ULID display must be 26 chars");
+    assert!(
+        display.chars().all(|c| c.is_ascii_alphanumeric()),
+        "ULID must be Crockford Base32 alphanumeric"
+    );
+    let roundtrip = InstanceId::parse(&display);
+    assert!(
+        roundtrip.is_ok(),
+        "display string must be parseable as ULID"
+    );
+}
+
+#[test]
+fn instance_id_hash_eq_allow_hashmap_usage() {
+    use std::collections::HashMap;
+    use std::hash::{Hash, BuildHasherDefault};
+    use std::collections::hash_map::DefaultHasher;
+
+    let id1 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid");
+    let id2 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid");
+    let id3 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid");
+
+    let mut map: HashMap<InstanceId, &str, BuildHasherDefault<DefaultHasher>> = HashMap::default();
+    map.insert(id1, "first");
+    assert_eq!(map.get(&id2), Some(&"first"), "equal InstanceIds must hash the same");
+    assert_eq!(map.get(&id3), Some(&"first"), "same InstanceId retrieved multiple times");
+
+    let id4 = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMB").expect("valid");
+    assert_eq!(map.get(&id4), None, "different InstanceIds are not equal");
+}
+
+#[test]
+fn instance_id_clone_is_cheap() {
+    let id = InstanceId::parse("01H5JYV4XHGSR2F8KZ9BWNRFMA").expect("valid");
+    let clone = id.clone();
+    assert_eq!(id, clone);
+    assert_eq!(
+        std::mem::size_of_val(&*id),
+        16,
+        "InstanceId must be exactly 16 bytes (ULID size)"
+    );
+}
