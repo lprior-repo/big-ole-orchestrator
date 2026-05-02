@@ -117,7 +117,7 @@ impl PartialEq<NamespaceId> for &str {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TimerId(String);
 
 impl TimerId {
@@ -219,5 +219,36 @@ mod tests {
     fn namespace_id_deserialize_invalid_rejects() {
         let result: Result<NamespaceId, _> = serde_json::from_str("invalid!");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn timer_id_ord_matches_ulid_chronological_ordering() {
+        // ULID timestamp 1000ms < ULID timestamp 2000ms
+        let a = TimerId::new(ulid::Ulid::from_parts(1000, 0).to_string());
+        let b = TimerId::new(ulid::Ulid::from_parts(2000, 0).to_string());
+        assert!(a < b, "TimerId A (timestamp 1000) should be < TimerId B (timestamp 2000)");
+    }
+
+    #[test]
+    fn timer_id_ord_reflexive() {
+        let a = TimerId::new(ulid::Ulid::from_parts(1000, 0).to_string());
+        assert_eq!(a, a, "TimerId A should equal itself");
+    }
+
+    #[test]
+    fn timer_id_ord_deterministic_different_randomness() {
+        // Same timestamp, different randomness
+        let a = TimerId::new(ulid::Ulid::from_parts(1000, 0x1234).to_string());
+        let c = TimerId::new(ulid::Ulid::from_parts(1000, 0x5678).to_string());
+        assert_ne!(a, c, "TimerIds with same timestamp but different randomness should be different");
+        assert!(a < c || c < a, "TimerId comparison must be deterministic");
+        // Verify determinism: comparison is stable across multiple calls
+        for _ in 0..10 {
+            if a < c {
+                assert!(a < c);
+            } else {
+                assert!(c < a);
+            }
+        }
     }
 }
