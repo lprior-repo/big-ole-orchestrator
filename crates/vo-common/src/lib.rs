@@ -12,12 +12,14 @@ pub mod timer_storage;
 mod structures;
 pub mod types;
 pub mod slot;
+#[cfg(test)]
+mod namespace_id;
 
 pub use error::{ExecutionError, RetryError, SchedulerError, VoError};
 pub use events::WorkflowEvent;
 pub use slot::{SlotAllocError, SlotAllocator, SlotIdx, SlotValue, MAX_SLOTS};
 pub use structures::{Bounds, Octree, Vec3};
-pub use types::{InstanceId, NamespaceId, TimerId};
+pub use types::{InstanceId, NamespaceId, NamespaceIdParseError, TimerId};
 
 #[cfg(feature = "telemetry")]
 pub mod telemetry;

@@ -72,6 +72,22 @@ impl NamespaceId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+    pub fn parse(s: impl Into<String>) -> Result<Self, NamespaceIdParseError> {
+        let s = s.into();
+        if s.is_empty() {
+            return Err(NamespaceIdParseError::Empty);
+        }
+        if s.contains('/') {
+            return Err(NamespaceIdParseError::ContainsSlash);
+        }
+        Ok(Self(s))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamespaceIdParseError {
+    Empty,
+    ContainsSlash,
 }
 
 impl Deref for NamespaceId {
