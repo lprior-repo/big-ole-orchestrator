@@ -375,7 +375,7 @@ pub fn ExecutionHistoryPanel(
                 button {
                     class: "flex items-center gap-2 text-slate-700 hover:text-slate-900 transition-colors",
                     onclick: move |_| {
-                        if let Some(mut c) = collapsed.try_write() {
+                        if let Ok(mut c) = collapsed.try_write() {
                             *c = !*c;
                         }
                     },
@@ -470,7 +470,7 @@ pub fn ExecutionHistoryPanel(
                                                                     || "Unknown".to_string(),
                                                                     |n| n.name.clone(),
                                                                 );
-                                                            let node_id_for_click = *node_id;
+                                                            let node_id_for_click = node_id.clone();
                                                             let result_preview = match serde_json::to_string(result) {
                                                                 Ok(serialized) => serialized,
                                                                 Err(_) => "{}".to_string(),
@@ -482,7 +482,7 @@ pub fn ExecutionHistoryPanel(
                                                                     class: "flex w-full items-center gap-2 px-2 py-1.5 rounded hover:bg-white transition-colors text-left",
                                                                     key: "{node_id}",
                                                                     onclick: move |_| {
-                                                                        on_select_node.call(node_id_for_click);
+                                                                        on_select_node.call(node_id_for_click.clone());
                                                                     },
 
                                                                     div { class: "w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" }

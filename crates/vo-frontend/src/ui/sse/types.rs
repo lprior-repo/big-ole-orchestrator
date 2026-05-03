@@ -215,12 +215,8 @@ impl WorkflowEventLog {
 
     /// Returns all events in the log.
     #[must_use]
-    pub fn events(&self) -> &[WorkflowSseEvent] {
-        &self
-            .events
-            .iter()
-            .map(|e| e.event.clone())
-            .collect::<Vec<_>>()[..]
+    pub fn events(&self) -> Vec<WorkflowSseEvent> {
+        self.events.iter().map(|e| e.event.clone()).collect()
     }
 
     /// Returns the last event, if any.
@@ -233,7 +229,7 @@ impl WorkflowEventLog {
 // ── SSE Connection Status ────────────────────────────────────────────────────
 
 /// The connection status of an SSE stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SseConnectionStatus {
     Connecting,
     Connected,

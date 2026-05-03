@@ -308,6 +308,12 @@ pub enum SubprocessError {
     BinaryVersioningFailed(String),
     #[error("input payload too large: {actual} bytes (max {max})")]
     InputPayloadTooLarge { actual: usize, max: usize },
+    #[error("binary not found: {0}")]
+    BinaryNotFound(String),
+    #[error("binary path is a directory: {0}")]
+    BinaryIsDirectory(String),
+    #[error("binary is not executable: {0}")]
+    BinaryNotExecutable(String),
 }
 
 const MAX_STDERR_BYTES: usize = 1_048_576;

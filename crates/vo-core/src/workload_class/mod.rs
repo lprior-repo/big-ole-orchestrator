@@ -18,5 +18,5 @@ pub mod proptest;
 pub mod tests;
 
 pub use budget::WorkloadBudget;
-pub use classification::{WorkloadClass, WorkloadClassError, adr033_class_index};
+pub use classification::{WorkloadClass, WorkloadClassError};
 pub use priority::{RejectionDetail, RejectionReason};

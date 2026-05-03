@@ -112,7 +112,7 @@ fn IssueRow(issue: ValidationIssue, on_select_node: EventHandler<NodeId>) -> Ele
         rsx! {
             button {
                 class: "flex w-full items-start gap-2 border-l-2 px-3 py-2 text-left transition-colors hover:bg-white {border_class} {bg_class}",
-                onclick: move |_| on_select_node.call(nid),
+                onclick: move |_| on_select_node.call(nid.clone()),
                 {icon}
                 span { class: "text-[11px] leading-relaxed text-slate-600", "{issue.message}" }
             }

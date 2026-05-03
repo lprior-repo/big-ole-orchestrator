@@ -1,16 +1,16 @@
 //! Actor lifecycle management — direct instance operations and Actor implementation.
 
+use std::collections::BTreeMap;
+
 use bytes::Bytes;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 use vo_types::InstanceId;
 
 use crate::actor_messages::{
-    CompensateError, OrchestratorMsg, SignalError, TerminateError,
+    CompensateError, InstanceSnapshot, OrchestratorMsg, SignalError, TerminateError,
 };
 
-use super::{
-    MasterOrchestrator, MasterState, RuntimeInstanceKey, signal_event_increment,
-};
+use super::{MasterOrchestrator, MasterState, RuntimeInstanceKey, signal_event_increment};
 
 impl MasterState {
     // ── Status and listing ───────────────────────────────────────────────

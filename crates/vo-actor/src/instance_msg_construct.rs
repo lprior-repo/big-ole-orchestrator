@@ -1,6 +1,6 @@
 //! InstanceActorMessage constructor and debug format tests.
 
-use crate::{instance_msgs::InstanceActorMessage, signal_messages::NodeName};
+use crate::{instance_msgs::InstanceActorMessage, signals::NodeName};
 use vo_types::{InstanceId, SequenceNumber, TimerId, WorkflowName};
 
 mod constructor_tests_instance_actor_message {

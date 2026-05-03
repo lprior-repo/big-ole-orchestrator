@@ -267,16 +267,6 @@ pub async fn start_workflow(
             Json(ApiError::new("invalid_config", msg)),
         )
             .into_response(),
-        Ok(CallResult::Success(Err(StartError::GhostInstance(id)))) => (
-            StatusCode::GONE,
-            Json(ApiError::new(
-                "ghost_instance",
-                format!(
-                    "instance {id} has been reaped by zombie detection and cannot be restarted"
-                ),
-            )),
-        )
-            .into_response(),
         Ok(CallResult::Success(Err(StartError::BudgetExhaustion {
             class,
             requested,

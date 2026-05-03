@@ -11,9 +11,9 @@ use tokio::sync::RwLock;
 use tokio::time::interval;
 use tracing::{error, info};
 
-use crate::probe::{Probe, ProbeDefinition, ProbeId, ProbeRegistry};
+use crate::probe::{Probe, ProbeDefinition, ProbeError, ProbeId, ProbeRegistry};
 
-use super::config::HeartbeatWatcherConfig;
+use super::config::{HeartbeatWatcherConfig, ShutdownCallback};
 use super::detector::ActorHealthState;
 
 /// Heartbeat watcher that monitors actor health via probes.
@@ -24,10 +24,10 @@ use super::detector::ActorHealthState;
 /// 3. Triggers graceful shutdown when threshold is exceeded
 /// 4. Emits structured tracing events
 pub struct HeartbeatWatcher {
-    config: HeartbeatWatcherConfig,
-    probe_registry: Arc<RwLock<ProbeRegistry>>,
-    actor_states: Arc<RwLock<HashMap<String, ActorHealthState>>>,
-    shutdown_callback: Option<ShutdownCallback>,
+    pub(crate) config: HeartbeatWatcherConfig,
+    pub(crate) probe_registry: Arc<RwLock<ProbeRegistry>>,
+    pub(crate) actor_states: Arc<RwLock<HashMap<String, ActorHealthState>>>,
+    pub(crate) shutdown_callback: Option<ShutdownCallback>,
 }
 
 impl HeartbeatWatcher {

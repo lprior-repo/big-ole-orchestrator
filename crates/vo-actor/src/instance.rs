@@ -6,9 +6,9 @@
 use std::sync::{Arc, Mutex};
 use vo_types::InstanceId;
 
+use crate::actor_messages::InstancePhaseView;
 use crate::instance_registry::{InstanceActorHandle, InstanceRegistry, RegistryConfig};
 use crate::lifecycle::ActorLifecycleState;
-use crate::InstancePhaseView;
 
 #[derive(Debug, Clone)]
 pub struct InstanceActor {

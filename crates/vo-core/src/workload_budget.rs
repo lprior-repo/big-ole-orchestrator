@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::workload_class::{adr033_class_index, WorkloadClass, WorkloadClassError};
+use crate::workload_class::{WorkloadClass, WorkloadClassError};
 
 #[derive(Clone, Debug)]
 pub struct WorkloadBudget {
@@ -10,7 +10,7 @@ pub struct WorkloadBudget {
 
 impl WorkloadBudget {
     fn class_index(class: WorkloadClass) -> usize {
-        adr033_class_index(class)
+        class.adr033_class_index()
     }
 
     #[must_use]

@@ -15,7 +15,7 @@ use vo_types::InstanceId;
 
 use crate::handlers::helpers::{paradigm_to_str, phase_to_str, split_path_id};
 use crate::handlers::{status_response, terminal_status_response, workflow_status_response};
-use crate::types::ApiError;
+use crate::types::{ApiError, V3StatusResponse};
 
 const ACTOR_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -270,89 +270,5 @@ pub async fn get_workflow_status(
             )
                 .into_response()
         }
-    }
-}
-
-fn terminal_status_response(
-    db: &fjall::Database,
-    namespace: &str,
-    instance_id: &InstanceId,
-) -> Option<InstanceSnapshot> {
-    replay_events_in_namespace(db, namespace, instance_id)
-        .filter_map(Result::ok)
-        .fold(None, terminal_snapshot_step)
-        .filter(|snapshot| snapshot.phase == InstancePhaseView::Terminated)
-}
-
-fn terminal_snapshot_step(
-    current: Option<InstanceSnapshot>,
-    envelope: vo_types::EventEnvelope,
-) -> Option<InstanceSnapshot> {
-    match envelope
-        .payload
-        .get("type")
-        .and_then(serde_json::Value::as_str)
-    {
-        Some("WorkflowStarted") => started_snapshot(envelope),
-        Some("WorkflowTerminated") => current.map(|snapshot| InstanceSnapshot {
-            phase: InstancePhaseView::Terminated,
-            events_applied: envelope.sequence,
-            ..snapshot
-        }),
-        Some("SignalAccepted") | Some("WorkflowCompensationInitiated") => {
-            current.map(|snapshot| InstanceSnapshot {
-                events_applied: envelope.sequence,
-                ..snapshot
-            })
-        }
-        _ => current,
-    }
-}
-
-fn started_snapshot(envelope: vo_types::EventEnvelope) -> Option<InstanceSnapshot> {
-    let instance_id = InstanceId::parse(&envelope.instance_id).ok()?;
-    let workflow_type = envelope
-        .payload
-        .get("workflow_type")
-        .and_then(serde_json::Value::as_str)
-        .map_or_else(|| "unknown".to_string(), ToString::to_string);
-    let paradigm = envelope
-        .payload
-        .get("paradigm")
-        .and_then(serde_json::Value::as_str)
-        .and_then(parse_paradigm_from_event)
-        .map_or(vo_actor::WorkflowParadigm::Procedural, |value| value);
-    payload_namespace(&envelope).map(|namespace| InstanceSnapshot {
-        instance_id,
-        namespace,
-        workflow_type,
-        paradigm,
-        phase: InstancePhaseView::Live,
-        events_applied: envelope.sequence,
-    })
-}
-
-fn payload_namespace(envelope: &vo_types::EventEnvelope) -> Option<String> {
-    envelope
-        .payload
-        .get("namespace")
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string)
-        .or_else(|| {
-            envelope
-                .metadata
-                .annotations
-                .get("namespace")
-                .and_then(serde_json::Value::as_str)
-                .map(ToString::to_string)
-        })
-}
-
-fn parse_paradigm_from_event(value: &str) -> Option<vo_actor::WorkflowParadigm> {
-    match value {
-        "fsm" => Some(vo_actor::WorkflowParadigm::Fsm),
-        "dag" => Some(vo_actor::WorkflowParadigm::Dag),
-        "procedural" => Some(vo_actor::WorkflowParadigm::Procedural),
-        _ => None,
     }
 }

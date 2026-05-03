@@ -63,11 +63,18 @@ fn CopyButton(text: String, compact: bool) -> Element {
             onclick: move |_| {
                 if copy_to_clipboard(&text) {
                     show_feedback.set(true);
-                    let mut feedback = show_feedback;
-                    wasm_bindgen_futures::spawn_local(async move {
-                        gloo_timers::future::TimeoutFuture::new(1500).await;
-                        feedback.set(false);
-                    });
+                    #[cfg(feature = "wasm")]
+                    {
+                        let mut feedback = show_feedback;
+                        wasm_bindgen_futures::spawn_local(async move {
+                            gloo_timers::future::TimeoutFuture::new(1500).await;
+                            feedback.set(false);
+                        });
+                    }
+                    #[cfg(not(feature = "wasm"))]
+                    {
+                        show_feedback.set(false);
+                    }
                 }
             },
             if *show_feedback.read() {
@@ -126,7 +133,7 @@ fn PayloadPreview(payload: Value, label: String, shape: PayloadShape, max_lines:
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 struct ExecutionTimelineEvent {
     category: ExecutionEventCategory,
     label: String,

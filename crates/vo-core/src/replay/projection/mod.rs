@@ -22,6 +22,7 @@
 //! let result = rebuilder.rebuild_full(events)?;
 //! ```
 
+pub mod context;
 pub mod engine;
 pub mod error;
 pub mod rebuilder;
@@ -29,10 +30,18 @@ pub mod state_manager;
 pub mod throttle;
 pub mod types;
 
+pub use context::RebuildContext;
 pub use engine::{ProjectionEngine, ProjectionEngineBuilder};
 pub use error::{
     ProjectionError, ProjectionStateError, ProjectionVersionError, ReplayError, StorageError,
 };
+pub use rebuilder::ProjectionRebuilder;
+
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 #[allow(unused_imports)]
 use crate::upcaster::UpcasterRegistry;
@@ -282,24 +291,8 @@ impl RebuildThrottleState {
 }
 
 // ============================================================================
-// Projection Rebuilder — Handles full rebuild from event log
+// Projection State Manager
 // ============================================================================
-
-use std::marker::PhantomData;
-
-#[allow(dead_code)]
-pub struct ProjectionRebuilder<'a, S, E, P>
-where
-    S: Clone + Default + serde::Serialize,
-    E: Clone,
-    P: Projector<S, E>,
-{
-    #[allow(dead_code)]
-    engine: &'a ProjectionEngine,
-    projector: &'a P,
-    context: Arc<RebuildContext>,
-    _phantom: PhantomData<(S, E)>,
-}
 
 #[derive(Debug, Clone)]
 pub struct ProjectionStateManager {

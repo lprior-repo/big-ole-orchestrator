@@ -51,6 +51,18 @@ pub struct RetryBudget {
     last_refill: AtomicU64,
 }
 
+impl Clone for RetryBudget {
+    fn clone(&self) -> Self {
+        Self {
+            available_tokens: AtomicU32::new(self.available_tokens.load(std::sync::atomic::Ordering::Relaxed)),
+            max_tokens: self.max_tokens,
+            refill_rate: self.refill_rate,
+            refill_interval: self.refill_interval,
+            last_refill: AtomicU64::new(self.last_refill.load(std::sync::atomic::Ordering::Relaxed)),
+        }
+    }
+}
+
 impl RetryBudget {
     pub fn new(max_tokens: u32, refill_rate: u32, refill_interval: Duration) -> Self {
         Self {

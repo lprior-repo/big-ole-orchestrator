@@ -78,7 +78,8 @@ pub async fn handle_mutation(
         Err(err) => {
             let status = mutation_error_status_code(&err);
             let api_err = ApiError::new("mutation_rejected", err.to_string());
-            (StatusCode::from(status), Json(api_err)).into_response()
+            let status_code = StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+            (status_code, Json(api_err)).into_response()
         }
     }
 }

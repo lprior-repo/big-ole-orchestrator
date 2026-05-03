@@ -8,7 +8,7 @@ use tokio::time::Instant;
 /// Actor tracking state for heartbeat monitoring.
 #[derive(Debug, Clone)]
 pub struct ActorHealthState {
-    consecutive_failures: u32,
+    pub(crate) consecutive_failures: u32,
     last_check: Option<Instant>,
     last_healthy: Option<Instant>,
 }

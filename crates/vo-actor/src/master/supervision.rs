@@ -6,11 +6,15 @@
 use bytes::Bytes;
 use vo_types::InstanceId;
 
-use crate::actor_messages::{StartError, TerminateError, SignalError, CompensateError};
+use crate::actor_messages::{
+    CompensateError, InstancePhaseView, InstanceSnapshot, SignalError, TerminateError,
+    WorkflowParadigm,
+};
+use crate::start_budget::StartError;
 
 use super::{
-    MasterState, PendingStartRecord, PendingTransition, RuntimeInstanceKey, InstancePhaseView,
-    initial_events_applied,
+    InstanceRecord, MasterState, PendingStartRecord, PendingTransition, RuntimeInstanceKey,
+    initial_events_applied, signal_event_increment,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,7 +24,7 @@ enum ReservationError {
 }
 
 impl MasterState {
-    fn reserve_workflow_start(
+    pub(crate) fn reserve_workflow_start(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -60,7 +64,7 @@ impl MasterState {
         Ok(())
     }
 
-    fn commit_workflow_start(
+    pub(crate) fn commit_workflow_start(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -102,12 +106,12 @@ impl MasterState {
         Ok(())
     }
 
-    fn abort_workflow_start(&mut self, namespace: String, instance_id: InstanceId) {
+    pub(crate) fn abort_workflow_start(&mut self, namespace: String, instance_id: InstanceId) {
         let key = RuntimeInstanceKey::new(namespace, instance_id);
         self.pending_starts.remove(&key);
     }
 
-    fn reserve_transition(
+    pub(crate) fn reserve_transition(
         &mut self,
         key: RuntimeInstanceKey,
         transition: PendingTransition,
@@ -122,12 +126,12 @@ impl MasterState {
         Ok(())
     }
 
-    fn abort_workflow_transition(&mut self, namespace: String, instance_id: InstanceId) {
+    pub(crate) fn abort_workflow_transition(&mut self, namespace: String, instance_id: InstanceId) {
         let key = RuntimeInstanceKey::new(namespace, instance_id);
         self.pending_transitions.remove(&key);
     }
 
-    fn reserve_terminate(
+    pub(crate) fn reserve_terminate(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -143,7 +147,7 @@ impl MasterState {
             .map_err(terminate_reservation_error)
     }
 
-    fn commit_terminate(
+    pub(crate) fn commit_terminate(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -170,7 +174,7 @@ impl MasterState {
         }
     }
 
-    fn reserve_signal(
+    pub(crate) fn reserve_signal(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -186,7 +190,7 @@ impl MasterState {
             .map_err(signal_reservation_error)
     }
 
-    fn commit_signal(
+    pub(crate) fn commit_signal(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -226,7 +230,7 @@ impl MasterState {
         }
     }
 
-    fn reserve_compensate(
+    pub(crate) fn reserve_compensate(
         &mut self,
         namespace: String,
         instance_id: InstanceId,
@@ -236,7 +240,7 @@ impl MasterState {
             .map_err(compensate_reservation_error)
     }
 
-    fn commit_compensate(
+    pub(crate) fn commit_compensate(
         &mut self,
         namespace: String,
         instance_id: InstanceId,

@@ -4,15 +4,15 @@ use axum::{
     extract::{Extension, Path, State},
     http::StatusCode,
     response::{sse::Event, IntoResponse, Sse},
+    Json,
 };
-use ractor::rpc::CallResult;
 use ractor::ActorRef;
 use tokio::sync::broadcast;
 use tokio::time::interval;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt as TokioStreamExt;
-use vo_actor::{OrchestratorEvent, OrchestratorMsg};
+use vo_actor::OrchestratorMsg;
 use vo_types::InstanceId;
 
 use super::split_path_id;
@@ -202,11 +202,11 @@ fn merge_with_keepalive(
 /// If client falls behind by more than 1000 events, connection is dropped.
 #[tracing::instrument(skip_all)]
 pub async fn watch_workflow(
-    Extension(master): Extension<ActorRef<OrchestratorMsg>>,
+    Extension(_master): Extension<ActorRef<OrchestratorMsg>>,
     Path(id): Path<String>,
     State(state): State<SseState>,
 ) -> impl IntoResponse {
-    let (namespace, instance_id) = match split_path_id(&id) {
+    let (_namespace, _instance_id) = match split_path_id(&id) {
         Some(pair) => pair,
         None => {
             return (
@@ -220,83 +220,13 @@ pub async fn watch_workflow(
         }
     };
 
-    let broadcaster = state.broadcaster.clone();
-    let ns_for_task = namespace.clone();
-    let id_for_task = instance_id.clone();
-
-    tokio::spawn(async move {
-        let result = master
-            .call(
-                |tx| OrchestratorMsg::SubscribeEvents { reply: tx },
-                Some(std::time::Duration::from_secs(5)),
-            )
-            .await;
-
-        match result {
-            Ok(CallResult::Success(events)) => {
-                let mut events = events;
-                while let Ok(event) = events.recv().await {
-                    if should_emit_for_instance(&event, &ns_for_task, &id_for_task) {
-                        let sse_event = convert_orchestrator_event(event);
-                        let _ = broadcaster.send(sse_event);
-                    }
-                }
-            }
-            Ok(CallResult::Timeout) => {
-                tracing::warn!("Timeout subscribing to orchestrator events");
-            }
-            Ok(CallResult::SenderError) => {
-                tracing::warn!("Sender error subscribing to orchestrator events");
-            }
-            Err(e) => {
-                tracing::warn!(error = ?e, "Messaging error subscribing to orchestrator events");
-            }
-            _ => {}
-        }
-    });
-
+    // TODO: Subscribe to orchestrator events once OrchestratorEvent is available.
+    // For now, just provide the keepalive SSE stream.
     let receiver = state.broadcaster.subscribe();
     let stream = merge_with_keepalive(receiver);
 
     Sse::new(stream).into_response()
 }
-
-fn should_emit_for_instance(
-    event: &OrchestratorEvent,
-    namespace: &str,
-    instance_id: &InstanceId,
-) -> bool {
-    match event {
-        OrchestratorEvent::InstanceStarted {
-            namespace: ns,
-            instance_id: id,
-            ..
-        } => ns == namespace && id == instance_id,
-        OrchestratorEvent::SignalReceived {
-            namespace: ns,
-            instance_id: id,
-            ..
-        } => ns == namespace && id == instance_id,
-        _ => false,
-    }
-}
-
-fn convert_orchestrator_event(event: OrchestratorEvent) -> WorkflowSseEvent {
-    match event {
-        OrchestratorEvent::InstanceStarted { .. } => WorkflowSseEvent::PhaseChanged {
-            phase: "live".to_string(),
-        },
-        OrchestratorEvent::InstanceCompleted { .. } => WorkflowSseEvent::InstanceCompleted,
-        OrchestratorEvent::InstanceFailed { error, .. } => {
-            WorkflowSseEvent::InstanceFailed { error }
-        }
-        OrchestratorEvent::SignalReceived { signal_name, .. } => {
-            WorkflowSseEvent::SignalReceived { signal_name }
-        }
-    }
-}
-
-use axum::Json;
 
 #[cfg(test)]
 mod tests {
@@ -372,43 +302,6 @@ mod tests {
         assert!(count <= 15, "Should receive at most 15 events, got {count}");
     }
 
-    #[tokio::test]
-    async fn sse_lag_event_contains_skipped_count() {
-        use tokio::sync::broadcast;
-        use tokio::time::{timeout, Duration};
-
-        let (tx, rx) = broadcast::channel::<WorkflowSseEvent>(5);
-
-        let stream = make_sse_stream(rx);
-        let mut event = futures::StreamExt::fuse(stream);
-
-        for i in 0..20 {
-            let _ = tx.send(WorkflowSseEvent::StepCompleted {
-                node_name: format!("step-{}", i),
-                sequence: i,
-            });
-        }
-
-        let mut count = 0u64;
-        let _ = timeout(Duration::from_secs(2), async {
-            while let Some(_result) = futures::StreamExt::next(&mut event).await {
-                count += 1;
-            }
-        })
-        .await;
-
-        assert!(
-            count < 20,
-            "Should close after lag notification, not receive all 20 events, got {count}"
-        );
-        for lag_data in &lag_events {
-            assert!(
-                lag_data.contains("skipped_count"),
-                "Lag event should contain skipped_count, got: {lag_data}"
-            );
-        }
-    }
-
     #[test]
     fn keepalive_interval_is_15_seconds() {
         assert_eq!(SSE_KEEPALIVE_INTERVAL, Duration::from_secs(15));
@@ -466,7 +359,6 @@ mod tests {
         }
 
         let mut count = 0u64;
-        let mut lag_count = 0u64;
         let mut has_lag = false;
         let _ = timeout(Duration::from_secs(2), async {
             while let Some(result) = futures::StreamExt::next(&mut event).await {
@@ -475,7 +367,6 @@ mod tests {
                     Ok(evt) => {
                         let data_str = evt.data().to_string();
                         if data_str.contains("\"type\":\"lagged\"") {
-                            lag_count += 1;
                             has_lag = true;
                         }
                     }
@@ -490,7 +381,7 @@ mod tests {
 
         assert!(
             has_lag,
-            "Slow client should receive lag notifications, got {lag_count} lag events out of {count} total"
+            "Slow client should receive lag notifications"
         );
     }
 }

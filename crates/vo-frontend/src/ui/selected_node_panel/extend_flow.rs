@@ -37,6 +37,11 @@ pub(crate) fn ExtendFlowSection(
     let can_undo = workflow_state.can_undo();
     let can_redo = workflow_state.can_redo();
 
+    let workflow_state_for_undo = workflow_state.clone();
+    let workflow_state_for_redo = workflow_state.clone();
+    let workflow_state_for_apply = workflow_state.clone();
+    let workflow_state_for_section = workflow_state.clone();
+
     rsx! {
         div { class: "mt-5 border-t border-slate-200 pt-4",
             div { class: "mb-3 flex items-center justify-between",
@@ -71,16 +76,19 @@ pub(crate) fn ExtendFlowSection(
                 button {
                     class: "h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45",
                     disabled: !can_undo,
-                    onclick: move |_| {
-                        if workflow_state.undo() {
-                            let history = extension_timeline.read().clone();
-                            extension_timeline.set(push_timeline(
-                                history,
-                                ExtensionTimelineEventKind::Undone,
-                                "Extension changes reverted via undo.".to_string(),
-                                None,
-                            ));
-                            extension_message.set(Some("Undid most recent graph change.".to_string()));
+                    onclick: {
+                        let ws = workflow_state_for_undo;
+                        move |_| {
+                            if ws.undo() {
+                                let history = extension_timeline.read().clone();
+                                extension_timeline.set(push_timeline(
+                                    history,
+                                    ExtensionTimelineEventKind::Undone,
+                                    "Extension changes reverted via undo.".to_string(),
+                                    None,
+                                ));
+                                extension_message.set(Some("Undid most recent graph change.".to_string()));
+                            }
                         }
                     },
                     "Undo"
@@ -88,16 +96,19 @@ pub(crate) fn ExtendFlowSection(
                 button {
                     class: "h-7 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45",
                     disabled: !can_redo,
-                    onclick: move |_| {
-                        if workflow_state.redo() {
-                            let history = extension_timeline.read().clone();
-                            extension_timeline.set(push_timeline(
-                                history,
-                                ExtensionTimelineEventKind::Redone,
-                                "Extension changes restored via redo.".to_string(),
-                                None,
-                            ));
-                            extension_message.set(Some("Redid most recent graph change.".to_string()));
+                    onclick: {
+                        let ws = workflow_state_for_redo;
+                        move |_| {
+                            if ws.redo() {
+                                let history = extension_timeline.read().clone();
+                                extension_timeline.set(push_timeline(
+                                    history,
+                                    ExtensionTimelineEventKind::Redone,
+                                    "Extension changes restored via redo.".to_string(),
+                                    None,
+                                ));
+                                extension_message.set(Some("Redid most recent graph change.".to_string()));
+                            }
                         }
                     },
                     "Redo"
@@ -113,13 +124,13 @@ pub(crate) fn ExtendFlowSection(
                     div { class: "flex flex-col gap-2",
                         for preset in presets {
                             {
-                                let wf = workflow;
-                                let ws = workflow_state;
-                                let sek = selected_extension_keys;
-                                let em = extension_message;
-                                let et = extension_timeline;
-                                let es = extension_snapshots;
-                                let pp = preview_patches;
+                                let wf = workflow.clone();
+                                let ws = workflow_state.clone();
+                                let sek = selected_extension_keys.clone();
+                                let em = extension_message.clone();
+                                let et = extension_timeline.clone();
+                                let es = extension_snapshots.clone();
+                                let pp = preview_patches.clone();
                                 rsx! {
                                     PresetCard {
                                         preset,
@@ -142,7 +153,9 @@ pub(crate) fn ExtendFlowSection(
                 div { class: "mb-2 flex items-center gap-2",
                     button {
                         class: "h-7 rounded-md border border-blue-300 bg-blue-50 px-2.5 text-[11px] font-medium text-blue-700 transition-colors hover:bg-blue-100",
-                        onclick: move |_| {
+                        onclick: {
+                            let ws = workflow_state_for_apply;
+                            move |_| {
                             let keys = selected_extension_keys.read().clone();
                             if keys.is_empty() {
                                 extension_message.set(Some("Select at least one extension to apply.".to_string()));
@@ -150,7 +163,7 @@ pub(crate) fn ExtendFlowSection(
                             }
 
                             let workflow_before = workflow.read().clone();
-                            workflow_state.save_undo_point();
+                            ws.save_undo_point();
 
                             let mut total_created = 0usize;
                             let mut applied_count = 0usize;
@@ -227,7 +240,8 @@ pub(crate) fn ExtendFlowSection(
                                 ));
                                 extension_message.set(Some(detail));
                             }
-                        },
+                        }
+                    },
                         "Apply Selected ({selected_count})"
                     }
                     button {
@@ -256,12 +270,12 @@ pub(crate) fn ExtendFlowSection(
                 div { class: "flex flex-col gap-2",
                     for suggestion in suggestions {
                         {
-                            let wf = workflow;
-                            let ws = workflow_state;
-                            let sek = selected_extension_keys;
-                            let em = extension_message;
-                            let et = extension_timeline;
-                            let es = extension_snapshots;
+                            let wf = workflow.clone();
+                            let ws = workflow_state.clone();
+                            let sek = selected_extension_keys.clone();
+                            let em = extension_message.clone();
+                            let et = extension_timeline.clone();
+                            let es = extension_snapshots.clone();
                             rsx! {
                                 SuggestionCard {
                                     suggestion,
@@ -282,7 +296,7 @@ pub(crate) fn ExtendFlowSection(
                 extension_timeline,
                 extension_snapshots,
                 workflow,
-                workflow_state,
+                workflow_state: workflow_state_for_section,
                 preview_patches,
                 extension_message,
             }

@@ -107,7 +107,10 @@ strum = { version = "0.28", features = ["derive"] }
 metrics = "0.24"
 
 # Cryptography
+argon2 = "0.5"
+jsonwebtoken = "9"
 sha2 = "0.10"
+subtle = "2"
 blake3 = "1.8"
 hmac = "0.12"
 hex = "0.4"

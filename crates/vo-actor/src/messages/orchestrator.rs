@@ -6,7 +6,7 @@ use bytes::Bytes;
 use ractor::port::RpcReplyPort;
 use vo_types::InstanceId;
 
-use crate::WorkflowParadigm;
+use crate::{InstancePhaseView, WorkflowParadigm};
 
 /// Messages sent to the orchestrator actor.
 #[derive(Debug)]
@@ -74,7 +74,7 @@ pub struct InstanceSnapshot {
     pub namespace: String,
     pub workflow_type: String,
     pub paradigm: WorkflowParadigm,
-    pub phase: crate::InstancePhaseView,
+    pub phase: InstancePhaseView,
     pub events_applied: u64,
 }
 

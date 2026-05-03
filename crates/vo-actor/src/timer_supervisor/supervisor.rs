@@ -102,6 +102,7 @@ impl TimerSupervisor {
 
         let state_sender_clone = state_sender.clone();
         let shutdown_receiver = shutdown_trigger.subscribe();
+        let propagator = self.shutdown_propagator.clone();
 
         let task_handle = tokio::runtime::Handle::current().spawn(async move {
             let result = self.run_loop(state_sender_clone, shutdown_receiver).await;
@@ -110,7 +111,6 @@ impl TimerSupervisor {
             }
         });
 
-       let propagator = self.shutdown_propagator.clone();
         Ok(TimerSupervisorHandle {
             state_sender,
             shutdown_trigger,

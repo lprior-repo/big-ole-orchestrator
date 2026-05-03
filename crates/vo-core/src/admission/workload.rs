@@ -21,7 +21,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::types::PressureIndicator;
-pub use vo_types::workload_class::WorkloadClass;
+pub use vo_types::WorkloadClass;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Admission Budget Classes (subset of WorkloadClass used by ADR-013 budgets)

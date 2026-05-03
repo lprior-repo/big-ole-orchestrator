@@ -254,8 +254,8 @@ pub fn status_response(snapshot: vo_actor::InstanceSnapshot) -> V3StatusResponse
         instance_id: snapshot.instance_id.to_string(),
         namespace: snapshot.namespace.to_string(),
         workflow_type: snapshot.workflow_type,
-        paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-        phase: phase_to_str(snapshot.phase).to_owned(),
+        paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
+        phase: phase_to_str(&snapshot.phase).to_owned(),
         events_applied: snapshot.events_applied,
     }
 }
@@ -299,8 +299,8 @@ pub fn workflow_status_response(
         instance_id: snapshot.instance_id.to_string(),
         namespace: snapshot.namespace.to_string(),
         workflow_type: snapshot.workflow_type,
-        paradigm: paradigm_to_str(snapshot.paradigm).to_owned(),
-        phase: phase_to_str(snapshot.phase).to_owned(),
+        paradigm: paradigm_to_str(&snapshot.paradigm).to_owned(),
+        phase: phase_to_str(&snapshot.phase).to_owned(),
         events_applied: snapshot.events_applied,
         registration_status,
         is_quarantined,

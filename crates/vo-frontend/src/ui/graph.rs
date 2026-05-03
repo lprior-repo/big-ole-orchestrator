@@ -454,6 +454,7 @@ pub struct Workflow {
     pub name: String,
     pub execution_queue: Vec<NodeId>,
     pub current_step: usize,
+    pub guarantee_class: GuaranteeClass,
 }
 
 impl Workflow {
@@ -466,6 +467,7 @@ impl Workflow {
             name,
             execution_queue: Vec::new(),
             current_step: 0,
+            guarantee_class,
         }
     }
 

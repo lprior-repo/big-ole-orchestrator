@@ -17,5 +17,6 @@
 //! with the vo-api crate via HTTP/REST for workflow operations.
 
 pub mod flow_extender;
+pub mod hooks;
 pub mod metrics;
 pub mod ui;

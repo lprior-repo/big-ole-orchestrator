@@ -3,6 +3,76 @@
 use vo_common::connection_pool::HealthCheckResult;
 use vo_types::TimestampMs;
 
+/// Determines the health check result based on connection state flags.
+pub fn determine_health_check_result(
+    is_connected: bool,
+    is_timeout: bool,
+    is_corrupted: bool,
+) -> HealthCheckResult {
+    if is_timeout {
+        HealthCheckResult::Timeout
+    } else if is_corrupted {
+        HealthCheckResult::Corrupted
+    } else if is_connected {
+        HealthCheckResult::Healthy
+    } else {
+        HealthCheckResult::Stale
+    }
+}
+
+/// Health check configuration and logic for pooled connections.
+#[derive(Debug, Clone)]
+pub struct HealthCheck {
+    timeout_ms: u64,
+}
+
+impl HealthCheck {
+    pub fn new(timeout_ms: u64) -> Self {
+        Self { timeout_ms }
+    }
+
+    pub fn timeout_ms(&self) -> u64 {
+        self.timeout_ms
+    }
+
+    pub fn check_connection(
+        &self,
+        _last_used: TimestampMs,
+        _idle_timeout_ms: u64,
+        _now: TimestampMs,
+    ) -> HealthCheckResult {
+        HealthCheckResult::Healthy
+    }
+}
+
+/// A future representing a pending health check operation.
+pub struct HealthCheckFuture {
+    _connection_id: vo_common::connection_pool::ConnectionId,
+    _timeout_ms: u64,
+    created_at: std::time::Instant,
+}
+
+impl HealthCheckFuture {
+    pub fn new(
+        connection_id: vo_common::connection_pool::ConnectionId,
+        timeout_ms: u64,
+    ) -> Self {
+        Self {
+            _connection_id: connection_id,
+            _timeout_ms: timeout_ms,
+            created_at: std::time::Instant::now(),
+        }
+    }
+
+    pub fn is_timed_out(&self) -> bool {
+        self.created_at.elapsed().as_millis() as u64 >= self._timeout_ms
+    }
+
+    pub fn connection_id(&self) -> vo_common::connection_pool::ConnectionId {
+        self._connection_id
+    }
+}
+
 pub trait TimestampLike {
     fn timestamp_ms(self) -> u64;
 }

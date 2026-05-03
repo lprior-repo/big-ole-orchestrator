@@ -11,10 +11,10 @@ use crate::probe::{Probe, ProbeConfig, ProbeError, ProbeId, ProbeResult, ProbeSt
 
 use super::config::HeartbeatWatcherConfig;
 use super::detector::ActorHealthState;
-use super::runner::HeartbeatWatcher;
+use super::runner::{HeartbeatError, HeartbeatWatcher};
 
 impl HeartbeatWatcher {
-    async fn check_all_probes(&self) -> Result<(), HeartbeatError> {
+    pub(crate) async fn check_all_probes(&self) -> Result<(), HeartbeatError> {
         let definitions: Vec<_> = {
             let registry = self.probe_registry.read().await;
             registry

@@ -147,13 +147,6 @@ where
     let circuit_breaker = Arc::new(vo_core::circuit_breaker::CircuitBreakerState::new());
     let writer_pressure = Arc::new(vo_core::admission::WatchdogPressureGuard::permissive());
 
-    let api_key_store = Arc::new(
-        vo_storage::api_key_partition::fjall_api_key::FjallApiKeyStore::open(&db_handle).map_err(
-            |e| ServeError::InvalidStoragePath(format!("Failed to open API key store: {e}")),
-        )?,
-    );
-    let api_key_state = vo_api::middleware::ApiKeyState { api_key_store };
-
     let state = vo_api::router::AppState {
         query,
         sse,
@@ -164,6 +157,9 @@ where
         writer_pressure: std::sync::Arc::new(
             vo_core::admission::pressure_guard::WatchdogPressureGuard::permissive(),
         ),
+        auth_config: vo_api::middleware::auth::AuthConfig::from_env(),
+        webhook_secret: std::env::var("VO_WEBHOOK_SECRET")
+            .unwrap_or_else(|_| "default-webhook-secret".to_string()),
     };
 
     let router = vo_api::router::create_router(state);

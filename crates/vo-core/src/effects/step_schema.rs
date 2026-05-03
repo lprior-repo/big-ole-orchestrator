@@ -145,7 +145,7 @@ impl StepSchema {
                     errors: vec![ValidationError::TypeMismatch {
                         field: "(root)".to_string(),
                         expected: "object".to_string(),
-                        actual: payload_type_name(payload),
+                        actual: payload_type_name(payload).to_string(),
                     }],
                 });
             }
@@ -235,7 +235,7 @@ pub enum SchemaError {
     Parse { error: String, step: String },
 
     /// The payload failed schema validation.
-    #[error("validation failed for step '{step}': {0}")]
+    #[error("validation failed: {0}")]
     Validation(#[from] ValidateError),
 }
 

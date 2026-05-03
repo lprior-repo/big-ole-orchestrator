@@ -4,11 +4,12 @@
 //! and Phase 3 (respawn failed spawns).
 
 use super::process::ProcessHandle;
-use super::pure::{calculate_backoff_delay, should_respawn};
+use super::pure::{calculate_backoff_delay, is_zombie_state, should_respawn};
 use super::types::{SpawnPhase, SpawnRecord, SpawnSupervisorError};
 use super::Actor;
 use crate::semaphore::types::AdmissionDecision;
 use rand::Rng;
+use vo_types::InstanceId;
 
 impl Actor {
     /// Detects zombie processes among running spawns and reaps them.
@@ -191,51 +192,46 @@ impl Actor {
                         continue;
                     }
 
-                    match self
-                        .perform_health_checks(&record.instance_id, &process_handle)
-                        .await
-                    {
-                        Ok(()) => {
-                            let mut running_record = new_record.transition_to_running();
-                            running_record.spawn_id =
-                                Some(vo_types::SpawnId::new(process_handle.pid.to_string()));
+                    let health = super::health::perform_health_check(&record.instance_id, &process_handle);
+                    if health.healthy {
+                        let mut running_record = new_record.transition_to_running();
+                        running_record.spawn_id =
+                            Some(vo_types::SpawnId::new(process_handle.pid.to_string()));
 
-                            if let Err(e) = self.storage.save_spawn_record(&running_record).await {
-                                self.metrics.dispatch_errors.incr();
-                                errors += 1;
-                                tracing::error!(
-                                    instance_id = %record.instance_id,
-                                    error = %e,
-                                    "Failed to save running spawn record"
-                                );
-                                continue;
-                            }
-
-                            self.metrics.spawns_successful.incr();
-                        }
-                        Err(e) => {
-                            self.metrics.health_checks_failed.incr();
+                        if let Err(e) = self.storage.save_spawn_record(&running_record).await {
+                            self.metrics.dispatch_errors.incr();
                             errors += 1;
                             tracing::error!(
                                 instance_id = %record.instance_id,
                                 error = %e,
-                                "Health check failed"
+                                "Failed to save running spawn record"
                             );
+                            continue;
+                        }
 
-                            let mut failed_record = new_record.transition_to_failed();
-                            failed_record.last_error = Some(e.clone());
+                        self.metrics.spawns_successful.incr();
+                    } else {
+                        self.metrics.health_checks_failed.incr();
+                        errors += 1;
+                        tracing::error!(
+                            instance_id = %record.instance_id,
+                            message = ?health.message,
+                            "Health check failed"
+                        );
 
-                            if let Err(save_err) =
-                                self.storage.save_spawn_record(&failed_record).await
-                            {
-                                self.metrics.dispatch_errors.incr();
-                                errors += 1;
-                                tracing::error!(
-                                    instance_id = %record.instance_id,
-                                    error = %save_err,
-                                    "Failed to save failed spawn record"
-                                );
-                            }
+                        let mut failed_record = new_record.transition_to_failed();
+                        failed_record.last_error = health.message.map(|m| SpawnSupervisorError::HealthCheckFailed { instance_id: record.instance_id.clone(), check_number: 0, error: m });
+
+                        if let Err(save_err) =
+                            self.storage.save_spawn_record(&failed_record).await
+                        {
+                            self.metrics.dispatch_errors.incr();
+                            errors += 1;
+                            tracing::error!(
+                                instance_id = %record.instance_id,
+                                error = %save_err,
+                                "Failed to save failed spawn record"
+                            );
                         }
                     }
                 }
@@ -306,18 +302,15 @@ impl Actor {
                 }
             }
 
-            match self
-                .perform_health_checks(
+            let health = super::health::perform_health_check(
                     &record.instance_id,
                     &ProcessHandle {
                         pid,
                         executable: record.executable.clone(),
                         args: record.args.clone(),
                     },
-                )
-                .await
-            {
-                Ok(()) => {
+                );
+                if health.healthy {
                     let running_record = record.transition_to_running();
 
                     if let Err(e) = self.storage.save_spawn_record(&running_record).await {
@@ -332,18 +325,17 @@ impl Actor {
                     }
 
                     self.metrics.spawns_successful.incr();
-                }
-                Err(e) => {
+                } else {
                     self.metrics.health_checks_failed.incr();
                     errors += 1;
                     tracing::error!(
                         instance_id = %record.instance_id,
-                        error = %e,
+                        message = ?health.message,
                         "Health check failed"
                     );
 
                     let mut failed_record = record.transition_to_failed();
-                    failed_record.last_error = Some(e.clone());
+                    failed_record.last_error = health.message.map(|m| SpawnSupervisorError::HealthCheckFailed { instance_id: record.instance_id.clone(), check_number: 0, error: m });
 
                     if let Err(save_err) = self.storage.save_spawn_record(&failed_record).await {
                         self.metrics.dispatch_errors.incr();
@@ -355,7 +347,6 @@ impl Actor {
                         );
                     }
                 }
-            }
         }
 
         // Phase 3: Respawn failed spawns

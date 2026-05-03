@@ -3,7 +3,7 @@
 #![deny(clippy::panic)]
 #![warn(clippy::pedantic)]
 
-use super::{
+use super::types::{
     collect_previews, event_appearance, mode_label, push_timeline, remember_extension_snapshot,
     snapshot_by_id, ExtensionApplyMode, ExtensionBatchSnapshot, ExtensionTimelineEvent,
     ExtensionTimelineEventKind,

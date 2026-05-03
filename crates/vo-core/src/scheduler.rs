@@ -17,7 +17,7 @@
 //! - [`SchedulerError`] — Error type for scheduler operations
 
 pub use vo_scheduler::error::SchedulerError;
-pub use vo_scheduler::job::ScheduledJob;
+pub use vo_scheduler::types::job::ScheduledJob;
 pub use vo_scheduler::queue::SchedulerQueue;
 pub use vo_scheduler::scheduler::{
     CompletionResult, InMemoryJobStore, JobStore, RecordingDispatcher, Scheduler, TickOutcome,

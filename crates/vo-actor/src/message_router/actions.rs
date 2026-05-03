@@ -285,7 +285,7 @@ impl MessageRouter {
         self.dead_letter_queue.enqueue(entry);
     }
 
-    pub fn route_with_dlq<T: Send + Sync + 'static>(
+    pub async fn route_with_dlq<T: Send + Sync + serde::Serialize + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: TypedMessage<T>,
@@ -342,7 +342,7 @@ impl MessageRouter {
         }
     }
 
-    async fn route_unicast_with_dlq<T: Send + Sync + 'static>(
+    async fn route_unicast_with_dlq<T: Send + Sync + serde::Serialize + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: TypedMessage<T>,
@@ -370,7 +370,7 @@ impl MessageRouter {
         }
     }
 
-    async fn route_broadcast_with_dlq<T: Send + Sync + 'static>(
+    async fn route_broadcast_with_dlq<T: Send + Sync + serde::Serialize + 'static>(
         &mut self,
         channel_id: &ChannelId,
         message: TypedMessage<T>,
@@ -482,5 +482,15 @@ impl MessageRouter {
 
     pub fn clear_deduplication_cache(&mut self) {
         self.deduplication_cache.clear();
+    }
+
+    fn is_duplicate<T>(&self, message: &TypedMessage<T>) -> bool {
+        self.deduplication_cache.contains_key(&message.metadata().message_id)
+    }
+
+    fn evict_expired_entries(&mut self) {
+        let now = Instant::now();
+        let ttl = std::time::Duration::from_secs(300);
+        self.deduplication_cache.retain(|_, &mut timestamp| now.duration_since(timestamp) < ttl);
     }
 }

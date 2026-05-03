@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::cli::{ApiKeySubcommand, Cli, CliError, Command};
+use crate::cli::{Cli, CliError, Command};
 use crate::handler::CommandHandler;
 
 pub struct HandlerRegistry {

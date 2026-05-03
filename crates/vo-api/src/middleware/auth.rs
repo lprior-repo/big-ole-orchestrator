@@ -49,7 +49,7 @@ impl AuthConfig {
                 v.split(',')
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
-                    .map(hash_api_key)
+                    .map(|s| hash_api_key(&s))
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();

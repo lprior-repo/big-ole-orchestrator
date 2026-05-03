@@ -5,6 +5,7 @@
 
 mod component;
 mod extend_flow;
+pub(crate) mod node_config_editor;
 mod preset_card;
 mod suggestion_card;
 mod tests;

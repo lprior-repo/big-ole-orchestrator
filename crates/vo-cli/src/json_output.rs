@@ -51,6 +51,7 @@ pub fn error_kind(err: &crate::cli::CliError) -> &'static str {
         crate::cli::CliError::Doctor(_) => "doctor_error",
         crate::cli::CliError::Rebuild(_) => "rebuild_error",
         crate::cli::CliError::Status(_) => "status_error",
+        crate::cli::CliError::WorkflowHistory(_) => "workflow_history_error",
         crate::cli::CliError::Workspace(_) => "workspace_error",
     }
 }

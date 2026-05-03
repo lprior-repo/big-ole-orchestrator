@@ -11,12 +11,9 @@ use std::collections::{BTreeMap, HashMap};
 use bytes::Bytes;
 use vo_types::InstanceId;
 
-use crate::{
-    actor_messages::{
-        CompensateError, InstanceSnapshot, OrchestratorMsg, SignalError, TerminateError,
-        WorkflowParadigm,
-    },
-    InstancePhaseView,
+use crate::actor_messages::{
+    CompensateError, InstancePhaseView, InstanceSnapshot, OrchestratorMsg, SignalError,
+    TerminateError, WorkflowParadigm,
 };
 
 /// Top-level orchestrator for actor supervision.
@@ -42,26 +39,26 @@ impl Default for OrchestratorConfig {
 /// Key for looking up instances in the runtime registry.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RuntimeInstanceKey {
-    namespace: String,
-    instance_id: InstanceId,
+    pub(crate) namespace: String,
+    pub(crate) instance_id: InstanceId,
 }
 
 impl RuntimeInstanceKey {
-    fn new(namespace: String, instance_id: InstanceId) -> Self {
+    pub(crate) fn new(namespace: String, instance_id: InstanceId) -> Self {
         Self {
             namespace,
             instance_id,
         }
     }
 
-    fn display(&self) -> String {
+    pub(crate) fn display(&self) -> String {
         format!("{}/{}", self.namespace, self.instance_id)
     }
 }
 
 /// Internal record for a managed instance.
 #[derive(Debug, Clone)]
-struct InstanceRecord {
+pub(crate) struct InstanceRecord {
     snapshot: InstanceSnapshot,
     signals_received: u64,
     compensation_requested: bool,
@@ -69,7 +66,7 @@ struct InstanceRecord {
 
 /// Pending workflow start request.
 #[derive(Debug, Clone)]
-struct PendingStartRecord {
+pub(crate) struct PendingStartRecord {
     namespace: String,
     instance_id: InstanceId,
     workflow_type: String,
@@ -79,7 +76,7 @@ struct PendingStartRecord {
 
 /// Pending state transition awaiting commit.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum PendingTransition {
+pub(crate) enum PendingTransition {
     Signal { signal_name: String },
     Compensate,
     Terminate { reason: String },
@@ -87,7 +84,7 @@ enum PendingTransition {
 
 /// Complete state of the master orchestrator.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct MasterState {
+pub struct MasterState {
     config: OrchestratorConfig,
     active: HashMap<RuntimeInstanceKey, InstanceRecord>,
     pending_starts: HashMap<RuntimeInstanceKey, PendingStartRecord>,
@@ -102,7 +99,7 @@ impl Default for MasterOrchestrator {
 
 impl MasterState {
     /// Construct state from configuration, seeding with initial instances.
-    fn from_config(config: OrchestratorConfig) -> Self {
+    pub(crate) fn from_config(config: OrchestratorConfig) -> Self {
         let active = config
             .initial_instances
             .iter()
@@ -131,11 +128,11 @@ impl MasterState {
 }
 
 /// Increment applied to event counter when a workflow is first started.
-fn initial_events_applied(_input: &Bytes) -> u64 {
+pub(crate) fn initial_events_applied(_input: &Bytes) -> u64 {
     1
 }
 
 /// Increment applied to event counter when a signal payload is received.
-fn signal_event_increment(_payload: &Bytes) -> u64 {
+pub(crate) fn signal_event_increment(_payload: &Bytes) -> u64 {
     1
 }

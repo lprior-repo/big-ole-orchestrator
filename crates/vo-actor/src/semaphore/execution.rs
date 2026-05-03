@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use tokio::sync::{Semaphore, TryAcquireError};
-use tokio::task::{JoinHandle, JoinSet};
+use tokio::task::{AbortHandle, JoinSet};
 
 use crate::semaphore::calc::status_from_config_and_state;
 
@@ -63,13 +63,12 @@ impl PermitGuard {
     ///
     /// The permit guard is consumed on spawn (consistent with original spawn()).
     /// The permit is released when the guard drops.
-    pub fn spawn_with_scope<F>(self, f: F, joinset: &mut JoinSet<F::Output>) -> Result<JoinHandle<F::Output>, SpawnError>
+    pub fn spawn_with_scope<F>(self, f: F, joinset: &mut JoinSet<F::Output>) -> AbortHandle
     where
         F: std::future::Future + Send + 'static,
         F::Output: Send + 'static,
     {
         joinset.spawn(f)
-            .map_err(|_| SpawnError::JoinSetFull)
     }
 }
 

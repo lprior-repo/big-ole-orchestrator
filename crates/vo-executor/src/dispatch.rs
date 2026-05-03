@@ -74,6 +74,13 @@ pub async fn dispatch_node(
             stderr_bytes: vec![],
             stderr_truncated: false,
         }),
+        NodeKind::Router => Ok(NodeDispatchResult {
+            step_result: StepResult::Success {
+                output: "router_nop".to_string(),
+            },
+            stderr_bytes: vec![],
+            stderr_truncated: false,
+        }),
     }
 }
 
@@ -151,10 +158,24 @@ fn interpret_result(
             })
         }
         (TaskResult::EffectIntent { intent }, NodeKind::ManagedEffect) => {
+            let effect_kind = intent
+                .get("effect_kind")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let params = intent
+                .get("params")
+                .map(|v| v.to_string())
+                .unwrap_or_default();
+            let connector_id = intent
+                .get("connector_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
             Ok(StepResult::EffectIntent {
-                effect_kind: intent.effect_kind.clone(),
-                params: intent.params.to_string(),
-                connector_id: intent.connector_id.clone(),
+                effect_kind,
+                params,
+                connector_id,
             })
         }
         (TaskResult::Failure { error }, NodeKind::ManagedEffect) => Ok(StepResult::Failure {
@@ -181,10 +202,11 @@ fn interpret_result(
                 got: "success".to_string(),
             })
         }
-        (_, NodeKind::Wait | NodeKind::Signal) => Err(ExecuteNodeError::DispatchMismatch {
+        (_, NodeKind::Wait | NodeKind::Signal | NodeKind::Router) => Err(ExecuteNodeError::DispatchMismatch {
             node_kind: match kind {
                 NodeKind::Wait => "wait".to_string(),
                 NodeKind::Signal => "signal".to_string(),
+                NodeKind::Router => "router".to_string(),
                 _ => unreachable!(),
             },
             expected: "no_subprocess".to_string(),
@@ -197,7 +219,6 @@ fn interpret_result(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use vo_ipc::envelope::EffectIntentEnvelope;
 
     fn test_fd4_success() -> Fd4Envelope {
         Fd4Envelope {
@@ -216,11 +237,11 @@ mod tests {
             instance_id: "inst-1".to_string(),
             node_id: "node-1".to_string(),
             result: TaskResult::EffectIntent {
-                intent: EffectIntentEnvelope {
-                    effect_kind: "http_call".to_string(),
-                    params: serde_json::json!({"url": "https://example.com"}),
-                    connector_id: "stripe".to_string(),
-                },
+                intent: serde_json::json!({
+                    "effect_kind": "http_call",
+                    "params": {"url": "https://example.com"},
+                    "connector_id": "stripe"
+                }),
             },
         }
     }
@@ -384,25 +405,25 @@ mod tests {
     }
 
     #[test]
-    fn effect_intent_envelope_serde_roundtrip() {
-        let env = EffectIntentEnvelope {
-            effect_kind: "sql_query".to_string(),
-            params: serde_json::json!({"query": "SELECT 1"}),
-            connector_id: "postgres".to_string(),
-        };
+    fn effect_intent_value_serde_roundtrip() {
+        let env = serde_json::json!({
+            "effect_kind": "sql_query",
+            "params": {"query": "SELECT 1"},
+            "connector_id": "postgres"
+        });
         let json = serde_json::to_string(&env).unwrap();
-        let back: EffectIntentEnvelope = serde_json::from_str(&json).unwrap();
+        let back: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(env, back);
     }
 
     #[test]
     fn task_result_effect_intent_serde_roundtrip() {
         let tr = TaskResult::EffectIntent {
-            intent: EffectIntentEnvelope {
-                effect_kind: "blob_write".to_string(),
-                params: serde_json::json!({"key": "test"}),
-                connector_id: "s3".to_string(),
-            },
+            intent: serde_json::json!({
+                "effect_kind": "blob_write",
+                "params": {"key": "test"},
+                "connector_id": "s3"
+            }),
         };
         let json = serde_json::to_string(&tr).unwrap();
         let back: TaskResult = serde_json::from_str(&json).unwrap();

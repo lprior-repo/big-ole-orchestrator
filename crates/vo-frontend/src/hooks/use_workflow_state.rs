@@ -17,6 +17,12 @@ pub struct WorkflowState {
     redo_stack: Rc<RefCell<Vec<Workflow>>>,
 }
 
+impl PartialEq for WorkflowState {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(&*self.workflow as *const _, &*other.workflow as *const _)
+    }
+}
+
 impl WorkflowState {
     pub fn new(initial: Workflow) -> Self {
         Self {

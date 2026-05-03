@@ -88,6 +88,9 @@ impl ManagedEffectExecutor for DefaultManagedEffectExecutor {
             Ok(Err(ConnectorError::CompensationNotSupported(msg))) => {
                 return Err(ManagedEffectError::CommitFailed(msg))
             }
+            Ok(Err(ConnectorError::UnexpectedContentType(msg))) => {
+                return Err(ManagedEffectError::CommitFailed(msg))
+            }
             Ok(Ok(outcome)) => outcome,
         };
 

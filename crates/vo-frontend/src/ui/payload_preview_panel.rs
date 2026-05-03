@@ -75,7 +75,7 @@ pub fn PayloadPreviewPanel(
 ) -> Element {
     let mut active_tab: Signal<PayloadTab> = use_signal(|| PayloadTab::Input);
 
-    let node_id = *selected_node_id.read();
+    let node_id = selected_node_id.read().clone();
     let Some(node_id) = node_id else {
         return rsx! {};
     };

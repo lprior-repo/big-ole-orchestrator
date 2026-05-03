@@ -8,6 +8,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use vo_storage::event_log::replay_events_in_namespace;
 use vo_types::search::{QueryParser, SearchEngine, SearchResult};
 
@@ -185,7 +186,7 @@ pub async fn get_history(
                     .map(String::from);
                 let output = envelope.payload.get("output").cloned();
 
-                all_entries.push(HistoryEntry {
+                entries.push(HistoryEntry {
                     sequence: envelope.sequence,
                     timestamp_ms: envelope.timestamp_ms,
                     event_type,
@@ -201,14 +202,16 @@ pub async fn get_history(
         }
     }
 
-    let total_count = all_entries.len();
-    let entries = all_entries.into_iter().skip(offset).take(limit).collect();
+    let total_count = entries.len();
+    let offset = params.offset.unwrap_or(0);
+    let limit = params.limit.unwrap_or(total_count);
+    let paginated: Vec<_> = entries.into_iter().skip(offset).take(limit).collect();
 
     (
         StatusCode::OK,
         Json(HistoryResponse {
             instance_id: id,
-            entries,
+            entries: paginated,
             total_count,
             offset,
             limit,
@@ -390,22 +393,10 @@ pub async fn search(
         }
     };
 
-    let results: Result<Vec<vo_types::search::SearchResult>, (StatusCode, Json<ApiError>)> =
-        match engine {
-            Ok(engine) => engine.search(&parsed_query).map_err(|e| {
-                tracing::error!(error = %e, "search failed");
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ApiError::new("search_error", e.to_string())),
-                )
-            }),
-            Err(e) => Err(e),
-        };
-
-    let results = match results {
-        Ok(r) => r,
-        Err(e) => return e.into_response(),
-    };
+    let results = engine.search(&parsed_query).unwrap_or_else(|e| {
+        tracing::error!(error = %e, "search failed");
+        Vec::new()
+    });
 
     let limit = params.limit.unwrap_or(10).min(100);
     let results: Vec<SearchResultEntry> = results

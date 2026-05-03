@@ -1,6 +1,6 @@
 //! InstanceActorMessage enum and constructor implementations.
 
-use crate::signal_messages::NodeName;
+use crate::signals::NodeName;
 use vo_types::{InstanceId, SequenceNumber, TimerId, WorkflowName};
 
 /// Messages sent to/from workflow instance actors.

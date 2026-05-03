@@ -16,7 +16,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 use tracing::{debug, error, warn};
 
-use super::ordered_drop::OrderedDropRegistry;
+use super::ordered_drop::{DropAction, OrderedDropRegistry};
 use super::state::ActorLifecycleState;
 
 /// Result of a shutdown propagation operation.
@@ -92,7 +92,7 @@ impl ShutdownPropagator {
     }
 
     /// Registers a synchronous drop action with a name.
-    pub fn register_drop_sync(&self, name: impl Into<String>, f: impl FnOnce() + Send + 'static) {
+    pub fn register_drop_sync(&self, name: impl Into<String>, f: impl FnOnce() + Send + Sync + 'static) {
         self.drop_registry.register_sync(name, f);
     }
 

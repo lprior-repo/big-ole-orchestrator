@@ -7,7 +7,7 @@
 use crate::ui::graph::Workflow;
 
 /// Preview of what an extension patch would add to the workflow.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExtensionPatchPreview {
     pub nodes: Vec<crate::ui::graph::Node>,
     pub connections: Vec<crate::ui::graph::Connection>,
@@ -22,7 +22,7 @@ pub enum ExtensionPriority {
 }
 
 /// A single flow extension suggestion.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FlowExtension {
     pub key: String,
     pub title: String,
@@ -31,7 +31,7 @@ pub struct FlowExtension {
 }
 
 /// A named preset bundling multiple extension keys.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ExtensionPreset {
     pub key: String,
     pub title: String,
@@ -90,7 +90,7 @@ pub fn resolve_extension_preset(
 mod tests {
     #[test]
     fn preview_extension_returns_none_for_unknown_key() {
-        let workflow = crate::ui::graph::Workflow::new("test".to_string());
+        let workflow = crate::ui::graph::Workflow::new("test".to_string(), crate::ui::graph::GuaranteeClass::default());
         let result = crate::flow_extender::preview_extension(&workflow, "nonexistent-key");
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());

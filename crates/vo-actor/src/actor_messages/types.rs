@@ -7,6 +7,8 @@ use bytes::Bytes;
 use ractor::port::RpcReplyPort;
 use vo_types::{InstanceId, NodeName, SequenceNumber, TimerId, WorkflowName};
 
+use crate::start_budget::StartError;
+
 pub type NamespaceId = String;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

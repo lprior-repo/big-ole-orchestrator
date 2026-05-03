@@ -7,6 +7,7 @@
 use axum::{
     extract::Extension,
     http::StatusCode,
+    middleware as axum_middleware,
     routing::{delete, get, post},
     Json, Router,
 };
@@ -18,6 +19,7 @@ use crate::handlers::query::QueryState;
 use crate::handlers::sse::SseState;
 use crate::handlers::ws::WsState;
 use crate::handlers::{wtf_ui, wtf_ui_asset};
+use crate::middleware::auth::AuthConfig;
 use ractor::ActorRef;
 use vo_actor::OrchestratorMsg;
 use vo_core::admission::WriterPressureGuard;
@@ -45,10 +47,20 @@ pub struct AppState {
     pub dedupe_store: Arc<dyn DedupeStore>,
     /// Writer pressure guard for ADR-006/ADR-015 ingress load shedding.
     pub writer_pressure: Arc<dyn WriterPressureGuard>,
-    /// API key store for authentication.
-    pub api_key_state: ApiKeyState,
-    /// Webhook state for HMAC signature verification.
-    pub webhook_state: WebhookState,
+    /// Auth config for API key and JWT authentication.
+    pub auth_config: AuthConfig,
+    /// Webhook secret for HMAC signature verification.
+    pub webhook_secret: String,
+}
+
+// ---------------------------------------------------------------------------
+// Inline health handler
+// ---------------------------------------------------------------------------
+
+async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "status": "ok",
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +73,10 @@ pub struct AppState {
 /// ready to pass to `axum::serve(listener, router)`.
 #[allow(deprecated)]
 pub fn create_router(state: AppState) -> Router {
-    let auth_layer = middleware::from_fn_with_state(state.api_key_state.clone(), api_key_auth);
+    let auth_layer = axum_middleware::from_fn_with_state(
+        state.auth_config.clone(),
+        crate::middleware::auth::auth_middleware,
+    );
 
     // Workflow CRUD -- uses Extension<ActorRef<OrchestratorMsg>> + DedupeStore + CircuitBreaker
     let workflow_routes = Router::new()
@@ -163,8 +178,13 @@ pub fn create_router(state: AppState) -> Router {
 
     // Webhook endpoint -- uses WebhookState for HMAC verification
     let webhook_routes = Router::new()
-        .route("/api/v1/webhook", post(crate::handlers::webhook_handler))
-        .layer(Extension(state.webhook_state.clone()));
+        .route(
+            "/api/v1/webhook",
+            post(crate::handlers::webhook_handler),
+        )
+        .layer(Extension(
+            crate::handlers::webhook::WebhookState::new(state.webhook_secret.clone()),
+        ));
 
     Router::new()
         .merge(health_routes)
@@ -196,17 +216,6 @@ mod tests {
     }
 
     struct DummyOrchestrator;
-
-    struct DummyApiKeyStore;
-
-    impl vo_storage::api_key_partition::ApiKeyStore for DummyApiKeyStore {
-        fn validate_key(
-            &self,
-            _key: &str,
-        ) -> Result<(), vo_storage::api_key_partition::ApiKeyStoreError> {
-            Ok(())
-        }
-    }
 
     impl ractor::Actor for DummyOrchestrator {
         type Msg = OrchestratorMsg;
@@ -258,12 +267,8 @@ mod tests {
             circuit_breaker: circuit_breaker.clone(),
             dedupe_store: Arc::new(vo_storage::dedupe_partition::InMemoryDedupeStore::new()),
             writer_pressure: Arc::new(vo_core::admission::WatchdogPressureGuard::permissive()),
-            api_key_state: crate::middleware::ApiKeyState {
-                api_key_store: Arc::new(DummyApiKeyStore),
-            },
-            webhook_state: crate::handlers::webhook::WebhookState::new(
-                "test-webhook-secret".to_string(),
-            ),
+            auth_config: AuthConfig::disabled(),
+            webhook_secret: "test-webhook-secret".to_string(),
         };
 
         let _router = create_router(state.clone());

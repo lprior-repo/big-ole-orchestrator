@@ -15,6 +15,7 @@ const DEBOUNCE_MS: u32 = 150;
 #[derive(Clone)]
 pub struct SelectionState {
     pending: Rc<RefCell<Option<NodeId>>>,
+    #[cfg(feature = "wasm")]
     pending_timeout: Rc<RefCell<Option<gloo_timers::callback::Timeout>>>,
 }
 
@@ -22,31 +23,42 @@ impl SelectionState {
     pub fn new() -> Self {
         Self {
             pending: Rc::new(RefCell::new(None)),
+            #[cfg(feature = "wasm")]
             pending_timeout: Rc::new(RefCell::new(None)),
         }
     }
 
-    pub fn select_single(&self, node_id: NodeId, committed: Signal<Option<NodeId>>) {
-        *self.pending.borrow_mut() = Some(node_id);
+    pub fn select_single(&self, node_id: NodeId, mut committed: Signal<Option<NodeId>>) {
+        *self.pending.borrow_mut() = Some(node_id.clone());
 
-        self.pending_timeout.borrow_mut().take();
+        #[cfg(feature = "wasm")]
+        {
+            self.pending_timeout.borrow_mut().take();
 
-        let pending = self.pending.clone();
-        let mut committed = committed.clone();
-        let pending_timeout = self.pending_timeout.clone();
+            let pending = self.pending.clone();
+            let mut committed = committed.clone();
+            let pending_timeout = self.pending_timeout.clone();
 
-        let timeout = gloo_timers::callback::Timeout::new(DEBOUNCE_MS, move || {
-            let pending_val = pending.borrow().clone();
-            if pending_val.is_some() {
-                committed.set(pending_val);
-            }
-            pending_timeout.borrow_mut().take();
-        });
+            let timeout = gloo_timers::callback::Timeout::new(DEBOUNCE_MS, move || {
+                let pending_val = pending.borrow().clone();
+                if pending_val.is_some() {
+                    committed.set(pending_val);
+                }
+                pending_timeout.borrow_mut().take();
+            });
 
-        *self.pending_timeout.borrow_mut() = Some(timeout);
+            *self.pending_timeout.borrow_mut() = Some(timeout);
+        }
+
+        #[cfg(not(feature = "wasm"))]
+        {
+            // No debounce on non-wasm targets; commit immediately
+            committed.set(Some(node_id));
+        }
     }
 
     pub fn clear(&self, mut committed: Signal<Option<NodeId>>) {
+        #[cfg(feature = "wasm")]
         self.pending_timeout.borrow_mut().take();
         *self.pending.borrow_mut() = None;
         committed.set(None);

@@ -23,6 +23,7 @@ pub mod payload_preview_panel;
 pub mod prototype_palette;
 pub mod selected_node_panel;
 pub mod simulate_mode;
+#[cfg(feature = "wasm")]
 pub mod sse;
 #[cfg(test)]
 pub mod template_rendering_tests;
@@ -37,4 +38,5 @@ pub use guarantee_badge::{
 };
 pub use operator_action_panel::{ActionType, OperatorActionPanel};
 pub use prototype_palette::PrototypePalette;
+pub use selected_node_panel::node_config_editor::NodeConfigEditor;
 pub use workspace_tree::{WorkspaceTree, WorkspaceTreeNode};

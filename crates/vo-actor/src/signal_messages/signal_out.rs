@@ -1,4 +1,4 @@
-use vo_types::{BinaryHash, InstanceId};
+pub use vo_types::{BinaryHash, InstanceId};
 pub use vo_types::TimestampMs;
 
 use super::signal_in::{LifecycleState, SecretId, SignalPayload, SignalName, WaitKey};

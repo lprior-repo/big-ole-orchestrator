@@ -1,5 +1,4 @@
 use dioxus::prelude::*;
-use web_sys::window;
 
 /// Menu dimensions (width: 224px = w-56, estimated height ~180px)
 const MENU_WIDTH: f32 = 224.0;
@@ -29,6 +28,7 @@ pub fn generate_menu_style(x: f32, y: f32, viewport_width: f32, viewport_height:
     format!("left: {}px; top: {}px;", clamped_x, clamped_y)
 }
 
+#[cfg(feature = "wasm")]
 #[component]
 pub fn CanvasContextMenu(
     open: ReadSignal<bool>,
@@ -39,6 +39,8 @@ pub fn CanvasContextMenu(
     on_fit_view: EventHandler<MouseEvent>,
     on_layout: EventHandler<MouseEvent>,
 ) -> Element {
+    use web_sys::window;
+
     if !open() {
         return rsx! {};
     }

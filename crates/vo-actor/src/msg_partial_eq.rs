@@ -2,7 +2,7 @@
 
 use crate::{
     control_msgs::ControlActorMessage, instance_msgs::InstanceActorMessage,
-    signal_messages::NodeName,
+    signals::NodeName,
 };
 use vo_types::{InstanceId, SequenceNumber, WorkflowName};
 

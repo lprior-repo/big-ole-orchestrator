@@ -6,7 +6,7 @@ use vo_common::connection_pool::{
     ErrorContext, ErrorDetail, EvictionReason, PoolConfig as VoPoolConfig, PoolId, PoolStats,
     PooledConnection, ReleaseResult,
 };
-use vo_common::types::TimestampMs;
+use vo_types::TimestampMs;
 
 use crate::connector::{Connector, ConnectorError, ConnectorRegistry};
 use crate::pool::{config::PoolConfig, ConnectionPool};
@@ -56,7 +56,7 @@ impl ManagedPool {
                 },
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
+                    timestamp: TimestampMs::now().into(),
                     operation: "acquire",
                     connection_id: None,
                 },
@@ -73,7 +73,7 @@ impl ManagedPool {
                     detail: ErrorDetail::AlreadyShutdown,
                     context: ErrorContext {
                         pool_id: self.pool_id.clone(),
-                        timestamp: TimestampMs::now(),
+                        timestamp: TimestampMs::now().into(),
                         operation: "acquire",
                         connection_id: None,
                     },
@@ -89,7 +89,7 @@ impl ManagedPool {
                     },
                     context: ErrorContext {
                         pool_id: self.pool_id.clone(),
-                        timestamp: TimestampMs::now(),
+                        timestamp: TimestampMs::now().into(),
                         operation: "acquire",
                         connection_id: None,
                     },
@@ -113,7 +113,7 @@ impl ManagedPool {
                 },
                 context: ErrorContext {
                     pool_id: self.pool_id.clone(),
-                    timestamp: TimestampMs::now(),
+                    timestamp: TimestampMs::now().into(),
                     operation: "release",
                     connection_id: None,
                 },
@@ -130,7 +130,7 @@ impl ManagedPool {
                     },
                     context: ErrorContext {
                         pool_id: self.pool_id.clone(),
-                        timestamp: TimestampMs::now(),
+                        timestamp: TimestampMs::now().into(),
                         operation: "release",
                         connection_id: Some(connection_id),
                     },

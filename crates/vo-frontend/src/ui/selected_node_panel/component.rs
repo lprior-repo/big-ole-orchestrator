@@ -24,7 +24,7 @@ pub fn SelectedNodePanel(
     preview_patches: Signal<Vec<ExtensionPatchPreview>>,
 ) -> Element {
     let (selection, selected_node_id) = crate::hooks::use_selection::use_selection();
-    let (workflow_state, workflow) = crate::hooks::use_workflow_state::use_workflow_state(
+    let (workflow_state, mut workflow) = crate::hooks::use_workflow_state::use_workflow_state(
         Workflow::new("".to_string(), vo_types::GuaranteeClass::BestEffort),
     );
     let mut selected_extension_keys = use_signal(Vec::<String>::new);
@@ -40,10 +40,25 @@ pub fn SelectedNodePanel(
         }
     });
 
-    if let Some(node_id) = *selected_node_id.read() {
+    if let Some(node_id) = selected_node_id.read().clone() {
         if let Some(selected_node) = nodes_by_id.read().get(&node_id).cloned() {
             let badge_classes = selected_node.category.badge_class();
             let workflow_guarantee = workflow.read().guarantee_class;
+
+            let node_id_for_close = node_id.clone();
+            let node_id_for_name = node_id.clone();
+            let node_id_for_desc = node_id.clone();
+            let node_id_for_config = node_id.clone();
+            let node_id_for_config_change = node_id.clone();
+            let node_id_for_duplicate = node_id.clone();
+            let node_id_for_delete = node_id.clone();
+            let mut workflow_for_duplicate = workflow.clone();
+            let mut workflow_for_delete = workflow.clone();
+            let selection_for_close = selection.clone();
+            let selection_for_duplicate = selection.clone();
+            let selection_for_delete = selection.clone();
+            let workflow_state_for_duplicate = workflow_state.clone();
+            let workflow_state_for_delete = workflow_state.clone();
 
             return rsx! {
                 aside { class: "animate-slide-in-right z-30 flex w-[320px] shrink-0 flex-col border-l border-slate-200 bg-white/95",
@@ -60,7 +75,7 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900",
                             onclick: move |_| {
-                                selection.0.clear(selected_node_id.clone());
+                                selection_for_close.clear(selected_node_id.clone());
                             },
                             crate::ui::icons::XIcon { class: "h-3.5 w-3.5" }
                         }
@@ -82,7 +97,7 @@ pub fn SelectedNodePanel(
                                 value: "{selected_node.name}",
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
-                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
+                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id_for_name) {
                                         let _ = node.set_name(&evt.value());
                                     }
                                 }
@@ -98,7 +113,7 @@ pub fn SelectedNodePanel(
                                 value: "{selected_node.description}",
                                 oninput: move |evt| {
                                     let mut wf = workflow.write();
-                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
+                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id_for_desc) {
                                         node.set_description(&evt.value());
                                     }
                                 }
@@ -109,10 +124,10 @@ pub fn SelectedNodePanel(
                         div { class: "pt-4",
                             NodeConfigEditor {
                                 node: selected_node.clone(),
-                                input_payloads: collect_input_payloads(&workflow.read(), node_id),
+                                input_payloads: collect_input_payloads(&workflow.read(), node_id_for_config),
                                 on_change: move |new_config| {
                                     let mut wf = workflow.write();
-                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id) {
+                                    if let Some(node) = wf.nodes.iter_mut().find(|node| node.id == node_id_for_config_change) {
                                         node.apply_config_update(&new_config);
                                     }
                                 }
@@ -135,21 +150,21 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-300 text-[12px] text-slate-700 transition-colors hover:bg-slate-100",
                             onclick: move |_| {
-                                workflow_state.0.save_undo_point();
+                                workflow_state_for_duplicate.save_undo_point();
 
-                                let maybe_clone = workflow
+                                let maybe_clone = workflow_for_duplicate
                                     .read()
                                     .nodes
                                     .iter()
-                                    .find(|node| node.id == node_id)
+                                    .find(|node| node.id == node_id_for_duplicate)
                                     .cloned();
                                 if let Some(mut clone) = maybe_clone {
-                                    clone.id = NodeId::new();
+                                    let cloned_id = NodeId::new();
+                                    clone.id = cloned_id.clone();
                                     clone.x += 40.0;
                                     clone.y += 40.0;
-                                    let cloned_id = clone.id;
-                                    workflow.write().nodes.push(clone);
-                                    selection.0.select_single(cloned_id, selected_node_id.clone());
+                                    workflow_for_duplicate.write().nodes.push(clone);
+                                    selection_for_duplicate.select_single(cloned_id, selected_node_id.clone());
                                 }
                             },
                             crate::ui::icons::CopyIcon { class: "h-3.5 w-3.5" }
@@ -158,9 +173,9 @@ pub fn SelectedNodePanel(
                         button {
                             class: "flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-red-500/30 text-[12px] text-red-400 transition-colors hover:bg-red-500/10",
                             onclick: move |_| {
-                                workflow_state.0.save_undo_point();
-                                workflow.write().remove_node(node_id);
-                                selection.0.clear(selected_node_id.clone());
+                                workflow_state_for_delete.save_undo_point();
+                                workflow_for_delete.write().remove_node(node_id_for_delete.clone());
+                                selection_for_delete.clear(selected_node_id.clone());
                             },
                             crate::ui::icons::TrashIcon { class: "h-3.5 w-3.5" }
                             "Delete"

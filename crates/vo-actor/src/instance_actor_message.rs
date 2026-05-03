@@ -2,7 +2,7 @@
 
 use vo_types::{InstanceId, SequenceNumber, TimerId, WorkflowName};
 
-pub use crate::signal_messages::NodeName;
+pub use crate::signals::NodeName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InstanceActorMessage {

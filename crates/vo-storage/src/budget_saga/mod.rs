@@ -21,9 +21,6 @@
 //! - Staged writes that were not committed are recovered as rolled back
 //! - The manifest is the source of truth for committed state
 
-mod allocation;
-mod consumption;
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -360,6 +357,25 @@ impl DurableBudgetSaga {
     #[must_use]
     pub const fn store(&self) -> &Option<SagaStore> {
         &self.store
+    }
+
+    pub fn stage_write(
+        &self,
+        write_key: &str,
+        class: WriteClass,
+        size_bytes: u64,
+    ) -> Result<StagedWrite, SagaError> {
+        let staged = StagedWrite::new(write_key.to_string(), class, size_bytes);
+        self.store.as_ref().map_or_else(
+            || {
+                #[expect(clippy::unwrap_used)]
+                let mut manifest = self.manifest.lock().unwrap();
+                manifest.stage(write_key.to_string(), class, size_bytes)
+            },
+            |store| store.stage_entry(write_key, class, size_bytes),
+        )?;
+        self.queues.try_enqueue(&staged).map_err(|e| SagaError::BudgetReserveFailed(e.to_string()))?;
+        Ok(staged)
     }
 
     pub fn with_manifest(queues: BudgetQueues<StagedWrite>, manifest: BudgetManifest) -> Self {

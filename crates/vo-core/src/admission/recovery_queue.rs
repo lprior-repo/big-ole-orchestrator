@@ -71,7 +71,7 @@ impl RecoveryQueue {
     #[must_use]
     pub fn open(db: &fjall::Database) -> Result<Self, RecoveryQueueError> {
         let partition = db
-            .keyspace(RECOVERY_QUEUE_KEYSPACE, fjall::KeyspaceCreateOptions::default())
+            .keyspace(RECOVERY_QUEUE_KEYSPACE, || fjall::KeyspaceCreateOptions::default())
             .map_err(|e| RecoveryQueueError::Storage(e.to_string()))?;
         Ok(Self::new(partition))
     }
@@ -121,8 +121,8 @@ impl RecoveryQueue {
         let mut orphans = Vec::new();
         let keys: Vec<Vec<u8>> = self
             .partition
-            .keys()
-            .filter_map(|k| k.ok())
+            .iter()
+            .filter_map(|item| item.key().ok())
             .map(|k| k.to_vec())
             .collect();
         for key in keys {
@@ -137,7 +137,7 @@ impl RecoveryQueue {
 
     pub fn throttle_next(&self, budget: u32) -> Option<InstanceId> {
         let mut count = 0;
-        for key in self.partition.keys().filter_map(|k| k.ok()) {
+        for key in self.partition.iter().filter_map(|i| i.key().ok()) {
             if count >= budget {
                 break;
             }
@@ -152,7 +152,7 @@ impl RecoveryQueue {
 
     #[cfg(test)]
     pub fn len(&self) -> usize {
-        self.partition.keys().filter_map(|k| k.ok()).count()
+        self.partition.iter().filter_map(|i| i.key().ok()).count()
     }
 
     #[cfg(test)]

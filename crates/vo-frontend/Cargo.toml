@@ -8,6 +8,7 @@ license.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 dioxus.workspace = true
+regex.workspace = true
 futures = { workspace = true, optional = true }
 itertools.workspace = true
 serde.workspace = true

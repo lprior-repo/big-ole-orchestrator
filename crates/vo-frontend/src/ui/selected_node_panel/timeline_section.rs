@@ -57,13 +57,16 @@ pub(crate) fn TimelineSection(
                                             if let Some(meta) = metadata {
                                                 button {
                                                     class: "mt-1 inline-flex h-5 items-center rounded border border-cyan-300 bg-cyan-50 px-1.5 text-[9px] font-medium text-cyan-700 transition-colors hover:bg-cyan-100",
-                                                    onclick: move |event| {
+                                                    onclick: {
+                                                        let meta = meta.clone();
+                                                        let ws = workflow_state.clone();
+                                                        move |event| {
                                                         event.stop_propagation();
                                                         if let Some(snapshot) = snapshot_by_id(
                                                             &extension_snapshots.read(),
                                                             meta.snapshot_id,
                                                         ) {
-                                                            workflow_state.save_undo_point();
+                                                            ws.save_undo_point();
                                                             workflow.set(snapshot.workflow_before.clone());
                                                             let detail = format!(
                                                                 "Rolled back to snapshot #{} from batch #{} ({} keys, {} node(s)).",
@@ -86,6 +89,7 @@ pub(crate) fn TimelineSection(
                                                             extension_message.set(Some(detail));
                                                             preview_patches.set(Vec::new());
                                                         }
+                                                    }
                                                     },
                                                     "Rollback"
                                                 }

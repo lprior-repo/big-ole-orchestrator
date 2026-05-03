@@ -48,10 +48,19 @@ pub struct DropAction {
     kind: DropActionKind,
 }
 
+impl std::fmt::Debug for DropAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DropAction")
+            .field("name", &self.name)
+            .field("priority", &self.priority)
+            .finish_non_exhaustive()
+    }
+}
+
 /// The type of drop action.
 enum DropActionKind {
     /// Synchronous best-effort cleanup (must complete quickly).
-    Sync(Box<dyn FnOnce() + Send>),
+    Sync(Box<dyn FnOnce() + Send + Sync>),
 }
 
 impl DropAction {
@@ -62,7 +71,7 @@ impl DropAction {
     /// the same task, send on channels that may be full, or perform blocking I/O.
     pub fn sync<F>(name: impl Into<String>, f: F) -> Self
     where
-        F: FnOnce() + Send + 'static,
+        F: FnOnce() + Send + Sync + 'static,
     {
         Self {
             name: name.into(),
@@ -78,7 +87,7 @@ impl DropAction {
     pub fn with_priority(
         name: impl Into<String>,
         priority: u32,
-        f: impl FnOnce() + Send + 'static,
+        f: impl FnOnce() + Send + Sync + 'static,
     ) -> Self {
         Self {
             name: name.into(),
@@ -91,7 +100,7 @@ impl DropAction {
     fn execute(&mut self) {
         let name = self.name.clone();
         debug!("Executing drop action: {name}");
-        match std::mem::take(&mut self.kind) {
+        match std::mem::replace(&mut self.kind, DropActionKind::Sync(Box::new(|| {}))) {
             DropActionKind::Sync(f) => f(),
         }
     }
@@ -129,7 +138,8 @@ pub struct OrderedDropRegistry {
 }
 
 /// Wraps a potentially-completed action result.
-enum MaybeDoneAction {
+#[derive(Debug)]
+pub(crate) enum MaybeDoneAction {
     Pending(DropAction),
     Done,
 }
@@ -168,7 +178,7 @@ impl OrderedDropRegistry {
     }
 
     /// Registers a synchronous drop action with a name.
-    pub fn register_sync(&self, name: impl Into<String>, f: impl FnOnce() + Send + 'static) {
+    pub fn register_sync(&self, name: impl Into<String>, f: impl FnOnce() + Send + Sync + 'static) {
         self.register(DropAction::sync(name, f));
     }
 
@@ -177,7 +187,7 @@ impl OrderedDropRegistry {
         &self,
         name: impl Into<String>,
         priority: u32,
-        f: impl FnOnce() + Send + 'static,
+        f: impl FnOnce() + Send + Sync + 'static,
     ) {
         self.register(DropAction::with_priority(name, priority, f));
     }
