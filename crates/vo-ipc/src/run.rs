@@ -72,8 +72,13 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
 
     // Parent closes child's ends of the pipes.
     // The child now owns these FDs via dup2; parent must close them.
-    let _ = fd3_read;
-    let _ = fd4_write;
+    // RawFd is just an i32 — dropping it does NOT close the underlying FD.
+    // Without explicit close, fd4_write stays open in the parent, preventing
+    // EOF on fd4_read when the child crashes (IPC read hangs until timeout).
+    unsafe {
+        libc::close(fd3_read);
+        libc::close(fd4_write);
+    }
 
     let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
     let fd3_writer = tokio::fs::File::from_std(fd3_writer);
@@ -210,8 +215,12 @@ pub async fn run_subprocess_with_handshake(
         detail: e.to_string(),
     })?;
 
-    let _ = fd3_read;
-    let _ = fd4_write;
+    // Parent closes child's ends of the pipes (same as run_subprocess).
+    // RawFd is just an i32 — dropping it does NOT close the underlying FD.
+    unsafe {
+        libc::close(fd3_read);
+        libc::close(fd4_write);
+    }
 
     let fd3_writer = unsafe { std::fs::File::from_raw_fd(fd3_write) };
     let mut fd3_writer = tokio::fs::File::from_std(fd3_writer);
@@ -654,6 +663,10 @@ async fn terminate_child(child: &mut tokio::process::Child) {
         unsafe {
             libc::kill(-kill_pgid, libc::SIGKILL);
         }
+        // Reap the zombie after SIGKILL. Without this, the child process
+        // persists as a zombie until the parent exits, which under sustained
+        // load causes PID exhaustion.
+        let _ = child.wait().await;
     }
 }
 
