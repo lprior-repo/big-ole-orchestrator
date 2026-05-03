@@ -198,7 +198,7 @@ pub fn parse_task_opts(attr: &TokenStream) -> Result<TaskOpts, Error> {
                                             ));
                                         }
                                     }
-                                    _ => return Err(Error::UnknownAttribute(ident_str)),
+                                    _ => return Err(Error::UnknownAttribute { ident: ident_str }),
                                 }
                                 i += 3;
                                 continue;
@@ -206,7 +206,7 @@ pub fn parse_task_opts(attr: &TokenStream) -> Result<TaskOpts, Error> {
                         }
                     }
                 }
-                return Err(Error::UnknownAttribute(ident_str));
+                return Err(Error::UnknownAttribute { ident: ident_str });
             }
             proc_macro2::TokenTree::Punct(_) => {
                 i += 1;
@@ -873,14 +873,14 @@ mod tests {
     fn parse_task_attrs_rejects_unknown_in_combined() {
         let attr = quote! { retries = 3, bogus = 1 };
         let result = parse_task_attrs(&attr);
-        assert_eq!(result, Err(Error::UnknownAttribute));
+        assert_eq!(result, Err(Error::UnknownAttribute { ident: "bogus".to_string() }));
     }
 
     #[test]
     fn parse_task_attrs_rejects_non_integer_value() {
         let attr = quote! { retries = "three" };
         let result = parse_task_attrs(&attr);
-        assert_eq!(result, Err(Error::InvalidAttributeValue));
+        assert_eq!(result, Err(Error::InvalidAttributeValue { ident: "retries".to_string(), message: "expected integer".to_string() }));
     }
 
     proptest! {

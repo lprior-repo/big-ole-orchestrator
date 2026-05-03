@@ -88,6 +88,15 @@ pub(crate) fn internal_task_macro(
         Err(error::Error::GenerationFailed { .. }) => {
             quote::quote! { compile_error!("code generation failed"); }
         }
+        Err(error::Error::InvalidAttributeValue { .. }) => {
+            quote::quote! { compile_error!("invalid attribute value"); }
+        }
+        Err(error::Error::NegativeRetries { .. }) => {
+            quote::quote! { compile_error!("negative retries value is not allowed"); }
+        }
+        Err(error::Error::UnknownAttribute { .. }) => {
+            quote::quote! { compile_error!("unknown attribute"); }
+        }
     }
 }
 

@@ -33,4 +33,10 @@ pub enum Error {
     UnsupportedAttribute { attribute: String },
     #[error("code generation failed for function '{ident}'")]
     GenerationFailed { ident: String },
+    #[error("invalid attribute value for '{ident}': {message}")]
+    InvalidAttributeValue { ident: String, message: String },
+    #[error("negative retries value: {value}")]
+    NegativeRetries { value: i64 },
+    #[error("unknown attribute: '{ident}'")]
+    UnknownAttribute { ident: String },
 }
