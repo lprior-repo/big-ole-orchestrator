@@ -90,6 +90,8 @@ mod timer_index_tests;
 pub mod workflow_version_partition;
 pub mod api_key_partition;
 pub mod hot_spot;
+#[cfg(test)]
+mod red_queen_concurrent_stress;
 
 use serde::Serialize;
 use std::collections::HashMap;
