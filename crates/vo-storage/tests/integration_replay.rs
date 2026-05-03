@@ -154,6 +154,32 @@ fn replay_events_detects_sequence_gap() {
 }
 
 #[test]
+fn replay_events_returns_events_before_gap_then_sequence_gap_error() {
+    let (_dir, keyspace) = setup_keyspace();
+    let id_string = ulid::Ulid::new().to_string();
+    let instance_id_str = id_string.as_str();
+    let instance_id = parse_instance_id(instance_id_str);
+    let partition = keyspace
+        .keyspace("events", || KeyspaceCreateOptions::default())
+        .unwrap();
+    let v1 = make_envelope_json(1, instance_id_str);
+    let v2 = make_envelope_json(2, instance_id_str);
+    let v4 = make_envelope_json(4, instance_id_str);
+    let v5 = make_envelope_json(5, instance_id_str);
+    insert_event(&partition, instance_id_str, 1, &v1);
+    insert_event(&partition, instance_id_str, 2, &v2);
+    insert_event(&partition, instance_id_str, 4, &v4);
+    insert_event(&partition, instance_id_str, 5, &v5);
+
+    let iter = replay_events(&keyspace, &instance_id);
+    let results: Vec<_> = iter.collect();
+    assert_eq!(results.len(), 3);
+    assert_eq!(results[0], Ok(parse_envelope(&v1)));
+    assert_eq!(results[1], Ok(parse_envelope(&v2)));
+    assert_eq!(results[2], Err(StorageError::SequenceGap));
+}
+
+#[test]
 fn replay_events_handles_corrupt_payload() {
     let (_dir, keyspace) = setup_keyspace();
     let id_string = ulid::Ulid::new().to_string();
