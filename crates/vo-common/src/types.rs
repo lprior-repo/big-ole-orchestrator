@@ -1,5 +1,6 @@
 //! Type definitions for vo-common.
 
+use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::ops::Deref;
 
 use serde::{Deserialize, Serialize};
@@ -114,6 +115,25 @@ impl PartialEq<&str> for NamespaceId {
 impl PartialEq<NamespaceId> for &str {
     fn eq(&self, other: &NamespaceId) -> bool {
         *self == other.0.as_str()
+    }
+}
+
+impl Display for NamespaceId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl NamespaceId {
+    pub fn parse(s: impl Into<String>) -> Result<Self, String> {
+        let s = s.into();
+        if s.is_empty() {
+            return Err("NamespaceId cannot be empty".to_string());
+        }
+        if s.contains('/') {
+            return Err("NamespaceId cannot contain '/'".to_string());
+        }
+        Ok(Self(s))
     }
 }
 
@@ -250,5 +270,71 @@ mod tests {
                 assert!(c < a);
             }
         }
+    }
+
+    #[test]
+    fn namespace_id_display_roundtrip() {
+        let ns = NamespaceId::new("prod".to_string());
+        assert_eq!(ns.to_string(), "prod");
+    }
+
+    #[test]
+    fn namespace_id_parse_empty_string_err() {
+        let result = NamespaceId::parse("");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "NamespaceId cannot be empty");
+    }
+
+    #[test]
+    fn namespace_id_parse_slash_err() {
+        let result = NamespaceId::parse("prod/dev");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "NamespaceId cannot contain '/'");
+    }
+
+    #[test]
+    fn namespace_id_clone_works() {
+        let ns = NamespaceId::new("test-ns");
+        let cloned = ns.clone();
+        assert_eq!(ns, cloned);
+    }
+
+    #[test]
+    fn namespace_id_debug_works() {
+        let ns = NamespaceId::new("test-ns");
+        let debug = format!("{:?}", ns);
+        assert!(debug.contains("test-ns"));
+    }
+
+    #[test]
+    fn namespace_id_hash_works() {
+        use std::collections::HashMap;
+        let ns1 = NamespaceId::new("prod");
+        let ns2 = NamespaceId::new("prod");
+        let ns3 = NamespaceId::new("dev");
+        let mut map: HashMap<NamespaceId, &str> = HashMap::new();
+        map.insert(ns1.clone(), "first");
+        assert_eq!(map.len(), 1);
+        map.insert(ns2.clone(), "second");
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get(&ns1), Some(&"second"));
+        map.insert(ns3.clone(), "third");
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&ns3), Some(&"third"));
+    }
+
+    #[test]
+    fn namespace_id_eq_works() {
+        let ns1 = NamespaceId::new("prod");
+        let ns2 = NamespaceId::new("prod");
+        let ns3 = NamespaceId::new("dev");
+        assert_eq!(ns1, ns2);
+        assert_ne!(ns1, ns3);
+    }
+
+    #[test]
+    fn namespace_id_parse_valid() {
+        let ns = NamespaceId::parse("prod").expect("valid namespace");
+        assert_eq!(ns.to_string(), "prod");
     }
 }
