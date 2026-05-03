@@ -6,52 +6,38 @@ use crate::data::{
 use crate::dolt_health::{ensure_dolt_alive, guard_dolt, validate_rig_route};
 use crate::generation::generate_beads;
 use crate::launcher::{launch_session, prepare_worktree};
+use crate::polecat_restart::{self as restart};
 use crate::polecat_status::batch_check_polecat_status;
-use std::collections::HashSet;
+use crate::scheduling::{select_bead_for_polecat, ReadyPool, RigCycle};
+use crate::session_cleanup;
+use crate::worktree_health::{verify_worktree, repair_worktree, cleanup_orphan_worktrees, WorktreeStatus};
 use tracing::{debug, info, warn};
 
 const DOLT_COOLDOWN: std::time::Duration = std::time::Duration::from_millis(500);
 const MAX_CONCURRENT_POLECATS: usize = 25;
 const PER_RIG_QUOTA: usize = 5;
 
-async fn feed_polecat_with_status(
+async fn feed_polecat_with_selected(
     entry: &FleetEntry,
-    status: PolecatStatus,
-    beads: &[BeadJson],
-    claimed: &HashSet<String>,
+    selected_bead: &BeadId,
+    selected_rig: &Rig,
+    summary: &mut FeedSummary,
 ) -> (FeedOutcome, Option<String>) {
     let name = &entry.name;
-    let rig = entry.rig;
 
-    match status {
-        PolecatStatus::Working => {
-            debug!("{}: working, skipping", name.as_str());
-            (FeedOutcome::SkippedWorking, None)
-        }
-        PolecatStatus::Dead | PolecatStatus::Idle => {
-            feed_available_polecat(entry, beads, claimed, name, rig).await
+    // Worktree health check — repair if missing
+    if verify_worktree(entry.rig, name).await == WorktreeStatus::Missing {
+        info!("{}: worktree missing, attempting repair", name.as_str());
+        match repair_worktree(entry.rig, name).await {
+            Ok(()) => summary.worktree_repaired += 1,
+            Err(error) => {
+                warn!("{}: worktree repair failed: {}", name.as_str(), error);
+                return (FeedOutcome::LaunchFailed, None);
+            }
         }
     }
-}
 
-async fn feed_available_polecat(
-    entry: &FleetEntry,
-    beads: &[BeadJson],
-    claimed: &HashSet<String>,
-    name: &PolecatName,
-    rig: &Rig,
-) -> (FeedOutcome, Option<String>) {
-    let bead_opt = beads
-        .iter()
-        .find(|bead| bead.assignee.is_none() && !claimed.contains(&bead.id))
-        .map(|bead| BeadId(bead.id.clone()));
-
-    let Some(bead) = bead_opt else {
-        info!("{}: no unassigned beads available", name.as_str());
-        return (FeedOutcome::SkippedNoBeads, None);
-    };
-
-    if let Err(error) = assign_bead(rig, &bead, name).await {
+    if let Err(error) = assign_bead(selected_rig, selected_bead, name).await {
         warn!("{}: assign failed: {}", name.as_str(), error);
         let outcome = match error {
             FleetError::AlreadyClaimed(_) => FeedOutcome::SkippedAlreadyClaimed,
@@ -60,17 +46,17 @@ async fn feed_available_polecat(
         return (outcome, None);
     }
 
-    if let Err(error) = prepare_worktree(rig, name).await {
+    if let Err(error) = prepare_worktree(entry.rig, name).await {
         warn!("{}: worktree prep failed: {}", name.as_str(), error);
         return (FeedOutcome::LaunchFailed, None);
     }
 
-    if let Err(error) = launch_session(entry, &bead).await {
+    if let Err(error) = launch_session(entry, selected_bead).await {
         warn!("{}: launch failed: {}", name.as_str(), error);
         return (FeedOutcome::LaunchFailed, None);
     }
 
-    (FeedOutcome::Fed, Some(bead.as_str().to_string()))
+    (FeedOutcome::Fed, Some(selected_bead.as_str().to_string()))
 }
 
 async fn recover_stale_for_rig(
@@ -135,53 +121,7 @@ async fn generate_if_needed(rig: &Rig, beads: &[BeadJson]) {
     }
 }
 
-async fn process_rig(rig: &'static Rig, summary: &mut FeedSummary, total_fed: &mut usize) {
-    if let Err(error) = validate_rig_route(rig).await {
-        warn!(
-            "{}: skipping rig because route validation failed: {}",
-            rig.name, error
-        );
-        return;
-    }
-
-    let fleet = Fleet::for_rig(rig);
-    info!("{}: processing {} polecats", rig.name, fleet.len());
-
-    let statuses = batch_check_polecat_status(rig, &fleet).await;
-    if !recover_stale_for_rig(rig, &fleet, &statuses).await {
-        return;
-    }
-
-    let Some(beads) = ready_beads_for_rig(rig).await else {
-        return;
-    };
-
-    generate_if_needed(rig, &beads).await;
-
-    let mut claimed: HashSet<String> = HashSet::new();
-    let mut rig_fed = 0usize;
-
-    for (entry, status) in fleet.into_iter().zip(statuses) {
-        if *total_fed >= MAX_CONCURRENT_POLECATS || rig_fed >= PER_RIG_QUOTA {
-            break;
-        }
-
-        let (outcome, bead_id) = feed_polecat_with_status(&entry, status, &beads, &claimed).await;
-        let was_fed = matches!(outcome, FeedOutcome::Fed);
-        if let Some(id) = bead_id {
-            claimed.insert(id);
-        }
-        summary.record(outcome);
-
-        if was_fed {
-            rig_fed += 1;
-            *total_fed += 1;
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        }
-    }
-}
-
-/// Run the full fleet feed cycle across all rigs with round-robin rotation.
+/// Run the full fleet feed cycle with cross-rig scheduling.
 pub async fn run_fleet_feed() -> FeedSummary {
     info!("=== Fleet feed start ===");
     let mut summary = FeedSummary::default();
@@ -190,29 +130,171 @@ pub async fn run_fleet_feed() -> FeedSummary {
         warn!("Dolt health check failed: {}", error);
     }
 
-    let mut total_fed = 0usize;
+    // Branch landing
+    let landing = crate::branch_landing::land_branches_for_all_rigs().await;
+    if landing.branches_landed > 0
+        || landing.branches_auto_resolved > 0
+        || landing.branches_escalated > 0
+        || landing.branches_failed > 0
+    {
+        info!(
+            "branch landing: landed={} auto_resolved={} escalated={} failed={}",
+            landing.branches_landed,
+            landing.branches_auto_resolved,
+            landing.branches_escalated,
+            landing.branches_failed,
+        );
+    }
+
+    // Session cleanup — kill orphans and stale locks
+    let all_fleet: Vec<FleetEntry> = Rig::all().iter().flat_map(Fleet::for_rig).collect();
+    let sessions_killed = session_cleanup::cleanup_orphan_sessions(&all_fleet).await;
+    let locks_cleaned = session_cleanup::cleanup_stale_locks(Rig::all()[0].gt_root).await;
+    if sessions_killed > 0 || locks_cleaned > 0 {
+        info!(
+            "cleanup: killed {} orphan sessions, {} stale locks",
+            sessions_killed, locks_cleaned
+        );
+        summary.sessions_cleaned = sessions_killed + locks_cleaned;
+    }
+
+    // Load fleet state for stalled polecat tracking
+    let gt_root = Rig::all()[0].gt_root;
+    let mut fleet_state = restart::load_state(gt_root);
+
+    // Phase 1: Gather all rig data
+    let mut pools: Vec<ReadyPool> = Vec::new();
+    let mut cycles: Vec<RigCycle> = Vec::new();
 
     for rig in Rig::all() {
-        if total_fed >= MAX_CONCURRENT_POLECATS {
-            info!(
-                "Global cap of {} reached, stopping",
-                MAX_CONCURRENT_POLECATS
-            );
-            break;
+        if let Err(error) = validate_rig_route(rig).await {
+            warn!("{}: skipping rig: {}", rig.name, error);
+            continue;
         }
 
-        process_rig(rig, &mut summary, &mut total_fed).await;
+        let fleet = Fleet::for_rig(rig);
+        let active_names: Vec<_> = fleet.iter().map(|e| e.name.clone()).collect();
+        let orphans = cleanup_orphan_worktrees(rig, &active_names).await;
+        if orphans > 0 {
+            info!("{}: cleaned up {} orphan worktrees", rig.name, orphans);
+        }
+        let statuses = batch_check_polecat_status(rig, &fleet).await;
+
+        // Stalled polecat detection
+        for (entry, status) in fleet.iter().zip(&statuses) {
+            match status {
+                PolecatStatus::Working => {
+                    restart::clear_idle(rig.name, &entry.name, &mut fleet_state);
+                }
+                PolecatStatus::Idle => {
+                    if restart::is_stalled(rig.name, &entry.name, &fleet_state) {
+                        info!("{}: {} is stalled, killing for restart", rig.name, entry.name.as_str());
+                        let _ = restart::restart_stalled_polecat(
+                            rig,
+                            &entry.name,
+                            &mut fleet_state,
+                        )
+                        .await;
+                        summary.stalled_restarted += 1;
+                    } else {
+                        restart::mark_idle(rig.name, &entry.name, &mut fleet_state);
+                    }
+                }
+                PolecatStatus::Dead => {
+                    restart::clear_idle(rig.name, &entry.name, &mut fleet_state);
+                }
+            }
+        }
+
+        // Recalculate statuses after stall restarts
+        let statuses = batch_check_polecat_status(rig, &fleet).await;
+
+        if !recover_stale_for_rig(rig, &fleet, &statuses).await {
+            restart::save_state(gt_root, &fleet_state);
+            continue;
+        }
+
+        let Some(beads) = ready_beads_for_rig(rig).await else {
+            restart::save_state(gt_root, &fleet_state);
+            continue;
+        };
+
+        generate_if_needed(rig, &beads).await;
+
+        pools.push(ReadyPool::new(rig, beads));
+        cycles.push(RigCycle {
+            rig,
+            fleet,
+            statuses,
+        });
+
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     }
 
+    restart::save_state(gt_root, &fleet_state);
+
+    // Phase 2: Feed all polecats using cross-rig scheduling
+    let mut total_fed = 0usize;
+
+    for cycle in &cycles {
+        if total_fed >= MAX_CONCURRENT_POLECATS {
+            info!("Global cap of {} reached", MAX_CONCURRENT_POLECATS);
+            break;
+        }
+
+        let mut rig_fed = 0usize;
+
+        for (entry, status) in cycle.fleet.iter().zip(&cycle.statuses) {
+            if total_fed >= MAX_CONCURRENT_POLECATS || rig_fed >= PER_RIG_QUOTA {
+                break;
+            }
+
+            if matches!(status, PolecatStatus::Working) {
+                debug!("{}: working, skipping", entry.name.as_str());
+                summary.record(FeedOutcome::SkippedWorking);
+                continue;
+            }
+
+            let Some(selected) = select_bead_for_polecat(
+                entry.rig,
+                &entry.name,
+                &mut pools,
+                &cycles,
+            ) else {
+                summary.record(FeedOutcome::SkippedNoBeads);
+                continue;
+            };
+
+            let (outcome, _bead_id) = feed_polecat_with_selected(
+                entry,
+                &selected.bead,
+                selected.rig,
+                &mut summary,
+            )
+            .await;
+
+            let was_fed = matches!(outcome, FeedOutcome::Fed);
+            summary.record(outcome);
+
+            if was_fed {
+                rig_fed += 1;
+                total_fed += 1;
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            }
+        }
+    }
+
     info!(
-        "=== Fleet feed done: fed={} working={} no_beads={} already_claimed={} assign_fail={} launch_fail={} ===",
+        "=== Fleet feed done: fed={} working={} no_beads={} already_claimed={} assign_fail={} launch_fail={} repaired={} stalled={} cleaned={} ===",
         summary.fed,
         summary.skipped_working,
         summary.skipped_no_beads,
         summary.skipped_already_claimed,
         summary.assign_failed,
         summary.launch_failed,
+        summary.worktree_repaired,
+        summary.stalled_restarted,
+        summary.sessions_cleaned,
     );
 
     summary

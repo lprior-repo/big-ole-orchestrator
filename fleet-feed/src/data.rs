@@ -11,11 +11,11 @@ use std::path::PathBuf;
 
 // ── Rig Types ──────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RigKind {
     Veloxide,
     Hardline,
-    Twerk,
+    OyaFrontend,
     Seshat,
     CentralizedDocs,
     Clarity,
@@ -52,18 +52,18 @@ pub const HARDLINE_RIG: Rig = Rig {
     name: "hardline",
     tmux_prefix: "hl-",
     bead_prefix: "ha-",
-    dolt_database: "ha",
+    dolt_database: "hardline",
     dolt_port: 3307,
 };
 
-pub const TWERK_RIG: Rig = Rig {
-    kind: RigKind::Twerk,
-    src_dir: "/home/lewis/src/twerk",
+pub const OYA_RIG: Rig = Rig {
+    kind: RigKind::OyaFrontend,
+    src_dir: "/home/lewis/src/oya-frontend",
     gt_root: "/home/lewis/gt",
-    name: "twerk",
-    tmux_prefix: "tw-",
-    bead_prefix: "tw-",
-    dolt_database: "twerk",
+    name: "oya",
+    tmux_prefix: "oy-",
+    bead_prefix: "oy-",
+    dolt_database: "oya_frontend",
     dolt_port: 3307,
 };
 
@@ -105,7 +105,7 @@ impl Rig {
         &[
             VELOXIDE_RIG,
             HARDLINE_RIG,
-            TWERK_RIG,
+            OYA_RIG,
             SESHAT_RIG,
             CDOCS_RIG,
             CLARITY_RIG,
@@ -191,6 +191,9 @@ pub struct FeedSummary {
     pub skipped_already_claimed: u32,
     pub assign_failed: u32,
     pub launch_failed: u32,
+    pub worktree_repaired: u32,
+    pub stalled_restarted: u32,
+    pub sessions_cleaned: u32,
 }
 
 impl FeedSummary {
@@ -224,7 +227,7 @@ pub struct Fleet;
 impl Fleet {
     #[allow(clippy::similar_names)]
     pub fn for_rig(rig: &'static Rig) -> Vec<FleetEntry> {
-        let mut entries = Vec::with_capacity(31);
+        let mut entries = Vec::with_capacity(23);
 
         let minimax_spec = RuntimeSpec {
             kind: RuntimeKind::OpenCode,
@@ -316,45 +319,6 @@ impl Fleet {
         }
 
         entries
-    }
-}
-
-// ── Bead Generation Types ─────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BeadCategory {
-    Blackhat,
-    QaManual,
-    RedQueen,
-    ArchDrift,
-}
-
-impl BeadCategory {
-    pub const fn prefix(self) -> &'static str {
-        match self {
-            Self::Blackhat => "BLACKHAT",
-            Self::QaManual => "QA-MANUAL",
-            Self::RedQueen => "REDQUEEN",
-            Self::ArchDrift => "ARCH-DRIFT",
-        }
-    }
-
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Blackhat => "adversarial security testing and attack surface analysis",
-            Self::QaManual => "exploratory manual testing and edge case discovery",
-            Self::RedQueen => "coevolutionary quality testing against implementation",
-            Self::ArchDrift => "architectural drift detection and compliance verification",
-        }
-    }
-
-    pub const fn all() -> &'static [Self] {
-        &[
-            Self::Blackhat,
-            Self::QaManual,
-            Self::RedQueen,
-            Self::ArchDrift,
-        ]
     }
 }
 

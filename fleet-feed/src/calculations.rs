@@ -154,11 +154,42 @@ pub fn classify_batch_status(
     }
 }
 
+/// Compute a proportional quota for how many beads a pool can consume.
+#[cfg(test)]
+///
+/// # Preconditions
+/// - `pool_size` <= `total_ready` (pool count is a subset of total)
+/// - `remaining` > 0 (caller checked there is capacity)
+/// - `max_per_rig` > 0 (hard ceiling)
+///
+/// # Postconditions
+/// - Returns 0 when `pool_size` is 0
+/// - Returns <= `max_per_rig` always
+/// - Returns <= `remaining` always
+pub fn proportional_rig_quota(
+    pool_size: usize,
+    total_ready: usize,
+    remaining: usize,
+    max_per_rig: usize,
+) -> usize {
+    if pool_size == 0 || total_ready == 0 || remaining == 0 {
+        return 0;
+    }
+    let raw = (pool_size * remaining) / total_ready;
+    raw.min(max_per_rig).min(remaining)
+}
+
+/// Determine if a pool needs seeding.
+#[cfg(test)]
+pub const fn should_seed_pool(current_count: usize, threshold: usize) -> bool {
+    current_count < threshold
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::data::{
-        BeadCategory, BeadJson, Fleet, HARDLINE_RIG, Rig, RuntimeKind, TWERK_RIG, VELOXIDE_RIG,
+        BeadJson, Fleet, HARDLINE_RIG, OYA_RIG, Rig, RuntimeKind, VELOXIDE_RIG,
     };
 
     #[test]
@@ -234,21 +265,21 @@ mod tests {
     }
 
     #[test]
-    fn fleet_has_31_entries() {
+    fn fleet_has_23_entries() {
         let fleet = Fleet::for_rig(&VELOXIDE_RIG);
-        assert_eq!(fleet.len(), 31);
+        assert_eq!(fleet.len(), 23);
     }
 
     #[test]
-    fn hardline_fleet_has_31_entries() {
+    fn hardline_fleet_has_23_entries() {
         let fleet = Fleet::for_rig(&HARDLINE_RIG);
-        assert_eq!(fleet.len(), 31);
+        assert_eq!(fleet.len(), 23);
     }
 
     #[test]
-    fn twerk_fleet_has_31_entries() {
-        let fleet = Fleet::for_rig(&TWERK_RIG);
-        assert_eq!(fleet.len(), 31);
+    fn oya_fleet_has_23_entries() {
+        let fleet = Fleet::for_rig(&OYA_RIG);
+        assert_eq!(fleet.len(), 23);
     }
 
     #[test]
@@ -262,8 +293,8 @@ mod tests {
             .iter()
             .filter(|e| e.runtime.kind == RuntimeKind::Claude)
             .count();
-        assert_eq!(opencode_count, 23);
-        assert_eq!(claude_count, 8);
+        assert_eq!(opencode_count, 19);
+        assert_eq!(claude_count, 4);
     }
 
     #[test]
@@ -358,18 +389,29 @@ mod tests {
     }
 
     #[test]
-    fn bead_category_prefixes() {
-        assert_eq!(BeadCategory::Blackhat.prefix(), "BLACKHAT");
-        assert_eq!(BeadCategory::QaManual.prefix(), "QA-MANUAL");
-        assert_eq!(BeadCategory::RedQueen.prefix(), "REDQUEEN");
-        assert_eq!(BeadCategory::ArchDrift.prefix(), "ARCH-DRIFT");
-    }
-
-    #[test]
     fn tmux_prefix_correct() {
         let name = PolecatName::new("brahmin");
         assert_eq!(name.tmux_session(&VELOXIDE_RIG), "ve-brahmin");
         assert_eq!(name.tmux_session(&HARDLINE_RIG), "hl-brahmin");
-        assert_eq!(name.tmux_session(&TWERK_RIG), "tw-brahmin");
+        assert_eq!(name.tmux_session(&OYA_RIG), "oy-brahmin");
+    }
+
+    #[test]
+    fn proportional_quota_gives_deeper_pool_more_capacity() {
+        let shallow = proportional_rig_quota(10, 110, 22, 12);
+        let deep = proportional_rig_quota(100, 110, 22, 12);
+        assert_eq!(shallow, 2);
+        assert_eq!(deep, 12);
+    }
+
+    #[test]
+    fn proportional_quota_returns_zero_when_pool_empty() {
+        assert_eq!(proportional_rig_quota(0, 100, 25, 12), 0);
+    }
+
+    #[test]
+    fn seed_threshold_triggers_below_floor_only() {
+        assert!(should_seed_pool(19, 20));
+        assert!(!should_seed_pool(20, 20));
     }
 }

@@ -7,12 +7,18 @@
 
 mod actions;
 mod bead_store;
+mod branch_landing;
 mod calculations;
 mod data;
 mod dolt_health;
 mod generation;
 mod launcher;
+mod polecat_restart;
 mod polecat_status;
+mod review_beads;
+mod scheduling;
+mod session_cleanup;
+mod worktree_health;
 
 use tracing_subscriber::EnvFilter;
 

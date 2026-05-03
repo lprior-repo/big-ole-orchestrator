@@ -1,4 +1,5 @@
-use crate::data::{BeadCategory, FleetError, FleetMetrics, ModuleMetrics, Rig};
+use crate::data::{FleetError, FleetMetrics, ModuleMetrics, Rig};
+use crate::review_beads::{build_review_bead, ReviewSkill};
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
@@ -81,23 +82,18 @@ fn select_target_modules(modules: &[String], metrics: &FleetMetrics, count: usiz
         .collect()
 }
 
-fn bead_description(rig: &Rig, module: &str, category: BeadCategory) -> String {
-    format!(
-        "Review {module} in {rig_name} for {category_description}. Acceptance: record concrete findings, include file/line references, and close the bead with a summary of verified source-code impact.",
-        rig_name = rig.name,
-        category_description = category.description()
-    )
-}
-
-async fn create_bead(rig: &Rig, module: &str, category: BeadCategory) -> bool {
-    let title = format!("{}: {}", category.prefix(), module);
-    let description = bead_description(rig, module, category);
+async fn create_review_bead(rig: &Rig, module: &str, skill: ReviewSkill) -> bool {
+    let bead = build_review_bead(rig, module, skill);
     let result = Command::new("bd")
         .args([
             "create",
-            &title,
+            &bead.title,
             "--description",
-            &description,
+            &bead.description,
+            "--acceptance",
+            &bead.acceptance,
+            "--design",
+            &bead.design,
             "--type",
             "task",
             "-p",
@@ -141,13 +137,13 @@ pub async fn generate_beads(rig: &Rig) -> usize {
         return 0;
     }
 
-    let categories = BeadCategory::all();
+    let skills = ReviewSkill::all();
     let mut created = 0usize;
     let mut metrics = metrics;
 
     for (index, module) in targets.iter().enumerate() {
-        let category = categories[index % categories.len()];
-        if create_bead(rig, module, category).await {
+        let skill = skills[index % skills.len()];
+        if create_review_bead(rig, module, skill).await {
             created += 1;
             record_created_metric(&mut metrics, module);
             tokio::time::sleep(DOLT_MUTATION_COOLDOWN).await;

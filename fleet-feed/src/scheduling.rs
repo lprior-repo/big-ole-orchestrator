@@ -1,8 +1,5 @@
-use crate::calculations::proportional_rig_quota;
-use crate::data::{BeadId, BeadJson, FleetEntry, PolecatName, PolecatStatus, Rig, RigKind};
-use std::collections::{HashMap, HashSet};
-
-const MAX_PER_RIG_QUOTA: usize = 12;
+use crate::data::{BeadId, BeadJson, FleetEntry, PolecatName, PolecatStatus, Rig};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct RigCycle {
@@ -93,22 +90,4 @@ pub fn select_bead_for_polecat(
         .map(|(index, _)| index);
 
     borrow_index.and_then(|index| take_bead_from_pool(&mut pools[index]))
-}
-
-pub fn quotas_for_pools(pools: &[ReadyPool], remaining: usize) -> HashMap<RigKind, usize> {
-    let total_ready = pools.iter().map(unassigned_ready_count).sum::<usize>();
-    pools
-        .iter()
-        .map(|pool| {
-            (
-                pool.rig.kind,
-                proportional_rig_quota(
-                    unassigned_ready_count(pool),
-                    total_ready,
-                    remaining,
-                    MAX_PER_RIG_QUOTA,
-                ),
-            )
-        })
-        .collect()
 }
