@@ -1015,6 +1015,170 @@ mod tests {
         let received = engine_receive_envelope(&mut Cursor::new(buf), "inst1", "node1").unwrap();
         assert_eq!(received, env);
     }
+
+    #[test]
+    fn write_read_fd3_empty_payload_roundtrip() {
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            input: serde_json::Value::Null,
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let decoded: Fd3Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_fd4_empty_payload_roundtrip() {
+        let env = Fd4Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            result: TaskResult::Success {
+                output: serde_json::Value::Null,
+            },
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let decoded: Fd4Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_fd3_1mb_payload_roundtrip() {
+        let large_input = serde_json::json!({
+            "data": "x".repeat(1_000_000)
+        });
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            input: large_input,
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        assert_eq!(buf.len(), 4 + 1_000_000 + 30);
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]);
+        assert_eq!(len as usize, buf.len() - 4);
+        let decoded: Fd3Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_fd4_1mb_payload_roundtrip() {
+        let large_output = serde_json::json!({
+            "result": "y".repeat(1_000_000)
+        });
+        let env = Fd4Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            result: TaskResult::Success { output: large_output },
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let decoded: Fd4Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_fd3_utf8_edge_cases_roundtrip() {
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            input: serde_json::json!({
+                "emoji": "😀",
+                "chinese": "中文测试",
+                "arabic": "مرحبا",
+                "japanese": "日本語テスト",
+                "mixed": "Hello 世界 🌍",
+                "special_chars": "∑∀∏∫≈≠≤≥",
+            }),
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let decoded: Fd3Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_fd4_utf8_edge_cases_roundtrip() {
+        let env = Fd4Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            result: TaskResult::Success {
+                output: serde_json::json!({
+                    "message": "日本語テスト",
+                    "special": "∑∀∏∫≈≠≤≥",
+                    "zalgo": "Z̴̡͚̼̤̤͖̈́̉̄å̷̛͓̠̦̇l̸̨̛̮͚̖̈́̇͝g̴͕̘̫̖̈́͛̈́ơ̵̡̺̯̾͆̆͝",
+                }),
+            },
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let decoded: Fd4Envelope = read_envelope(&mut Cursor::new(buf)).unwrap();
+        assert_eq!(env, decoded);
+    }
+
+    #[test]
+    fn write_read_length_header_is_4byte_be_u32() {
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "i".into(),
+            node_id: "n".into(),
+            input: serde_json::json!({"key": "value"}),
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        assert!(buf.len() >= 4);
+        assert_eq!([buf[0], buf[1], buf[2], buf[3]], [0u8, 0u8, 0u8, 46u8]);
+        let len = u32::from_be_bytes([buf[0], buf[1], buf[2], buf[3]]);
+        assert_eq!(len as usize, buf.len() - 4);
+    }
+
+    #[test]
+    fn read_envelope_truncated_buffer_returns_incomplete_read() {
+        let env = Fd3Envelope {
+            version: 1,
+            instance_id: "inst".into(),
+            node_id: "node".into(),
+            input: serde_json::json!({"key": "value"}),
+            secrets: BTreeMap::new(),
+            metadata: BTreeMap::new(),
+        };
+        let mut buf = Vec::new();
+        write_envelope(&mut buf, &env).unwrap();
+        let truncated_len = buf.len() / 2;
+        buf.truncate(truncated_len);
+        let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut Cursor::new(buf));
+        assert!(matches!(result, Err(IpcError::IncompleteRead { .. })));
+    }
+
+    #[test]
+    fn read_envelope_only_header_returns_incomplete_read() {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&100u32.to_be_bytes());
+        let result: Result<Fd3Envelope, IpcError> = read_envelope(&mut Cursor::new(buf));
+        assert!(matches!(
+            result,
+            Err(IpcError::IncompleteRead {
+                expected: 100,
+                actual: 0
+            })
+        ));
+    }
 }
 
 
