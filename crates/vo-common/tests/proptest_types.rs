@@ -1,8 +1,8 @@
 //! Proptest suite for vo-common types.
 //!
 //! Property-based tests covering TimestampMs, InstanceId, NamespaceId, TimerId,
-//! and EventId type aliases. These complement the inline unit tests in types.rs
-//! and the blackhat/QA test files.
+//! type aliases and parse/format edge cases. These complement the inline unit
+//! tests in types.rs and the blackhat/QA test files.
 
 use proptest::prelude::*;
 use proptest::proptest;
@@ -283,8 +283,9 @@ proptest! {
     }
 
     #[test]
-    fn instance_id_newline_tab_content(content: String) {
-        prop_assume!(content.chars().any(|c| c == '\n' || c == '\t'));
+    fn instance_id_newline_tab_content(len in 1u32..64) {
+        let base: String = "abcdefghijklmnopqrstuvwxyz".chars().take(len as usize).collect();
+        let content = base + "\n\t";
         let id: InstanceId = content.clone().into();
         prop_assert_eq!(id.as_str(), content);
     }
