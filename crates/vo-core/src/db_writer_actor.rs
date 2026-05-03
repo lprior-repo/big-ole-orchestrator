@@ -259,30 +259,26 @@ pub async fn spawn_fjall_db_writer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db_writer_message::{SnapshotData, TimerOp};
-    use std::cell::RefCell;
-    use vo_types::events::EventMetadata;
+    use std::sync::{Arc, Mutex};
     use vo_types::{
-        EffectIntent, EffectKind, EffectRecord, EventEnvelope, FenceToken, FireAtMs,
-        IdempotencyKey, InstanceId, InstanceStatus, SequenceNumber, StepId, TimerId,
+        EffectIntent, EffectKind, EffectRecord, EventEnvelope,
+        IdempotencyKey, InstanceId, SequenceNumber,
         MAX_SUPPORTED_SCHEMA_VERSION,
     };
 
-    struct MockCommitter {
-        committed: RefCell<Vec<Vec<DbWriterMessage>>>,
+    struct TrackingCommitter {
+        committed: Arc<Mutex<Vec<Vec<DbWriterMessage>>>>,
     }
 
-    impl MockCommitter {
-        fn new() -> Self {
-            Self {
-                committed: RefCell::new(Vec::new()),
-            }
+    impl TrackingCommitter {
+        fn new(committed: Arc<Mutex<Vec<Vec<DbWriterMessage>>>>) -> Self {
+            Self { committed }
         }
     }
 
-    impl TransactionCommitter for MockCommitter {
+    impl TransactionCommitter for TrackingCommitter {
         fn commit_batch(&self, messages: Vec<DbWriterMessage>) -> Result<(), TransactionError> {
-            self.committed.borrow_mut().push(messages);
+            self.committed.lock().unwrap().push(messages);
             Ok(())
         }
     }
@@ -295,24 +291,8 @@ mod tests {
         SequenceNumber::new_unchecked(1)
     }
 
-    fn valid_step_id() -> StepId {
-        StepId::parse("step-1").expect("valid step id")
-    }
-
-    fn valid_fence_token() -> FenceToken {
-        FenceToken::new(1).expect("valid fence token")
-    }
-
     fn valid_idempotency_key() -> IdempotencyKey {
         IdempotencyKey::parse("key-1").expect("valid key")
-    }
-
-    fn valid_timer_id() -> TimerId {
-        TimerId::parse("timer-1").expect("valid timer id")
-    }
-
-    fn valid_fire_at() -> FireAtMs {
-        FireAtMs::try_from(1712200000000u64).expect("valid fire_at")
     }
 
     fn valid_event_envelope() -> EventEnvelope {
@@ -326,8 +306,8 @@ mod tests {
         }
     }
 
-    fn valid_snapshot_data() -> SnapshotData {
-        SnapshotData::new(
+    fn valid_snapshot_data() -> crate::db_writer_message::SnapshotData {
+        crate::db_writer_message::SnapshotData::new(
             valid_sequence(),
             MAX_SUPPORTED_SCHEMA_VERSION,
             vec![0x01, 0x02, 0x03],
@@ -348,7 +328,8 @@ mod tests {
 
     #[tokio::test]
     async fn actor_receives_messages_and_commits_batch() {
-        let committer = Box::new(MockCommitter::new());
+        let committed = Arc::new(Mutex::new(Vec::new()));
+        let committer = Box::new(TrackingCommitter::new(Arc::clone(&committed)));
         let config = DbWriterActorConfig {
             mailbox_capacity: 100,
             flush_interval_ms: 1000,
@@ -365,31 +346,28 @@ mod tests {
             idempotency_key: valid_idempotency_key(),
         };
 
-        let (reply_port, reply) = ractor::single::oneshot();
+        let (tx, rx) = ractor::concurrency::oneshot::<Result<(), DbWriterActorError>>();
         actor_ref
-            .cast(
-                actor_ref.clone(),
-                DbWriterActorMsg::Commit {
-                    messages: vec![msg],
-                    reply: reply_port,
-                },
-            )
+            .cast(DbWriterActorMsg::Commit {
+                messages: vec![msg],
+                reply: tx.into(),
+            })
             .expect("cast should succeed");
 
-        let result = reply.await.expect("reply should succeed");
+        let result = rx.await.expect("reply should succeed");
         assert!(result.is_ok());
+        assert_eq!(committed.lock().unwrap().len(), 1);
 
-        actor_ref
-            .cast(actor_ref, DbWriterActorMsg::Shutdown { reply })
-            .expect("shutdown should succeed");
+        actor_ref.stop(None);
         handle.await.expect("handle should stop");
     }
 
     #[tokio::test]
     async fn bounded_mailbox_config_is_respected() {
-        let committer = Box::new(MockCommitter::new());
+        let committed = Arc::new(Mutex::new(Vec::new()));
+        let committer = Box::new(TrackingCommitter::new(Arc::clone(&committed)));
         let config = DbWriterActorConfig {
-            mailbox_capacity: 5, // Very small for testing
+            mailbox_capacity: 5,
             flush_interval_ms: 1000,
             max_batch_size: 2,
         };
@@ -398,22 +376,130 @@ mod tests {
             .await
             .expect("spawn should succeed");
 
-        // Verify the actor was created with correct mailbox capacity
-        // This tests ADR-015: bounded mailbox
-
-        let (reply_port, reply) = ractor::single::oneshot();
+        let (tx, rx) = ractor::concurrency::oneshot::<usize>();
         actor_ref
-            .cast(
-                actor_ref.clone(),
-                DbWriterActorMsg::GetMailboxDepth { reply },
-            )
+            .cast(DbWriterActorMsg::GetMailboxDepth { reply: tx.into() })
             .expect("cast should succeed");
 
-        let _depth = reply.await.expect("reply should succeed");
+        let _depth = rx.await.expect("reply should succeed");
 
+        actor_ref.stop(None);
+        handle.await.expect("handle should stop");
+    }
+
+    #[tokio::test]
+    async fn batch_flush_triggers_at_size_threshold() {
+        let committed = Arc::new(Mutex::new(Vec::new()));
+        let committer = Box::new(TrackingCommitter::new(Arc::clone(&committed)));
+        let config = DbWriterActorConfig {
+            mailbox_capacity: 10_000,
+            flush_interval_ms: 0,
+            max_batch_size: 100,
+        };
+
+        let (actor_ref, handle) = DbWriterActor::spawn(committer, config)
+            .await
+            .expect("spawn should succeed");
+
+        // Push 99 messages — below threshold, no flush during loop.
+        // Post-loop commit_batch flushes the 99 (auto-flush on Commit completion).
+        let messages_99: Vec<DbWriterMessage> = (0..99u64)
+            .map(|i| DbWriterMessage::AppendEvent {
+                instance_id: valid_instance_id(),
+                sequence_number: SequenceNumber::new_unchecked(i),
+                idempotency_key: IdempotencyKey::parse(&format!("key-{}", i)).expect("valid key"),
+            })
+            .collect();
+
+        let (tx, rx) = ractor::concurrency::oneshot::<Result<(), DbWriterActorError>>();
         actor_ref
-            .cast(actor_ref, DbWriterActorMsg::Shutdown { reply: reply_port })
-            .expect("shutdown should succeed");
+            .cast(DbWriterActorMsg::Commit {
+                messages: messages_99,
+                reply: tx.into(),
+            })
+            .expect("cast should succeed");
+
+        let result = rx.await.expect("reply should succeed");
+        assert!(result.is_ok(), "commit of 99 messages should succeed");
+
+        // After 99 messages: one batch of 99 from auto-flush (post-loop commit_batch).
+        // No threshold flush occurred because 99 < 100.
+        {
+            let batches = committed.lock().unwrap();
+            assert_eq!(batches.len(), 1, "one auto-flush batch after 99 messages");
+            assert_eq!(batches[0].len(), 99, "auto-flush batch has 99 messages");
+        }
+
+        // Push 1 more message via a new Commit. It gets auto-flushed as its own batch.
+        let msg_100 = DbWriterMessage::AppendEvent {
+            instance_id: valid_instance_id(),
+            sequence_number: SequenceNumber::new_unchecked(99),
+            idempotency_key: IdempotencyKey::parse("key-99").expect("valid key"),
+        };
+
+        let (tx, rx) = ractor::concurrency::oneshot::<Result<(), DbWriterActorError>>();
+        actor_ref
+            .cast(DbWriterActorMsg::Commit {
+                messages: vec![msg_100],
+                reply: tx.into(),
+            })
+            .expect("cast should succeed");
+
+        let result = rx.await.expect("reply should succeed");
+        assert!(result.is_ok(), "commit of 100th message should succeed");
+
+        // Now test the actual threshold: send 100 messages in a single Commit.
+        // The 100th message triggers should_flush(), producing exactly one batch of 100.
+        committed.lock().unwrap().clear();
+
+        let messages_100: Vec<DbWriterMessage> = (0..100u64)
+            .map(|i| DbWriterMessage::AppendEvent {
+                instance_id: valid_instance_id(),
+                sequence_number: SequenceNumber::new_unchecked(i),
+                idempotency_key: IdempotencyKey::parse(&format!("key-t{}", i)).expect("valid key"),
+            })
+            .collect();
+
+        let (tx, rx) = ractor::concurrency::oneshot::<Result<(), DbWriterActorError>>();
+        actor_ref
+            .cast(DbWriterActorMsg::Commit {
+                messages: messages_100,
+                reply: tx.into(),
+            })
+            .expect("cast should succeed");
+
+        let result = rx.await.expect("reply should succeed");
+        assert!(result.is_ok(), "commit of 100 messages should succeed");
+
+        // Threshold flush at 100: exactly 1 batch of 100 messages.
+        // The post-loop commit_batch is a no-op (batch already drained by threshold flush).
+        {
+            let batches = committed.lock().unwrap();
+            assert_eq!(
+                batches.len(),
+                1,
+                "threshold flush produces exactly one batch"
+            );
+            let batch = &batches[0];
+            assert_eq!(batch.len(), 100, "threshold batch has exactly 100 messages");
+
+            for (i, msg) in batch.iter().enumerate() {
+                match msg {
+                    DbWriterMessage::AppendEvent { sequence_number, .. } => {
+                        assert_eq!(
+                            sequence_number.as_u64(),
+                            i as u64,
+                            "message at index {} should have sequence {}",
+                            i,
+                            i
+                        );
+                    }
+                    _ => panic!("expected AppendEvent variant"),
+                }
+            }
+        }
+
+        actor_ref.stop(None);
         handle.await.expect("handle should stop");
     }
 }

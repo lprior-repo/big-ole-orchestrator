@@ -640,36 +640,30 @@ mod proptests {
     use super::*;
     use proptest::prelude::*;
 
-    prop_compose! {
-        fn any_valid_field_name()(_ in 1..10usize) -> String {
-            let s: String = (0.._)
+    fn any_valid_field_name() -> impl Strategy<Value = String> {
+        (1..10usize).prop_map(|len| {
+            (0..len)
                 .map(|_| b'a' + (rand::random::<u8>() % 26) as u8)
                 .map(char::from)
-                .collect();
-            s
-        }
+                .collect()
+        })
     }
 
-    prop_compose! {
-        fn any_valid_string_value()() -> String {
-            let s: String = (0..(rand::random::<usize>() % 20))
+    fn any_valid_string_value() -> impl Strategy<Value = String> {
+        (0..20usize).prop_map(|len| {
+            (0..len)
                 .map(|_| b'a' + (rand::random::<u8>() % 26) as u8)
                 .map(char::from)
-                .collect();
-            s
-        }
+                .collect()
+        })
     }
 
-    prop_compose! {
-        fn any_valid_number_value()() -> i64 {
-            rand::random::<i64>()
-        }
+    fn any_valid_number_value() -> impl Strategy<Value = i64> {
+        any::<i64>()
     }
 
-    prop_compose! {
-        fn any_valid_bool_value()() -> bool {
-            rand::random::<bool>()
-        }
+    fn any_valid_bool_value() -> impl Strategy<Value = bool> {
+        any::<bool>()
     }
 
     proptest! {
@@ -697,7 +691,8 @@ mod proptests {
             let result = schema.validate(&payload, "test-step");
             prop_assert!(result.is_err());
             let err = result.unwrap_err();
-            prop_assert!(err.errors.iter().any(|e| matches!(e, ValidationError::MissingRequiredField { field, .. } if field == &name)));
+            let found = err.errors.iter().any(|e| matches!(e, ValidationError::MissingRequiredField { field, .. } if field == &name));
+            prop_assert!(found);
         }
 
         #[test]
@@ -711,7 +706,8 @@ mod proptests {
             let result = schema.validate(&payload, "test-step");
             prop_assert!(result.is_err());
             let err = result.unwrap_err();
-            prop_assert!(err.errors.iter().any(|e| matches!(e, ValidationError::TypeMismatch { field, .. } if field == &name)));
+            let found = err.errors.iter().any(|e| matches!(e, ValidationError::TypeMismatch { field, .. } if field == &name));
+            prop_assert!(found);
         }
 
         #[test]
@@ -731,7 +727,8 @@ mod proptests {
             let result = schema_strict.validate(&payload, "test-step");
             prop_assert!(result.is_err());
             let err = result.unwrap_err();
-            prop_assert!(err.errors.iter().any(|e| matches!(e, ValidationError::ExtraFields { fields } if fields.contains(&extra_name))));
+            let found = err.errors.iter().any(|e| matches!(e, ValidationError::ExtraFields { fields } if fields.contains(&extra_name)));
+            prop_assert!(found);
         }
 
         #[test]
