@@ -181,8 +181,6 @@ impl FjallDbWriter {
                 snapshot,
                 event,
             } => {
-                let mut batch = self.db.batch();
-
                 if let Some(ref status) = instance_status {
                     let ks = self.open_keyspace(INSTANCES_PARTITION)?;
                     let key = event.instance_id.as_bytes();
@@ -242,11 +240,6 @@ impl FjallDbWriter {
                     TransactionError::StorageCommitFailed(format!("serialize event: {e}"))
                 })?;
                 batch.insert(&ks, &key, &value);
-
-                batch.commit().map_err(|e| {
-                    TransactionError::StorageCommitFailed(format!("batch commit: {e}"))
-                })?;
-                return Ok(());
             }
         }
         Ok(())
@@ -339,5 +332,73 @@ mod tests {
 
         let result = writer.commit_batch(vec![]);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn atomic_transition_uses_shared_batch_with_sibling_messages() {
+        let (db, _temp) = create_test_db();
+        let writer = FjallDbWriter::new(db);
+
+        let instance_id = InstanceId::parse("01ARYZ6S410000000000000000").expect("valid");
+        let timer_id = TimerId::parse("timer-1").expect("valid");
+        let fire_at = FireAtMs::try_from(1712200000000u64).expect("valid");
+
+        // Sibling message: a standalone AppendEvent
+        let sibling = DbWriterMessage::AppendEvent {
+            instance_id,
+            sequence_number: SequenceNumber::new_unchecked(1),
+            idempotency_key: IdempotencyKey::parse("key-sibling").expect("valid"),
+        };
+
+        // AtomicTransition that writes to events, instances, and timers
+        let atomic = DbWriterMessage::AtomicTransition {
+            step_id: None,
+            instance_status: Some(InstanceStatus::Running),
+            timer_ops: vec![TimerOp::Upsert {
+                timer_id: TimerId::parse("timer-atomic").expect("valid"),
+                fire_at,
+            }],
+            snapshot: None,
+            event: EventEnvelope {
+                schema_version: 1,
+                instance_id: instance_id.to_string(),
+                sequence: 2,
+                timestamp_ms: 1712200000000,
+                payload: serde_json::json!({"result": "ok"}),
+                metadata: Default::default(),
+            },
+        };
+
+        // Another sibling after the atomic
+        let sibling2 = DbWriterMessage::UpsertTimer {
+            instance_id,
+            timer_id,
+            fire_at,
+        };
+
+        // All three go in one batch — they MUST commit atomically
+        let result = writer.commit_batch(vec![sibling, atomic, sibling2]);
+        assert!(result.is_ok());
+
+        // Verify all writes landed: events partition should have 2 entries
+        let events_ks = db
+            .keyspace(EVENTS_PARTITION, || fjall::KeyspaceCreateOptions::default())
+            .expect("events keyspace");
+        let event_count = events_ks.iter().count();
+        assert_eq!(event_count, 2, "both events must be committed");
+
+        // Instances partition should have 1 entry from AtomicTransition
+        let instances_ks = db
+            .keyspace(INSTANCES_PARTITION, || fjall::KeyspaceCreateOptions::default())
+            .expect("instances keyspace");
+        let instance_count = instances_ks.iter().count();
+        assert_eq!(instance_count, 1, "instance status from atomic must be committed");
+
+        // Timers partition should have 2 entries (one from atomic, one from sibling2)
+        let timers_ks = db
+            .keyspace(TIMERS_PARTITION, || fjall::KeyspaceCreateOptions::default())
+            .expect("timers keyspace");
+        let timer_count = timers_ks.iter().count();
+        assert_eq!(timer_count, 2, "both timers must be committed");
     }
 }
