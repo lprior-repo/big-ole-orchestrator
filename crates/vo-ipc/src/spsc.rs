@@ -24,11 +24,11 @@ unsafe impl<T: Send> Send for SpscQueue<T> {}
 unsafe impl<T: Send> Sync for SpscQueue<T> {}
 
 pub struct Sender<T> {
-    queue: *const SpscQueue<T>,
+    queue: Arc<SpscQueue<T>>,
 }
 
 pub struct Receiver<T> {
-    queue: *const SpscQueue<T>,
+    queue: Arc<SpscQueue<T>>,
 }
 
 impl<T> SpscQueue<T> {
@@ -51,10 +51,10 @@ impl<T> SpscQueue<T> {
     pub fn sender(self: &Arc<Self>) -> (Sender<T>, Receiver<T>) {
         (
             Sender {
-                queue: Arc::as_ptr(self),
+                queue: self.clone(),
             },
             Receiver {
-                queue: Arc::as_ptr(self),
+                queue: self.clone(),
             },
         )
     }
@@ -130,17 +130,12 @@ impl<T> Sender<T> {
     /// # Errors
     /// Returns `SpscError::Full` if the queue is full.
     pub fn send(&self, msg: T) -> Result<(), SpscError> {
-        // SAFETY: self.queue points to an SpscQueue kept alive by the Arc
-        // from sender(). The Arc is never dropped while Sender/Receiver
-        // exist because they hold cloned Arcs (via Arc::as_ptr, the Arc's
-        // refcount is incremented before sender() returns the pair).
-        unsafe { (*self.queue).send(msg) }
+        self.queue.send(msg)
     }
 
     #[must_use]
     pub fn is_full(&self) -> bool {
-        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
-        let q = unsafe { &*self.queue };
+        let q = &self.queue;
         let head = q.head.load(Ordering::Relaxed);
         let tail = q.tail.load(Ordering::Acquire);
         head.wrapping_sub(tail) >= q.cap
@@ -151,14 +146,12 @@ impl<T> Receiver<T> {
     /// # Errors
     /// Returns `SpscError::Empty` if the queue is empty.
     pub fn recv(&self) -> Result<T, SpscError> {
-        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
-        unsafe { (*self.queue).recv() }
+        self.queue.recv()
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        // SAFETY: self.queue points to the live SpscQueue (see Sender::send).
-        let q = unsafe { &*self.queue };
+        let q = &self.queue;
         q.head.load(Ordering::Acquire) == q.tail.load(Ordering::Relaxed)
     }
 }

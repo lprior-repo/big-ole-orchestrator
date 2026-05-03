@@ -147,6 +147,7 @@ fn fd4_failure_roundtrip_preserves_error_details() {
             assert!(error.details.is_none());
         }
         TaskResult::Success { .. } => panic!("expected failure"),
+        TaskResult::EffectIntent { .. } => panic!("expected failure"),
     }
 }
 

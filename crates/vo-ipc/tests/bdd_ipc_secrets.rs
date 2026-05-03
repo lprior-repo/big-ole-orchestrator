@@ -109,6 +109,7 @@ fn given_task_failure_when_fd4_sent_then_child_receives_error_details() {
             assert!(error.message.contains("API_KEY"));
         }
         TaskResult::Success { .. } => panic!("expected failure"),
+        TaskResult::EffectIntent { .. } => panic!("expected failure"),
     }
 }
 

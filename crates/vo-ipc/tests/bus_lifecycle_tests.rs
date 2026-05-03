@@ -176,7 +176,7 @@ async fn bus_send_and_recv_through_channel() {
 #[tokio::test]
 async fn bus_send_fills_backpressure_limit() {
     let config = SubprocessConfig::new(fixture_binary(), 5000, b"echo-fd3 test".to_vec()).unwrap();
-    let bus = MessageBus::spawn(config, BusConfig::new(4, 5000))
+    let mut bus = MessageBus::spawn(config, BusConfig::new(4, 5000))
         .await
         .unwrap();
 

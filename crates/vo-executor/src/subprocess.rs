@@ -372,12 +372,6 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
             if libc::dup2(fd4_write_raw, 4) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
-            if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
             Ok(())
         });
     }
@@ -509,12 +503,6 @@ pub async fn run_subprocess_with_graceful_timeout(
                 return Err(std::io::Error::last_os_error());
             }
             if libc::dup2(fd4_write_raw, 4) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::fcntl(3, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
-                return Err(std::io::Error::last_os_error());
-            }
-            if libc::fcntl(4, libc::F_SETFD, libc::FD_CLOEXEC) == -1 {
                 return Err(std::io::Error::last_os_error());
             }
             Ok(())
