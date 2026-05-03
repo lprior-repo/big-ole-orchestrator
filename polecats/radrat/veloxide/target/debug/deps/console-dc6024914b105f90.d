@@ -1,0 +1,12 @@
+/home/lewis/src/oya/target/debug/deps/console-dc6024914b105f90.d: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/common_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/kb.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/unix_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/utils.rs
+
+/home/lewis/src/oya/target/debug/deps/libconsole-dc6024914b105f90.rlib: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/common_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/kb.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/unix_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/utils.rs
+
+/home/lewis/src/oya/target/debug/deps/libconsole-dc6024914b105f90.rmeta: /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/lib.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/common_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/kb.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/unix_term.rs /cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/utils.rs
+
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/lib.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/common_term.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/kb.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/term.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/unix_term.rs:
+/cache/cargo-shared/registry/src/index.crates.io-1949cf8c6b5b557f/console-0.16.3/src/utils.rs:
