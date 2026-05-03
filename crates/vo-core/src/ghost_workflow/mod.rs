@@ -9,14 +9,12 @@ mod error;
 mod lifecycle;
 #[cfg(test)]
 mod lifecycle_tests;
-mod reaper;
 mod registration;
 mod store;
 mod watcher;
 
 pub use error::GhostWorkflowError;
 pub use lifecycle::GhostLifecycle;
-pub use reaper::{spawn_reaper, ReaperConfig};
 pub use registration::{WorkflowReaped, WorkflowRegistration};
 pub use store::GhostLifecycleStore;
 pub use watcher::{BinaryRemoved, GhostWorkflowWatcher, GhostWorkflowWatcherError};
