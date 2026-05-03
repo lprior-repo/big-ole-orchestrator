@@ -1,9 +1,0 @@
-{
-  "channel": "witness",
-  "payload": {
-    "message": "POLECAT_DONE radrat exit=ESCALATED",
-    "source": "polecat"
-  },
-  "timestamp": "2026-04-24T03:24:06-05:00",
-  "type": "POLECAT_DONE"
-}

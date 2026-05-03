@@ -1,8 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc e14da28c8f45601bebeacc89ef499b6dcb682bdf5c6b7b72ccd527fcd661601f # shrinks to latency = 0, threshold = 0
-cc 4a9d27e5f927518c70a76c730e9c1f334db96802c899c6fb412943c52f1a7b57 # shrinks to state = WritePressureState { writer_queue_depth: 0, batch_commit_latency_ms: 0, blob_queue_depth: 0, compaction_stall_active: false, storage_stall_active: false }

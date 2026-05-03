@@ -1,7 +1,0 @@
-error: unsupported signature: task functions cannot accept arguments
- --> tests/bh_ui/fail_raw_string_smuggling.rs:3:1
-  |
-3 | #[task]
-  | ^^^^^^^
-  |
-  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)

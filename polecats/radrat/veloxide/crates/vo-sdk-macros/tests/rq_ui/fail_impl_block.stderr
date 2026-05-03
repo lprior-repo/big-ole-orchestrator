@@ -1,7 +1,0 @@
-error: invalid input item: expected a function, found a non-function item
- --> tests/rq_ui/fail_impl_block.rs:3:1
-  |
-3 | #[task]
-  | ^^^^^^^
-  |
-  = note: this error originates in the attribute macro `task` (in Nightly builds, run with -Z macro-backtrace for more info)
