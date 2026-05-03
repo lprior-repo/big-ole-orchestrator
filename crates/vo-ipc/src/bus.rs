@@ -99,6 +99,9 @@ impl MessageBus {
 
         unsafe {
             command.pre_exec(move || {
+                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM, 0, 0, 0) != 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
                 if libc::setpgid(0, 0) != 0 {
                     return Err(std::io::Error::last_os_error());
                 }

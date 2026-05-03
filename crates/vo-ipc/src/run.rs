@@ -112,20 +112,46 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
         };
         terminate_child(&mut child).await;
 
-        let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
-            detail: e.to_string(),
-        })?;
-        let stdout_res = stdout_task.await.map_err(|e| IpcError::StdoutReadFailed {
-            detail: e.to_string(),
-        })?;
-        let stderr_capture = stderr_res.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "failed to capture stderr during timeout");
-            StderrCapture::empty()
-        });
-        let stdout_capture = stdout_res.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "failed to capture stdout during timeout");
-            StderrCapture::empty()
-        });
+        let stderr_grace = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            stderr_task,
+        )
+        .await;
+        let stderr_capture = match stderr_grace {
+            Ok(Ok(Ok(c))) => c,
+            Ok(Ok(Err(e))) => {
+                tracing::warn!(error = %e, "failed to capture stderr during timeout");
+                StderrCapture::empty()
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "stderr task panicked during timeout");
+                StderrCapture::empty()
+            }
+            Err(_) => {
+                tracing::warn!("stderr collection timed out after IPC timeout");
+                StderrCapture::empty()
+            }
+        };
+        let stdout_grace = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            stdout_task,
+        )
+        .await;
+        let stdout_capture = match stdout_grace {
+            Ok(Ok(Ok(c))) => c,
+            Ok(Ok(Err(e))) => {
+                tracing::warn!(error = %e, "failed to capture stdout during timeout");
+                StderrCapture::empty()
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "stdout task panicked during timeout");
+                StderrCapture::empty()
+            }
+            Err(_) => {
+                tracing::warn!("stdout collection timed out after IPC timeout");
+                StderrCapture::empty()
+            }
+        };
 
         return Err(IpcError::Timeout {
             elapsed_ms: timeout_ms,
@@ -269,20 +295,46 @@ pub async fn run_subprocess_with_handshake(
         };
         terminate_child(&mut child).await;
 
-        let stderr_res = stderr_task.await.map_err(|e| IpcError::StderrReadFailed {
-            detail: e.to_string(),
-        })?;
-        let stdout_res = stdout_task.await.map_err(|e| IpcError::StdoutReadFailed {
-            detail: e.to_string(),
-        })?;
-        let stderr_capture = stderr_res.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "failed to capture stderr during timeout");
-            StderrCapture::empty()
-        });
-        let stdout_capture = stdout_res.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "failed to capture stdout during timeout");
-            StderrCapture::empty()
-        });
+        let stderr_grace = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            stderr_task,
+        )
+        .await;
+        let stderr_capture = match stderr_grace {
+            Ok(Ok(Ok(c))) => c,
+            Ok(Ok(Err(e))) => {
+                tracing::warn!(error = %e, "failed to capture stderr during timeout");
+                StderrCapture::empty()
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "stderr task panicked during timeout");
+                StderrCapture::empty()
+            }
+            Err(_) => {
+                tracing::warn!("stderr collection timed out after IPC timeout");
+                StderrCapture::empty()
+            }
+        };
+        let stdout_grace = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            stdout_task,
+        )
+        .await;
+        let stdout_capture = match stdout_grace {
+            Ok(Ok(Ok(c))) => c,
+            Ok(Ok(Err(e))) => {
+                tracing::warn!(error = %e, "failed to capture stdout during timeout");
+                StderrCapture::empty()
+            }
+            Ok(Err(e)) => {
+                tracing::warn!(error = %e, "stdout task panicked during timeout");
+                StderrCapture::empty()
+            }
+            Err(_) => {
+                tracing::warn!("stdout collection timed out after IPC timeout");
+                StderrCapture::empty()
+            }
+        };
 
         return Err(IpcError::Timeout {
             elapsed_ms: timeout_ms,

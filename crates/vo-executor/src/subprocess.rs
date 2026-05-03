@@ -411,7 +411,13 @@ pub async fn run_subprocess(config: SubprocessConfig) -> Result<SubprocessOutput
     })
     .await;
 
-    let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+    let stderr_grace = timeout(Duration::from_secs(1), stderr_handle).await;
+    let stderr_capture = stderr_grace
+        .unwrap_or_else(|_| {
+            tracing::warn!("stderr collection timed out after IPC timeout");
+            Ok((vec![], false))
+        })
+        .unwrap_or_else(|_| (vec![], false));
 
     match res {
         Ok((Ok(output), exit_status)) => match exit_status {
@@ -592,7 +598,13 @@ pub async fn run_subprocess_with_graceful_timeout(
         let total_ms = timeout_ms.saturating_add(grace_period_ms);
         let res = timeout(Duration::from_millis(total_ms), ipc_and_wait).await;
 
-        let stderr_capture = stderr_handle.await.unwrap_or_else(|_| (vec![], false));
+        let stderr_grace = timeout(Duration::from_secs(1), stderr_handle).await;
+        let stderr_capture = stderr_grace
+            .unwrap_or_else(|_| {
+                tracing::warn!("stderr collection timed out after IPC timeout");
+                Ok((vec![], false))
+            })
+            .unwrap_or_else(|_| (vec![], false));
 
         match res {
             Ok((Ok(output), Ok(status))) => {
