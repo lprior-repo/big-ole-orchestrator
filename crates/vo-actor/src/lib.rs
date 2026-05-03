@@ -6,6 +6,7 @@
 pub use vo_common::NamespaceId;
 use vo_types::InstanceId;
 
+pub mod actor_supervisor;
 pub mod heartbeat;
 
 pub mod master;
